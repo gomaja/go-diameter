@@ -1,0 +1,98 @@
+# Diameter Base Protocol
+
+[![Go Report Card](https://goreportcard.com/badge/github.com/gomaja/go-diameter)](https://goreportcard.com/report/github.com/gomaja/go-diameter)
+[![CI Status](https://github.com/gomaja/go-diameter/actions/workflows/ci.yml/badge.svg)](https://github.com/gomaja/go-diameter/actions/workflows/ci.yml)
+[![Go Reference](https://pkg.go.dev/badge/github.com/gomaja/go-diameter.svg)](https://pkg.go.dev/github.com/gomaja/go-diameter)
+[![Latest](https://img.shields.io/github/v/tag/gomaja/go-diameter.svg?sort=semver&style=flat-square&label=latest)](https://github.com/gomaja/go-diameter/tags)
+
+Package [go-diameter](https://pkg.go.dev/github.com/gomaja/go-diameter) is an
+implementation of the
+Diameter Base Protocol [RFC 6733](https://tools.ietf.org/html/rfc6733)
+and a stack for the [Go programming language](https://go.dev/).
+
+### Status
+
+The current implementation is solid and works fine for general purpose
+clients and servers. It can send and receive messages efficiently as
+well as build and parse AVPs based on dictionaries.
+
+See the API documentation at https://pkg.go.dev/github.com/gomaja/go-diameter
+
+## Features
+
+- Comprehensive XML dictionary format
+- Embedded dictionaries:
+    * Base Protocol [RFC 6733](https://tools.ietf.org/html/rfc6733)
+    * Credit Control [RFC 8506](https://www.rfc-editor.org/rfc/rfc8506)
+    * Gx Credit Control
+    * Network Access Server [RFC 7155](https://tools.ietf.org/html/rfc7155)
+    * 3GPP Ro/Rf specific AVPs from [TS 32.299 version 12.7.0](https://www.etsi.org/deliver/etsi_ts/132200_132299/132299/12.07.00_60/ts_132299v120700p.pdf)
+    * 3GPP S6a specific commands and AVPs from
+        [RFC 5516](https://tools.ietf.org/html/rfc5516) and
+        [TS 129 272](https://www.etsi.org/deliver/etsi_ts/129200_129299/129272/10.09.00_60/ts_129272v100900p.pdf)
+  	* 3GPP S13 (EIR) ME-Identity-Check commands and AVPs
+  	* 3GPP Rx policy and charging control
+  	* 3GPP SWx commands and AVPs
+  	* Diameter Sy policy control
+- Human readable AVP representation (for debugging)
+- TLS, IPv4 and IPv6 support for both clients and servers
+- Stack based on [net/http](https://pkg.go.dev/net/http) for simplicity
+- Ships with sample client, server, snoop agent and benchmark tool
+- [State machines](https://tools.ietf.org/html/rfc6733#section-5.6) for CER/CEA and DWR/DWA for clients and servers
+- TCP and SCTP support. SCTP support relies on kernel SCTP implementation and external github.com/gomaja/go-sctp
+  package and is currently tested and enabled on Linux (Go 1.25 or later)
+  
+## Getting started
+
+The easiest way to get started is by trying out the client and server example programs.
+
+```
+go run github.com/gomaja/go-diameter/examples/server@latest
+go run github.com/gomaja/go-diameter/examples/client@latest -hello
+```
+
+See the other programs under `examples/` and the package test files for
+additional usage patterns.
+
+## Performance
+
+Throughput is sensitive to how clients and servers are structured.
+The package ships Go benchmarks plus a standalone benchmark tool for
+exercising servers and identifying bottlenecks.
+
+In the examples directory, the server has a pprof (http server) that
+allows the `go pprof` tool to profile the server in real time. The client
+can perform benchmarks using the `-bench` command line flag.
+
+For better performance, avoid logging diameter messages. Although logging
+is very useful for debugging purposes, it kills performance due to a number
+of conversions to make messages look pretty. If you run benchmarks on the
+example server, make sure to use the `-s` (silent) command line switch.
+
+TLS degrades performance a bit, as well as reflection (Unmarshal). Those are
+important trade offs you might have to consider.
+
+Besides this, the source code (and sub-packages) have function benchmarks
+that can help you understand what's fast and isn't. You will see that
+parsing messages is much slower than writing them, for example. This is
+because in order to parse messages it makes numerous dictionary lookups
+for AVP types, to be able to decode them. Encoding messages require less
+lookups and is generally simpler, thus faster.
+
+## Contribute
+
+In case you want to add new AVPs, please add them to `diam/dict/testdata` xml
+files. Then regenerate the go models using `./autogen.sh` you will find at 
+`diam` folder. This will modify files at `diam/dict` to include your changes.
+
+Before submitting PR, please run `make test` to test your changes. Or do it 
+manually:
+
+```
+	go test ./...
+```
+
+You also have the option to run the test using a Linux VM through Docker (this
+is not mandatory). To do so, run `make test_docker`. Running tests on Linux can
+be useful in case you add `sctp` tests. Note you will need to install
+docker and docker-compose.

@@ -1,0 +1,309 @@
+// Copyright 2013-2015 go-diameter authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+package smparser
+
+import (
+	//"strings"
+	"testing"
+
+	"github.com/gomaja/go-diameter/diam"
+	"github.com/gomaja/go-diameter/diam/avp"
+	"github.com/gomaja/go-diameter/diam/datatype"
+	"github.com/gomaja/go-diameter/diam/dict"
+)
+
+func mustCERAVP(t *testing.T, m *diam.Message, code interface{}, flags uint8, vendor uint32, data datatype.Type) {
+	t.Helper()
+	if _, err := m.NewAVP(code, flags, vendor, data); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// These tests use a custom dictionary loaded by sm_test.go.
+
+func TestCER_MissingOriginHost(t *testing.T) {
+	m := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
+	cer := new(CER)
+	_, err := cer.Parse(m, Client)
+	if err == nil {
+		t.Fatal("Broken CER was parsed with no errors")
+	}
+	if err != ErrMissingOriginHost {
+		t.Fatal("Unexpected error:", err)
+	}
+}
+
+func TestCER_MissingOriginRealm(t *testing.T) {
+	m := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
+	mustCERAVP(t, m, avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("foobar"))
+	cer := new(CER)
+	_, err := cer.Parse(m, Client)
+	if err == nil {
+		t.Fatal("Broken CER was parsed with no errors")
+	}
+	if err != ErrMissingOriginRealm {
+		t.Fatal("Unexpected error:", err)
+	}
+}
+
+func TestCER_MissingApplication(t *testing.T) {
+	m := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
+	mustCERAVP(t, m, avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("foobar"))
+	mustCERAVP(t, m, avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("test"))
+	mustCERAVP(t, m, avp.OriginStateID, avp.Mbit, 0, datatype.Unsigned32(1))
+	cer := new(CER)
+	_, err := cer.Parse(m, Client)
+	if err == nil {
+		t.Fatal("Broken CER was parsed with no errors")
+	}
+	if err != ErrMissingApplication {
+		t.Fatal("Unexpected error:", err)
+	}
+}
+
+func TestCER_NoCommonApplication(t *testing.T) {
+	m := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
+	mustCERAVP(t, m, avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("foobar"))
+	mustCERAVP(t, m, avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("test"))
+	mustCERAVP(t, m, avp.OriginStateID, avp.Mbit, 0, datatype.Unsigned32(1))
+	mustCERAVP(t, m, avp.AcctApplicationID, avp.Mbit, 0, datatype.Unsigned32(2))
+	cer := new(CER)
+	_, err := cer.Parse(m, Server)
+	if err == nil {
+		t.Fatal("Broken CER was parsed with no errors")
+	}
+	if err != ErrNoCommonApplication {
+		t.Fatal("Unexpected error:", err)
+	}
+}
+
+func TestCER_NoCommonSecurity(t *testing.T) {
+	m := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
+	mustCERAVP(t, m, avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("foobar"))
+	mustCERAVP(t, m, avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("test"))
+	mustCERAVP(t, m, avp.OriginStateID, avp.Mbit, 0, datatype.Unsigned32(1))
+	mustCERAVP(t, m, avp.InbandSecurityID, avp.Mbit, 0, datatype.Unsigned32(1))
+	cer := new(CER)
+	_, err := cer.Parse(m, Server)
+	if err == nil {
+		t.Fatal("Broken CER was parsed with no errors")
+	}
+	if err != ErrNoCommonSecurity {
+		t.Fatal("Unexpected error:", err)
+	}
+}
+
+func TestCER_AcctAppID(t *testing.T) {
+	m := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
+	mustCERAVP(t, m, avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("foobar"))
+	mustCERAVP(t, m, avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("test"))
+	mustCERAVP(t, m, avp.OriginStateID, avp.Mbit, 0, datatype.Unsigned32(1))
+	mustCERAVP(t, m, avp.AcctApplicationID, avp.Mbit, 0, datatype.Unsigned32(1001))
+	cer := new(CER)
+	_, err := cer.Parse(m, Client)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if app := cer.Applications(); len(app) != 1 {
+		if app[0] != 1001 {
+			t.Fatalf("Unexpected app ID. Want 1001, have %d", app[0])
+		}
+	}
+}
+
+func TestCER_FailedAcctAppID(t *testing.T) {
+	m := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
+	mustCERAVP(t, m, avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("foobar"))
+	mustCERAVP(t, m, avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("test"))
+	mustCERAVP(t, m, avp.OriginStateID, avp.Mbit, 0, datatype.Unsigned32(1))
+	mustCERAVP(t, m, avp.AcctApplicationID, avp.Mbit, 0, datatype.Unsigned32(1000))
+	cer := new(CER)
+	_, err := cer.Parse(m, Server)
+	if err == nil {
+		t.Fatal("Broken CER was parsed with no errors")
+	}
+	if err != ErrNoCommonApplication {
+		t.Fatal("Unexpected error:", err)
+	}
+}
+
+func TestCER_AcctNotAuthAppID(t *testing.T) {
+	m := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
+	mustCERAVP(t, m, avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("foobar"))
+	mustCERAVP(t, m, avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("test"))
+	mustCERAVP(t, m, avp.OriginStateID, avp.Mbit, 0, datatype.Unsigned32(1))
+	mustCERAVP(t, m, avp.AuthApplicationID, avp.Mbit, 0, datatype.Unsigned32(1001))
+	cer := new(CER)
+	_, err := cer.Parse(m, Client)
+	if err == nil {
+		t.Fatal("Broken CER was parsed with no errors")
+	}
+	if err != ErrNoCommonApplication {
+		t.Fatal("Unexpected error:", err)
+	}
+}
+
+func TestCER_AuthAppID(t *testing.T) {
+	m := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
+	mustCERAVP(t, m, avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("foobar"))
+	mustCERAVP(t, m, avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("test"))
+	mustCERAVP(t, m, avp.OriginStateID, avp.Mbit, 0, datatype.Unsigned32(1))
+	mustCERAVP(t, m, avp.AuthApplicationID, avp.Mbit, 0, datatype.Unsigned32(1002))
+	cer := new(CER)
+	_, err := cer.Parse(m, Client)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if app := cer.Applications(); len(app) != 1 {
+		if app[0] != 1002 {
+			t.Fatalf("Unexpected app ID. Want 1002, have %d", app[0])
+		}
+	}
+}
+
+func TestCER_FailedAuthAppID(t *testing.T) {
+	m := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
+	mustCERAVP(t, m, avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("foobar"))
+	mustCERAVP(t, m, avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("test"))
+	mustCERAVP(t, m, avp.OriginStateID, avp.Mbit, 0, datatype.Unsigned32(1))
+	mustCERAVP(t, m, avp.AuthApplicationID, avp.Mbit, 0, datatype.Unsigned32(1000))
+	cer := new(CER)
+	_, err := cer.Parse(m, Server)
+	if err == nil {
+		t.Fatal("Broken CER was parsed with no errors")
+	}
+	if err != ErrNoCommonApplication {
+		t.Fatal("Unexpected error:", err)
+	}
+}
+
+func TestCER_AuthNotAcctAppID(t *testing.T) {
+	m := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
+	mustCERAVP(t, m, avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("foobar"))
+	mustCERAVP(t, m, avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("test"))
+	mustCERAVP(t, m, avp.OriginStateID, avp.Mbit, 0, datatype.Unsigned32(1))
+	mustCERAVP(t, m, avp.AcctApplicationID, avp.Mbit, 0, datatype.Unsigned32(1002))
+	cer := new(CER)
+	_, err := cer.Parse(m, Client)
+	if err == nil {
+		t.Fatal("Broken CER was parsed with no errors")
+	}
+	if err != ErrNoCommonApplication {
+		t.Fatal("Unexpected error:", err)
+	}
+}
+
+func TestCER_VSAcctAppID(t *testing.T) {
+	m := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
+	mustCERAVP(t, m, avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("foobar"))
+	mustCERAVP(t, m, avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("test"))
+	mustCERAVP(t, m, avp.OriginStateID, avp.Mbit, 0, datatype.Unsigned32(1))
+	mustCERAVP(t, m, avp.VendorSpecificApplicationID, avp.Mbit, 0, &diam.GroupedAVP{
+		AVP: []*diam.AVP{
+			diam.NewAVP(avp.AcctApplicationID, avp.Mbit, 0, datatype.Unsigned32(1001)),
+		},
+	})
+	cer := new(CER)
+	_, err := cer.Parse(m, Client)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if app := cer.Applications(); len(app) != 1 {
+		if app[0] != 1001 {
+			t.Fatalf("Unexpected app ID. Want 1001, have %d", app[0])
+		}
+	}
+}
+
+func TestCER_FailedVSAcctAppID(t *testing.T) {
+	m := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
+	mustCERAVP(t, m, avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("foobar"))
+	mustCERAVP(t, m, avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("test"))
+	mustCERAVP(t, m, avp.OriginStateID, avp.Mbit, 0, datatype.Unsigned32(1))
+	mustCERAVP(t, m, avp.VendorSpecificApplicationID, avp.Mbit, 0, &diam.GroupedAVP{
+		AVP: []*diam.AVP{
+			diam.NewAVP(avp.AcctApplicationID, avp.Mbit, 0, datatype.Unsigned32(1000)),
+		},
+	})
+	cer := new(CER)
+	_, err := cer.Parse(m, Server)
+	if err == nil {
+		t.Fatal("Broken CER was parsed with no errors")
+	}
+	if err != ErrNoCommonApplication {
+		t.Fatal("Unexpected error:", err)
+	}
+}
+
+func TestCER_VSAuthAppID(t *testing.T) {
+	m := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
+	mustCERAVP(t, m, avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("foobar"))
+	mustCERAVP(t, m, avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("test"))
+	mustCERAVP(t, m, avp.OriginStateID, avp.Mbit, 0, datatype.Unsigned32(1))
+	mustCERAVP(t, m, avp.VendorSpecificApplicationID, avp.Mbit, 0, &diam.GroupedAVP{
+		AVP: []*diam.AVP{
+			diam.NewAVP(avp.AuthApplicationID, avp.Mbit, 0, datatype.Unsigned32(1002)),
+		},
+	})
+	cer := new(CER)
+	_, err := cer.Parse(m, Client)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if app := cer.Applications(); len(app) != 1 {
+		if app[0] != 1002 {
+			t.Fatalf("Unexpected app ID. Want 1002, have %d", app[0])
+		}
+	}
+}
+
+func TestCER_FailedVSAuthAppID(t *testing.T) {
+	m := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
+	mustCERAVP(t, m, avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("foobar"))
+	mustCERAVP(t, m, avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("test"))
+	mustCERAVP(t, m, avp.OriginStateID, avp.Mbit, 0, datatype.Unsigned32(1))
+	mustCERAVP(t, m, avp.VendorSpecificApplicationID, avp.Mbit, 0, &diam.GroupedAVP{
+		AVP: []*diam.AVP{
+			diam.NewAVP(avp.AuthApplicationID, avp.Mbit, 0, datatype.Unsigned32(1000)),
+		},
+	})
+	cer := new(CER)
+	_, err := cer.Parse(m, Server)
+	if err == nil {
+		t.Fatal("Broken CER was parsed with no errors")
+	}
+	if err != ErrNoCommonApplication {
+		t.Fatal("Unexpected error:", err)
+	}
+}
+
+func TestCER_InbandSecurity_TLSActive(t *testing.T) {
+	// When TLS is already active, Inband-Security-Id=1 should be accepted.
+	m := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
+	mustCERAVP(t, m, avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("foobar"))
+	mustCERAVP(t, m, avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("test"))
+	mustCERAVP(t, m, avp.OriginStateID, avp.Mbit, 0, datatype.Unsigned32(1))
+	mustCERAVP(t, m, avp.InbandSecurityID, avp.Mbit, 0, datatype.Unsigned32(1))
+	mustCERAVP(t, m, avp.AcctApplicationID, avp.Mbit, 0, datatype.Unsigned32(1001))
+	cer := new(CER)
+	_, err := cer.ParseWithSecurity(m, Client, true)
+	if err != nil {
+		t.Fatalf("Expected no error when TLS active, got: %v", err)
+	}
+}
+
+func TestCER_InbandSecurity_NoTLS(t *testing.T) {
+	// When TLS is NOT active, Inband-Security-Id=1 should still be rejected.
+	m := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
+	mustCERAVP(t, m, avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("foobar"))
+	mustCERAVP(t, m, avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("test"))
+	mustCERAVP(t, m, avp.OriginStateID, avp.Mbit, 0, datatype.Unsigned32(1))
+	mustCERAVP(t, m, avp.InbandSecurityID, avp.Mbit, 0, datatype.Unsigned32(1))
+	cer := new(CER)
+	_, err := cer.ParseWithSecurity(m, Server, false)
+	if err != ErrNoCommonSecurity {
+		t.Fatalf("Expected ErrNoCommonSecurity, got: %v", err)
+	}
+}
