@@ -1,0 +1,315 @@
+// Copyright 2013-2015 go-diameter authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+// Dictionary parser.  Part of go-diameter.
+
+package dict
+
+import (
+	"bytes"
+	"encoding/xml"
+	"fmt"
+	"io"
+	"os"
+	"sync"
+
+	"github.com/gomaja/go-diameter/diam/datatype"
+)
+
+const (
+	// UndefinedVendorID specifies a non existing vendorID
+	UndefinedVendorID = 4294967295
+)
+
+// Parser is the root element for dictionaries and supports multiple XML
+// dictionary files loaded together. Diameter applications use dictionaries
+// to parse messages received from peers as well as to encode crafted
+// messages before sending them over the wire.
+//
+// Parser can load multiple XML dictionary files, which in turn support
+// multiple applications that are composed by multiple AVPs.
+//
+// The Parser element has an index to make pre-loaded AVPs searcheable per App.
+type Parser struct {
+	file    []*File               // Dict supports multiple XML dictionaries
+	appcode map[uint32]*App       // Application index by code
+	apptype map[appIdTypeIdx]*App // Application index by code and type
+	avpname map[nameIdx]*AVP      // AVP index by name
+	avpcode map[codeIdx]*AVP      // AVP index by code
+	command map[codeIdx]*Command  // Command index
+	mu      sync.Mutex            // Protects all maps
+	once    sync.Once
+
+	// Strict indicates whether an error should be returned when one  or more
+	// AVPs are invalid/empty and cannot be properly decoded.
+	//
+	// Defaults to true. When set to false, all decoding errors found during the
+	// parsing process will be stored in the Message's DecodeErr field which is
+	// accessible from a request handler.
+	Strict bool
+}
+
+type codeIdx struct {
+	appID    uint32
+	code     uint32
+	vendorID uint32
+}
+
+type nameIdx struct {
+	appID    uint32
+	name     string
+	vendorID uint32
+}
+
+type appIdTypeIdx struct {
+	appID uint32
+	typ   string
+}
+
+// NewParser allocates a new Parser optionally loading dictionary XML files.
+func NewParser(filename ...string) (*Parser, error) {
+	p := new(Parser)
+	p.Strict = true
+	var err error
+	for _, f := range filename {
+		if err = p.LoadFile(f); err != nil {
+			return nil, err
+		}
+	}
+	return p, nil
+}
+
+// LoadFile loads a dictionary XML file. May be used multiple times.
+func (p *Parser) LoadFile(filename string) error {
+	fd, err := os.Open(filename)
+	if err != nil {
+		return err
+	}
+	err = p.Load(fd)
+	if closeErr := fd.Close(); err == nil {
+		err = closeErr
+	}
+	return err
+}
+
+// Load loads a dictionary from byte array. May be used multiple times.
+func (p *Parser) Load(r io.Reader) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.once.Do(func() {
+		p.appcode = make(map[uint32]*App)
+		p.apptype = make(map[appIdTypeIdx]*App)
+		p.avpname = make(map[nameIdx]*AVP)
+		p.avpcode = make(map[codeIdx]*AVP)
+		p.command = make(map[codeIdx]*Command)
+	})
+	f := new(File)
+	d := xml.NewDecoder(r)
+	if err := d.Decode(f); err != nil {
+		return err
+	}
+	p.file = append(p.file, f)
+	for _, app := range f.App {
+		// Cache supported applications by ID.
+		p.appcode[app.ID] = app
+		p.apptype[appIdTypeIdx{app.ID, app.Type}] = app
+		// Cache commands.
+		for _, cmd := range app.Command {
+			idx := codeIdx{app.ID, cmd.Code, UndefinedVendorID}
+			_, exist := p.command[idx]
+			if exist {
+				return fmt.Errorf("command %s cannot be added: index exists", cmd)
+			}
+			p.command[idx] = cmd
+		}
+		// Cache AVPs.
+		for _, avp := range app.AVP {
+			// Link AVP to its Application
+			avp.App = app
+			p.avpname[nameIdx{app.ID, avp.Name, avp.VendorID}] = avp
+			p.avpcode[codeIdx{app.ID, avp.Code, avp.VendorID}] = avp
+			// Index without vendorId
+			p.avpname[nameIdx{app.ID, avp.Name, UndefinedVendorID}] = avp
+			p.avpcode[codeIdx{app.ID, avp.Code, UndefinedVendorID}] = avp
+			// Check the AVP type.
+			if err := updateType(avp); err != nil {
+				return err
+			}
+		}
+	}
+	// Pre-merge inherited AVPs so that lookups for child apps resolve in a
+	// single map access instead of walking the parent chain at runtime.
+	p.mergeInheritedAVPs()
+	return nil
+}
+
+// mergeInheritedAVPs copies AVP entries from ancestor applications into
+// each child application's index. This eliminates the runtime fallback
+// loop in FindAVPByCode: every lookup becomes a single map access.
+//
+// For each application that has a parent chain (via parentAppIds) or
+// inherits from the base app (id=0), entries are copied only if the
+// child does not already define an AVP with the same code and vendorID.
+//
+// The iteration uses a pre-computed per-app snapshot of the index rather
+// than ranging over the live p.avpcode / p.avpname maps, so writes made
+// during the merge cannot affect iteration order or content within a
+// single call. Note that on repeated Load calls the snapshot reads the
+// current live index, which already contains entries synthesized by
+// earlier merges; those entries point at the real owning AVP, so the
+// guard at the insertion site keeps the result correct but this function
+// does not structurally separate "original" from "synthesized" sources.
+//
+// Memory: base AVPs are duplicated per child app at Load time,
+// not per message; bounded by dictionary size.
+func (p *Parser) mergeInheritedAVPs() {
+	// Collect every declared application so apps that inherit all their
+	// AVPs from an ancestor (and define none of their own) are still
+	// processed. Also include any appIDs that only appear as AVP owners.
+	apps := make(map[uint32]bool, len(p.appcode))
+	for appID := range p.appcode {
+		apps[appID] = true
+	}
+	for idx := range p.avpcode {
+		apps[idx.appID] = true
+	}
+
+	// Snapshot the current index grouped by owning appID. Subsequent
+	// writes to p.avpcode / p.avpname during the merge will not appear
+	// in these snapshots, so iteration order and content are stable.
+	type codeEntry struct {
+		idx codeIdx
+		avp *AVP
+	}
+	type nameEntry struct {
+		idx nameIdx
+		avp *AVP
+	}
+	codeByApp := make(map[uint32][]codeEntry, len(apps))
+	for idx, avp := range p.avpcode {
+		codeByApp[idx.appID] = append(codeByApp[idx.appID], codeEntry{idx, avp})
+	}
+	nameByApp := make(map[uint32][]nameEntry, len(apps))
+	for idx, avp := range p.avpname {
+		nameByApp[idx.appID] = append(nameByApp[idx.appID], nameEntry{idx, avp})
+	}
+
+	// For each app, walk its parent chain and copy missing entries.
+	for appID := range apps {
+		if appID == 0 {
+			continue // base app has no parents
+		}
+		// Build the ancestor chain: e.g. for app 4 → [1, 0]
+		var ancestors []uint32
+		cur := appID
+		for {
+			parent, hasParent := parentAppIds[cur]
+			if hasParent {
+				ancestors = append(ancestors, parent)
+				cur = parent
+			} else if cur != 0 {
+				ancestors = append(ancestors, 0)
+				break
+			} else {
+				break
+			}
+		}
+
+		// Copy AVPs from each ancestor (nearest first) into this app.
+		for _, ancestorID := range ancestors {
+			for _, e := range codeByApp[ancestorID] {
+				childIdx := codeIdx{appID, e.idx.code, e.idx.vendorID}
+				if _, exists := p.avpcode[childIdx]; !exists {
+					p.avpcode[childIdx] = e.avp
+				}
+			}
+			for _, e := range nameByApp[ancestorID] {
+				childIdx := nameIdx{appID, e.idx.name, e.idx.vendorID}
+				if _, exists := p.avpname[childIdx]; !exists {
+					p.avpname[childIdx] = e.avp
+				}
+			}
+		}
+	}
+}
+
+func updateType(a *AVP) error {
+	id, exists := datatype.Available[a.Data.TypeName]
+	if !exists {
+		return fmt.Errorf("unsupported data type: %s", a.Data.TypeName)
+	}
+	a.Data.Type = id
+	return nil
+}
+
+// String returns the Parser represented in a human readable form.
+func (p *Parser) String() string {
+	var b bytes.Buffer
+	for _, f := range p.file {
+		for _, app := range f.App {
+			writef(&b, "Application Id: %d\n", app.ID)
+			writef(&b, "\tVendors:\n")
+			for _, vendor := range app.Vendor {
+				writef(&b, "\t\tId=%d Name=%s\n", vendor.ID, vendor.Name)
+			}
+			writef(&b, "\tCommands:\n")
+			for _, cmd := range app.Command {
+				printCommand(&b, cmd)
+			}
+			writef(&b, "\tAVPs:\n")
+			for _, avp := range app.AVP {
+				printAVP(&b, avp)
+			}
+		}
+	}
+	return b.String()
+}
+
+func writef(w io.Writer, format string, args ...interface{}) {
+	if _, err := fmt.Fprintf(w, format, args...); err != nil {
+		panic(err)
+	}
+}
+
+func printCommand(w io.Writer, cmd *Command) {
+	writef(w, "\t\t%-4d %s-Request (%sR)\n", cmd.Code, cmd.Name, cmd.Short)
+	for _, rule := range cmd.Request.Rule {
+		if rule.Required && rule.Min == 0 {
+			rule.Min = 1
+		}
+		writef(w, "\t\t\t% -40s required=%-5t min=%d max=%d\n",
+			rule.AVP, rule.Required, rule.Min, rule.Max)
+	}
+	writef(w, "\t\t%-4d %s-Answer (%sA)\n", cmd.Code, cmd.Name, cmd.Short)
+	for _, rule := range cmd.Answer.Rule {
+		if rule.Required && rule.Min == 0 {
+			rule.Min = 1
+		}
+		writef(w, "\t\t\t% -40s required=%-5t min=%d max=%d\n",
+			rule.AVP, rule.Required, rule.Min, rule.Max)
+	}
+}
+
+func printAVP(w io.Writer, avp *AVP) {
+	writef(w, "\t%-4d %s: %s\n",
+		avp.Code, avp.Name, avp.Data.TypeName)
+	if avp.VendorID != 0 {
+		writef(w, "\t\tVendorID: %d\n", avp.VendorID)
+	}
+	// Enumerated
+	if len(avp.Data.Enum) > 0 {
+		writef(w, "\t\tItems:\n")
+		for _, item := range avp.Data.Enum {
+			writef(w, "\t\t\t% -2d %s\n", item.Code, item.Name)
+		}
+	}
+	// Grouped AVPs
+	if len(avp.Data.Rule) > 0 {
+		writef(w, "\t\tRules:\n")
+		for _, rule := range avp.Data.Rule {
+			writef(w, "\t\t\t% -40s required=%-5t min=%d max=%d\n",
+				rule.AVP, rule.Required, rule.Min, rule.Max)
+		}
+	}
+}

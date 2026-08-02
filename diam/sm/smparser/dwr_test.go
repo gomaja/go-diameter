@@ -1,0 +1,52 @@
+// Copyright 2013-2015 go-diameter authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+package smparser
+
+import (
+	"testing"
+
+	"github.com/gomaja/go-diameter/diam"
+	"github.com/gomaja/go-diameter/diam/avp"
+	"github.com/gomaja/go-diameter/diam/datatype"
+	"github.com/gomaja/go-diameter/diam/dict"
+)
+
+func TestDWR_MissingOriginHost(t *testing.T) {
+	m := diam.NewRequest(diam.DeviceWatchdog, 0, dict.Default)
+	dwr := new(DWR)
+	err := dwr.Parse(m)
+	if err != nil && err != ErrMissingOriginHost {
+		t.Fatal("Unexpected error:", err)
+	}
+}
+
+func TestDWR_MissingOriginRealm(t *testing.T) {
+	m := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
+	mustDWRAVP(t, m, avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("foobar"))
+	dwr := new(DWR)
+	err := dwr.Parse(m)
+	if err != nil && err != ErrMissingOriginRealm {
+		t.Fatal("Unexpected error:", err)
+	}
+}
+
+func TestDWR_OK(t *testing.T) {
+	m := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
+	mustDWRAVP(t, m, avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("foobar"))
+	mustDWRAVP(t, m, avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("test"))
+	mustDWRAVP(t, m, avp.OriginStateID, avp.Mbit, 0, datatype.Unsigned32(1))
+	dwr := new(DWR)
+	err := dwr.Parse(m)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func mustDWRAVP(t *testing.T, m *diam.Message, code interface{}, flags uint8, vendor uint32, data datatype.Type) {
+	t.Helper()
+	if _, err := m.NewAVP(code, flags, vendor, data); err != nil {
+		t.Fatal(err)
+	}
+}
