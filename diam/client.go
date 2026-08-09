@@ -1,0 +1,231 @@
+// Copyright 2013-2015 go-diameter authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+// Diameter client.
+
+package diam
+
+import (
+	"crypto/tls"
+	"net"
+	"time"
+
+	"github.com/gomaja/go-diameter/diam/dict"
+)
+
+// DialNetwork connects to the peer pointed to by network & addr and returns the Conn that
+// can be used to send diameter messages. Incoming messages are handled
+// by the handler, which is typically nil and DefaultServeMux is used.
+// If dict is nil, dict.Default is used.
+func DialNetwork(network, addr string, handler Handler, dp *dict.Parser) (Conn, error) {
+	return DialExt(network, addr, handler, dp, 0, nil)
+}
+
+func DialNetworkBind(network, laddr, raddr string, handler Handler, dp *dict.Parser) (Conn, error) {
+	var (
+		err     error
+		netAddr net.Addr
+	)
+
+	if laddr != "" {
+		netAddr, err = resolveAddress(network, laddr)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return DialExt(network, raddr, handler, dp, 0, netAddr)
+}
+
+func DialNetworkTimeout(network, addr string, handler Handler, dp *dict.Parser, timeout time.Duration) (Conn, error) {
+	return DialExt(network, addr, handler, dp, timeout, nil)
+}
+
+// Dial connects to the peer pointed to by addr and returns the Conn that
+// can be used to send diameter messages. Incoming messages are handled
+// by the handler, which is typically nil and DefaultServeMux is used.
+// If dict is nil, dict.Default is used.
+func Dial(addr string, handler Handler, dp *dict.Parser) (Conn, error) {
+	return DialNetwork("tcp", addr, handler, dp)
+}
+
+func DialTimeout(addr string, handler Handler, dp *dict.Parser, timeout time.Duration) (Conn, error) {
+	return DialNetworkTimeout("tcp", addr, handler, dp, timeout)
+}
+
+// DialExt - extended dial API connects to the peer pointed to by network &
+// addr and returns the Conn that can be used to send diameter messages.
+// Incoming messages are handled by the handler, which is typically nil and
+// DefaultServeMux is used. Allows binding dailer socket to given laddr.
+// If dict is nil, dict.Default is used.
+func DialExt(
+	network, addr string, handler Handler, dp *dict.Parser, timeout time.Duration, laddr net.Addr) (Conn, error) {
+
+	srv := &Server{Network: network, Addr: addr, Handler: handler, Dict: dp, LocalAddr: laddr}
+	return dial(srv, timeout)
+}
+
+// dial network wrapper. Binds the outgoing socket to srv.LocalAddr.
+func dial(srv *Server, timeout time.Duration) (Conn, error) {
+	return dialBind(srv, srv.LocalAddr, timeout)
+}
+
+// dialBind is dial with an explicit local address, so a caller can override
+// srv.LocalAddr for one call without mutating or copying srv (which holds a
+// mutex and listener state and must not be copied).
+func dialBind(srv *Server, laddr net.Addr, timeout time.Duration) (Conn, error) {
+	network := srv.Network
+	if len(network) == 0 {
+		network = "tcp"
+	}
+	addr := srv.Addr
+	if len(addr) == 0 {
+		addr = ":3868"
+	}
+	var rw net.Conn
+	var err error
+	dialer := getMultistreamDialer(network, timeout, laddr)
+	rw, err = dialer.Dial(network, addr)
+	if err != nil {
+		return nil, err
+	}
+	c, err := srv.newConn(rw)
+	if err != nil {
+		return nil, err
+	}
+	go c.serve()
+	return c.writer, nil
+}
+
+// DialTLS is the same as Dial, but for TLS.
+func DialTLS(addr, certFile, keyFile string, handler Handler, dp *dict.Parser) (Conn, error) {
+	return DialTLSExt("tcp", addr, certFile, keyFile, handler, dp, 0, nil)
+}
+
+// DialTLSTimeout is the same as DialTimeout, but for TLS.
+func DialTLSTimeout(addr, certFile, keyFile string, handler Handler, dp *dict.Parser, timeout time.Duration) (Conn, error) {
+	return DialTLSExt("tcp", addr, certFile, keyFile, handler, dp, timeout, nil)
+}
+
+// DialNetworkTLS is the same as DialNetwork, but for TLS.
+func DialNetworkTLS(network, addr, certFile, keyFile string, handler Handler, dp *dict.Parser) (Conn, error) {
+	return DialTLSExt(network, addr, certFile, keyFile, handler, dp, 0, nil)
+}
+
+// DialTLSExt is the same as DialExt, but for TLS.
+func DialTLSExt(
+	network,
+	addr,
+	certFile,
+	keyFile string,
+	handler Handler,
+	dp *dict.Parser,
+	timeout time.Duration,
+	laddr net.Addr) (Conn, error) {
+
+	srv := &Server{Network: network, Addr: addr, Handler: handler, Dict: dp, LocalAddr: laddr}
+	return dialTLS(srv, certFile, keyFile, timeout)
+}
+
+// DialTLSConfig is the same as DialTLS, but accepts a tls.Config for
+// customizing TLS behavior such as server certificate verification.
+// If tlsConfig is nil, the default behavior (InsecureSkipVerify: true) is used.
+func DialTLSConfig(addr, certFile, keyFile string, handler Handler, dp *dict.Parser, tlsConfig *tls.Config) (Conn, error) {
+	srv := &Server{Network: "tcp", Addr: addr, Handler: handler, Dict: dp, TLSConfig: tlsConfig}
+	return dialTLS(srv, certFile, keyFile, 0)
+}
+
+// dialTLS net TCP wrapper
+func dialTLS(srv *Server, certFile, keyFile string, timeout time.Duration) (Conn, error) {
+	var err error
+	network := srv.Network
+	if len(network) == 0 {
+		network = "tcp"
+	}
+	addr := srv.Addr
+	if len(addr) == 0 {
+		addr = ":3868"
+	}
+	var config *tls.Config
+	if srv.TLSConfig == nil {
+		config = &tls.Config{InsecureSkipVerify: true}
+	} else {
+		config = TLSConfigClone(srv.TLSConfig)
+	}
+	if len(certFile) != 0 {
+		config.Certificates = make([]tls.Certificate, 1)
+		config.Certificates[0], err = tls.LoadX509KeyPair(certFile, keyFile)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	var rw net.Conn
+	dialer := getDialer(network, timeout, srv.LocalAddr)
+	rw, err = dialer.Dial(network, addr)
+	if err != nil {
+		return nil, err
+	}
+	c, err := srv.newConn(tls.Client(rw, config))
+	if err != nil {
+		return nil, err
+	}
+	go c.serve()
+	return c.writer, nil
+}
+
+// Dial opens an outgoing connection using srv as the client configuration.
+// Honors srv.Network, srv.Addr, srv.Handler, srv.Dict, srv.LocalAddr,
+// srv.ReadTimeout and srv.WriteTimeout. The timeout argument bounds the
+// connect phase only; 0 means no connect timeout.
+//
+// If srv.Network is blank, "tcp" is used. If srv.Addr is blank, ":3868" is
+// used.
+func (srv *Server) Dial(timeout time.Duration) (Conn, error) {
+	return dial(srv, timeout)
+}
+
+// DialBind is like Dial, but binds the outgoing socket to the local address
+// laddr, given as ip:port. laddr takes precedence over srv.LocalAddr for this
+// call only; srv is not modified. A blank laddr falls back to srv.LocalAddr,
+// making the call equivalent to Dial.
+func (srv *Server) DialBind(laddr string, timeout time.Duration) (Conn, error) {
+	if laddr == "" {
+		return dial(srv, timeout)
+	}
+	netAddr, err := resolveAddress(srv.Network, laddr)
+	if err != nil {
+		return nil, err
+	}
+	return dialBind(srv, netAddr, timeout)
+}
+
+// DialTLS opens an outgoing TLS connection using srv as the client
+// configuration. Honors the same srv fields as Dial, plus srv.TLSConfig.
+// certFile and keyFile are optional; when empty, srv.TLSConfig is used as-is.
+func (srv *Server) DialTLS(certFile, keyFile string, timeout time.Duration) (Conn, error) {
+	return dialTLS(srv, certFile, keyFile, timeout)
+}
+
+// NewConn is like Dial, but using an already open net.Conn. Honors
+// srv.Handler, srv.Dict, srv.ReadTimeout and srv.WriteTimeout.
+func (srv *Server) NewConn(rw net.Conn) (Conn, error) {
+	c, err := srv.newConn(rw)
+	if err != nil {
+		return nil, err
+	}
+	go c.serve()
+	return c.writer, nil
+}
+
+// NewConn is the same as Dial, but using an already open net.Conn.
+func NewConn(rw net.Conn, addr string, handler Handler, dp *dict.Parser) (Conn, error) {
+	srv := &Server{Addr: addr, Handler: handler, Dict: dp}
+
+	c, err := srv.newConn(rw)
+	if err != nil {
+		return nil, err
+	}
+	go c.serve()
+	return c.writer, nil
+}

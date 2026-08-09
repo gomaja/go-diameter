@@ -1,0 +1,432 @@
+// Copyright 2013-2015 go-diameter authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+package sm
+
+import (
+	"errors"
+	"fmt"
+	"net"
+	"strings"
+	"time"
+
+	"github.com/gomaja/go-diameter/diam"
+	"github.com/gomaja/go-diameter/diam/avp"
+	"github.com/gomaja/go-diameter/diam/datatype"
+	"github.com/gomaja/go-diameter/diam/dict"
+)
+
+var (
+	// ErrMissingStateMachine is returned by Dial or DialTLS when
+	// the Client does not have a valid StateMachine set.
+	ErrMissingStateMachine = errors.New("client state machine is nil")
+
+	// ErrHandshakeTimeout is returned by Dial or DialTLS when the
+	// client does not receive a handshake answer from the server.
+	//
+	// If the client is configured to retransmit messages, the
+	// handshake timeout only occurs after all retransmits are
+	// attempted and none has an aswer.
+	ErrHandshakeTimeout = errors.New("handshake timeout (no response)")
+)
+
+// A Client is a diameter client that automatically performs a handshake
+// with the server after the connection is established.
+//
+// It sends a Capabilities-Exchange-Request with the AVPs defined in it,
+// and expects a Capabilities-Exchange-Answer with a success (2001) result
+// code. If enabled, the client will send Device-Watchdog-Request messages
+// in background until the connection is terminated.
+//
+// By default, retransmission and watchdog are disabled. Retransmission is
+// enabled by setting MaxRetransmits to a number greater than zero, and
+// watchdog is enabled by setting EnableWatchdog to true.
+//
+// A custom message handler for Device-Watchdog-Answer (DWA) can be registered.
+// However, that will be overwritten if watchdog is enabled.
+type Client struct {
+	Dict                        *dict.Parser  // Dictionary parser (uses dict.Default if unset)
+	Handler                     *StateMachine // Message handler
+	MaxRetransmits              uint          // Max number of retransmissions before aborting
+	RetransmitInterval          time.Duration // Interval between retransmissions (default 1s)
+	EnableWatchdog              bool          // Enable automatic DWR
+	WatchdogInterval            time.Duration // Interval between DWRs (default 5s)
+	WatchdogStream              uint          // Stream to send DWR on (for multistreaming protocols), default is 0
+	SupportedVendorID           []*diam.AVP   // Supported vendor ID
+	AcctApplicationID           []*diam.AVP   // Acct applications
+	AuthApplicationID           []*diam.AVP   // Auth applications
+	VendorSpecificApplicationID []*diam.AVP   // Vendor specific applications
+	InbandSecurityID            uint32        // Inband-Security-Id for CER: 0=NO_INBAND_SECURITY (default), 1=TLS (RFC 6733 §5.3.1)
+
+	// ReadTimeout is the maximum duration for reading a message from the
+	// peer. Zero means no read deadline.
+	ReadTimeout time.Duration
+
+	// WriteTimeout is the maximum duration for writing a message to the
+	// peer. Zero means no write deadline.
+	//
+	// Writes are serialized on a per-connection mutex, so an unbounded
+	// write to a peer that has stopped draining its socket blocks every
+	// other sender behind it — including the watchdog's DWR, which would
+	// otherwise never reach its own timeout. Setting this bounds that.
+	//
+	// Not currently supported for SCTP, which has no write deadline.
+	WriteTimeout time.Duration
+}
+
+// Dial calls the address set as ip:port, performs a handshake and optionally
+// start a watchdog goroutine in background.
+func (cli *Client) Dial(addr string) (diam.Conn, error) {
+	return cli.DialExt("tcp", addr, 0, nil)
+}
+
+// DialNetwork calls the network address set as ip:port, performs a handshake and optionally
+// start a watchdog goroutine in background.
+func (cli *Client) DialNetwork(network, addr string) (diam.Conn, error) {
+	return cli.DialExt(network, addr, 0, nil)
+}
+
+// DialNetworkBind calls the network address set as ip:port, performs a handshake and optionally
+// start a watchdog goroutine in background.
+func (cli *Client) DialNetworkBind(network, laddr, raddr string) (diam.Conn, error) {
+	return cli.dial(func() (diam.Conn, error) {
+		return cli.server(network, raddr, nil).DialBind(laddr, 0)
+	})
+}
+
+// DialTimeout is like Dial, but with timeout
+func (cli *Client) DialTimeout(addr string, timeout time.Duration) (diam.Conn, error) {
+	return cli.DialExt("tcp", addr, timeout, nil)
+}
+
+// DialTLS is like Dial, but using TLS.
+func (cli *Client) DialTLS(addr, certFile, keyFile string) (diam.Conn, error) {
+	return cli.DialTLSExt("tcp", addr, certFile, keyFile, 0, nil)
+}
+
+// DialTLSTimeout is like DialTimeout, but using TLS.
+func (cli *Client) DialTLSTimeout(addr, certFile, keyFile string, timeout time.Duration) (diam.Conn, error) {
+	return cli.DialTLSExt("tcp", addr, certFile, keyFile, timeout, nil)
+}
+
+// DialNetworkTLS calls the network address set as ip:port, performs a handshake and optionally
+// start a watchdog goroutine in background.
+func (cli *Client) DialNetworkTLS(network, addr, certFile, keyFile string, laddr net.Addr) (diam.Conn, error) {
+	return cli.DialTLSExt(network, addr, certFile, keyFile, 0, nil)
+}
+
+// DialExt - Optionally binds client to laddr, calls the network address set as ip:port,
+// performs a handshake and optionally start a watchdog goroutine in background.
+func (cli *Client) DialExt(network, addr string, timeout time.Duration, laddr net.Addr) (diam.Conn, error) {
+	return cli.dial(func() (diam.Conn, error) {
+		return cli.server(network, addr, laddr).Dial(timeout)
+	})
+}
+
+// DialTLSExt - Optionally binds client to laddr, calls the network address set as ip:port, performs a
+// handshake and optionally start a watchdog goroutine in background.
+func (cli *Client) DialTLSExt(
+	network, addr, certFile, keyFile string, timeout time.Duration, laddr net.Addr) (diam.Conn, error) {
+
+	return cli.dial(func() (diam.Conn, error) {
+		return cli.server(network, addr, laddr).DialTLS(certFile, keyFile, timeout)
+	})
+}
+
+// NewConn is like Dial, but using an already open net.Conn.
+func (cli *Client) NewConn(rw net.Conn, addr string) (diam.Conn, error) {
+	return cli.dial(func() (diam.Conn, error) {
+		return cli.server("", addr, nil).NewConn(rw)
+	})
+}
+
+// server builds the diam.Server template used to open outgoing connections,
+// carrying the client's dictionary, handler and I/O timeouts.
+func (cli *Client) server(network, addr string, laddr net.Addr) *diam.Server {
+	return &diam.Server{
+		Network:      network,
+		Addr:         addr,
+		Handler:      cli.Handler,
+		Dict:         cli.Dict,
+		LocalAddr:    laddr,
+		ReadTimeout:  cli.ReadTimeout,
+		WriteTimeout: cli.WriteTimeout,
+	}
+}
+
+type dialFunc func() (diam.Conn, error)
+
+func (cli *Client) dial(f dialFunc) (diam.Conn, error) {
+	if err := cli.validate(); err != nil {
+		return nil, err
+	}
+	c, err := f()
+	if err != nil {
+		return c, err
+	}
+	c, err = cli.handshake(c)
+	return c, err
+}
+
+func (cli *Client) validate() error {
+	if cli.Handler == nil {
+		return ErrMissingStateMachine
+	}
+	if cli.Dict == nil {
+		cli.Dict = dict.Default
+	}
+	if cli.RetransmitInterval == 0 {
+		// Set default RetransmitInterval.
+		cli.RetransmitInterval = time.Second
+	}
+	if cli.WatchdogInterval == 0 {
+		// Set default WatchdogInterval
+		cli.WatchdogInterval = 5 * time.Second
+	}
+	// Make sure the applications supplied to Client are supported locally
+	for _, submittedAcctApp := range cli.AcctApplicationID {
+		acctAppID := uint32(submittedAcctApp.Data.(datatype.Unsigned32))
+		isSupported := false
+		for _, localApp := range cli.Handler.supportedApps {
+			if localApp.AppType == "acct" && localApp.ID == acctAppID {
+				isSupported = true
+				break
+			}
+		}
+		if !isSupported {
+			err := fmt.Errorf("client attempts to advertise unsupported application - type: acct, id: %d", acctAppID)
+			return err
+		}
+
+	}
+	for _, submittedAuthApp := range cli.AuthApplicationID {
+		authAppID := uint32(submittedAuthApp.Data.(datatype.Unsigned32))
+		isSupported := false
+		for _, localApp := range cli.Handler.supportedApps {
+			if localApp.AppType == "auth" && localApp.ID == authAppID {
+				isSupported = true
+				break
+			}
+		}
+		if !isSupported {
+			err := fmt.Errorf("client attempts to advertise unsupported application - type: auth, id: %d", authAppID)
+			return err
+		}
+
+	}
+	return nil
+}
+
+func (cli *Client) handshake(c diam.Conn) (diam.Conn, error) {
+	var (
+		hostAddresses []datatype.Address
+		err           error
+	)
+	if len(cli.Handler.cfg.HostIPAddresses) > 0 {
+		hostAddresses = cli.Handler.cfg.HostIPAddresses
+	} else {
+		hostAddresses, err = getLocalAddresses(c)
+		if err != nil {
+			c.Close()
+			return nil, fmt.Errorf("diameter handshake failure: %v", err)
+		}
+	}
+
+	m, err := cli.makeCER(hostAddresses)
+	if err != nil {
+		c.Close()
+		return nil, err
+	}
+	// Ignore CER, but not DWR.
+	cerClientHandler := func(c diam.Conn, m *diam.Message) {}
+	// See sm.go for Base Diam Idx declarations
+	cli.Handler.mux.HandleIdx(baseCERIdx, diam.HandlerFunc(cerClientHandler))
+	cli.Handler.mux.HandleFunc("CER", cerClientHandler)
+	// Handle CEA and DWA.
+	errc := make(chan error)
+	cli.Handler.mux.Handle("CEA", handleCEA(cli.Handler, errc))
+
+	var dwac chan struct{}
+	if cli.EnableWatchdog {
+		dwac = make(chan struct{})
+		cli.Handler.mux.Handle("DWA", handshakeOK(handleDWA(cli.Handler, dwac)))
+	}
+	for i := 0; i < (int(cli.MaxRetransmits) + 1); i++ {
+		_, err := m.WriteTo(c)
+		if err != nil {
+			c.Close()
+			return nil, err
+		}
+		select {
+		case err, ok := <-errc: // Wait for CEA.
+			if ok && err != nil {
+				close(errc)
+				c.Close()
+				return nil, err
+			}
+			if cli.EnableWatchdog {
+				go cli.watchdog(c, dwac)
+			}
+			return c, nil
+		case <-time.After(cli.RetransmitInterval):
+		}
+	}
+	c.Close()
+	return nil, ErrHandshakeTimeout
+}
+
+func (cli *Client) makeCER(hostIPAddresses []datatype.Address) (*diam.Message, error) {
+	m := diam.NewRequest(diam.CapabilitiesExchange, 0, cli.Dict)
+	if _, err := m.NewAVP(avp.OriginHost, avp.Mbit, 0, cli.Handler.cfg.OriginHost); err != nil {
+		return nil, err
+	}
+	if _, err := m.NewAVP(avp.OriginRealm, avp.Mbit, 0, cli.Handler.cfg.OriginRealm); err != nil {
+		return nil, err
+	}
+	for _, hostIPAddress := range hostIPAddresses {
+		if _, err := m.NewAVP(avp.HostIPAddress, avp.Mbit, 0, hostIPAddress); err != nil {
+			return nil, err
+		}
+	}
+	if _, err := m.NewAVP(avp.VendorID, avp.Mbit, 0, cli.Handler.cfg.VendorID); err != nil {
+		return nil, err
+	}
+	if _, err := m.NewAVP(avp.ProductName, 0, 0, cli.Handler.cfg.ProductName); err != nil {
+		return nil, err
+	}
+	if cli.Handler.cfg.OriginStateID != 0 {
+		stateid := datatype.Unsigned32(cli.Handler.cfg.OriginStateID)
+		if _, err := m.NewAVP(avp.OriginStateID, avp.Mbit, 0, stateid); err != nil {
+			return nil, err
+		}
+	}
+	if cli.SupportedVendorID != nil {
+		for _, a := range cli.SupportedVendorID {
+			m.AddAVP(a)
+		}
+	}
+	if cli.AuthApplicationID != nil {
+		for _, a := range cli.AuthApplicationID {
+			m.AddAVP(a)
+		}
+	}
+	if _, err := m.NewAVP(avp.InbandSecurityID, avp.Mbit, 0, datatype.Unsigned32(cli.InbandSecurityID)); err != nil {
+		return nil, err
+	}
+	if cli.AcctApplicationID != nil {
+		for _, a := range cli.AcctApplicationID {
+			m.AddAVP(a)
+		}
+	}
+	if cli.VendorSpecificApplicationID != nil {
+		for _, a := range cli.VendorSpecificApplicationID {
+			m.AddAVP(a)
+		}
+	}
+	if cli.Handler.cfg.FirmwareRevision != 0 {
+		if _, err := m.NewAVP(avp.FirmwareRevision, 0, 0, cli.Handler.cfg.FirmwareRevision); err != nil {
+			return nil, err
+		}
+	}
+	return m, nil
+}
+
+func (cli *Client) watchdog(c diam.Conn, dwac chan struct{}) {
+	disconnect := c.(diam.CloseNotifier).CloseNotify()
+	var osid = uint32(cli.Handler.cfg.OriginStateID)
+	for {
+		select {
+		case <-disconnect:
+			return
+		case <-time.After(cli.WatchdogInterval):
+			cli.dwr(c, osid, dwac)
+		}
+	}
+}
+
+func (cli *Client) dwr(c diam.Conn, osid uint32, dwac chan struct{}) {
+	m, err := cli.makeDWR(osid)
+	if err != nil {
+		cli.Handler.Error(&diam.ErrorReport{Conn: c, Error: err})
+		c.Close()
+		return
+	}
+	for i := 0; i < (int(cli.MaxRetransmits) + 1); i++ {
+		_, err := m.WriteToStream(c, cli.WatchdogStream)
+		if err != nil {
+			// Failing to send the watchdog request is at least as strong
+			// an aliveness verdict as a missing answer: report it and
+			// disconnect so supervisors can recover, instead of retrying
+			// the failed send on every subsequent watchdog interval.
+			cli.Handler.Error(&diam.ErrorReport{Conn: c, Message: m, Error: err})
+			break
+		}
+		select {
+		case <-dwac:
+			return
+		case <-time.After(cli.RetransmitInterval):
+		}
+	}
+	// Watchdog failed, disconnect.
+	c.Close()
+}
+
+func (cli *Client) makeDWR(osid uint32) (*diam.Message, error) {
+	m := diam.NewRequest(diam.DeviceWatchdog, 0, cli.Dict)
+	if _, err := m.NewAVP(avp.OriginHost, avp.Mbit, 0, cli.Handler.cfg.OriginHost); err != nil {
+		return nil, err
+	}
+	if _, err := m.NewAVP(avp.OriginRealm, avp.Mbit, 0, cli.Handler.cfg.OriginRealm); err != nil {
+		return nil, err
+	}
+	if cli.Handler.cfg.OriginStateID != 0 {
+		if _, err := m.NewAVP(avp.OriginStateID, avp.Mbit, 0, datatype.Unsigned32(osid)); err != nil {
+			return nil, err
+		}
+	}
+	return m, nil
+}
+
+func getHostsWithoutPort(hosts string) (string, error) {
+	i := len(hosts) - 1
+	for ; i >= 0 && hosts[i] != ':'; i-- {
+		if hosts[i] < '0' || hosts[i] > '9' {
+			return "", fmt.Errorf("found non numerical character in port at position %d", i+1)
+		}
+	}
+	return hosts[:i], nil
+}
+
+func getLocalAddresses(c diam.Conn) ([]datatype.Address, error) {
+	var (
+		addr, addrStr string
+		loopback      net.IP
+		err           error
+	)
+	if c.LocalAddr() != nil {
+		addrStr = c.LocalAddr().String()
+	}
+	if addrStr != "" {
+		addr, err = getHostsWithoutPort(addrStr)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse local ip %s [%q]: %s", addrStr, c.LocalAddr(), err)
+		}
+	}
+	hostIPs := strings.Split(addr, "/")
+	addresses := make([]datatype.Address, 0, len(hostIPs))
+	for _, ipStr := range hostIPs {
+		ip := net.ParseIP(ipStr)
+		if ip != nil {
+			if ip.IsLoopback() {
+				loopback = ip
+			} else {
+				addresses = append(addresses, datatype.Address(ip))
+			}
+		}
+	}
+	if len(addresses) == 0 && loopback != nil {
+		addresses = append(addresses, datatype.Address(loopback))
+	}
+	return addresses, nil
+}
