@@ -5,7 +5,7 @@ go 1.25.0
 require (
 	github.com/golang/glog v1.2.5
 	github.com/golang/protobuf v1.5.4
-	github.com/gomaja/go-sctp v0.0.0-20260801143753-f130f9832d2f
+	github.com/gomaja/go-sctp v1.0.0
 	google.golang.org/grpc v1.83.0
 )
 
