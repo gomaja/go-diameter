@@ -88,7 +88,7 @@ func TestCapabilitiesExchangeSCTP_TLS(t *testing.T) {
 		Network:   "sctp",
 		Addr:      srv.Addr,
 		Handler:   cmux,
-		TLSConfig: testClientTLSConfig(t, srv.Addr, certFile),
+		TLSConfig: testClientTLSConfig(t, certFile),
 	}
 	cli, err := client.DialTLS(certFile, keyFile, 0)
 	if err != nil {
