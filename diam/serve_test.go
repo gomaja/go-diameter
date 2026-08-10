@@ -75,7 +75,7 @@ func TestCapabilitiesExchangeTLS(t *testing.T) {
 	cmux := diam.NewServeMux()
 	cmux.Handle("CEA", handleCEA(errc, wait))
 
-	cli, err := diam.DialTLSConfig(srv.Addr, certFile, keyFile, cmux, nil, testClientTLSConfig(t, srv.Addr, certFile))
+	cli, err := diam.DialTLSConfig(srv.Addr, certFile, keyFile, cmux, nil, testClientTLSConfig(t, certFile))
 	if err != nil {
 		t.Fatalf("diam.DialTLS Error: %v", err)
 	}
@@ -120,7 +120,7 @@ func TestDialTLSRejectsUntrustedCertificateByDefault(t *testing.T) {
 	}
 }
 
-func testClientTLSConfig(t *testing.T, addr, certFile string) *tls.Config {
+func testClientTLSConfig(t *testing.T, certFile string) *tls.Config {
 	t.Helper()
 
 	certPEM, err := os.ReadFile(certFile)
@@ -131,13 +131,8 @@ func testClientTLSConfig(t *testing.T, addr, certFile string) *tls.Config {
 	if !roots.AppendCertsFromPEM(certPEM) {
 		t.Fatal("failed to add test root certificate")
 	}
-	host, _, err := net.SplitHostPort(addr)
-	if err != nil {
-		t.Fatal(err)
-	}
 	return &tls.Config{
 		RootCAs:    roots,
-		ServerName: host,
 		MinVersion: tls.VersionTLS13,
 	}
 }
