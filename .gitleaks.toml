@@ -1,0 +1,13 @@
+title = "go-diameter gitleaks config"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "TLS test fixtures intentionally contain non-production private keys."
+targetRules = ["private-key"]
+paths = [
+  '''^diam/diamtest/server\.go$''',
+  '''^diam/sm/cer_test\.go$''',
+  '''^diam/testdata/example-key\.pem$''',
+]

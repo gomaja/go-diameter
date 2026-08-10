@@ -129,7 +129,7 @@ jobs:
               -f tool_name=CodeQL \
               -f ref=refs/heads/main \
               -F per_page=100 \
-              --slurp --jq 'add | length' 2>/dev/null)"; then
+              2>/dev/null | jq -s 'add | length')"; then
               echo "count=$count" >> "$GITHUB_OUTPUT"
               exit 0
             fi

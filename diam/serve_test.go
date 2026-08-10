@@ -6,9 +6,11 @@ package diam_test
 
 import (
 	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"io"
 	"net"
+	"os"
 	"testing"
 	"time"
 
@@ -73,7 +75,7 @@ func TestCapabilitiesExchangeTLS(t *testing.T) {
 	cmux := diam.NewServeMux()
 	cmux.Handle("CEA", handleCEA(errc, wait))
 
-	cli, err := diam.DialTLS(srv.Addr, certFile, keyFile, cmux, nil)
+	cli, err := diam.DialTLSConfig(srv.Addr, certFile, keyFile, cmux, nil, testClientTLSConfig(t, srv.Addr, certFile))
 	if err != nil {
 		t.Fatalf("diam.DialTLS Error: %v", err)
 	}
@@ -92,6 +94,51 @@ func TestCapabilitiesExchangeTLS(t *testing.T) {
 		t.Fatal(err)
 	case <-time.After(time.Second * 3):
 		t.Fatal("Timed out: no CER or CEA received")
+	}
+}
+
+func TestDialTLSRejectsUntrustedCertificateByDefault(t *testing.T) {
+	certFile, keyFile, cert := newTestCertificateFiles(t)
+
+	srv := diamtest.NewUnstartedServer(diam.NewServeMux(), nil)
+	srv.TLS = &tls.Config{
+		Certificates: []tls.Certificate{cert},
+		MinVersion:   tls.VersionTLS13,
+	}
+	srv.StartTLS()
+	time.Sleep(time.Millisecond * 10) // let srv start
+	defer srv.Close()
+
+	cli, err := diam.DialTLS(srv.Addr, certFile, keyFile, diam.NewServeMux(), nil)
+	if err != nil {
+		t.Fatalf("DialTLS returned connection setup error before TLS verification: %v", err)
+	}
+	defer cli.Close()
+
+	if _, err := sendCER(cli); err == nil {
+		t.Fatal("DialTLS with default TLS config accepted an untrusted server certificate")
+	}
+}
+
+func testClientTLSConfig(t *testing.T, addr, certFile string) *tls.Config {
+	t.Helper()
+
+	certPEM, err := os.ReadFile(certFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	roots := x509.NewCertPool()
+	if !roots.AppendCertsFromPEM(certPEM) {
+		t.Fatal("failed to add test root certificate")
+	}
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return &tls.Config{
+		RootCAs:    roots,
+		ServerName: host,
+		MinVersion: tls.VersionTLS13,
 	}
 }
 
