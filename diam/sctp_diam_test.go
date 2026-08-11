@@ -84,7 +84,13 @@ func TestCapabilitiesExchangeSCTP_TLS(t *testing.T) {
 	cmux := diam.NewServeMux()
 	cmux.Handle("CEA", handleCEA(errc, wait))
 
-	cli, err := diam.DialNetworkTLS("sctp", srv.Addr, certFile, keyFile, cmux, nil)
+	client := &diam.Server{
+		Network:   "sctp",
+		Addr:      srv.Addr,
+		Handler:   cmux,
+		TLSConfig: testClientTLSConfig(t, certFile),
+	}
+	cli, err := client.DialTLS(certFile, keyFile, 0)
 	if err != nil {
 		t.Fatal(err)
 	}

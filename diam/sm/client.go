@@ -5,6 +5,7 @@
 package sm
 
 import (
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"net"
@@ -58,6 +59,7 @@ type Client struct {
 	AuthApplicationID           []*diam.AVP   // Auth applications
 	VendorSpecificApplicationID []*diam.AVP   // Vendor specific applications
 	InbandSecurityID            uint32        // Inband-Security-Id for CER: 0=NO_INBAND_SECURITY (default), 1=TLS (RFC 6733 §5.3.1)
+	TLSConfig                   *tls.Config   // Optional TLS config used by DialTLS methods.
 
 	// ReadTimeout is the maximum duration for reading a message from the
 	// peer. Zero means no read deadline.
@@ -150,6 +152,7 @@ func (cli *Client) server(network, addr string, laddr net.Addr) *diam.Server {
 		Handler:      cli.Handler,
 		Dict:         cli.Dict,
 		LocalAddr:    laddr,
+		TLSConfig:    cli.TLSConfig,
 		ReadTimeout:  cli.ReadTimeout,
 		WriteTimeout: cli.WriteTimeout,
 	}
