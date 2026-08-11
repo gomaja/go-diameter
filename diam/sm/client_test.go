@@ -73,6 +73,19 @@ func TestClient_DialTLS_InvalidAddress(t *testing.T) {
 	}
 }
 
+func TestClient_ServerCarriesTLSConfig(t *testing.T) {
+	tlsConfig := &tls.Config{MinVersion: tls.VersionTLS13}
+	cli := &Client{
+		Handler:   New(clientSettings),
+		TLSConfig: tlsConfig,
+	}
+
+	srv := cli.server("tcp", "example.net:3868", nil)
+	if srv.TLSConfig != tlsConfig {
+		t.Fatal("client server template did not carry TLSConfig")
+	}
+}
+
 func TestClient_Handshake(t *testing.T) {
 	srv := diamtest.NewServer(New(serverSettings), dict.Default)
 	defer srv.Close()

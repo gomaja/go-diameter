@@ -9,6 +9,7 @@ package diam
 import (
 	"crypto/tls"
 	"net"
+	"strings"
 	"time"
 
 	"github.com/gomaja/go-diameter/diam/dict"
@@ -127,9 +128,8 @@ func DialTLSExt(
 	return dialTLS(srv, certFile, keyFile, timeout)
 }
 
-// DialTLSConfig is the same as DialTLS, but accepts a tls.Config for
-// customizing TLS behavior such as server certificate verification.
-// If tlsConfig is nil, the default behavior (InsecureSkipVerify: true) is used.
+// DialTLSConfig is the same as DialTLS, but accepts a tls.Config for customizing
+// TLS behavior such as server certificate verification.
 func DialTLSConfig(addr, certFile, keyFile string, handler Handler, dp *dict.Parser, tlsConfig *tls.Config) (Conn, error) {
 	srv := &Server{Network: "tcp", Addr: addr, Handler: handler, Dict: dp, TLSConfig: tlsConfig}
 	return dialTLS(srv, certFile, keyFile, 0)
@@ -146,12 +146,7 @@ func dialTLS(srv *Server, certFile, keyFile string, timeout time.Duration) (Conn
 	if len(addr) == 0 {
 		addr = ":3868"
 	}
-	var config *tls.Config
-	if srv.TLSConfig == nil {
-		config = &tls.Config{InsecureSkipVerify: true}
-	} else {
-		config = TLSConfigClone(srv.TLSConfig)
-	}
+	config := clientTLSConfig(addr, srv.TLSConfig)
 	if len(certFile) != 0 {
 		config.Certificates = make([]tls.Certificate, 1)
 		config.Certificates[0], err = tls.LoadX509KeyPair(certFile, keyFile)
@@ -172,6 +167,25 @@ func dialTLS(srv *Server, certFile, keyFile string, timeout time.Duration) (Conn
 	}
 	go c.serve()
 	return c.writer, nil
+}
+
+func clientTLSConfig(addr string, cfg *tls.Config) *tls.Config {
+	config := TLSConfigClone(cfg)
+	if config == nil {
+		config = new(tls.Config)
+	}
+	if config.ServerName == "" && !config.InsecureSkipVerify {
+		config.ServerName = tlsServerName(addr)
+	}
+	return config
+}
+
+func tlsServerName(addr string) string {
+	host, _, err := net.SplitHostPort(addr)
+	if err == nil {
+		return strings.Trim(host, "[]")
+	}
+	return strings.Trim(addr, "[]")
 }
 
 // Dial opens an outgoing connection using srv as the client configuration.
