@@ -7,6 +7,6 @@ require (
 	github.com/opentracing/opentracing-go v1.2.0
 )
 
-require github.com/gomaja/go-sctp v0.0.0-20260801143753-f130f9832d2f // indirect
+require github.com/gomaja/go-sctp v1.0.0 // indirect
 
 replace github.com/gomaja/go-diameter => ../..
