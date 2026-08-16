@@ -12,10 +12,20 @@ import (
 var dwaACK = struct{}{}
 
 // handleDWA handles Device-Watchdog-Answer messages.
-func handleDWA(sm *StateMachine, dwac chan struct{}) diam.HandlerFunc {
+func handleDWA(
+	sm *StateMachine,
+	dwac chan struct{},
+	observer func(WatchdogEvent),
+) diam.HandlerFunc {
+	observe := func(event WatchdogEvent) {
+		if observer != nil {
+			observer(event)
+		}
+	}
 	return func(c diam.Conn, m *diam.Message) {
 		dwa := new(smparser.DWA)
 		if err := dwa.Parse(m); err != nil {
+			observe(WatchdogInvalidAnswer)
 			sm.Error(&diam.ErrorReport{
 				Conn:    c,
 				Message: m,
@@ -24,11 +34,13 @@ func handleDWA(sm *StateMachine, dwac chan struct{}) diam.HandlerFunc {
 			return
 		}
 		if dwa.ResultCode != diam.Success {
+			observe(WatchdogInvalidAnswer)
 			return
 		}
 		select {
 		case dwac <- dwaACK:
 		default:
 		}
+		observe(WatchdogAnswerReceived)
 	}
 }
