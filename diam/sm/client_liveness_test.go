@@ -189,6 +189,8 @@ func (c *errWriteConn) Connection() net.Conn         { return nil }
 // outer watchdog loop to retry the failed send on every interval forever.
 func TestWatchdogReportsWriteError(t *testing.T) {
 	cli := newLivenessClient()
+	events := make(chan WatchdogEvent, 2)
+	cli.OnWatchdogEvent = func(event WatchdogEvent) { events <- event }
 	c := newErrWriteConn()
 
 	cli.dwr(c, 0, make(chan struct{}))
@@ -206,6 +208,20 @@ func TestWatchdogReportsWriteError(t *testing.T) {
 	case <-c.CloseNotify():
 	default:
 		t.Fatal("watchdog write failure did not close the connection")
+	}
+
+	select {
+	case got := <-events:
+		if got != WatchdogWriteFailed {
+			t.Fatalf("watchdog event = %q, want %q", got, WatchdogWriteFailed)
+		}
+	default:
+		t.Fatal("watchdog write failure event was not reported")
+	}
+	select {
+	case got := <-events:
+		t.Fatalf("unexpected second watchdog event %q", got)
+	default:
 	}
 }
 

@@ -292,7 +292,7 @@ func TestClient_Watchdog(t *testing.T) {
 	}
 	defer c.Close()
 	resp := make(chan struct{}, 1)
-	dwa := handleDWA(cli.Handler, resp)
+	dwa := handleDWA(cli.Handler, resp, nil)
 	cli.Handler.mux.HandleFunc("DWA", func(c diam.Conn, m *diam.Message) {
 		dwa(c, m)
 	})
@@ -300,6 +300,86 @@ func TestClient_Watchdog(t *testing.T) {
 	case <-resp:
 	case <-time.After(200 * time.Millisecond):
 		t.Fatal("Timeout waiting for DWA")
+	}
+}
+
+func TestClient_WatchdogObserverSuccess(t *testing.T) {
+	srv := diamtest.NewServer(New(serverSettings), dict.Default)
+	defer srv.Close()
+
+	events := make(chan WatchdogEvent, 4)
+	cli := &Client{
+		EnableWatchdog:   true,
+		WatchdogInterval: 20 * time.Millisecond,
+		Handler:          New(clientSettings),
+		OnWatchdogEvent:  func(event WatchdogEvent) { events <- event },
+		AcctApplicationID: []*diam.AVP{
+			diam.NewAVP(avp.AcctApplicationID, avp.Mbit, 0, datatype.Unsigned32(3)),
+		},
+	}
+	c, err := cli.Dial(srv.Addr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+
+	for _, want := range []WatchdogEvent{WatchdogRequestSent, WatchdogAnswerReceived} {
+		select {
+		case got := <-events:
+			if got != want {
+				t.Fatalf("watchdog event = %q, want %q", got, want)
+			}
+		case <-time.After(500 * time.Millisecond):
+			t.Fatalf("timeout waiting for watchdog event %q", want)
+		}
+	}
+}
+
+func TestClient_WatchdogSlowObserverDoesNotTimeoutSuccessfulAnswer(t *testing.T) {
+	srv := diamtest.NewServer(New(serverSettings), dict.Default)
+	defer srv.Close()
+
+	answerStarted := make(chan struct{})
+	releaseAnswer := make(chan struct{})
+	answerFinished := make(chan struct{})
+	cli := &Client{
+		EnableWatchdog:     true,
+		WatchdogInterval:   250 * time.Millisecond,
+		RetransmitInterval: 20 * time.Millisecond,
+		Handler:            New(clientSettings),
+		OnWatchdogEvent: func(event WatchdogEvent) {
+			if event != WatchdogAnswerReceived {
+				return
+			}
+			close(answerStarted)
+			<-releaseAnswer
+			close(answerFinished)
+		},
+		AcctApplicationID: []*diam.AVP{
+			diam.NewAVP(avp.AcctApplicationID, avp.Mbit, 0, datatype.Unsigned32(3)),
+		},
+	}
+	c, err := cli.Dial(srv.Addr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+
+	select {
+	case <-answerStarted:
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for answer observer")
+	}
+	select {
+	case <-c.(diam.CloseNotifier).CloseNotify():
+		t.Fatal("watchdog closed a healthy connection while the answer observer was blocked")
+	case <-time.After(3 * cli.RetransmitInterval):
+	}
+	close(releaseAnswer)
+	select {
+	case <-answerFinished:
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for answer observer to return")
 	}
 }
 
@@ -311,12 +391,18 @@ func TestClient_Watchdog_Timeout(t *testing.T) {
 	}))
 	srv := diamtest.NewServer(sm, dict.Default)
 	defer srv.Close()
+	events := make(chan WatchdogEvent, 2)
 	cli := &Client{
 		MaxRetransmits:     3,
 		RetransmitInterval: 50 * time.Millisecond,
 		EnableWatchdog:     true,
 		WatchdogInterval:   50 * time.Millisecond,
 		Handler:            New(clientSettings),
+		OnWatchdogEvent: func(event WatchdogEvent) {
+			if event == WatchdogInvalidAnswer || event == WatchdogTimedOut {
+				events <- event
+			}
+		},
 		AcctApplicationID: []*diam.AVP{
 			diam.NewAVP(avp.AcctApplicationID, avp.Mbit, 0, datatype.Unsigned32(3)),
 		},
@@ -330,6 +416,16 @@ func TestClient_Watchdog_Timeout(t *testing.T) {
 	case <-c.(diam.CloseNotifier).CloseNotify():
 	case <-time.After(500 * time.Millisecond):
 		t.Fatal("Timeout waiting for watchdog to disconnect client")
+	}
+	for _, want := range []WatchdogEvent{WatchdogInvalidAnswer, WatchdogTimedOut} {
+		select {
+		case got := <-events:
+			if got != want {
+				t.Fatalf("watchdog event = %q, want %q", got, want)
+			}
+		case <-time.After(500 * time.Millisecond):
+			t.Fatalf("timeout waiting for watchdog event %q", want)
+		}
 	}
 }
 

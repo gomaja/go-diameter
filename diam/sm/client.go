@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gomaja/go-diameter/diam"
@@ -75,6 +76,38 @@ type Client struct {
 	//
 	// Not currently supported for SCTP, which has no write deadline.
 	WriteTimeout time.Duration
+
+	// OnWatchdogEvent, when non-nil, observes client-side watchdog outcomes.
+	// The callback may be called by the watchdog and message-handler goroutines,
+	// so it must be concurrency-safe and return promptly. Events carry no
+	// Diameter message or AVP payload.
+	OnWatchdogEvent func(WatchdogEvent)
+
+	watchdogEventMu sync.Mutex
+}
+
+// WatchdogEvent identifies a bounded client-side watchdog outcome from the
+// RFC 6733 Sections 5.5.1-5.5.3 and RFC 3539 Section 3.4.1 exchange.
+type WatchdogEvent string
+
+const (
+	WatchdogRequestSent    WatchdogEvent = "request_sent"
+	WatchdogAnswerReceived WatchdogEvent = "answer_received"
+	WatchdogInvalidAnswer  WatchdogEvent = "invalid_answer"
+	WatchdogWriteFailed    WatchdogEvent = "write_failed"
+	WatchdogTimedOut       WatchdogEvent = "timeout"
+)
+
+func (cli *Client) observeWatchdog(event WatchdogEvent) {
+	cli.watchdogEventMu.Lock()
+	defer cli.watchdogEventMu.Unlock()
+	cli.emitWatchdog(event)
+}
+
+func (cli *Client) emitWatchdog(event WatchdogEvent) {
+	if cli.OnWatchdogEvent != nil {
+		cli.OnWatchdogEvent(event)
+	}
 }
 
 // Dial calls the address set as ip:port, performs a handshake and optionally
@@ -252,8 +285,8 @@ func (cli *Client) handshake(c diam.Conn) (diam.Conn, error) {
 
 	var dwac chan struct{}
 	if cli.EnableWatchdog {
-		dwac = make(chan struct{})
-		cli.Handler.mux.Handle("DWA", handshakeOK(handleDWA(cli.Handler, dwac)))
+		dwac = make(chan struct{}, 1)
+		cli.Handler.mux.Handle("DWA", handshakeOK(handleDWA(cli.Handler, dwac, cli.observeWatchdog)))
 	}
 	for i := 0; i < (int(cli.MaxRetransmits) + 1); i++ {
 		_, err := m.WriteTo(c)
@@ -356,15 +389,24 @@ func (cli *Client) dwr(c diam.Conn, osid uint32, dwac chan struct{}) {
 		return
 	}
 	for i := 0; i < (int(cli.MaxRetransmits) + 1); i++ {
+		// Serialize successful request publication with DWA publication. A
+		// peer can answer before WriteToStream returns, but observers still
+		// receive the causal request event first.
+		cli.watchdogEventMu.Lock()
 		_, err := m.WriteToStream(c, cli.WatchdogStream)
 		if err != nil {
 			// Failing to send the watchdog request is at least as strong
 			// an aliveness verdict as a missing answer: report it and
 			// disconnect so supervisors can recover, instead of retrying
 			// the failed send on every subsequent watchdog interval.
+			cli.emitWatchdog(WatchdogWriteFailed)
+			cli.watchdogEventMu.Unlock()
 			cli.Handler.Error(&diam.ErrorReport{Conn: c, Message: m, Error: err})
-			break
+			c.Close()
+			return
 		}
+		cli.emitWatchdog(WatchdogRequestSent)
+		cli.watchdogEventMu.Unlock()
 		select {
 		case <-dwac:
 			return
@@ -372,6 +414,7 @@ func (cli *Client) dwr(c diam.Conn, osid uint32, dwac chan struct{}) {
 		}
 	}
 	// Watchdog failed, disconnect.
+	cli.observeWatchdog(WatchdogTimedOut)
 	c.Close()
 }
 
