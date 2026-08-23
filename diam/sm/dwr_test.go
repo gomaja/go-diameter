@@ -73,6 +73,17 @@ func TestHandleDWR(t *testing.T) {
 		if !testResultCode(resp, diam.Success) {
 			t.Fatalf("Unexpected result code for DWA.\n%s", resp)
 		}
+		stateID, err := resp.FindAVP(avp.OriginStateID, 0)
+		if err != nil {
+			t.Fatalf("DWA is missing Origin-State-Id: %v", err)
+		}
+		got, ok := stateID.Data.(datatype.Unsigned32)
+		if !ok {
+			t.Fatalf("Origin-State-Id type = %T, want datatype.Unsigned32", stateID.Data)
+		}
+		if got != serverSettings.OriginStateID {
+			t.Fatalf("Origin-State-Id = %d, want %d", got, serverSettings.OriginStateID)
+		}
 	case err := <-mux.ErrorReports():
 		t.Fatal(err)
 	case <-time.After(time.Second):

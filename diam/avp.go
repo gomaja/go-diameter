@@ -162,7 +162,21 @@ func (a *AVP) SerializeTo(b []byte) error {
 
 // Len returns the length of this AVP in bytes with padding.
 func (a *AVP) Len() int {
+	if a.Data == nil {
+		length := a.Length
+		if headerLen := a.headerLen(); length < headerLen {
+			length = headerLen
+		}
+		return paddedAVPLength(length)
+	}
 	return a.headerLen() + a.Data.Len() + a.Data.Padding()
+}
+
+// paddedAVPLength returns the bytes consumed by an AVP, including padding.
+// RFC 6733 section 4.1 excludes padding from AVP Length while requiring the
+// next AVP to start on a 32-bit boundary.
+func paddedAVPLength(length int) int {
+	return (length + 3) &^ 3
 }
 
 func (a *AVP) headerLen() int {

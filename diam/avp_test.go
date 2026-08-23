@@ -214,6 +214,27 @@ func TestEncodeAVPWithoutData(t *testing.T) {
 	}
 }
 
+func TestAVPLenWithoutData(t *testing.T) {
+	tests := []struct {
+		name string
+		avp  *AVP
+		want int
+	}{
+		{name: "empty base AVP", avp: &AVP{}, want: 8},
+		{name: "empty vendor AVP", avp: &AVP{Flags: avp.Vbit}, want: 12},
+		{name: "base AVP with wire length", avp: &AVP{Length: 9}, want: 12},
+		{name: "vendor AVP with wire length", avp: &AVP{Flags: avp.Vbit, Length: 13}, want: 16},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.avp.Len(); got != tt.want {
+				t.Fatalf("Len() = %d, want %d", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestDecodeAVPVbitShortLength(t *testing.T) {
 	// AVP with Vbit set but length < 12 should return error, not panic.
 	data := []byte{

@@ -49,6 +49,42 @@ func TestDecodeHeaderMalformed(t *testing.T) {
 	}
 }
 
+func TestDecodeHeaderRejectsInvalidVersionAndLength(t *testing.T) {
+	tests := []struct {
+		name   string
+		mutate func([]byte)
+	}{
+		{
+			name: "unsupported version",
+			mutate: func(data []byte) {
+				data[0] = 2
+			},
+		},
+		{
+			name: "length below header",
+			mutate: func(data []byte) {
+				data[1], data[2], data[3] = 0, 0, 0
+			},
+		},
+		{
+			name: "unaligned length",
+			mutate: func(data []byte) {
+				data[1], data[2], data[3] = 0, 0, 21
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			data := append([]byte(nil), testHeader...)
+			tt.mutate(data)
+			if _, err := DecodeHeader(data); err == nil {
+				t.Fatal("DecodeHeader accepted an invalid Diameter header")
+			}
+		})
+	}
+}
+
 func TestEncodeHeader(t *testing.T) {
 	hdr := &Header{
 		Version:       1,
