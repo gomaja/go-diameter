@@ -52,6 +52,18 @@ func (h *Header) DecodeFromBytes(data []byte) error {
 	h.ApplicationID = binary.BigEndian.Uint32(data[8:12])
 	h.HopByHopID = binary.BigEndian.Uint32(data[12:16])
 	h.EndToEndID = binary.BigEndian.Uint32(data[16:20])
+	// RFC 6733 section 3 requires Diameter version 1 and a Message Length
+	// covering the complete header and padded AVPs. Verified Errata 3805
+	// clarifies that Message Length is measured in octets.
+	if h.Version != 1 {
+		return fmt.Errorf("unsupported Diameter version: %d", h.Version)
+	}
+	if h.MessageLength < HeaderLength {
+		return fmt.Errorf("invalid Diameter message length %d: shorter than header length %d", h.MessageLength, HeaderLength)
+	}
+	if h.MessageLength%4 != 0 {
+		return fmt.Errorf("invalid Diameter message length %d: not a multiple of 4", h.MessageLength)
+	}
 	return nil
 }
 

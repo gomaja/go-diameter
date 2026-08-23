@@ -169,14 +169,21 @@ func (m *Message) decodeAVPs(b []byte) error {
 	for n := 0; n < len(b); {
 		a, err = DecodeAVP(b[n:], m.Header.ApplicationID, m.Dictionary())
 		if err != nil {
-			if decodeErr, ok := err.(DecodeError); ok {
-				decodeErrs = append(decodeErrs, decodeErr.Error())
-			} else {
+			// Recoverable payload errors preserve their bytes as Unknown. A nil
+			// Data value means framing failed and there is no safe next offset.
+			if a.Data == nil {
 				return err
 			}
+			decodeErrs = append(decodeErrs, err.Error())
+		}
+		advance := a.Len()
+		// RFC 6733 section 4.1 requires the next AVP to begin on a 32-bit
+		// boundary. Validate the padded wire length before advancing.
+		if advance <= 0 || advance > len(b)-n {
+			return fmt.Errorf("%w: AVP at offset %d consumes %d padded bytes, have %d", errAVPDataTooShort, n, advance, len(b)-n)
 		}
 		m.AVP = append(m.AVP, a)
-		n += a.Len()
+		n += advance
 	}
 	if len(decodeErrs) > 0 {
 		// Depending on the settings, this will be thrown by the state machine or passed to the best handler
