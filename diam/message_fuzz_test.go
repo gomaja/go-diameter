@@ -6,6 +6,7 @@ package diam
 
 import (
 	"bytes"
+	"errors"
 	"testing"
 
 	"github.com/gomaja/go-diameter/diam/dict"
@@ -62,6 +63,21 @@ var malformedAVPMessages = []struct {
 			0x80, 0x00, 0x00, 0x08,
 		},
 	},
+	{
+		name: "grouped child missing padding",
+		wire: []byte{
+			0x01, 0x00, 0x00, 0x28,
+			0x80, 0x00, 0x01, 0x01,
+			0x00, 0x00, 0x00, 0x00,
+			0x00, 0x00, 0x00, 0x01,
+			0x00, 0x00, 0x00, 0x01,
+			0x00, 0x00, 0x01, 0x04,
+			0x40, 0x00, 0x00, 0x11,
+			0x00, 0x00, 0x01, 0x08,
+			0x40, 0x00, 0x00, 0x09,
+			'x', 0x00, 0x00, 0x00,
+		},
+	},
 }
 
 func TestReadMessageRejectsMalformedAVPFraming(t *testing.T) {
@@ -82,8 +98,13 @@ func TestReadMessageRejectsMalformedAVPFraming(t *testing.T) {
 		t.Run(parser.name, func(t *testing.T) {
 			for _, tt := range malformedAVPMessages {
 				t.Run(tt.name, func(t *testing.T) {
-					if _, err := ReadMessage(bytes.NewReader(tt.wire), parser.dictionary); err == nil {
+					_, err := ReadMessage(bytes.NewReader(tt.wire), parser.dictionary)
+					if err == nil {
 						t.Fatal("ReadMessage accepted malformed AVP framing")
+					}
+					var messageErr *MessageError
+					if !errors.As(err, &messageErr) || messageErr.ResultCode != InvalidAVPLength {
+						t.Fatalf("ReadMessage error = %T(%v), want MessageError %d", err, err, InvalidAVPLength)
 					}
 				})
 			}
@@ -122,6 +143,27 @@ func FuzzReadMessage(f *testing.F) {
 	})
 
 	f.Fuzz(func(t *testing.T, wire []byte) {
-		_, _ = ReadMessage(bytes.NewReader(wire), dict.Default)
+		_, err := ReadMessage(bytes.NewReader(wire), dict.Default)
+		var messageErr *MessageError
+		if !errors.As(err, &messageErr) || messageErr.FailedAVP == nil {
+			return
+		}
+		if got := messageErr.FailedAVP.Len(); got > 1<<24-1 {
+			t.Fatalf("FailedAVP length = %d, exceeds Diameter's 24-bit message limit", got)
+		}
+	})
+}
+
+func FuzzDecodeGroupedFromBytes(f *testing.F) {
+	f.Add(testGroupedAVP[8:])
+	f.Add([]byte{
+		0x00, 0x00, 0x01, 0x08,
+		0x40, 0x00, 0x00, 0x09,
+		'x',
+	})
+	f.Add([]byte{0x00, 0x00, 0x01})
+
+	f.Fuzz(func(t *testing.T, payload []byte) {
+		_, _ = DecodeGroupedFromBytes(payload, 0, dict.Default)
 	})
 }

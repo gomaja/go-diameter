@@ -6,6 +6,7 @@ package diam
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -33,18 +34,30 @@ func DecodeGroupedFromBytes(b []byte, application uint32, dictionary *dict.Parse
 	g := &GroupedAVP{}
 	var errs []string
 	for n := 0; n < len(b); {
-		avp, err := DecodeAVP(b[n:], application, dictionary)
+		a, err := DecodeAVP(b[n:], application, dictionary)
 		if err != nil {
+			var lengthErr *avpLengthError
+			if errors.As(err, &lengthErr) {
+				return g, lengthErr
+			}
 			errs = append(errs, err.Error())
-			if avp.Data == nil {
+			if a.Data == nil {
 				// Fatal decode error (e.g., truncated sub-AVP header): remaining
 				// bytes cannot form a valid sub-AVP. Break so the caller detects
 				// g.Len() != bodyLen and falls back to Unknown for the parent AVP.
 				break
 			}
 		}
-		g.AVP = append(g.AVP, avp)
-		n += avp.Len()
+		advance := a.Len()
+		// RFC 6733 Sections 4.1 and 4.4 require each Grouped child, including
+		// its padding, to fit within the Grouped AVP payload.
+		if advance <= 0 || advance > len(b)-n {
+			return g, newDecodedAVPLengthError(a, fmt.Errorf(
+				"%w: grouped AVP at offset %d consumes %d padded bytes, have %d",
+				errAVPDataTooShort, n, advance, len(b)-n))
+		}
+		g.AVP = append(g.AVP, a)
+		n += advance
 	}
 	if len(errs) > 0 {
 		return g, fmt.Errorf("%s", strings.Join(errs, "; "))

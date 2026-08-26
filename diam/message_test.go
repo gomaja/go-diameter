@@ -257,6 +257,54 @@ func TestNewMessage(t *testing.T) {
 	t.Logf("Message:\n%s", hex.Dump(a))
 }
 
+func TestMessageSerializationRejectsLengthBeyond24Bits(t *testing.T) {
+	m := NewRequest(CapabilitiesExchange, 0, dict.Default)
+	m.AddAVP(NewAVP(avp.SessionID, avp.Mbit, 0, oversizedMessageData(MaxMessageLength)))
+
+	tests := []struct {
+		name      string
+		serialize func() error
+	}{
+		{
+			name: "Serialize",
+			serialize: func() error {
+				_, err := m.Serialize()
+				return err
+			},
+		},
+		{
+			name: "SerializeTo",
+			serialize: func() error {
+				return m.SerializeTo(nil)
+			},
+		},
+		{
+			name: "WriteTo",
+			serialize: func() error {
+				_, err := m.WriteTo(io.Discard)
+				return err
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := tt.serialize(); err == nil {
+				t.Fatal("oversized Diameter message serialized without an error")
+			}
+		})
+	}
+}
+
+type oversizedMessageData int
+
+func (d oversizedMessageData) Serialize() []byte { return nil }
+func (d oversizedMessageData) Len() int          { return int(d) }
+func (d oversizedMessageData) Padding() int      { return 0 }
+func (d oversizedMessageData) Type() datatype.TypeID {
+	return datatype.UnknownType
+}
+func (d oversizedMessageData) String() string { return "oversized test data" }
+
 func TestMessageFindAVP(t *testing.T) {
 	m, _ := ReadMessage(bytes.NewReader(testMessage), dict.Default)
 	a, err := m.FindAVP(avp.OriginStateID, 0)

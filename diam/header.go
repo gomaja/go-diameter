@@ -20,8 +20,13 @@ type Header struct {
 	EndToEndID    uint32
 }
 
-// HeaderLength is the length of a Diameter header data structure.
-const HeaderLength = 20
+const (
+	// HeaderLength is the length of a Diameter header data structure.
+	HeaderLength = 20
+	// MaxMessageLength is the largest value representable by the 24-bit
+	// Diameter Message Length field defined by RFC 6733 Section 3.
+	MaxMessageLength = 1<<24 - 1
+)
 
 // Command flags.
 const (
@@ -56,13 +61,26 @@ func (h *Header) DecodeFromBytes(data []byte) error {
 	// covering the complete header and padded AVPs. Verified Errata 3805
 	// clarifies that Message Length is measured in octets.
 	if h.Version != 1 {
-		return fmt.Errorf("unsupported Diameter version: %d", h.Version)
+		return &MessageError{
+			ResultCode: UnsupportedVersion,
+			Fatal:      true,
+			Err:        fmt.Errorf("unsupported Diameter version: %d", h.Version),
+		}
 	}
 	if h.MessageLength < HeaderLength {
-		return fmt.Errorf("invalid Diameter message length %d: shorter than header length %d", h.MessageLength, HeaderLength)
+		return &MessageError{
+			ResultCode: InvalidMessageLength,
+			Fatal:      true,
+			Err: fmt.Errorf("invalid Diameter message length %d: shorter than header length %d",
+				h.MessageLength, HeaderLength),
+		}
 	}
 	if h.MessageLength%4 != 0 {
-		return fmt.Errorf("invalid Diameter message length %d: not a multiple of 4", h.MessageLength)
+		return &MessageError{
+			ResultCode: InvalidMessageLength,
+			Fatal:      true,
+			Err:        fmt.Errorf("invalid Diameter message length %d: not a multiple of 4", h.MessageLength),
+		}
 	}
 	return nil
 }
