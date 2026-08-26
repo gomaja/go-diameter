@@ -79,10 +79,13 @@ func ReadMessage(reader io.Reader, dictionary *dict.Parser) (*Message, error) {
 	defer putReaderBuffer(buf)
 	m := &Message{dictionary: dictionary}
 	cmd, stream, err := m.readHeader(reader, buf)
-	if err != nil {
-		return nil, err
-	}
 	m.stream = stream
+	if err != nil {
+		if m.Header == nil {
+			return nil, err
+		}
+		return m, err
+	}
 	if err = m.readBody(reader, buf, cmd, stream); err != nil {
 		return m, err
 	}
@@ -111,7 +114,8 @@ func (m *Message) readHeader(r io.Reader, buf *bytes.Buffer) (cmd *dict.Command,
 	if err != nil {
 		return nil, stream, err
 	}
-	m.Header, err = DecodeHeader(b)
+	m.Header = &Header{}
+	err = m.Header.DecodeFromBytes(b)
 	if err != nil {
 		return nil, stream, err
 	}
@@ -169,6 +173,14 @@ func (m *Message) decodeAVPs(b []byte) error {
 	for n := 0; n < len(b); {
 		a, err = DecodeAVP(b[n:], m.Header.ApplicationID, m.Dictionary())
 		if err != nil {
+			var lengthErr *avpLengthError
+			if errors.As(err, &lengthErr) {
+				return &MessageError{
+					ResultCode: InvalidAVPLength,
+					FailedAVP:  lengthErr.failedAVP,
+					Err:        lengthErr,
+				}
+			}
 			// Recoverable payload errors preserve their bytes as Unknown. A nil
 			// Data value means framing failed and there is no safe next offset.
 			if a.Data == nil {
@@ -180,7 +192,14 @@ func (m *Message) decodeAVPs(b []byte) error {
 		// RFC 6733 section 4.1 requires the next AVP to begin on a 32-bit
 		// boundary. Validate the padded wire length before advancing.
 		if advance <= 0 || advance > len(b)-n {
-			return fmt.Errorf("%w: AVP at offset %d consumes %d padded bytes, have %d", errAVPDataTooShort, n, advance, len(b)-n)
+			lengthErr := newDecodedAVPLengthError(a, fmt.Errorf(
+				"%w: AVP at offset %d consumes %d padded bytes, have %d",
+				errAVPDataTooShort, n, advance, len(b)-n))
+			return &MessageError{
+				ResultCode: InvalidAVPLength,
+				FailedAVP:  lengthErr.failedAVP,
+				Err:        lengthErr,
+			}
 		}
 		m.AVP = append(m.AVP, a)
 		n += advance
@@ -329,7 +348,10 @@ func (m *Message) WriteToStream(writer io.Writer, stream uint) (n int, err error
 // if needed
 // If writer implements MultistreamWriter, writes the message into specified stream
 func (m *Message) WriteToStreamWithRetry(writer io.Writer, stream, retries uint) (n int, err error) {
-	l := m.Len()
+	l, err := m.serializedLength()
+	if err != nil {
+		return 0, err
+	}
 	buf := newWriterBuffer(l)
 	defer putWriterBuffer(buf)
 	b := buf.Bytes()[0:l]
@@ -382,7 +404,11 @@ func writeStreamRetry(w MultistreamWriter, b []byte, stream, retries uint) (n in
 
 // Serialize returns the serialized bytes of the Message.
 func (m *Message) Serialize() ([]byte, error) {
-	b := make([]byte, m.Len())
+	l, err := m.serializedLength()
+	if err != nil {
+		return nil, err
+	}
+	b := make([]byte, l)
 	if err := m.SerializeTo(b); err != nil {
 		return nil, err
 	}
@@ -391,6 +417,9 @@ func (m *Message) Serialize() ([]byte, error) {
 
 // SerializeTo writes the serialized bytes of the Message into b.
 func (m *Message) SerializeTo(b []byte) (err error) {
+	if _, err := m.serializedLength(); err != nil {
+		return err
+	}
 	m.Header.SerializeTo(b[0:HeaderLength])
 	offset := HeaderLength
 	for _, avp := range m.AVP {
@@ -400,6 +429,17 @@ func (m *Message) SerializeTo(b []byte) (err error) {
 		offset += avp.Len()
 	}
 	return nil
+}
+
+func (m *Message) serializedLength() (int, error) {
+	l := m.Len()
+	if l < HeaderLength {
+		return 0, fmt.Errorf("invalid Diameter message length %d", l)
+	}
+	if l > MaxMessageLength {
+		return 0, fmt.Errorf("diameter message length %d exceeds 24-bit maximum %d", l, MaxMessageLength)
+	}
+	return l, nil
 }
 
 // Len returns the length of the Message in bytes.

@@ -53,11 +53,20 @@ func NewAVP(code uint32, flags uint8, vendor uint32, data datatype.Type) *AVP {
 // DecodeAVP decodes the bytes of a Diameter AVP.
 // It uses the given application id and dictionary for decoding the bytes.
 func DecodeAVP(data []byte, application uint32, dictionary *dict.Parser) (*AVP, error) {
-	avp := &AVP{}
-	if err := avp.DecodeFromBytes(data, application, dictionary); err != nil {
-		return avp, err
+	a := &AVP{}
+	if err := a.DecodeFromBytes(data, application, dictionary); err != nil {
+		var lengthErr *avpLengthError
+		if errors.As(err, &lengthErr) {
+			return a, lengthErr
+		}
+		if errors.Is(err, errAVPHeaderTooShort) ||
+			errors.Is(err, errAVPDataTooShort) ||
+			errors.Is(err, errAVPVendorTooShort) {
+			return a, newAVPLengthError(data, application, dictionary, err)
+		}
+		return a, err
 	}
-	return avp, nil
+	return a, nil
 }
 
 // DecodeFromBytes decodes the bytes of a Diameter AVP.
@@ -104,6 +113,14 @@ func (a *AVP) DecodeFromBytes(data []byte, application uint32, dictionary *dict.
 	if dictAVP.Data.Type == datatype.GroupedType {
 		g, groupErr := DecodeGroupedFromBytes(payload[:bodyLen], application, dictionary)
 		if groupErr != nil {
+			var lengthErr *avpLengthError
+			if errors.As(groupErr, &lengthErr) {
+				// Preserve the complete outer AVP bytes for callers that need its
+				// wire length, while the error separately carries a bounded
+				// Failed-AVP hierarchy for RFC 6733 Sections 7.1.5 and 7.5.
+				a.Data = datatype.Unknown(payload[:bodyLen])
+				return lengthErr.withGroupedParent(a)
+			}
 			// Preserve raw bytes to prevent offset misalignment in the parent parse loop.
 			a.Data = datatype.Unknown(payload[:bodyLen])
 			return DecodeError(fmt.Errorf("%s(%d): Grouped{%v}", dictAVP.Name, dictAVP.Code, groupErr))

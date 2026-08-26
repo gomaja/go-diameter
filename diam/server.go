@@ -10,6 +10,7 @@ import (
 	"bufio"
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -226,22 +227,48 @@ func (c *conn) serve() {
 	for {
 		m, err := c.readMessage()
 		if err != nil {
-			// Report errors to the channel, except EOF.
-			// Connection close is handled by the defer above,
-			// after draining in-flight handlers via hwg.Wait().
-			if err != io.EOF && err != io.ErrUnexpectedEOF {
-				h := c.server.Handler
-				if h == nil {
-					h = DefaultServeMux
-				}
-				if er, ok := h.(ErrorReporter); ok {
-					er.Error(&ErrorReport{c.writer, m, err})
-				}
+			if c.handleReadError(m, err) {
+				continue
 			}
 			break
 		}
 		c.dispatch(m)
 	}
+}
+
+// handleReadError reports err and gives handlers with Diameter message-error
+// support an opportunity to answer malformed messages. It returns true only
+// when the message boundary is still reliable and the handler succeeded.
+func (c *conn) handleReadError(m *Message, err error) bool {
+	if err == io.EOF || err == io.ErrUnexpectedEOF {
+		return false
+	}
+
+	h := c.server.Handler
+	if h == nil {
+		h = DefaultServeMux
+	}
+
+	reportErr := err
+	var messageErr *MessageError
+	var handleErr error
+	handled := false
+	if errors.As(err, &messageErr) {
+		if dispatcher, ok := h.(messageErrorDispatcher); ok {
+			handled, handleErr = dispatcher.dispatchMessageError(c.writer, m, messageErr)
+		} else if messageErrorHandler, ok := h.(MessageErrorHandler); ok {
+			handled = true
+			handleErr = messageErrorHandler.HandleMessageError(c.writer, m, messageErr)
+		}
+		if handleErr != nil {
+			reportErr = errors.Join(err, fmt.Errorf("handle Diameter message error: %w", handleErr))
+		}
+	}
+
+	if reporter, ok := h.(ErrorReporter); ok {
+		reporter.Error(&ErrorReport{c.writer, m, reportErr})
+	}
+	return handled && handleErr == nil && !messageErr.Fatal
 }
 
 // dispatch invokes the handler for m either in the current goroutine
@@ -437,6 +464,17 @@ type ErrorReporter interface {
 	ErrorReports() <-chan *ErrorReport
 }
 
+// MessageErrorHandler is implemented by handlers that can construct Diameter
+// error answers using their configured node identity. The server calls it
+// synchronously and never dispatches the malformed message through ServeDIAM.
+type MessageErrorHandler interface {
+	HandleMessageError(Conn, *Message, *MessageError) error
+}
+
+type messageErrorDispatcher interface {
+	dispatchMessageError(Conn, *Message, *MessageError) (bool, error)
+}
+
 // ErrorReport is sent out of the server in case it fails to
 // read messages due to a bad dictionary or network errors.
 type ErrorReport struct {
@@ -535,6 +573,63 @@ func (mux *ServeMux) ServeDIAM(c Conn, m *Message) {
 		cmd = dcmd.Short + "A"
 	}
 	mux.serve(cmd, c, m)
+}
+
+// HandleMessageError dispatches a malformed message to the registered handler
+// that matches its command, or to the "ALL" handler when present.
+func (mux *ServeMux) HandleMessageError(c Conn, m *Message, messageErr *MessageError) error {
+	handled, err := mux.dispatchMessageError(c, m, messageErr)
+	if err != nil {
+		return err
+	}
+	if !handled {
+		return errors.New("no registered handler supports Diameter message errors")
+	}
+	return nil
+}
+
+func (mux *ServeMux) dispatchMessageError(c Conn, m *Message, messageErr *MessageError) (bool, error) {
+	mux.mu.RLock()
+	defer mux.mu.RUnlock()
+
+	if m == nil || m.Header == nil {
+		return handleMuxMessageError(mux.idxMap[ALL_CMD_INDEX], c, m, messageErr)
+	}
+
+	dcmd, err := m.Dictionary().FindCommand(m.Header.ApplicationID, m.Header.CommandCode)
+	if err == nil {
+		idx := CommandIndex{
+			AppID:   m.Header.ApplicationID,
+			Code:    m.Header.CommandCode,
+			Request: m.Header.CommandFlags&RequestFlag == RequestFlag,
+		}
+		if entry, ok := mux.idxMap[idx]; ok {
+			if handled, handleErr := handleMuxMessageError(entry, c, m, messageErr); handled {
+				return true, handleErr
+			}
+			return handleMuxMessageError(mux.idxMap[ALL_CMD_INDEX], c, m, messageErr)
+		}
+
+		cmd := dcmd.Short + "A"
+		if idx.Request {
+			cmd = dcmd.Short + "R"
+		}
+		if entry, ok := mux.m[cmd]; ok {
+			if handled, handleErr := handleMuxMessageError(entry, c, m, messageErr); handled {
+				return true, handleErr
+			}
+		}
+	}
+
+	return handleMuxMessageError(mux.idxMap[ALL_CMD_INDEX], c, m, messageErr)
+}
+
+func handleMuxMessageError(entry muxEntry, c Conn, m *Message, messageErr *MessageError) (bool, error) {
+	handler, ok := entry.h.(MessageErrorHandler)
+	if !ok {
+		return false, nil
+	}
+	return true, handler.HandleMessageError(c, m, messageErr)
 }
 
 func (mux *ServeMux) serveIdx(cmd CommandIndex, c Conn, m *Message) {

@@ -36,7 +36,8 @@ const (
 	UnsupportedVersion     = 5011
 	UnableToComply         = 5012
 	InvalidBitInHeader     = 5013
-	InvalidAVPLenght       = 5014
+	InvalidAVPLength       = 5014
+	InvalidAVPLenght       = InvalidAVPLength // Deprecated: use InvalidAVPLength.
 	InvalidMessageLength   = 5015
 	InvalidAVPBitCombo     = 5016
 	NoCommonSecurity       = 5017
