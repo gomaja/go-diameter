@@ -1,11 +1,11 @@
 module github.com/gomaja/go-diameter
 
-go 1.25.0
+go 1.26
 
 require (
 	github.com/golang/glog v1.2.5
 	github.com/golang/protobuf v1.5.4
-	github.com/gomaja/go-sctp v1.0.0
+	github.com/gomaja/go-sctp v1.1.0
 	google.golang.org/grpc v1.83.0
 )
 

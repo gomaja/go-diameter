@@ -9,10 +9,13 @@ encoding and decoding, AVP data types, XML dictionaries, client and server APIs,
 peer state machines, test helpers, and examples for building Diameter clients,
 servers, and agents.
 
-The module path is:
+## Installing
+
+This module is followed on its `main` branch. It has no releases. Go 1.26 or
+later is required, and its go-sctp dependency is followed on `main` too.
 
 ```sh
-go get github.com/gomaja/go-diameter
+go get github.com/gomaja/go-diameter@main
 ```
 
 ## Why This Library
@@ -34,13 +37,13 @@ go get github.com/gomaja/go-diameter
 Run the sample server:
 
 ```sh
-go run github.com/gomaja/go-diameter/examples/server@latest
+go run github.com/gomaja/go-diameter/examples/server@main
 ```
 
 In another terminal, run the sample client and send a request:
 
 ```sh
-go run github.com/gomaja/go-diameter/examples/client@latest -hello
+go run github.com/gomaja/go-diameter/examples/client@main -hello
 ```
 
 The examples load a small custom dictionary on top of the default Diameter
@@ -118,7 +121,7 @@ socket-backed SCTP behavior must be validated on Linux with SCTP enabled.
 The public CI pipeline validates the repository with:
 
 - `gofmt` and whitespace checks.
-- Linux tests on Go 1.25.x and stable Go.
+- Linux tests on Go 1.26.x and stable Go.
 - Linux race tests.
 - `go vet`.
 - Cross-architecture vet for selected Linux targets.
@@ -141,7 +144,7 @@ patterns, reflection use, TLS, and transport choice. The repository includes Go
 benchmarks and a benchmark-capable client example:
 
 ```sh
-go run github.com/gomaja/go-diameter/examples/client@latest -bench
+go run github.com/gomaja/go-diameter/examples/client@main -bench
 ```
 
 For realistic performance tests, avoid logging full Diameter messages in hot
