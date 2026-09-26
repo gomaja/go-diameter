@@ -79,8 +79,6 @@ jobs:
         run: |
           sudo modprobe sctp
           test -e /proc/net/sctp/snmp
-          sudo sysctl -w net.sctp.auth_enable=1 >/dev/null 2>&1 || true
-          sudo sysctl -w net.sctp.intl_enable=1 >/dev/null 2>&1 || true
           for ip in 127.0.0.2 127.0.0.3 127.0.0.4; do
             sudo ip addr add "$ip/8" dev lo 2>/dev/null || true
           done
@@ -105,8 +103,6 @@ jobs:
         run: |
           sudo modprobe sctp
           test -e /proc/net/sctp/snmp
-          sudo sysctl -w net.sctp.auth_enable=1 >/dev/null 2>&1 || true
-          sudo sysctl -w net.sctp.intl_enable=1 >/dev/null 2>&1 || true
           for ip in 127.0.0.2 127.0.0.3 127.0.0.4; do
             sudo ip addr add "$ip/8" dev lo 2>/dev/null || true
           done
