@@ -18,6 +18,17 @@ later is required, and its go-sctp dependency is followed on `main` too.
 go get github.com/gomaja/go-diameter@main
 ```
 
+Use `@main`, not `@latest`, to get the module and to update it. The Go
+module proxy still serves versions published before this repository was
+maintained here (`v1.0.0`, `v2.0.3+incompatible` and `v3.0.2+incompatible`).
+One tag, `v1.1.0`, placed on `main` when go-diameter moved to go-sctp's
+current API, holds their retraction in its `go.mod` (Go reads retractions
+only from the newest version) and keeps `main`'s pseudo-versions sorting
+above them; no other tag follows it. `@latest`, and any tool that follows
+releases, resolves to that tag. Later commits are reached only with `@main`
+or a commit hash, and `go get -u` does not move a module from one `main`
+commit to a newer one.
+
 ## Why This Library
 
 - Implements the Diameter base protocol model with Go-native APIs for messages,
