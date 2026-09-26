@@ -127,6 +127,25 @@ network before claiming interface compliance for a deployment.
 SCTP is a Linux runtime feature. Non-Linux builds are kept portable, but
 socket-backed SCTP behavior must be validated on Linux with SCTP enabled.
 
+SCTP needs Linux 5.0 or later, the same floor as go-sctp. The main deployment
+target is Rocky Linux 9, which runs a 5.14 kernel.
+
+On Rocky Linux 9, and on other RHEL 9 derivatives, SCTP is not available out
+of the box. The `sctp` module ships in the `kernel-modules-extra` package,
+and that package also blacklists it, because unprivileged users could
+otherwise load it (see Red Hat's article 3760101). Until an administrator
+enables it, SCTP sockets fail with "protocol not supported"
+(`EPROTONOSUPPORT`). To enable it, install the package for the running
+kernel and comment out the blacklist line:
+
+```sh
+sudo dnf install "kernel-modules-extra-$(uname -r)"
+sudo sed -i 's/^blacklist sctp$/#blacklist sctp/' /etc/modprobe.d/sctp-blacklist.conf
+```
+
+No reboot is needed: the module loads the first time an SCTP socket is
+opened. `/proc/net/sctp/snmp` exists once it is loaded.
+
 ## Validation
 
 The public CI pipeline validates the repository with:
