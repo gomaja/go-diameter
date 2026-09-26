@@ -26,7 +26,7 @@ var vendorID = flag.Uint("vendor", 10415, "Vendor ID")
 var appID = flag.Uint("app", 16777251, "AuthApplicationID")
 var wait = flag.Int("wait", 10, "Time to wait for completion")
 
-var sctpLAdds, localAddr *sctp.SCTPAddr
+var sctpLAdds, localAddr *sctp.Addr
 var originStateID = datatype.Unsigned32(time.Now().Unix())
 
 func main() {
@@ -44,7 +44,7 @@ func main() {
 
 	var err error
 	if len(*laddr) > 0 {
-		localAddr, err = sctp.ResolveSCTPAddr("sctp", *laddr)
+		localAddr, err = sctp.ResolveAddr("sctp", *laddr)
 		if err != nil {
 			log.Fatalf("Invalid Local Address '%s': %v", *laddr, err)
 		}
@@ -56,18 +56,18 @@ func main() {
 		return
 	}
 	sctpConn := cli.Connection().(*diam.SCTPConn)
-	sctpLAdds, err = sctpConn.SCTPLocalAddr(0)
+	sctpLAdds, err = sctpConn.LocalAddrs()
 	if err != nil {
 		log.Fatal(err)
 		return
 	}
-	sctpRAdds, err := sctpConn.SCTPRemoteAddr(0)
+	sctpRAdds, err := sctpConn.PeerAddrs()
 	if err != nil {
 		log.Fatal(err)
 		return
 	}
 	log.Printf("SCTP Association %s -> %s", sctpLAdds, sctpRAdds)
-	primaryAddr, err := sctpConn.SCTPGetPrimaryPeerAddr()
+	primaryAddr, err := sctpConn.PrimaryAddr()
 	if err != nil {
 		log.Fatal(err)
 		return
@@ -100,7 +100,7 @@ func sendCER(w io.Writer) (n int64, err error) {
 		avp.HostIPAddress,
 		avp.Mbit,
 		0,
-		datatype.Address(net.ParseIP(sctpLAdds.IPAddrs[len(sctpLAdds.IPAddrs)-1].String()))); err != nil {
+		datatype.Address(net.IP(sctpLAdds.IPs[len(sctpLAdds.IPs)-1].AsSlice()))); err != nil {
 		return 0, err
 	}
 	if _, err := m.NewAVP(avp.VendorID, avp.Mbit, 0, datatype.Unsigned32(99)); err != nil {

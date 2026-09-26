@@ -8,6 +8,7 @@ import (
 	"context"
 	"crypto/tls"
 	"net"
+	"net/netip"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -20,6 +21,7 @@ import (
 	"github.com/gomaja/go-diameter/diam/diamtest"
 	"github.com/gomaja/go-diameter/diam/dict"
 	"github.com/gomaja/go-diameter/diam/sm/smparser"
+	"github.com/gomaja/go-sctp"
 )
 
 func mustSMClientAVP(t *testing.T, m *diam.Message, code interface{}, flags uint8, vendor uint32, data datatype.Type) {
@@ -439,7 +441,7 @@ func (a testLocalAddr) String() string  { return a.value }
 
 // Type matching interface: diam.Conn
 type testLocalAddrDiamConn struct {
-	localAddr *testLocalAddr
+	localAddr net.Addr
 }
 
 func (d testLocalAddrDiamConn) Write(b []byte) (int, error)                    { return 0, nil }
@@ -480,7 +482,7 @@ func TestClient_Conn_LocalAddresses_Complex(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to parse local addresses: %v", err)
 	}
-	if len(addrList) != 1 {
+	if len(addrList) != 2 {
 		t.Fatal("Failed to parse valid IP address or failed to skip loopback")
 	}
 
@@ -488,6 +490,49 @@ func TestClient_Conn_LocalAddresses_Complex(t *testing.T) {
 	expected := "10.0.0.3"
 	if actual != expected {
 		t.Fatalf("Wrong IP address found in list of local addresses, expected: %s, actual: %s", expected, actual)
+	}
+	if got := net.IP(addrList[1]).String(); got != "fe80::78ef:efb:a57b:15b9" {
+		t.Fatalf("IPv6 fallback address = %s", got)
+	}
+}
+
+func TestClient_Conn_LocalAddresses_IPv6(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		addr net.Addr
+	}{
+		{"tcp", &net.TCPAddr{IP: net.ParseIP("2001:db8::1"), Port: 3868}},
+		{"string fallback", testLocalAddr{value: "[2001:db8::1]:3868"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := getLocalAddresses(testLocalAddrDiamConn{localAddr: tc.addr})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(got) != 1 || !net.IP(got[0]).Equal(net.ParseIP("2001:db8::1")) {
+				t.Fatalf("addresses = %v, want 2001:db8::1", got)
+			}
+		})
+	}
+}
+
+func TestClient_Conn_LocalAddresses_SCTPMultihomed(t *testing.T) {
+	addr := &sctp.Addr{IPs: []netip.Addr{
+		netip.MustParseAddr("127.0.0.1"),
+		netip.MustParseAddr("10.0.0.3"),
+		netip.MustParseAddr("2001:db8::1"),
+	}, Port: 3868}
+	got, err := getLocalAddresses(testLocalAddrDiamConn{localAddr: addr})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 || !net.IP(got[0]).Equal(net.ParseIP("10.0.0.3")) || !net.IP(got[1]).Equal(net.ParseIP("2001:db8::1")) {
+		t.Fatalf("multihomed addresses = %v", got)
+	}
+	addr.IPs = []netip.Addr{netip.MustParseAddr("::1")}
+	got, err = getLocalAddresses(testLocalAddrDiamConn{localAddr: addr})
+	if err != nil || len(got) != 1 || !net.IP(got[0]).IsLoopback() {
+		t.Fatalf("loopback-only addresses = %v, %v", got, err)
 	}
 }
 

@@ -7,12 +7,14 @@ package diam
 import (
 	"bytes"
 	"container/heap"
+	"context"
 	"io"
 	"log"
 	"net"
 	"strconv"
 	"sync"
 	"sync/atomic"
+	"time"
 	"unsafe"
 
 	"github.com/gomaja/go-sctp"
@@ -29,20 +31,48 @@ const (
 
 	// DiameterPPID - SCTP Payload Protocol Identifier for Diameter.
 	// RFC 6733 §2.1 runs Diameter over SCTP; RFC 9260 §3.3.1 carries the
-	// PPID as upper-layer metadata and RFC 6458 §5.3.2 defines socket PPID
+	// PPID as upper-layer metadata and RFC 6458 §5.3.4 defines SCTP_SNDINFO
 	// byte-order handling.
 	DiameterPPID uint32 = 46
 )
 
 type sctpDialer struct {
-	LocalAddr *sctp.SCTPAddr
+	LocalAddr *sctp.Addr
+	Timeout   time.Duration
 }
 
 // sctpSingleStreamDialer - SCTP Dialer for stream unaware applications.
 type sctpSingleStreamDialer sctpDialer
 
 type sctpListener struct {
-	*sctp.SCTPListener
+	*sctp.Listener
+}
+
+type sctpMessageReceiver interface {
+	RecvMsg([]byte) (int, sctp.MsgInfo, error)
+}
+
+// recvSCTPData consumes notifications, which share the SCTP receive queue
+// with data (RFC 6458 §6), without presenting them as Diameter bytes.
+func recvSCTPData(r sctpMessageReceiver, b []byte) (int, sctp.MsgInfo, error) {
+	for {
+		n, info, err := r.RecvMsg(b)
+		if err != nil || !info.Notification {
+			return n, info, err
+		}
+	}
+}
+
+// diameterSCTPConfig applies the association defaults before dial or listen.
+// RFC 6458 §§8.1.3, 8.1.5, 8.1.19 and 8.1.31 define these socket options;
+// RFC 6733 §2.1.1 assigns Diameter PPID 46.
+func diameterSCTPConfig() *sctp.Config {
+	return &sctp.Config{
+		InitMsg:        sctp.InitMsg{OutStreams: MaxOutboundSCTPStreams, MaxInStreams: MaxInboundSCTPStreams},
+		NoDelay:        new(true),
+		DelayedSACK:    &sctp.DelayedSACK{Frequency: 1},
+		DefaultSndInfo: &sctp.SndInfo{PPID: DiameterPPID},
+	}
 }
 
 type streamBuffer struct {
@@ -96,7 +126,7 @@ func (pq *streams) Pop() interface{} {
 
 // SCTPConn - MutistreamConn implementation for SCTP.
 type SCTPConn struct {
-	*sctp.SCTPConn
+	*sctp.Conn
 
 	streamBuffMu sync.Mutex
 	s            *streams
@@ -107,29 +137,25 @@ type SCTPConn struct {
 	errorHandler MutistreamConnErrorHandler
 }
 
-// NewSCTPConn - creates new MultistreamConn (diam.SCTPConn) from provided sctp.SCTPConn.
-func NewSCTPConn(sctpConn *sctp.SCTPConn) MultistreamConn {
+// NewSCTPConn creates a multistream connection from a go-sctp Conn.
+func NewSCTPConn(sctpConn *sctp.Conn) MultistreamConn {
 	if sctpConn == nil {
 		return nil
 	}
-	if err := sctpConn.SubscribeEvents(sctp.SCTP_EVENT_DATA_IO); err != nil {
-		log.Printf("diam: subscribe SCTP data events failed: %v", err)
-	}
-
 	// Sender side: disable the SCTP Nagle algorithm (RFC 6458 §8.1.5) so small
 	// Diameter messages are sent immediately instead of being coalesced. This is
 	// the primary fix for the latency caused by sender-side buffering.
-	if err := sctpConn.SetNoDelay(1); err != nil {
+	if err := sctpConn.SetNoDelay(true); err != nil {
 		log.Printf("diam: set SCTP_NODELAY failed: %v", err)
 	}
 
 	// Receiver side: disable the delayed-SACK timer (RFC 6458 §8.1.19) so
 	// acknowledgements are sent for every packet without delay, complementing the
 	// sender-side NODELAY above to minimize round-trip latency.
-	if err := sctpConn.SetSackTimer(&sctp.SackTimer{SackDelay: 0, SackFrequency: 1}); err != nil {
+	if err := sctpConn.SetDelayedSACK(&sctp.DelayedSACK{Frequency: 1}); err != nil {
 		log.Printf("diam: set SCTP delayed-SACK timer failed: %v", err)
 	}
-	return &SCTPConn{SCTPConn: sctpConn, s: &streams{}, currStream: InvalidStreamID, writerStream: InvalidStreamID}
+	return &SCTPConn{Conn: sctpConn, s: &streams{}, currStream: InvalidStreamID, writerStream: InvalidStreamID}
 }
 
 // ReadAny reads data from any association's stream (if available).
@@ -147,16 +173,12 @@ func (msc *SCTPConn) ReadAny(b []byte) (n int, stream uint, err error) {
 		return
 	}
 	msc.streamBuffMu.Unlock()
-	var info *sctp.SndRcvInfo
-	n, info, err = msc.SCTPRead(b)
+	var info sctp.MsgInfo
+	n, info, err = recvSCTPData(msc.Conn, b)
 	if n < 0 {
 		n = 0
 	}
-	if info != nil {
-		stream = uint(info.Stream)
-	} else if n > 0 { // reset current stream only if there was some data received
-		stream = InvalidStreamID
-	}
+	stream = uint(info.Rcv.Stream)
 	// shortcut for non empty stream buffer
 	n, err = msc.verifyStreamBuff(b, n, stream, err)
 	if err != nil {
@@ -176,7 +198,7 @@ func (msc *SCTPConn) SetErrorHandler(h MutistreamConnErrorHandler) {
 
 // ReadStream reads data from the specified association's stream.
 func (msc *SCTPConn) ReadStream(b []byte, stream uint) (n int, err error) {
-	var info *sctp.SndRcvInfo
+	var info sctp.MsgInfo
 	var currStream uint
 	msc.streamBuffMu.Lock()
 	for {
@@ -189,22 +211,16 @@ func (msc *SCTPConn) ReadStream(b []byte, stream uint) (n int, err error) {
 		}
 
 		msc.streamBuffMu.Unlock()
-		n, info, err = msc.SCTPRead(b)
+		n, info, err = recvSCTPData(msc.Conn, b)
 		if n <= 0 {
 			return 0, err
 		}
 
-		if info == nil {
-			// info == nil => no stream info, the socket was not initialized properly, assign to InvalidStreamID stream
-			currStream = InvalidStreamID
-		} else {
-			currStream = uint(info.Stream)
-			// shortcut for non empty stream buffer
-			if currStream == stream {
-				// We got data for the requested stream, but we still need to make sure that the stream buffer didn't
-				// get any data buffered into while we were waiting on SCTPRead outside of lock
-				return msc.verifyStreamBuff(b, n, stream, err)
-			}
+		currStream = uint(info.Rcv.Stream)
+		// Keep byte reassembly across SCTP messages on each stream.
+		if currStream == stream {
+			// A concurrent read may have buffered data while RecvMsg was waiting.
+			return msc.verifyStreamBuff(b, n, stream, err)
 		}
 		rb := b[0:n]
 		msc.streamBuffMu.Lock()
@@ -266,11 +282,11 @@ func (msc *SCTPConn) bufferStreamData(b []byte, stream uint) {
 
 // WriteStream writes data to the association's stream.
 func (msc *SCTPConn) WriteStream(b []byte, stream uint) (int, error) {
-	info := &sctp.SndRcvInfo{PPID: DiameterPPID}
+	info := &sctp.SndInfo{PPID: DiameterPPID}
 	if stream != InvalidStreamID {
 		info.Stream = uint16(stream)
 	}
-	return msc.SCTPWrite(b, info)
+	return msc.SendMsg(b, sctp.SendOptions{Info: info})
 }
 
 // CurrentStream returns the last stream read by Read 'adaptor'.
@@ -375,47 +391,35 @@ func (msc *SCTPConn) Write(b []byte) (int, error) {
 	if stream == InvalidStreamID {
 		stream = msc.CurrentStream()
 	}
-	info := &sctp.SndRcvInfo{PPID: DiameterPPID}
+	info := &sctp.SndInfo{PPID: DiameterPPID}
 
 	// If writer stream is not set, stick with the reader stream #
 	if stream != InvalidStreamID {
 		info.Stream = uint16(stream)
 	}
-	return msc.SCTPWrite(b, info)
+	return msc.SendMsg(b, sctp.SendOptions{Info: info})
 }
 
 // Dial connects to the address on the named SCTP network.
 func (d sctpDialer) Dial(network, address string) (net.Conn, error) {
-	sctpAddr, err := sctp.ResolveSCTPAddr(network, address)
+	sctpAddr, err := sctp.ResolveAddr(network, address)
 	if err != nil {
 		return nil, err
 	}
 
-	conn, err := sctp.DialSCTPExt(
-		network,
-		d.LocalAddr,
-		sctpAddr,
-		sctp.InitMsg{
-			NumOstreams:  MaxOutboundSCTPStreams,
-			MaxInstreams: MaxInboundSCTPStreams})
+	ctx := context.Background()
+	if d.Timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, d.Timeout)
+		defer cancel()
+	}
+	conn, err := diameterSCTPConfig().Dial(ctx, network, d.LocalAddr, sctpAddr)
 	return NewSCTPConn(conn), err
 }
 
 // Dial - SCTP dial for stream unaware apps.
 func (d sctpSingleStreamDialer) Dial(network, address string) (net.Conn, error) {
-	sctpAddr, err := sctp.ResolveSCTPAddr(network, address)
-	if err != nil {
-		return nil, err
-	}
-
-	conn, err := sctp.DialSCTPExt(
-		network,
-		d.LocalAddr,
-		sctpAddr,
-		sctp.InitMsg{
-			NumOstreams:  MaxOutboundSCTPStreams,
-			MaxInstreams: MaxInboundSCTPStreams})
-	return NewSCTPConn(conn), err
+	return sctpDialer(d).Dial(network, address)
 }
 
 // Accept implements the Accept method in the listener interface for sctpListener (see: MultistreamListen).

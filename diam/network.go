@@ -104,8 +104,8 @@ type Dialer interface {
 func getDialer(network string, timeout time.Duration, laddr net.Addr) Dialer {
 	switch network {
 	case "sctp", "sctp4", "sctp6":
-		la, _ := laddr.(*sctp.SCTPAddr)
-		return sctpSingleStreamDialer{LocalAddr: la}
+		la, _ := laddr.(*sctp.Addr)
+		return sctpSingleStreamDialer{LocalAddr: la, Timeout: timeout}
 	default:
 		return &net.Dialer{Timeout: timeout, LocalAddr: laddr}
 	}
@@ -115,8 +115,8 @@ func getDialer(network string, timeout time.Duration, laddr net.Addr) Dialer {
 func getMultistreamDialer(network string, timeout time.Duration, laddr net.Addr) Dialer {
 	switch network {
 	case "sctp", "sctp4", "sctp6":
-		la, _ := laddr.(*sctp.SCTPAddr)
-		return sctpDialer{LocalAddr: la}
+		la, _ := laddr.(*sctp.Addr)
+		return sctpDialer{LocalAddr: la, Timeout: timeout}
 	default:
 		dialer := &net.Dialer{Timeout: timeout, LocalAddr: laddr}
 		if laddr != nil && len(laddr.String()) > 0 &&
@@ -131,7 +131,7 @@ func getMultistreamDialer(network string, timeout time.Duration, laddr net.Addr)
 func resolveAddress(network, addr string) (net.Addr, error) {
 	switch network {
 	case "sctp", "sctp4", "sctp6":
-		return sctp.ResolveSCTPAddr(network, addr)
+		return sctp.ResolveAddr(network, addr)
 	case "":
 		network = "tcp"
 		fallthrough
@@ -142,17 +142,12 @@ func resolveAddress(network, addr string) (net.Addr, error) {
 	}
 }
 
-func listenSCTP(network, address string) (*sctp.SCTPListener, error) {
-	sctpAddr, err := sctp.ResolveSCTPAddr(network, address)
+func listenSCTP(network, address string) (*sctp.Listener, error) {
+	sctpAddr, err := sctp.ResolveAddr(network, address)
 	if err != nil {
 		return nil, err
 	}
-	return sctp.ListenSCTPExt(
-		network,
-		sctpAddr,
-		sctp.InitMsg{
-			NumOstreams:  MaxOutboundSCTPStreams,
-			MaxInstreams: MaxInboundSCTPStreams})
+	return diameterSCTPConfig().Listen(network, sctpAddr)
 }
 
 // Listen announces on the local network address

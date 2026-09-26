@@ -338,8 +338,8 @@ func (w *response) writeLocked(b []byte) (int, error) {
 			return 0, err
 		}
 	}
-	msc, isMulti := w.conn.rwc.(MultistreamConn) // Note - SetWriteDeadline is not currently supported for SCTP
-	if isMulti {                                 // don't use buffered writer for muti-streamming writes it'll mix up streams
+	msc, isMulti := w.conn.rwc.(MultistreamConn)
+	if isMulti { // don't use buffered writer for multistream writes; it mixes streams
 		return msc.Write(b)
 	}
 	n, err := w.conn.buf.Write(b)
@@ -354,11 +354,15 @@ func (w *response) writeLocked(b []byte) (int, error) {
 
 // WriteStream of MultistreamWriter interface
 func (w *response) WriteStream(b []byte, stream uint) (int, error) {
-	// TODO - SetWriteDeadline is not currently supported
 	w.mu.Lock()
 	defer w.mu.Unlock()
+	if w.conn.server.WriteTimeout > 0 {
+		if err := w.conn.rwc.SetWriteDeadline(time.Now().Add(w.conn.server.WriteTimeout)); err != nil {
+			return 0, err
+		}
+	}
 	if msc, isMulti := w.conn.rwc.(MultistreamConn); isMulti {
-		// don't use buffered writer for muti-streamming writes it'll mix up streams
+		// Buffered writes would mix bytes from different streams.
 		return msc.WriteStream(b, stream)
 	}
 	return w.writeLocked(b)

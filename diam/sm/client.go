@@ -17,6 +17,7 @@ import (
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/dict"
+	"github.com/gomaja/go-sctp"
 )
 
 var (
@@ -74,7 +75,6 @@ type Client struct {
 	// other sender behind it — including the watchdog's DWR, which would
 	// otherwise never reach its own timeout. Setting this bounds that.
 	//
-	// Not currently supported for SCTP, which has no write deadline.
 	WriteTimeout time.Duration
 
 	// OnWatchdogEvent, when non-nil, observes client-side watchdog outcomes.
@@ -445,30 +445,48 @@ func getHostsWithoutPort(hosts string) (string, error) {
 }
 
 func getLocalAddresses(c diam.Conn) ([]datatype.Address, error) {
-	var (
-		addr, addrStr string
-		loopback      net.IP
-		err           error
-	)
-	if c.LocalAddr() != nil {
-		addrStr = c.LocalAddr().String()
-	}
-	if addrStr != "" {
-		addr, err = getHostsWithoutPort(addrStr)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse local ip %s [%q]: %s", addrStr, c.LocalAddr(), err)
+	var ips []net.IP
+	switch addr := c.LocalAddr().(type) {
+	case *sctp.Addr:
+		if addr != nil {
+			for _, ip := range addr.IPs {
+				ips = append(ips, net.IP(ip.AsSlice()))
+			}
+		}
+	case *net.TCPAddr:
+		if addr != nil {
+			ips = append(ips, addr.IP)
+		}
+	case nil:
+		return nil, nil
+	default:
+		addrStr := addr.String()
+		if addrStr != "" {
+			hosts, err := getHostsWithoutPort(addrStr)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse local ip %s [%q]: %w", addrStr, addr, err)
+			}
+			for _, host := range strings.Split(hosts, "/") {
+				host = strings.TrimPrefix(strings.TrimSuffix(host, "]"), "[")
+				if zone := strings.LastIndex(host, "%"); zone >= 0 {
+					host = host[:zone]
+				}
+				ips = append(ips, net.ParseIP(host))
+			}
 		}
 	}
-	hostIPs := strings.Split(addr, "/")
-	addresses := make([]datatype.Address, 0, len(hostIPs))
-	for _, ipStr := range hostIPs {
-		ip := net.ParseIP(ipStr)
-		if ip != nil {
-			if ip.IsLoopback() {
-				loopback = ip
-			} else {
-				addresses = append(addresses, datatype.Address(ip))
-			}
+	// RFC 6733 §5.3.5 requires the host's addresses in Host-IP-Address.
+	// Preserve the existing loopback preference when other addresses exist.
+	addresses := make([]datatype.Address, 0, len(ips))
+	var loopback net.IP
+	for _, ip := range ips {
+		if ip == nil {
+			continue
+		}
+		if ip.IsLoopback() {
+			loopback = ip
+		} else {
+			addresses = append(addresses, datatype.Address(ip))
 		}
 	}
 	if len(addresses) == 0 && loopback != nil {
