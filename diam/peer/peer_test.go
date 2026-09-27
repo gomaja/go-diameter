@@ -166,7 +166,7 @@ func TestManagersSimultaneousTCP(t *testing.T) {
 	t.Run("endpoint-fallback", func(t *testing.T) { testManagersSimultaneous(t, "tcp", "a.example.net", "b.example.net", true) })
 }
 func TestManagersSimultaneousSCTP(t *testing.T) {
-	if runtime.GOOS == "darwin" {
+	if runtime.GOOS != "linux" {
 		t.Skip("SCTP sockets require Linux")
 	}
 	testManagersSimultaneous(t, "sctp", "a.example.net", "b.example.net", false)
