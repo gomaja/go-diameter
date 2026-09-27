@@ -10,10 +10,6 @@ import (
 // need separate source and compatibility review before they can be added to the
 // shared application scopes. Keep each name explicit so new omissions fail.
 var knownRuleExceptions = map[uint32][]string{
-	16777236: {"3GPP-MS-TimeZone", "3GPP-SGSN-MCC-MNC", "3GPP-User-Location-Info",
-		"Max-PLR-DL", "Max-PLR-UL", "Netloc-Access-Support", "RS-Bandwidth ",
-		"SIP-Forking-Indication ", "Session-Id ", "Sponsored-Connectivity-Data ",
-		"Tariff-Change-Usage"},
 	16777265: {"3GPP-Charging-Characteristics", "Feature-List", "Feature-List-ID", "IMEI",
 		"MIP-Home-Agent-Address", "MIP-Home-Agent-Host", "MIP6-Home-Link-Prefix",
 		"Software-Version", "TGPP2-MEID"},
