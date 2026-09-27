@@ -92,6 +92,47 @@ func TestOutboundSelection(t *testing.T) {
 	_ = sessions
 }
 
+func TestConfiguredDestinationNeverFallsThroughToRoute(t *testing.T) {
+	m, actors, _ := outboundTestManager(t)
+	if err := m.SetRoutes([]Route{{Realm: "example.net", ApplicationID: 4, PeerHosts: []datatype.DiameterIdentity{"a.example.net", "b.example.net"}}}); err != nil {
+		t.Fatal(err)
+	}
+	request := outboundRequest("a.example.net", "example.net")
+	actors[0].meta.Applications = []uint32{5}
+	actors[0].publish(nil)
+	if a, _, err := m.selectPeer(request, nil); a != nil || !errors.Is(err, ErrUnableToDeliver) {
+		t.Fatalf("unnegotiated final destination selected %v: %v", a, err)
+	}
+	actors[0].meta.Applications = []uint32{4}
+	actors[0].publish(nil)
+	if a, _, err := m.selectPeer(request, map[*actor]bool{actors[0]: true}); a != nil || !errors.Is(err, ErrUnableToDeliver) {
+		t.Fatalf("failed final destination rerouted to %v: %v", a, err)
+	}
+}
+
+func TestConfiguredDestinationInFlightNeverReroutes(t *testing.T) {
+	m, actors, sessions := outboundTestManager(t)
+	if err := m.SetRoutes([]Route{{Realm: "example.net", ApplicationID: 4, PeerHosts: []datatype.DiameterIdentity{"a.example.net", "b.example.net"}}}); err != nil {
+		t.Fatal(err)
+	}
+	result := sendAsync(m, context.Background(), outboundRequest("a.example.net", "example.net"))
+	_ = nextWrite(t, sessions[0])
+	actors[0].changeWatchdog(WatchdogSuspect, errors.New("silent"))
+	select {
+	case got := <-result:
+		if !errors.Is(got.err, ErrUnableToDeliver) && !errors.Is(got.err, ErrFailover) {
+			t.Fatalf("fixed destination failover = %+v", got)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("fixed destination did not complete")
+	}
+	select {
+	case w := <-sessions[1].writes:
+		t.Fatalf("fixed destination rerouted to B: %+v", w.msg.Header)
+	default:
+	}
+}
+
 func TestSendCopiesMessageAndMatchesAnswer(t *testing.T) {
 	m, _, sessions := outboundTestManager(t)
 	if err := m.SetRoutes([]Route{{Realm: "example.net", ApplicationID: 4, PeerHosts: []datatype.DiameterIdentity{"a.example.net"}}}); err != nil {
@@ -199,7 +240,7 @@ func TestFailoverKeepsEndToEndAndSetsTOnlyOnRetry(t *testing.T) {
 			if err := m.SetRoutes([]Route{{Realm: "example.net", ApplicationID: 4, PeerHosts: []datatype.DiameterIdentity{"a.example.net", "b.example.net"}}}); err != nil {
 				t.Fatal(err)
 			}
-			result := sendAsync(m, context.Background(), outboundRequest("a.example.net", "example.net"))
+			result := sendAsync(m, context.Background(), outboundRequest("target.example.net", "example.net"))
 			first := nextWrite(t, sessions[0])
 			if first.Header.CommandFlags&diam.RetransmittedFlag != 0 {
 				t.Fatal("first send has T bit")
@@ -210,7 +251,7 @@ func TestFailoverKeepsEndToEndAndSetsTOnlyOnRetry(t *testing.T) {
 				t.Fatalf("failover IDs/flags first=%+v second=%+v", first.Header, second.Header)
 			}
 			originalHost, _ := destination(second, avp.DestinationHost)
-			if originalHost != "a.example.net" {
+			if originalHost != "target.example.net" {
 				t.Fatalf("rewrote Destination-Host to %s", originalHost)
 			}
 			// Closing the old SUSPECT leg must not schedule another failover.
