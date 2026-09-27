@@ -1,12 +1,10 @@
 package sm
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/gomaja/go-diameter/diam"
-	"github.com/gomaja/go-diameter/diam/avp"
-	"github.com/gomaja/go-diameter/diam/datatype"
+	"github.com/gomaja/go-diameter/diam/internal/base"
 )
 
 // DisconnectCause is the reason carried in a DPR (RFC 6733 §5.4.3).
@@ -18,41 +16,10 @@ const (
 	DisconnectDoNotWantToTalkToYou DisconnectCause = 2
 )
 
-// validateDPR enforces the required single AVPs of RFC 6733 §5.4.1.
+// validateDPR retains the state-machine result type for existing callers.
 func validateDPR(m *diam.Message) (DisconnectCause, error) {
-	if m.Header.ApplicationID != 0 || m.Header.CommandCode != diam.DisconnectPeer || m.Header.CommandFlags&diam.RequestFlag == 0 {
-		return 0, fmt.Errorf("invalid DPR header")
-	}
-	var host, realm, cause int
-	var value DisconnectCause
-	for _, a := range m.AVP {
-		if a.VendorID != 0 {
-			continue
-		}
-		switch a.Code {
-		case avp.OriginHost:
-			host++
-			if v, ok := a.Data.(datatype.DiameterIdentity); !ok || len(v) == 0 {
-				return 0, fmt.Errorf("invalid DPR Origin-Host")
-			}
-		case avp.OriginRealm:
-			realm++
-			if v, ok := a.Data.(datatype.DiameterIdentity); !ok || len(v) == 0 {
-				return 0, fmt.Errorf("invalid DPR Origin-Realm")
-			}
-		case avp.DisconnectCause:
-			cause++
-			v, ok := a.Data.(datatype.Enumerated)
-			if !ok || v < 0 || v > 2 {
-				return 0, fmt.Errorf("invalid DPR Disconnect-Cause")
-			}
-			value = DisconnectCause(v)
-		}
-	}
-	if host != 1 || realm != 1 || cause != 1 {
-		return 0, fmt.Errorf("DPR requires one Origin-Host, Origin-Realm and Disconnect-Cause")
-	}
-	return value, nil
+	cause, err := base.ValidateDPR(m)
+	return DisconnectCause(cause), err
 }
 
 func handleDPR(sm *StateMachine) diam.HandlerFunc {
@@ -64,12 +31,7 @@ func handleDPR(sm *StateMachine) diam.HandlerFunc {
 		}
 		// RFC 6733 §§5.4.2, 5.6: send DPA, then wait in Closing for
 		// the initiating peer to close the transport.
-		a := m.Answer(diam.Success)
-		a.Header.CommandFlags = 0 // RFC 6733 §5.4.2: DPA has no P, E or T bit.
-		a.Header.ApplicationID = 0
-		if _, err = a.NewAVP(avp.OriginHost, avp.Mbit, 0, sm.cfg.OriginHost); err == nil {
-			_, err = a.NewAVP(avp.OriginRealm, avp.Mbit, 0, sm.cfg.OriginRealm)
-		}
+		a, err := base.BuildDPA(m, baseSettings(sm.cfg))
 		if err == nil {
 			_, err = a.WriteTo(c)
 		}

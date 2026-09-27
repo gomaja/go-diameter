@@ -6,8 +6,7 @@ package sm
 
 import (
 	"github.com/gomaja/go-diameter/diam"
-	"github.com/gomaja/go-diameter/diam/avp"
-	"github.com/gomaja/go-diameter/diam/datatype"
+	"github.com/gomaja/go-diameter/diam/internal/base"
 	"github.com/gomaja/go-diameter/diam/sm/smparser"
 )
 
@@ -29,35 +28,10 @@ func handleDWR(sm *StateMachine) diam.HandlerFunc {
 			})
 			return
 		}
-		a := m.Answer(diam.Success)
-		a.Header.CommandFlags = 0 // RFC 6733 §5.5.2: DWA has no P, E or T bit.
-		a.Header.ApplicationID = 0
-		if _, err := a.NewAVP(avp.OriginHost, avp.Mbit, 0, sm.cfg.OriginHost); err != nil {
-			sm.Error(&diam.ErrorReport{
-				Conn:    c,
-				Message: m,
-				Error:   err,
-			})
+		a, err := base.BuildDWA(m, baseSettings(sm.cfg))
+		if err != nil {
+			sm.Error(&diam.ErrorReport{Conn: c, Message: m, Error: err})
 			return
-		}
-		if _, err := a.NewAVP(avp.OriginRealm, avp.Mbit, 0, sm.cfg.OriginRealm); err != nil {
-			sm.Error(&diam.ErrorReport{
-				Conn:    c,
-				Message: m,
-				Error:   err,
-			})
-			return
-		}
-		if sm.cfg.OriginStateID != 0 {
-			stateid := datatype.Unsigned32(sm.cfg.OriginStateID)
-			if _, err := a.NewAVP(avp.OriginStateID, avp.Mbit, 0, stateid); err != nil {
-				sm.Error(&diam.ErrorReport{
-					Conn:    c,
-					Message: m,
-					Error:   err,
-				})
-				return
-			}
 		}
 		if sm.cfg.OnDWA != nil {
 			sm.cfg.OnDWA(c, a)
