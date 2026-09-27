@@ -32,7 +32,7 @@ type realClock struct{}
 
 func (realClock) AfterFunc(d time.Duration, f func()) Timer { return time.AfterFunc(d, f) }
 
-type Timers struct{ Connect, CER, Closing time.Duration }
+type Timers struct{ Tc, TwInit, Connect, CER, Closing time.Duration }
 type Limits struct{ Events int }
 type DialFunc func(context.Context, Endpoint) (net.Conn, error)
 type Endpoint struct {
@@ -40,8 +40,9 @@ type Endpoint struct {
 	TLSConfig        *tls.Config
 }
 type PeerConfig struct {
-	Host      datatype.DiameterIdentity
-	Endpoints []Endpoint
+	Host            datatype.DiameterIdentity
+	Endpoints       []Endpoint
+	NoAutoReconnect bool
 }
 type Config struct {
 	Settings sm.Settings
@@ -52,13 +53,16 @@ type Config struct {
 	// OnPeerEvent is observational. Calling Close from this callback is safe.
 	// Events are dropped when its bounded queue is full; Peers returns the
 	// current state independently.
-	OnPeerEvent func(PeerEvent)
+	OnPeerEvent    func(PeerEvent)
+	watchdogTiming *watchdogTiming // test-only short Tw and deterministic jitter
 }
 type PeerSnapshot struct {
 	Host, Realm  datatype.DiameterIdentity
 	Applications []uint32
 	State        PeerState
 	Generation   uint64
+	Watchdog     WatchdogState
+	Eligible     bool
 }
 type PeerEvent struct {
 	Peer   PeerSnapshot
@@ -87,6 +91,22 @@ func New(cfg Config) (*Manager, error) {
 	cfg.Settings.HostIPAddresses = append([]datatype.Address(nil), cfg.Settings.HostIPAddresses...)
 	if cfg.Clock == nil {
 		cfg.Clock = realClock{}
+	}
+	if cfg.Timers.TwInit == 0 {
+		cfg.Timers.TwInit = 30 * time.Second
+	}
+	floor := 6 * time.Second
+	if cfg.watchdogTiming != nil {
+		floor = cfg.watchdogTiming.floor
+	}
+	if cfg.Timers.TwInit < floor {
+		return nil, fmt.Errorf("peer: TwInit %s below RFC 3539 §3.4.1 minimum %s", cfg.Timers.TwInit, floor)
+	}
+	if cfg.Timers.Tc == 0 {
+		cfg.Timers.Tc = 30 * time.Second
+	}
+	if cfg.Timers.Tc < 0 {
+		return nil, errors.New("peer: Tc must be positive")
 	}
 	if cfg.Timers.Connect <= 0 {
 		cfg.Timers.Connect = 5 * time.Second
@@ -122,7 +142,7 @@ func (m *Manager) AddPeer(cfg PeerConfig) error {
 	if len(cfg.Host) == 0 {
 		return errors.New("peer: empty peer Host")
 	}
-	copyCfg := PeerConfig{Host: cfg.Host, Endpoints: make([]Endpoint, len(cfg.Endpoints))}
+	copyCfg := PeerConfig{Host: cfg.Host, Endpoints: make([]Endpoint, len(cfg.Endpoints)), NoAutoReconnect: cfg.NoAutoReconnect}
 	for i, e := range cfg.Endpoints {
 		if e.Address == "" {
 			return fmt.Errorf("peer: empty endpoint address for %s", cfg.Host)
@@ -152,7 +172,7 @@ func (m *Manager) AddPeer(cfg PeerConfig) error {
 	if _, ok := m.peers[key]; ok {
 		return fmt.Errorf("peer: duplicate Host %s", cfg.Host)
 	}
-	a := &actor{m: m, cfg: copyCfg, events: make(chan event, m.cfg.Limits.Events), done: make(chan struct{}), state: Closed}
+	a := &actor{m: m, cfg: copyCfg, events: make(chan event, m.cfg.Limits.Events), done: make(chan struct{}), state: Closed, watchdog: WatchdogInitial}
 	a.publish(nil)
 	m.peers[key] = a
 	m.wg.Add(1)
@@ -284,6 +304,11 @@ func (m *Manager) startContext() context.Context {
 		return m.runCtx
 	}
 	return context.Background()
+}
+func (m *Manager) hasStarted() bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.started
 }
 func (m *Manager) closeSessions() {
 	m.mu.RLock()

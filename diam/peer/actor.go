@@ -30,27 +30,44 @@ type event struct {
 }
 
 const (
-	wireEvent psmEvent = "wire"
-	dialDone  psmEvent = "dial-done"
-	connGone  psmEvent = "conn-gone"
+	wireEvent        psmEvent = "wire"
+	dialDone         psmEvent = "dial-done"
+	connGone         psmEvent = "conn-gone"
+	watchdogTimeout  psmEvent = "watchdog-timeout"
+	reconnectTimeout psmEvent = "reconnect-timeout"
 )
 
 type actor struct {
-	m                   *Manager
-	cfg                 PeerConfig
-	events              chan event
-	done                chan struct{}
-	state               PeerState
-	i, r                *session
-	pendingGen, nextGen uint64
-	token               uint64
-	timer               Timer
-	meta                *smpeer.Metadata
-	active              *session
-	pendingDPR          uint32
-	pendingDPREnd       uint32
-	closeCause          sm.DisconnectCause
-	snapshotValue       atomic.Value
+	m             *Manager
+	cfg           PeerConfig
+	events        chan event
+	done          chan struct{}
+	state         PeerState
+	i, r          *session
+	pendingGen    uint64
+	nextGen       uint64
+	token         uint64
+	timer         Timer
+	meta          *smpeer.Metadata
+	active        *session
+	pendingDPR    uint32
+	pendingDPREnd uint32
+	closeCause    sm.DisconnectCause
+	snapshotValue atomic.Value
+
+	watchdog          WatchdogState
+	wdTimer, tcTimer  Timer
+	wdToken, tcToken  uint64
+	pendingWatchdog   bool
+	watchdogHop       uint32
+	watchdogEnd       uint32
+	watchdogGen       uint64
+	numDWA            int
+	everOpen          bool
+	dialing           bool
+	ownStop           bool
+	suppressReconnect bool
+	failures          int
 }
 
 func (a *actor) snapshot() PeerSnapshot {
@@ -59,7 +76,8 @@ func (a *actor) snapshot() PeerSnapshot {
 	return v
 }
 func (a *actor) publish(err error) {
-	p := PeerSnapshot{Host: a.cfg.Host, State: a.state, Generation: a.nextGen}
+	p := PeerSnapshot{Host: a.cfg.Host, State: a.state, Generation: a.nextGen, Watchdog: a.watchdog}
+	p.Eligible = (a.state == IOpen || a.state == ROpen) && a.watchdog == WatchdogOkay
 	if a.meta != nil && (a.state == IOpen || a.state == ROpen || a.state == Closing) {
 		p.Realm = a.meta.OriginRealm
 		p.Applications = append([]uint32(nil), a.meta.Applications...)
@@ -87,6 +105,8 @@ func (a *actor) run() {
 		a.handle(e)
 		if a.m.isClosing() && a.state == Closed {
 			a.stopTimer()
+			a.stopWatchdog()
+			a.stopReconnect()
 			if a.i != nil {
 				a.i.close()
 			}
@@ -124,8 +144,22 @@ func (a *actor) fail(err error) {
 	a.active = nil
 	a.meta = nil
 	a.setState(Closed, err)
+	a.lostConnection(err)
 }
 func (a *actor) handle(e event) {
+	if e.kind == watchdogTimeout {
+		if e.token == a.wdToken && a.active != nil && e.gen == a.active.gen {
+			a.watchdogTick()
+		}
+		return
+	}
+	if e.kind == reconnectTimeout {
+		if e.token == a.tcToken {
+			a.tcTimer = nil
+			a.reconnectTick()
+		}
+		return
+	}
 	if e.kind == timeout {
 		if e.token != a.token && e.token != 0 {
 			return
@@ -166,6 +200,10 @@ func (a *actor) handle(e event) {
 	}
 }
 func (a *actor) dial() {
+	if a.dialing {
+		return
+	}
+	a.dialing = true
 	a.nextGen++
 	gen := a.nextGen
 	a.pendingGen = gen
@@ -240,9 +278,15 @@ func (m *Manager) dialEndpoint(ctx context.Context, e Endpoint, a *actor, gen ui
 }
 func deadline(ctx context.Context) time.Time { d, _ := ctx.Deadline(); return d }
 func (a *actor) onDial(e event) {
+	if e.gen == a.pendingGen {
+		a.dialing = false
+	}
 	if e.gen != a.pendingGen || (a.state != WaitConnAck && a.state != WaitConnAckElect) {
 		if e.s != nil {
 			e.s.close()
+		}
+		if a.state == Closed && a.tcTimer == nil {
+			a.scheduleReconnect()
 		}
 		return
 	}
@@ -377,6 +421,9 @@ func (a *actor) onWire(e event) {
 		}
 		return
 	}
+	if !a.watchdogReceive(msg) {
+		return
+	}
 	switch {
 	case cmd == diam.DeviceWatchdog && req && msg.Header.ApplicationID == 0:
 		var dwr base.DWR
@@ -394,8 +441,6 @@ func (a *actor) onWire(e event) {
 			a.step(rDWR, s, msg)
 		}
 	case cmd == diam.DeviceWatchdog && !req && msg.Header.ApplicationID == 0:
-		// No originated DWR before PR 3. Report unsolicited answers.
-		a.m.report(s, msg, errors.New("peer: unsolicited DWA"))
 		if isI {
 			a.step(iDWA, s, msg)
 		} else {
@@ -415,6 +460,9 @@ func (a *actor) onWire(e event) {
 		s.close()
 		a.notify(errors.New("peer: duplicate CER on open connection"))
 	default:
+		if a.watchdog == WatchdogReopen {
+			return
+		} // RFC 3539 Appendix A: Throwaway(non-DWA).
 		if isI {
 			a.step(iMessage, s, msg)
 		} else {
@@ -450,17 +498,29 @@ func (a *actor) onGone(s *session) {
 		return
 	}
 	if s == a.i {
+		old := a.state
+		wasActive := s == a.active
 		a.i = nil
 		a.step(iDisc, s, nil)
+		if a.state == Closed && (wasActive || old == WaitICEA) {
+			a.lostConnection(errors.New("peer: initiator transport closed"))
+		}
 		return
 	}
 	if s == a.r {
+		wasActive := s == a.active
 		a.r = nil
 		a.step(rDisc, s, nil)
+		if wasActive && a.state == Closed {
+			a.lostConnection(errors.New("peer: responder transport closed"))
+		}
 		return
 	}
 }
 func (a *actor) stop(cause sm.DisconnectCause) {
+	a.ownStop = true
+	a.stopReconnect()
+	a.stopWatchdog()
 	if a.state == Closed {
 		return
 	}
@@ -557,6 +617,10 @@ func (a *actor) step(ev psmEvent, s *session, msg *diam.Message) {
 		}
 	case iDPR, rDPR:
 		a.stopTimer()
+		a.stopWatchdog()
+		cause, _ := base.ValidateDPR(msg)
+		// RFC 6733 §5.4.3: only REBOOTING permits periodic reconnection.
+		a.suppressReconnect = cause == uint32(sm.DisconnectBusy) || cause == uint32(sm.DisconnectDoNotWantToTalkToYou)
 		a.answerDPR(s, msg)
 		a.arm(a.m.cfg.Timers.Closing)
 	case stop:
@@ -576,6 +640,9 @@ func (a *actor) step(ev psmEvent, s *session, msg *diam.Message) {
 		a.meta = nil
 	case iMessage, rMessage:
 		a.m.unsupported(s, msg)
+	}
+	if old != IOpen && old != ROpen && (a.state == IOpen || a.state == ROpen) {
+		a.onOpen()
 	}
 	a.publish(nil)
 }
