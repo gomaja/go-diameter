@@ -280,11 +280,17 @@ func TestClient_Handshake_RetransmitTimeout(t *testing.T) {
 func TestClient_Watchdog(t *testing.T) {
 	srv := diamtest.NewServer(New(serverSettings), dict.Default)
 	defer srv.Close()
+	resp := make(chan struct{}, 1)
 	cli := &Client{
 		EnableWatchdog:   true,
 		WatchdogInterval: 100 * time.Millisecond,
 		watchdogTiming:   &watchdogTiming{floor: time.Millisecond},
 		Handler:          New(clientSettings),
+		OnWatchdogEvent: func(event WatchdogEvent) {
+			if event == WatchdogAnswerReceived {
+				resp <- struct{}{}
+			}
+		},
 		AcctApplicationID: []*diam.AVP{
 			diam.NewAVP(avp.AcctApplicationID, avp.Mbit, 0, datatype.Unsigned32(3)),
 		},
@@ -294,11 +300,6 @@ func TestClient_Watchdog(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer c.Close()
-	resp := make(chan struct{}, 1)
-	dwa := handleDWA(cli.Handler, resp, nil)
-	cli.Handler.mux.HandleFunc("DWA", func(c diam.Conn, m *diam.Message) {
-		dwa(c, m)
-	})
 	select {
 	case <-resp:
 	case <-time.After(200 * time.Millisecond):
