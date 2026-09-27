@@ -39,6 +39,9 @@ func TestUnknownMandatoryAVPAnswerTCP(t *testing.T) {
 			if !testResultCode(answer, diam.AVPUnsupported) {
 				t.Fatalf("result code: %v", answer)
 			}
+			if validationErr := answer.Validate(); validationErr != nil {
+				t.Fatalf("5001 answer violates dictionary: %v", validationErr)
+			}
 			if answer.Header.CommandFlags != diam.ProxiableFlag {
 				t.Fatalf("5001 answer flags = %#x, want P without E", answer.Header.CommandFlags)
 			}

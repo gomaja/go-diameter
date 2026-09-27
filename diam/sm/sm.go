@@ -96,6 +96,11 @@ type Settings struct {
 	// unknown AVPs, and incomplete application dictionaries may omit vendor AVPs.
 	RejectUnknownMandatoryAVPs bool
 
+	// ValidateRequests checks received requests against command and Grouped
+	// AVP dictionary grammar before dispatch. It defaults to false because
+	// application dictionaries may be incomplete. Answers are never checked.
+	ValidateRequests bool
+
 	// OnDPR observes a validated peer DPR and its Disconnect-Cause after the
 	// DPA is sent. Callers decide whether to reconnect (RFC 6733 §5.4.3).
 	OnDPR func(diam.Conn, DisconnectCause)
@@ -181,6 +186,21 @@ func (sm *StateMachine) ServeDIAM(c diam.Conn, m *diam.Message) {
 			// RFC 6733 §7.1.5, Verified Erratum 4615: one Failed-AVP
 			// contains the unsupported AVP(s), including Grouped hierarchy.
 			if err := sm.writeErrorAnswer(c, m, diam.AVPUnsupported, failed, false); err != nil {
+				sm.Error(&diam.ErrorReport{Conn: c, Message: m, Error: err})
+			}
+			return
+		}
+	}
+	if sm.cfg.ValidateRequests && m.Header.CommandFlags&diam.RequestFlag != 0 {
+		if validationErr := m.Validate(); validationErr != nil {
+			// RFC 6733 §§7.1, 7.2 and 7.5: only 3xxx protocol errors set E;
+			// send one Failed-AVP container for the first AVP error.
+			var failed []*diam.AVP
+			if validationErr.FailedAVP != nil {
+				failed = []*diam.AVP{validationErr.FailedAVP}
+			}
+			protocolError := validationErr.ResultCode >= 3000 && validationErr.ResultCode < 4000
+			if err := sm.writeErrorAnswer(c, m, validationErr.ResultCode, failed, protocolError); err != nil {
 				sm.Error(&diam.ErrorReport{Conn: c, Message: m, Error: err})
 			}
 			return

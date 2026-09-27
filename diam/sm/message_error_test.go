@@ -73,8 +73,7 @@ func TestStateMachineWritesMessageErrorAnswers(t *testing.T) {
 			if err != nil {
 				t.Fatalf("read error answer: %v", err)
 			}
-			assertMessageErrorAnswer(t, answer, settings, tt.resultCode,
-				diam.ErrorFlag|diam.ProxiableFlag, tt.failedAVP)
+			assertMessageErrorAnswer(t, answer, settings, tt.resultCode, 0, tt.failedAVP)
 		})
 	}
 }
@@ -102,7 +101,7 @@ func TestStateMachineWritesMessageErrorAnswerThroughServeMux(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read mux-routed error answer: %v", err)
 	}
-	assertMessageErrorAnswer(t, answer, settings, diam.InvalidAVPLength, diam.ErrorFlag, true)
+	assertMessageErrorAnswer(t, answer, settings, diam.InvalidAVPLength, 0, true)
 }
 
 func TestStateMachineContinuesAfterInvalidAVPLength(t *testing.T) {
@@ -126,7 +125,7 @@ func TestStateMachineContinuesAfterInvalidAVPLength(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	assertMessageErrorAnswer(t, answer, settings, diam.InvalidAVPLength, diam.ErrorFlag, true)
+	assertMessageErrorAnswer(t, answer, settings, diam.InvalidAVPLength, 0, true)
 
 	writeValidSMErrorCER(t, conn)
 	cea, err := diam.ReadMessage(conn, dict.Default)
@@ -164,11 +163,14 @@ func TestStateMachineMessageErrorAnswerCopiesSessionID(t *testing.T) {
 	}
 	wantCodes := []uint32{
 		avp.SessionID,
+		avp.ResultCode,
 		avp.OriginHost,
 		avp.OriginRealm,
-		avp.ResultCode,
 		avp.OriginStateID,
 		avp.FailedAVP,
+		avp.HostIPAddress,
+		avp.VendorID,
+		avp.ProductName,
 	}
 	if len(answer.AVP) != len(wantCodes) {
 		t.Fatalf("answer AVP count = %d, want %d", len(answer.AVP), len(wantCodes))
@@ -186,6 +188,7 @@ func TestStateMachineMessageErrorAnswerCopiesSessionID(t *testing.T) {
 func TestStateMachineOmitsSessionIDThatWouldOverflowErrorAnswer(t *testing.T) {
 	const maxAlignedMessageLength = diam.MaxMessageLength &^ 3
 	settings := testMessageErrorSettings()
+	settings.HostIPAddresses = []datatype.Address{localhostAddress}
 	stateMachine := New(settings)
 	request := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
 	request.Header.HopByHopID = 0x01020304
@@ -212,7 +215,7 @@ func TestStateMachineOmitsSessionIDThatWouldOverflowErrorAnswer(t *testing.T) {
 	if _, err := answer.FindAVP(avp.SessionID, 0); err == nil {
 		t.Fatal("oversized Session-Id was copied into the error answer")
 	}
-	assertMessageErrorAnswer(t, answer, settings, diam.InvalidAVPLength, diam.ErrorFlag, true)
+	assertMessageErrorAnswer(t, answer, settings, diam.InvalidAVPLength, 0, true)
 }
 
 func TestStateMachineDoesNotAnswerMalformedAnswer(t *testing.T) {
@@ -283,10 +286,11 @@ func assertMessageErrorAnswer(
 		t.Fatalf("answer length = %d, want four-octet alignment", header.MessageLength)
 	}
 
-	wantCodes := []uint32{avp.OriginHost, avp.OriginRealm, avp.ResultCode, avp.OriginStateID}
+	wantCodes := []uint32{avp.ResultCode, avp.OriginHost, avp.OriginRealm, avp.OriginStateID}
 	if wantFailedAVP {
 		wantCodes = append(wantCodes, avp.FailedAVP)
 	}
+	wantCodes = append(wantCodes, avp.HostIPAddress, avp.VendorID, avp.ProductName)
 	if len(answer.AVP) != len(wantCodes) {
 		t.Fatalf("answer AVP count = %d, want %d: %v", len(answer.AVP), len(wantCodes), wantCodes)
 	}
@@ -295,13 +299,13 @@ func assertMessageErrorAnswer(
 			t.Fatalf("answer AVP[%d] = %d, want %d", i, answer.AVP[i].Code, code)
 		}
 	}
-	if got := answer.AVP[0].Data.(datatype.DiameterIdentity); got != settings.OriginHost {
+	if got := answer.AVP[1].Data.(datatype.DiameterIdentity); got != settings.OriginHost {
 		t.Fatalf("Origin-Host = %q, want %q", got, settings.OriginHost)
 	}
-	if got := answer.AVP[1].Data.(datatype.DiameterIdentity); got != settings.OriginRealm {
+	if got := answer.AVP[2].Data.(datatype.DiameterIdentity); got != settings.OriginRealm {
 		t.Fatalf("Origin-Realm = %q, want %q", got, settings.OriginRealm)
 	}
-	if got := uint32(answer.AVP[2].Data.(datatype.Unsigned32)); got != resultCode {
+	if got := uint32(answer.AVP[0].Data.(datatype.Unsigned32)); got != resultCode {
 		t.Fatalf("Result-Code = %d, want %d", got, resultCode)
 	}
 	if got := answer.AVP[3].Data.(datatype.Unsigned32); got != settings.OriginStateID {
