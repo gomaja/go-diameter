@@ -15,17 +15,17 @@ var dwaACK = struct{}{}
 func handleDWA(
 	sm *StateMachine,
 	dwac chan struct{},
-	observer func(WatchdogEvent),
+	observer func(diam.Conn, WatchdogEvent),
 ) diam.HandlerFunc {
-	observe := func(event WatchdogEvent) {
+	observe := func(c diam.Conn, event WatchdogEvent) {
 		if observer != nil {
-			observer(event)
+			observer(c, event)
 		}
 	}
 	return func(c diam.Conn, m *diam.Message) {
 		dwa := new(smparser.DWA)
 		if err := dwa.Parse(m); err != nil {
-			observe(WatchdogInvalidAnswer)
+			observe(c, WatchdogInvalidAnswer)
 			sm.Error(&diam.ErrorReport{
 				Conn:    c,
 				Message: m,
@@ -34,13 +34,13 @@ func handleDWA(
 			return
 		}
 		if dwa.ResultCode != diam.Success {
-			observe(WatchdogInvalidAnswer)
+			observe(c, WatchdogInvalidAnswer)
 			return
 		}
 		select {
 		case dwac <- dwaACK:
 		default:
 		}
-		observe(WatchdogAnswerReceived)
+		observe(c, WatchdogAnswerReceived)
 	}
 }
