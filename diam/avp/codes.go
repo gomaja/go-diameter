@@ -55,6 +55,7 @@ const (
 	AFCorrelationInformation                   = 1276
 	AFRequestedData                            = 551
 	AFSignallingProtocol                       = 529
+	AgeOfLocationInformation                   = 1611
 	AllAPNConfigurationsIncludedIndicator      = 1428
 	AllocationRetentionPriority                = 1034
 	AlternateChargedPartyAddress               = 1280
@@ -131,6 +132,7 @@ const (
 	CCTime                                     = 420
 	CCTotalOctets                              = 421
 	CCUnitType                                 = 454
+	CellGlobalIdentity                         = 1604
 	CGAddress                                  = 846
 	ChangeCondition                            = 2037
 	ChangeTime                                 = 2038
@@ -179,6 +181,7 @@ const (
 	CSGSubscriptionData                        = 1436
 	CUGInformation                             = 2304
 	CurrencyCode                               = 425
+	CurrentLocationRetrieved                   = 1610
 	CurrentTariff                              = 2056
 	DataCodingScheme                           = 2001
 	DefaultEPSBearerQoS                        = 1049
@@ -203,6 +206,7 @@ const (
 	DynamicAddressFlag                         = 2051
 	DynamicAddressFlagExtension                = 2068
 	EarlyMediaDescription                      = 1272
+	eNodeBID                                   = 4008
 	Envelope                                   = 1266
 	EnvelopeEndTime                            = 1267
 	EnvelopeReporting                          = 1268
@@ -214,6 +218,7 @@ const (
 	ErrorDiagnostic                            = 1614
 	ErrorMessage                               = 281
 	ErrorReportingHost                         = 294
+	EUTRANCellGlobalIdentity                   = 1602
 	EUTRANVector                               = 1414
 	Event                                      = 825
 	EventChargingTimeStamp                     = 1258
@@ -227,6 +232,7 @@ const (
 	Exponent                                   = 429
 	ExtendedAPNAMBRDL                          = 2848
 	ExtendedAPNAMBRUL                          = 2849
+	ExtendedeNodeBID                           = 4013
 	ExtendedGBRDL                              = 2850
 	ExtendedGBRUL                              = 2851
 	ExtendedMaxRequestedBWDL                   = 554
@@ -279,6 +285,8 @@ const (
 	FramedRouting                              = 10
 	FromAddress                                = 2708
 	GCSIdentifier                              = 538
+	GeodeticInformation                        = 1609
+	GeographicalInformation                    = 1608
 	GERANVector                                = 1416
 	GGSNAddress                                = 847
 	GLIIdentifier                              = 580
@@ -359,6 +367,7 @@ const (
 	LoadValue                                  = 652
 	LocalGWInsertedIndication                  = 2604
 	LocalSequenceNumber                        = 2063
+	LocationAreaIdentity                       = 1606
 	LocationEstimate                           = 1242
 	LocationEstimateType                       = 1243
 	LocationType                               = 1244
@@ -417,6 +426,7 @@ const (
 	MMBoxStorageRequested                      = 1248
 	MMContentType                              = 1203
 	MMEAbsentUserDiagnosticSM                  = 3313
+	MMELocationInformation                     = 1600
 	MMEName                                    = 2402
 	MMENumberforMTSMS                          = 1645
 	MMERealm                                   = 2408
@@ -624,6 +634,7 @@ const (
 	RouteHeaderReceived                        = 3403
 	RouteHeaderTransmitted                     = 3404
 	RouteRecord                                = 282
+	RoutingAreaIdentity                        = 1605
 	RRBandwidth                                = 521
 	RSBandwidth                                = 522
 	RuleActivationTime                         = 1043
@@ -644,6 +655,7 @@ const (
 	ServerAssignmentType                       = 614
 	ServerCapabilities                         = 603
 	ServerName                                 = 602
+	ServiceAreaIdentity                        = 1607
 	ServiceAuthorizationInfo                   = 548
 	ServiceContextID                           = 461
 	ServiceDataContainer                       = 2040
@@ -672,6 +684,7 @@ const (
 	SessionTimeout                             = 27
 	SGSNAbsentUserDiagnosticSM                 = 3315
 	SGSNAddress                                = 1228
+	SGSNLocationInformation                    = 1601
 	SGSNName                                   = 2409
 	SGSNNumber                                 = 1489
 	SGSNRealm                                  = 2410
@@ -825,6 +838,7 @@ const (
 	TraceInterfaceList                         = 1464
 	TraceNETypeList                            = 1463
 	TraceReference                             = 1459
+	TrackingAreaIdentity                       = 1603
 	TrafficDataVolumes                         = 2046
 	TranscoderInsertedIndication               = 2605
 	TransitIOIList                             = 2701
