@@ -18,6 +18,8 @@ import (
 // dictionary and only then in base diameter dictionary
 // Parent cycles are rejected during lookup and dictionary loading.
 var parentAppIds map[uint32]uint32 = map[uint32]uint32{
+	// 3GPP TS 29.338 V19.3.0 §§5.3.3.1, 6.3.3.1, Tables 5.3.3.1/2, 6.3.3.1/2.
+	16777312: 4,
 	16777251: 4,
 	16777238: 4,
 	4:        1,

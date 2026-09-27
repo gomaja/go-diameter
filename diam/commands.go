@@ -11,6 +11,7 @@ const (
 	AA                        = 265
 	AbortSession              = 274
 	Accounting                = 271
+	AlertServiceCentre        = 8388648
 	AuthenticationInformation = 318
 	CancelLocation            = 317
 	CapabilitiesExchange      = 257
@@ -25,7 +26,9 @@ const (
 	PurgeUE                   = 321
 	ReAuth                    = 258
 	RegistrationTermination   = 304
+	ReportSMDeliveryStatus    = 8388649
 	Reset                     = 322
+	SendRoutingInfoforSM      = 8388647
 	ServerAssignment          = 301
 	SessionTermination        = 275
 	SpendingLimit             = 8388635
@@ -40,6 +43,8 @@ const (
 	ACR = "ACR"
 	AIA = "AIA"
 	AIR = "AIR"
+	ALA = "ALA"
+	ALR = "ALR"
 	ASA = "ASA"
 	ASR = "ASR"
 	CCA = "CCA"
@@ -66,6 +71,8 @@ const (
 	PUR = "PUR"
 	RAA = "RAA"
 	RAR = "RAR"
+	RDA = "RDA"
+	RDR = "RDR"
 	RSA = "RSA"
 	RSR = "RSR"
 	RTA = "RTA"
@@ -74,6 +81,8 @@ const (
 	SAR = "SAR"
 	SLA = "SLA"
 	SLR = "SLR"
+	SRA = "SRA"
+	SRR = "SRR"
 	STA = "STA"
 	STR = "STR"
 	ULA = "ULA"

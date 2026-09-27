@@ -9,6 +9,7 @@ package avp
 // Diameter AVP types.
 const (
 	AbortCause                                 = 500
+	AbsentUserDiagnosticSM                     = 3322
 	AcceptableServiceInfo                      = 526
 	AccessNetworkChargingAddress               = 501
 	AccessNetworkChargingIdentifier            = 502
@@ -43,6 +44,7 @@ const (
 	Adaptations                                = 1217
 	ADCRuleBaseName                            = 1095
 	AdditionalContentInformation               = 1207
+	AdditionalServingNode                      = 2406
 	AdditionalTypeInformation                  = 1205
 	AddressData                                = 897
 	AddressDomain                              = 898
@@ -189,6 +191,7 @@ const (
 	DestinationHost                            = 293
 	DestinationInterface                       = 2002
 	DestinationRealm                           = 283
+	DestinationSIPURI                          = 3327
 	Diagnostics                                = 2039
 	DirectDebitingFailureHandling              = 428
 	DisconnectCause                            = 273
@@ -205,6 +208,7 @@ const (
 	EnvelopeReporting                          = 1268
 	EnvelopeStartTime                          = 1269
 	ePDGAddress                                = 3425
+	EPSLocationInformation                     = 1496
 	EPSSubscribedQoSProfile                    = 1431
 	EquipmentStatus                            = 1445
 	ErrorDiagnostic                            = 1614
@@ -234,6 +238,7 @@ const (
 	ExtendedMinRequestedBWDL                   = 560
 	ExtendedMinRequestedBWUL                   = 561
 	ExternalClient                             = 1479
+	ExternalIdentifier                         = 3111
 	ExtPDPAddress                              = 1621
 	ExtPDPType                                 = 1620
 	FailedAVP                                  = 279
@@ -290,6 +295,7 @@ const (
 	HomogeneousSupportofIMSVoiceOverPSSessions = 1493
 	HostIPAddress                              = 257
 	HPLMNODB                                   = 1418
+	HSSID                                      = 3325
 	ICSIndicator                               = 1491
 	IdleTimeout                                = 28
 	IDRFlags                                   = 1490
@@ -318,6 +324,11 @@ const (
 	IPCANType                                  = 1027
 	IPDomainID                                 = 537
 	IPRealmDefaultIndication                   = 2603
+	IPSMGWName                                 = 3101
+	IPSMGWNumber                               = 3100
+	IPSMGWRealm                                = 3112
+	IPSMGWSBISupportIndicator                  = 3348
+	IPSMGWSMDeliveryOutcome                    = 3320
 	ISUPCause                                  = 3416
 	ISUPCauseDiagnostics                       = 3422
 	ISUPCauseLocation                          = 3423
@@ -342,6 +353,7 @@ const (
 	LCSRequestorIDString                       = 1240
 	LineType                                   = 581
 	LIPAPermission                             = 1618
+	LMSI                                       = 2400
 	Load                                       = 650
 	LoadType                                   = 651
 	LoadValue                                  = 652
@@ -363,6 +375,8 @@ const (
 	MAInformation                              = 570
 	MAInformationAction                        = 571
 	MandatoryCapability                        = 604
+	MaximumRetransmissionTime                  = 3330
+	MaximumUEAvailabilityTime                  = 3329
 	MaxRequestedBandwidthDL                    = 515
 	MaxRequestedBandwidthUL                    = 516
 	MaxSupportedBandwidthDL                    = 543
@@ -402,9 +416,11 @@ const (
 	MIPHomeAgentHost                           = 348
 	MMBoxStorageRequested                      = 1248
 	MMContentType                              = 1203
+	MMEAbsentUserDiagnosticSM                  = 3313
 	MMEName                                    = 2402
 	MMENumberforMTSMS                          = 1645
 	MMERealm                                   = 2408
+	MMESMDeliveryOutcome                       = 3317
 	MMSInformation                             = 877
 	MMTelInformation                           = 2030
 	MMTelSServiceType                          = 2031
@@ -412,12 +428,16 @@ const (
 	MonitoringKey                              = 1066
 	MPSIdentifier                              = 528
 	MPSPriority                                = 1616
+	MSCAbsentUserDiagnosticSM                  = 3314
 	MSCAddress                                 = 3417
+	MSCNumber                                  = 2403
+	MSCSMDeliveryOutcome                       = 3318
 	MSISDN                                     = 701
 	MTCIWFAddress                              = 3406
 	MultipleServicesCreditControl              = 456
 	MultipleServicesIndicator                  = 455
 	MultiRoundTimeOut                          = 272
+	MWDStatus                                  = 3312
 	NASFilterRule                              = 400
 	NASPort                                    = 5
 	NASPortID                                  = 87
@@ -441,6 +461,7 @@ const (
 	Non3GPPUserData                            = 1500
 	NORFlags                                   = 1443
 	NotificationToUEUser                       = 1478
+	NRCellGlobalIdentity                       = 1726
 	NumberOfDiversions                         = 2034
 	NumberOfMessagesSent                       = 2019
 	NumberOfMessagesSuccessfullyExploded       = 2111
@@ -459,6 +480,7 @@ const (
 	OCValidityDuration                         = 625
 	Offline                                    = 1008
 	OfflineCharging                            = 1278
+	OFRFlags                                   = 3328
 	OMCID                                      = 1466
 	Online                                     = 1009
 	OnlineChargingFlag                         = 2303
@@ -466,6 +488,7 @@ const (
 	OptionalCapability                         = 605
 	OriginatingIOI                             = 839
 	OriginatingLineInfo                        = 94
+	OriginatingSIPURI                          = 3326
 	Originator                                 = 864
 	OriginatorAddress                          = 886
 	OriginatorInterface                        = 2009
@@ -544,6 +567,7 @@ const (
 	RATFrequencySelectionPriorityID            = 1440
 	RatingGroup                                = 432
 	RATType                                    = 1032
+	RDRFlags                                   = 3323
 	ReadReplyReportRequested                   = 1222
 	RealTimeTariffInformation                  = 2305
 	ReasonCode                                 = 616
@@ -584,6 +608,7 @@ const (
 	RequestedAction                            = 436
 	RequestedEUTRANAuthenticationInfo          = 1408
 	RequestedPartyAddress                      = 1251
+	RequestedRetransmissionTime                = 3331
 	RequestedServiceUnit                       = 437
 	RequestedUTRANGERANAuthenticationInfo      = 1409
 	RequiredAccessInfo                         = 536
@@ -604,6 +629,7 @@ const (
 	RuleActivationTime                         = 1043
 	RuleDeactivationTime                       = 1044
 	RxRequestType                              = 533
+	SCAddress                                  = 3300
 	ScaleFactor                                = 2059
 	SDPAnswerTimestamp                         = 1275
 	SDPMediaComponent                          = 843
@@ -644,8 +670,12 @@ const (
 	SessionPriority                            = 650
 	SessionServerFailover                      = 271
 	SessionTimeout                             = 27
+	SGSNAbsentUserDiagnosticSM                 = 3315
 	SGSNAddress                                = 1228
+	SGSNName                                   = 2409
 	SGSNNumber                                 = 1489
+	SGSNRealm                                  = 2410
+	SGSNSMDeliveryOutcome                      = 3319
 	SGWAddress                                 = 2067
 	SGWChange                                  = 2065
 	SharingKeyDL                               = 539
@@ -664,15 +694,43 @@ const (
 	SIPResponseTimestampFraction               = 2302
 	SIPTOPermission                            = 1613
 	SLRequestType                              = 2904
+	SMDeliveryCause                            = 3321
+	SMDeliveryFailureCause                     = 3303
+	SMDeliveryNotIntended                      = 3311
+	SMDeliveryOutcome                          = 3316
+	SMDeliveryStartTime                        = 3307
+	SMDeliveryTimer                            = 3306
 	SMDeviceTriggerIndicator                   = 3407
 	SMDeviceTriggerInformation                 = 3405
+	SMDiagnosticInfo                           = 3305
 	SMDischargeTime                            = 2012
+	SMEnumeratedDeliveryFailureCause           = 3304
 	SMMessageType                              = 2007
 	SMProtocolID                               = 2013
+	SMRPMTI                                    = 3308
+	SMRPSMEA                                   = 3309
+	SMRPUI                                     = 3301
 	SMSCAddress                                = 2017
 	SMSequenceNumber                           = 3408
 	SMServiceType                              = 2029
+	SMSF3GPPAbsentUserDiagnosticSM             = 3334
+	SMSF3GPPAddress                            = 3344
+	SMSF3GPPName                               = 3340
+	SMSF3GPPNumber                             = 3338
+	SMSF3GPPRealm                              = 3342
+	SMSF3GPPSBISupportIndicator                = 3346
+	SMSF3GPPSMDeliveryOutcome                  = 3336
+	SMSFNon3GPPAbsentUserDiagnosticSM          = 3335
+	SMSFNon3GPPAddress                         = 3345
+	SMSFNon3GPPName                            = 3341
+	SMSFNon3GPPNumber                          = 3339
+	SMSFNon3GPPRealm                           = 3343
+	SMSFNon3GPPSBISupportIndicator             = 3347
+	SMSFNon3GPPSMDeliveryOutcome               = 3337
+	SMSGMSCAddress                             = 3332
+	SMSGMSCAlertEvent                          = 3333
 	SMSInformation                             = 2000
+	SMSMICorrelationID                         = 3324
 	SMSNode                                    = 2016
 	SMSResult                                  = 3409
 	SMStatus                                   = 2014
@@ -684,6 +742,7 @@ const (
 	SponsoredConnectivityData                  = 530
 	SponsorIdentity                            = 531
 	SRES                                       = 1454
+	SRRFlags                                   = 3310
 	SSCode                                     = 1476
 	SSID                                       = 1524
 	SSStatus                                   = 1477
@@ -725,6 +784,7 @@ const (
 	TerminalInformation                        = 1401
 	TerminatingIOI                             = 840
 	TerminationCause                           = 295
+	TFRFlags                                   = 3302
 	TFTFilter                                  = 1012
 	TFTPacketFilterInformation                 = 1013
 	TGPP2MEID                                  = 1471
@@ -811,6 +871,7 @@ const (
 	UserEquipmentInfoType                      = 459
 	UserEquipmentInfoValue                     = 460
 	UserID                                     = 1444
+	UserIdentifier                             = 3102
 	UserLocationInfoTime                       = 2812
 	UserName                                   = 1
 	UserParticipatingType                      = 1279
