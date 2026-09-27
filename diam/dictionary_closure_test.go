@@ -5,6 +5,8 @@ import (
 	"net"
 	"testing"
 
+	"github.com/gomaja/go-diameter/diam/avp"
+	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/dict"
 )
 
@@ -50,6 +52,62 @@ func TestChargingDictionaryClosureWire(t *testing.T) {
 			}
 			if got.AVP[0].Data.Type() != msg.AVP[0].Data.Type() {
 				t.Fatalf("type changed: %T -> %T", msg.AVP[0].Data, got.AVP[0].Data)
+			}
+			left, right := net.Pipe()
+			done := make(chan error, 1)
+			go func() { _, e := msg.WriteTo(left); done <- e }()
+			fromConn, err := ReadMessage(right, dict.Default)
+			_ = left.Close()
+			_ = right.Close()
+			if writeErr := <-done; writeErr != nil {
+				t.Fatal(writeErr)
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if fromConn.DecodeErr != nil || len(fromConn.AVP) != 1 || fromConn.AVP[0].Data.Type() != msg.AVP[0].Data.Type() {
+				t.Fatalf("connection decode: %v", fromConn.DecodeErr)
+			}
+		})
+	}
+}
+
+// RFC 7155 §§3, 4.1.1, 4.2, 4.4.9 and Verified Errata 5995, 6119.
+func TestNASDictionaryClosureWire(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		code     uint32
+		typeName string
+	}{
+		{"Connect-Info", 77, "UTF8String"},
+		{"NAS-IP-Address", 4, "OctetString"},
+		{"NAS-IPv6-Address", 95, "OctetString"},
+		{"NAS-Identifier", 32, "UTF8String"},
+		{"Origin-AAA-Protocol", 408, "Enumerated"},
+		{"QoS-Filter-Rule", 407, "QoSFilterRule"},
+		{"State", 24, "OctetString"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			d, err := dict.Default.FindAVP(1, tc.name)
+			if err != nil || d.Code != tc.code || d.VendorID != 0 || d.Data.TypeName != tc.typeName {
+				t.Fatalf("definition: %v, %v", d, err)
+			}
+			msg := NewRequest(265, 1, dict.Default)
+			if tc.name == "QoS-Filter-Rule" {
+				msg.AddAVP(NewAVP(d.Code, avp.Mbit, 0, datatype.QoSFilterRule("permit in ip from any to any")))
+			} else {
+				msg.AddAVP(smsAVP(t, 1, tc.name))
+			}
+			wire, err := msg.Serialize()
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, err := ReadMessage(bytes.NewReader(wire), dict.Default)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got.DecodeErr != nil || len(got.AVP) != 1 || got.AVP[0].Data.Type() != msg.AVP[0].Data.Type() {
+				t.Fatalf("decode: %v", got.DecodeErr)
 			}
 			left, right := net.Pipe()
 			done := make(chan error, 1)

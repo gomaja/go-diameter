@@ -10,8 +10,6 @@ import (
 // need separate source and compatibility review before they can be added to the
 // shared application scopes. Keep each name explicit so new omissions fail.
 var knownRuleExceptions = map[uint32][]string{
-	1: {"Connection-Info", "NAS-IP-Address", "NAS-IPv6-Address",
-		"NAS-Identifier", "Origin-AAA-Protocol", "QoS-Filter-Rule", "State"},
 	16777236: {"3GPP-MS-TimeZone", "3GPP-SGSN-MCC-MNC", "3GPP-User-Location-Info",
 		"Max-PLR-DL", "Max-PLR-UL", "Netloc-Access-Support", "RS-Bandwidth ",
 		"SIP-Forking-Indication ", "Session-Id ", "Sponsored-Connectivity-Data ",
