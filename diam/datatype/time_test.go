@@ -42,6 +42,33 @@ func TestDecodeTime(t *testing.T) {
 	}
 }
 
+func TestTimeRoundTripAcross2036(t *testing.T) {
+	// RFC 6733 §4.3.1 requires the Time extension through 2104.
+	// The bit-0 interpretation is described in obsolete RFC 4330 §3.
+	for _, value := range []string{
+		"1968-01-20T03:14:08Z", // first timestamp with bit 0 set
+		"1968-02-01T00:00:00Z",
+		"2000-01-01T00:00:00Z",
+		"2036-02-07T06:28:15Z",
+		"2036-02-07T06:28:16Z",
+		"2036-02-07T06:28:17Z",
+		"2104-02-07T06:28:15Z",
+	} {
+		want, err := time.Parse(time.RFC3339, value)
+		if err != nil {
+			t.Fatal(err)
+		}
+		wire := Time(want).Serialize()
+		got, err := DecodeTime(wire)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !time.Time(got.(Time)).Equal(want) {
+			t.Errorf("%s round-tripped as %s via %x", want, time.Time(got.(Time)), wire)
+		}
+	}
+}
+
 func BenchmarkTime(b *testing.B) {
 	v := Time(time.Unix(1377093974, 0))
 	for n := 0; n < b.N; n++ {
