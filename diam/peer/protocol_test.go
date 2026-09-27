@@ -2,6 +2,7 @@ package peer
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"net"
 	"sync"
@@ -20,6 +21,31 @@ type fakeClock struct {
 	mu     sync.Mutex
 	timers []*fakeTimer
 }
+type fakeConn struct {
+	once              sync.Once
+	done              chan struct{}
+	underlying, other net.Conn
+	ctx               context.Context
+}
+
+func newFakeConn() *fakeConn {
+	a, b := net.Pipe()
+	return &fakeConn{done: make(chan struct{}), underlying: a, other: b, ctx: context.Background()}
+}
+func (c *fakeConn) Write(b []byte) (int, error)               { return len(b), nil }
+func (c *fakeConn) WriteStream(b []byte, _ uint) (int, error) { return c.Write(b) }
+func (c *fakeConn) Close() {
+	c.once.Do(func() { close(c.done); _ = c.underlying.Close(); _ = c.other.Close() })
+}
+func (c *fakeConn) CloseNotify() <-chan struct{}   { return c.done }
+func (c *fakeConn) LocalAddr() net.Addr            { return &net.TCPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 3868} }
+func (c *fakeConn) RemoteAddr() net.Addr           { return &net.TCPAddr{IP: net.IPv4(127, 0, 0, 2), Port: 3868} }
+func (c *fakeConn) TLS() *tls.ConnectionState      { return nil }
+func (c *fakeConn) Dictionary() *dict.Parser       { return dict.Default }
+func (c *fakeConn) Context() context.Context       { return c.ctx }
+func (c *fakeConn) SetContext(ctx context.Context) { c.ctx = ctx }
+func (c *fakeConn) Connection() net.Conn           { return c.underlying }
+
 type fakeTimer struct {
 	mu     sync.Mutex
 	active bool
@@ -269,6 +295,66 @@ func TestPreCERGateAndUnknownPeer(t *testing.T) {
 	}
 }
 
+func TestFakeTransportPreCERTimer(t *testing.T) {
+	clock := &fakeClock{}
+	m, err := New(Config{Settings: testSettings("local.example.net"), Clock: clock})
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := newFakeConn()
+	m.acceptConnection(c)
+	clock.fire()
+	select {
+	case <-c.done:
+	case <-time.After(time.Second):
+		t.Fatal("pre-CER timeout did not close fake transport")
+	}
+	closeManager(t, m, nil)
+}
+
+func TestFakeTransportOpenControl(t *testing.T) {
+	clock := &fakeClock{}
+	m, err := New(Config{Settings: testSettings("local.example.net"), Clock: clock})
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := &actor{m: m, cfg: PeerConfig{Host: "known.example.net"}, state: ROpen, events: make(chan event, 8), done: make(chan struct{})}
+	s := &session{m: m, c: newFakeConn(), actor: a, gen: 1, writes: make(chan writeRequest, 8), closed: make(chan struct{})}
+	a.r = s
+	a.active = s
+	a.publish(nil)
+	cfg := testBase("known.example.net")
+	dwr, err := base.BuildDWR(dict.Default, cfg, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.onWire(event{kind: wireEvent, s: s, msg: dwr})
+	w := <-s.writes
+	if w.msg.Header.CommandCode != diam.DeviceWatchdog || w.msg.Header.HopByHopID != dwr.Header.HopByHopID || code(t, w.msg) != diam.Success {
+		t.Fatal("wrong DWA")
+	}
+	dpr, err := base.BuildDPR(dict.Default, cfg, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.onWire(event{kind: wireEvent, s: s, msg: dpr})
+	w = <-s.writes
+	if a.state != Closing || w.msg.Header.CommandCode != diam.DisconnectPeer || code(t, w.msg) != diam.Success {
+		t.Fatal("wrong DPA or state")
+	}
+	clock.fire()
+	a.handle(<-a.events)
+	if a.state != Closed {
+		t.Fatalf("Closing timer left state %s", a.state)
+	}
+	select {
+	case <-s.closed:
+	default:
+		t.Fatal("Closing timer left transport open")
+	}
+	closeManager(t, m, nil)
+}
+
 func TestManagedControlAndUnsupported(t *testing.T) {
 	m, e := New(Config{Settings: testSettings("local.example.net")})
 	if e != nil {
@@ -492,11 +578,41 @@ func TestBindServerRejectsServingAndHandler(t *testing.T) {
 		t.Fatal(e)
 	}
 	defer func() { _ = l.Close() }()
-	serving := &diam.Server{}
+	accepted := make(chan struct{}, 1)
+	serving := &diam.Server{OnNewConnection: func(diam.Conn) { accepted <- struct{}{} }}
 	go func() { _ = serving.Serve(l) }()
-	time.Sleep(10 * time.Millisecond)
+	c, e := net.Dial("tcp", l.Addr().String())
+	if e != nil {
+		t.Fatal(e)
+	}
+	defer func() { _ = c.Close() }()
+	select {
+	case <-accepted:
+	case <-time.After(time.Second):
+		t.Fatal("server did not begin serving")
+	}
 	if e = m.BindServer(serving); e == nil {
 		t.Fatal("accepted serving server")
 	}
 	_ = serving.Close()
+}
+
+func TestBindServerChainsHooks(t *testing.T) {
+	m, err := New(Config{Settings: testSettings("local.example.net")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var newCalls, shutdownCalls int
+	srv := &diam.Server{OnNewConnection: func(diam.Conn) { newCalls++ }, OnShutdownConnection: func(context.Context, diam.Conn) { shutdownCalls++ }}
+	if err := m.BindServer(srv); err != nil {
+		t.Fatal(err)
+	}
+	c := newFakeConn()
+	srv.OnNewConnection(c)
+	srv.OnShutdownConnection(context.Background(), c)
+	if newCalls != 1 || shutdownCalls != 1 {
+		t.Fatalf("hooks called new=%d shutdown=%d", newCalls, shutdownCalls)
+	}
+	c.Close()
+	closeManager(t, m, nil)
 }
