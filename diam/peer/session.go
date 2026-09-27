@@ -119,11 +119,43 @@ func (s *session) send(msg *diam.Message, closeAfter bool) bool {
 	select {
 	case <-s.closed:
 		return false
+	default:
+	}
+	select {
+	case <-s.closed:
+		return false
 	case s.writes <- writeRequest{msg: msg, closeAfter: closeAfter}:
 		return true
 	default:
 		return false
 	}
+}
+func (s *session) sendControl(msg *diam.Message) bool {
+	if msg == nil || msg.Header == nil || msg.Header.CommandFlags&diam.RequestFlag == 0 {
+		return false
+	}
+	m := s.m
+	m.pendingMu.Lock()
+	hop := m.nextHopIDLocked(s, 0, false)
+	msg.Header.HopByHopID = hop
+	if m.controls[s] == nil {
+		m.controls[s] = make(map[uint32]struct{})
+	}
+	m.controls[s][hop] = struct{}{}
+	m.pendingMu.Unlock()
+	if s.send(msg, false) {
+		return true
+	}
+	s.releaseControl(hop)
+	return false
+}
+func (s *session) releaseControl(hop uint32) {
+	s.m.pendingMu.Lock()
+	delete(s.m.controls[s], hop)
+	if len(s.m.controls[s]) == 0 {
+		delete(s.m.controls, s)
+	}
+	s.m.pendingMu.Unlock()
 }
 func (s *session) close() {
 	s.closeOnce.Do(func() {
@@ -133,6 +165,10 @@ func (s *session) close() {
 		}
 		s.firstMu.Unlock()
 		close(s.closed)
+		s.m.pendingMu.Lock()
+		delete(s.m.controls, s)
+		s.m.pendingMu.Unlock()
+		s.m.failoverSession(s)
 		s.c.Close()
 	})
 }
