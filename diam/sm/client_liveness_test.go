@@ -194,7 +194,7 @@ func TestWatchdogReportsWriteError(t *testing.T) {
 	cli.OnWatchdogEvent = func(event WatchdogEvent) { events <- event }
 	c := newErrWriteConn()
 
-	cli.dwr(c, 0, make(chan struct{}))
+	cli.dwr(c, 0)
 
 	select {
 	case er := <-cli.Handler.ErrorReports():
@@ -245,8 +245,8 @@ func TestWatchdogWriteErrorStopsRetrying(t *testing.T) {
 		t.Fatal("watchdog kept spinning after a write failure")
 	}
 
-	// One DWR attempt per configured transmit, then it gives up.
-	if n, want := c.writeCount(), int(cli.MaxRetransmits)+1; n != want {
+	// RFC 3539 §3.4.1: a failed DWR is never retransmitted.
+	if n, want := c.writeCount(), 1; n != want {
 		t.Fatalf("watchdog wrote %d DWRs, want %d", n, want)
 	}
 }
