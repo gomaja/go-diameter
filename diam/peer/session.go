@@ -29,6 +29,8 @@ type session struct {
 	preTimer        Timer
 	writes          chan writeRequest
 	beforeAdmission func()
+	ingressMu       sync.Mutex
+	ingressClosed   bool
 	ingress         chan incoming
 	closed          chan struct{}
 	closeOnce       sync.Once
@@ -54,9 +56,12 @@ func (m *Manager) newSession(c diam.Conn, a *actor, gen uint64, inbound bool) *s
 	return s
 }
 func (s *session) enqueue(msg *diam.Message) bool {
-	select {
-	case <-s.closed:
+	s.ingressMu.Lock()
+	defer s.ingressMu.Unlock()
+	if s.ingressClosed {
 		return false
+	}
+	select {
 	case s.ingress <- incoming{msg: msg, seq: msg.DispatchSequence()}:
 		return true
 	default:
@@ -65,40 +70,60 @@ func (s *session) enqueue(msg *diam.Message) bool {
 }
 func (s *session) dispatch() {
 	defer s.m.wg.Done()
+	defer func() {
+		a, gen := s.binding()
+		if a != nil {
+			// RFC 6733 §5.5.4: answers read on this connection reach the
+			// actor before its disconnect can fail their pending requests over.
+			a.post(event{kind: connGone, s: s, gen: gen})
+		}
+	}()
 	next := uint64(1)
 	pending := make(map[uint64]*diam.Message)
+	process := func(in incoming) bool {
+		if in.seq == 0 {
+			s.m.processDIAM(s, in.msg)
+			return true
+		}
+		if in.seq < next {
+			return true
+		}
+		if in.seq > next {
+			if _, exists := pending[in.seq]; !exists && len(pending) >= s.m.cfg.Limits.Events {
+				s.m.report(s, in.msg, errors.New("peer: ordered ingress queue full"))
+				s.close()
+				return false
+			}
+			pending[in.seq] = in.msg
+			return true
+		}
+		s.m.processDIAM(s, in.msg)
+		next++
+		for msg := pending[next]; msg != nil; msg = pending[next] {
+			delete(pending, next)
+			next++
+			s.m.processDIAM(s, msg)
+		}
+		return true
+	}
 	for {
 		select {
 		case <-s.closed:
-			return
-		case in := <-s.ingress:
-			if in.seq == 0 {
-				s.m.processDIAM(s, in.msg)
-				continue
-			}
-			if in.seq < next {
-				continue
-			}
-			if in.seq > next {
-				if _, exists := pending[in.seq]; !exists && len(pending) >= s.m.cfg.Limits.Events {
-					s.m.report(s, in.msg, errors.New("peer: ordered ingress queue full"))
-					s.close()
-					return
-				}
-				pending[in.seq] = in.msg
-				continue
-			}
-			s.m.processDIAM(s, in.msg)
-			next++
-			for msg := pending[next]; msg != nil; msg = pending[next] {
+			// Closure seals admission. Drain every message admitted before it;
+			// the actor receives connGone only after those wire events.
+			for {
 				select {
-				case <-s.closed:
-					return
+				case in := <-s.ingress:
+					if !process(in) {
+						return
+					}
 				default:
+					return
 				}
-				delete(pending, next)
-				next++
-				s.m.processDIAM(s, msg)
+			}
+		case in := <-s.ingress:
+			if !process(in) {
+				return
 			}
 		}
 	}
@@ -167,17 +192,28 @@ func (s *session) releaseControl(hop uint32) {
 	s.m.pendingMu.Unlock()
 }
 func (s *session) close() {
+	s.closeWithFailover(true)
+}
+func (s *session) closeObserved() {
+	s.closeWithFailover(false)
+}
+func (s *session) closeWithFailover(immediate bool) {
 	s.closeOnce.Do(func() {
 		s.firstMu.Lock()
 		if s.preTimer != nil {
 			s.preTimer.Stop()
 		}
 		s.firstMu.Unlock()
+		s.ingressMu.Lock()
+		s.ingressClosed = true
 		close(s.closed)
+		s.ingressMu.Unlock()
 		s.m.pendingMu.Lock()
 		delete(s.m.controls, s)
 		s.m.pendingMu.Unlock()
-		s.m.failoverSession(s)
+		if immediate {
+			s.m.failoverSession(s)
+		}
 		s.c.Close()
 	})
 }
@@ -226,7 +262,15 @@ func (s *session) writer() {
 }
 func (s *session) watch() {
 	defer s.m.wg.Done()
-	if n, ok := s.c.(diam.CloseNotifier); ok {
+	// Server's DispatchDone waits for its read loop and concurrent handlers.
+	// CloseNotify alone can race a handler that has decoded but not queued an
+	// answer. Other transports fall back to CloseNotify.
+	if n, ok := s.c.(interface{ DispatchDone() <-chan struct{} }); ok {
+		select {
+		case <-n.DispatchDone():
+		case <-s.closed:
+		}
+	} else if n, ok := s.c.(diam.CloseNotifier); ok {
 		select {
 		case <-n.CloseNotify():
 		case <-s.closed:
@@ -234,10 +278,6 @@ func (s *session) watch() {
 	} else {
 		<-s.closed
 	}
-	s.close()
+	s.closeObserved()
 	s.m.unregister(s)
-	a, gen := s.binding()
-	if a != nil {
-		a.post(event{kind: connGone, s: s, gen: gen})
-	}
 }
