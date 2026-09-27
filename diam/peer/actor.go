@@ -171,7 +171,9 @@ func (a *actor) handle(e event) {
 		return
 	}
 	if e.kind == start {
-		if a.state == Closed && !a.m.isClosing() {
+		// RFC 6733 §5.4.3: a BUSY or DO_NOT_WANT_TO_TALK_TO_YOU DPR received
+		// before Start also suppresses the first dial.
+		if a.state == Closed && !a.m.isClosing() && !a.suppressReconnect {
 			a.setState(WaitConnAck, nil)
 			a.arm(a.m.cfg.Timers.Connect)
 			a.dial()
