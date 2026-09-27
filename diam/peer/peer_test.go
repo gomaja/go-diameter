@@ -10,6 +10,8 @@ import (
 
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/datatype"
+	"github.com/gomaja/go-diameter/diam/dict"
+	"github.com/gomaja/go-diameter/diam/internal/base"
 	"github.com/gomaja/go-diameter/diam/sm"
 )
 
@@ -43,12 +45,96 @@ func TestRFC6733StateTable(t *testing.T) {
 				if !ok || row.next != PeerState(next[i]) || row.actions != actions[i] {
 					t.Fatalf("row=%+v ok=%v", row, ok)
 				}
+				assertActorRow(t, tc.state, psmEvent(e), row)
 			})
 			count++
 		}
 	}
 	if count != 43 {
 		t.Fatalf("tested %d rows, want 43", count)
+	}
+}
+
+func assertActorRow(t *testing.T, state PeerState, kind psmEvent, row psmStep) {
+	t.Helper()
+	clock := &fakeClock{}
+	m, err := New(Config{Settings: sm.Settings{OriginHost: "local.example.net", OriginRealm: "example.net", VendorID: 1, ProductName: "table-test"}, Clock: clock})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer closeManager(t, m, nil)
+	a := &actor{m: m, cfg: PeerConfig{Host: "remote.example.net"}, state: state, done: make(chan struct{}), events: make(chan event, 8), closeCause: sm.DisconnectBusy}
+	makeSession := func(gen uint64) *session {
+		return &session{m: m, c: newFakeConn(), actor: a, gen: gen, writes: make(chan writeRequest, 8), closed: make(chan struct{})}
+	}
+	i, r, candidate := makeSession(1), makeSession(2), makeSession(3)
+	defer i.close()
+	defer r.close()
+	defer candidate.close()
+	a.i = i
+	a.r = r
+	if state == IOpen {
+		a.active = i
+	} else {
+		a.active = r
+	}
+	a.publish(nil)
+	cer, err := base.BuildCER(dict.Default, testBase("remote.example.net"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.cerRequest = cer
+	var msg *diam.Message
+	s := r
+	switch kind {
+	case iDWR, rDWR:
+		msg, err = base.BuildDWR(dict.Default, testBase("remote.example.net"), 0)
+	case iDPR, rDPR:
+		msg, err = base.BuildDPR(dict.Default, testBase("remote.example.net"), 0)
+	case iMessage, rMessage:
+		msg = diam.NewRequest(999, 0, dict.Default)
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.HasPrefix(string(kind), "I-") && kind != iNack && kind != iAck {
+		s = i
+	}
+	if kind == rConnCER && state != Closed && state != WaitConnAck && state != WaitICEA {
+		s = candidate
+	}
+	a.step(kind, s, msg)
+	if a.state != row.next {
+		t.Fatalf("actor state=%s want %s", a.state, row.next)
+	}
+	checkWrite := func(ss *session, command uint32, request bool) {
+		t.Helper()
+		select {
+		case w := <-ss.writes:
+			if w.msg.Header.CommandCode != command || (w.msg.Header.CommandFlags&diam.RequestFlag != 0) != request {
+				t.Fatalf("write command=%d flags=%x", w.msg.Header.CommandCode, w.msg.Header.CommandFlags)
+			}
+		default:
+			t.Fatalf("missing write command %d", command)
+		}
+	}
+	switch {
+	case strings.Contains(row.actions, "I-Snd-CER"):
+		checkWrite(i, diam.CapabilitiesExchange, true)
+	case strings.Contains(row.actions, "R-Snd-CEA"):
+		checkWrite(r, diam.CapabilitiesExchange, false)
+	case strings.Contains(row.actions, "Snd-DWA"):
+		checkWrite(s, diam.DeviceWatchdog, false)
+	case strings.Contains(row.actions, "Snd-DPA"):
+		checkWrite(s, diam.DisconnectPeer, false)
+	case strings.Contains(row.actions, "Snd-DPR"):
+		checkWrite(s, diam.DisconnectPeer, true)
+	case row.actions == "R-Reject":
+		select {
+		case <-candidate.closed:
+		default:
+			t.Fatal("R candidate was not rejected")
+		}
 	}
 }
 func split(s string) []string {
