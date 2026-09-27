@@ -44,17 +44,22 @@ var (
 // code. If enabled, the client will send Device-Watchdog-Request messages
 // in background until the connection is terminated.
 //
-// By default, retransmission and watchdog are disabled. Retransmission is
-// enabled by setting MaxRetransmits to a number greater than zero, and
-// watchdog is enabled by setting EnableWatchdog to true.
+// By default, CER retransmission and watchdog are disabled. CER retransmission
+// is enabled by setting MaxRetransmits to a number greater than zero, and
+// watchdog is enabled by setting EnableWatchdog to true. Watchdog DWRs are
+// never retransmitted (RFC 3539 §3.4.1).
+//
+// RFC 3539 Appendix A's INITIAL and REOPEN states belong to a managed
+// connection lifecycle. Client starts its watchdog after the handshake and
+// does not reconnect connections it has closed.
 //
 // A custom message handler for Device-Watchdog-Answer (DWA) can be registered.
-// However, that will be overwritten if watchdog is enabled.
+// With watchdog enabled, Client handles DWA on its connections first.
 type Client struct {
 	Dict                        *dict.Parser  // Dictionary parser (uses dict.Default if unset)
 	Handler                     *StateMachine // Message handler
-	MaxRetransmits              uint          // Max number of retransmissions before aborting
-	RetransmitInterval          time.Duration // Interval between retransmissions (default 1s)
+	MaxRetransmits              uint          // Maximum CER handshake retransmissions before aborting
+	RetransmitInterval          time.Duration // Interval between CER handshake retransmissions (default 1s)
 	EnableWatchdog              bool          // Enable automatic DWR
 	WatchdogInterval            time.Duration // RFC 3539 §3.4.1 Twinit; default 30s, minimum 6s, with ±2s jitter
 	WatchdogStream              uint          // Stream to send DWR on (for multistreaming protocols), default is 0
@@ -137,7 +142,9 @@ const (
 	WatchdogAnswerReceived WatchdogEvent = "answer_received"
 	WatchdogInvalidAnswer  WatchdogEvent = "invalid_answer"
 	WatchdogWriteFailed    WatchdogEvent = "write_failed"
-	WatchdogTimedOut       WatchdogEvent = "timeout"
+	WatchdogSuspect        WatchdogEvent = "suspect"   // RFC 3539 Appendix A: outstanding DWR at Tw expiration
+	WatchdogRecovered      WatchdogEvent = "recovered" // RFC 3539 Appendix A: traffic received in SUSPECT
+	WatchdogTimedOut       WatchdogEvent = "timeout"   // RFC 3539 Appendix A: DOWN after another Tw expiration
 )
 
 func (cli *Client) observeWatchdog(event WatchdogEvent) {
@@ -438,6 +445,10 @@ func (cli *Client) nextWatchdogInterval() time.Duration {
 func (cli *Client) watchdog(c diam.Conn, dwac chan struct{}, activity *watchdogActivity) {
 	disconnect := c.(diam.CloseNotifier).CloseNotify()
 	var osid = uint32(cli.Handler.cfg.OriginStateID)
+	// RFC 3539 §3.4.1 and Appendix A: established peers start in OKAY.
+	// Pending remains set after non-DWA traffic until the answer arrives.
+	pending := false
+	suspect := false
 	for {
 		armedAt := time.Now()
 		timer := time.NewTimer(cli.nextWatchdogInterval())
@@ -447,49 +458,81 @@ func (cli *Client) watchdog(c diam.Conn, dwac chan struct{}, activity *watchdogA
 			return
 		case <-activity.signal:
 			timer.Stop()
-		case <-timer.C:
-			if activity.last.Load() <= armedAt.UnixNano() {
-				cli.dwr(c, osid, dwac)
+			if suspect {
+				suspect = false
+				cli.observeWatchdog(WatchdogRecovered)
 			}
+		case <-dwac:
+			timer.Stop()
+			pending = false
+			if suspect {
+				suspect = false
+				cli.observeWatchdog(WatchdogRecovered)
+			}
+		case <-timer.C:
+			// Prefer traffic delivered at the timer boundary to a false
+			// expiration, including an answer already queued by its handler.
+			if activity.last.Load() > armedAt.UnixNano() {
+				if suspect {
+					suspect = false
+					cli.observeWatchdog(WatchdogRecovered)
+				}
+				continue
+			}
+			select {
+			case <-dwac:
+				pending = false
+				if suspect {
+					suspect = false
+					cli.observeWatchdog(WatchdogRecovered)
+				}
+				continue
+			default:
+			}
+			if suspect {
+				// RFC 3539 Appendix A: a second Tw expiry in SUSPECT
+				// transitions to DOWN and closes this connection.
+				cli.observeWatchdog(WatchdogTimedOut)
+				c.Close()
+				return
+			}
+			if pending {
+				// RFC 3539 Appendix A: failover belongs to the caller's
+				// supervisor; Client reports SUSPECT but has no peer queue.
+				suspect = true
+				cli.observeWatchdog(WatchdogSuspect)
+				continue
+			}
+			if !cli.dwr(c, osid) {
+				return
+			}
+			pending = true
 		}
 	}
 }
 
-func (cli *Client) dwr(c diam.Conn, osid uint32, dwac chan struct{}) {
+func (cli *Client) dwr(c diam.Conn, osid uint32) bool {
 	m, err := cli.makeDWR(osid)
 	if err != nil {
 		cli.Handler.Error(&diam.ErrorReport{Conn: c, Error: err})
 		c.Close()
-		return
+		return false
 	}
-	for i := 0; i < (int(cli.MaxRetransmits) + 1); i++ {
-		// Serialize successful request publication with DWA publication. A
-		// peer can answer before WriteToStream returns, but observers still
-		// receive the causal request event first.
-		cli.watchdogEventMu.Lock()
-		_, err := m.WriteToStream(c, cli.WatchdogStream)
-		if err != nil {
-			// Failing to send the watchdog request is at least as strong
-			// an aliveness verdict as a missing answer: report it and
-			// disconnect so supervisors can recover, instead of retrying
-			// the failed send on every subsequent watchdog interval.
-			cli.emitWatchdog(WatchdogWriteFailed)
-			cli.watchdogEventMu.Unlock()
-			cli.Handler.Error(&diam.ErrorReport{Conn: c, Message: m, Error: err})
-			c.Close()
-			return
-		}
-		cli.emitWatchdog(WatchdogRequestSent)
+	// Serialize successful request publication with DWA publication. A peer
+	// can answer before WriteToStream returns, but observers still receive
+	// the causal request event first.
+	cli.watchdogEventMu.Lock()
+	_, err = m.WriteToStream(c, cli.WatchdogStream)
+	if err != nil {
+		cli.emitWatchdog(WatchdogWriteFailed)
 		cli.watchdogEventMu.Unlock()
-		select {
-		case <-dwac:
-			return
-		case <-time.After(cli.RetransmitInterval):
-		}
+		cli.Handler.Error(&diam.ErrorReport{Conn: c, Message: m, Error: err})
+		c.Close()
+		return false
 	}
-	// Watchdog failed, disconnect.
-	cli.observeWatchdog(WatchdogTimedOut)
-	c.Close()
+	cli.emitWatchdog(WatchdogRequestSent)
+	cli.watchdogEventMu.Unlock()
+	return true
 }
 
 func (cli *Client) makeDWR(osid uint32) (*diam.Message, error) {
