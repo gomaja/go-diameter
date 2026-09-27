@@ -115,6 +115,11 @@ func (a *actor) changeWatchdog(next WatchdogState, reason error) {
 		reason = fmt.Errorf("peer: watchdog %s", next)
 	}
 	a.publish(reason)
+	if next == WatchdogSuspect && a.active != nil {
+		// RFC 3539 §3.4.1 and RFC 6733 §5.5.4: remove a SUSPECT
+		// connection from new selection and fail over requests in flight.
+		a.m.failoverSession(a.active)
+	}
 }
 func (a *actor) onOpen() {
 	// RFC 3539 Appendix A INITIAL/DOWN Connection up rows.
@@ -136,8 +141,7 @@ func (a *actor) lostConnection(reason error) {
 	a.stopWatchdog()
 	a.pendingWatchdog = false
 	if a.everOpen {
-		// RFC 3539 Appendix A OKAY/SUSPECT/REOPEN Connection down. Pending
-		// request failover attaches here when PR 4 adds managed requests.
+		// RFC 3539 Appendix A OKAY/SUSPECT/REOPEN Connection down.
 		a.changeWatchdog(WatchdogDown, reason)
 	}
 	a.scheduleReconnect()
@@ -151,7 +155,7 @@ func (a *actor) sendWatchdog() {
 		a.fail(fmt.Errorf("peer: build DWR: %w", err))
 		return
 	}
-	if !a.active.send(msg, false) {
+	if !a.active.sendControl(msg) {
 		a.fail(errors.New("peer: DWR write queue full"))
 		return
 	}
@@ -169,7 +173,7 @@ func (a *actor) watchdogTick() {
 		if !a.pendingWatchdog {
 			a.sendWatchdog()
 		} else {
-			a.changeWatchdog(WatchdogSuspect, errors.New("peer: unanswered DWR; pending request failover reserved for PR 4"))
+			a.changeWatchdog(WatchdogSuspect, errors.New("peer: unanswered DWR"))
 		}
 		if a.watchdog == WatchdogOkay || a.watchdog == WatchdogSuspect {
 			a.armWatchdog()
@@ -219,6 +223,7 @@ func (a *actor) watchdogReceive(msg *diam.Message) bool {
 		return false
 	}
 	a.pendingWatchdog = false
+	a.active.releaseControl(a.watchdogHop)
 	switch a.watchdog {
 	case WatchdogSuspect:
 		a.changeWatchdog(WatchdogOkay, errors.New("peer: valid DWA restored watchdog health"))
