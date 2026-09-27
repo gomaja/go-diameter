@@ -372,7 +372,7 @@ func (a *actor) onWire(e event) {
 			} else {
 				a.step(rDPA, s, msg)
 			}
-		} else if cmd == diam.DisconnectPeer && req {
+		} else if cmd == diam.DisconnectPeer && req && a.validDPR(s, msg) {
 			a.answerDPR(s, msg)
 		}
 		return
@@ -402,8 +402,7 @@ func (a *actor) onWire(e event) {
 			a.step(rDWA, s, msg)
 		}
 	case cmd == diam.DisconnectPeer && req && msg.Header.ApplicationID == 0:
-		if _, err := base.ValidateDPR(msg); err != nil {
-			a.m.report(s, msg, err)
+		if !a.validDPR(s, msg) {
 			return
 		}
 		if isI {
@@ -422,6 +421,19 @@ func (a *actor) onWire(e event) {
 			a.step(rMessage, s, msg)
 		}
 	}
+}
+func (a *actor) validDPR(s *session, msg *diam.Message) bool {
+	if _, err := base.ValidateDPR(msg); err != nil {
+		a.m.report(s, msg, err)
+		return false
+	}
+	// RFC 6733 §§5.1, 5.4.1: accept a DPR only from this connection's peer.
+	host, err := msg.FindAVP(avp.OriginHost, 0)
+	if err != nil || compareIdentity(host.Data.(datatype.DiameterIdentity), a.cfg.Host) != 0 {
+		a.m.report(s, msg, errors.New("peer: DPR Origin-Host mismatch"))
+		return false
+	}
+	return true
 }
 func (a *actor) answerDPR(s *session, msg *diam.Message) {
 	if _, err := base.ValidateDPR(msg); err != nil {
