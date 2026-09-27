@@ -2,12 +2,9 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-package smparser
+package base
 
-import (
-	"github.com/gomaja/go-diameter/diam"
-	"github.com/gomaja/go-diameter/diam/internal/base"
-)
+import "github.com/gomaja/go-diameter/diam"
 
 // DWA is a Device-Watchdog-Answer message.
 // See RFC 6733 section 5.5.2 for details.
@@ -18,9 +15,8 @@ type DWA struct {
 
 // Parse parses the given message.
 func (dwa *DWA) Parse(m *diam.Message) error {
-	parsed := &base.DWA{ResultCode: dwa.ResultCode, OriginStateID: dwa.OriginStateID}
-	err := parsed.Parse(m)
-	dwa.ResultCode = parsed.ResultCode
-	dwa.OriginStateID = parsed.OriginStateID
-	return adaptError(err)
+	if err := m.Unmarshal(dwa); err != nil {
+		return err
+	}
+	return nil
 }
