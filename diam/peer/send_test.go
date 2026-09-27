@@ -1,6 +1,7 @@
 package peer
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"sync"
@@ -11,8 +12,25 @@ import (
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
+	"github.com/gomaja/go-diameter/diam/dict"
 	"github.com/gomaja/go-diameter/diam/sm/smpeer"
 )
+
+type blockedWriteConn struct {
+	*fakeConn
+	entered chan struct{}
+	release chan struct{}
+	written chan []byte
+	once    sync.Once
+}
+
+func (c *blockedWriteConn) Write(b []byte) (int, error) {
+	c.once.Do(func() { close(c.entered); <-c.release })
+	c.written <- append([]byte(nil), b...)
+	return len(b), nil
+}
+
+func (c *blockedWriteConn) WriteStream(b []byte, _ uint) (int, error) { return c.Write(b) }
 
 func outboundTestManager(t *testing.T) (*Manager, []*actor, []*session) {
 	t.Helper()
@@ -308,6 +326,77 @@ func TestRequestTimeoutCancelAndPendingLimit(t *testing.T) {
 	}
 	if len(m.pending) != 0 {
 		t.Fatal("cancel retained pending")
+	}
+}
+
+func TestCompletedQueuedRequestIsNotWritten(t *testing.T) {
+	for _, finish := range []string{"cancel", "timeout"} {
+		t.Run(finish, func(t *testing.T) {
+			m, _, sessions := outboundTestManager(t)
+			clock := &fakeClock{}
+			m.cfg.Clock = clock
+			if err := m.SetRoutes([]Route{{Realm: "example.net", ApplicationID: 4, PeerHosts: []datatype.DiameterIdentity{"a.example.net"}}}); err != nil {
+				t.Fatal(err)
+			}
+			c := &blockedWriteConn{fakeConn: newFakeConn(), entered: make(chan struct{}), release: make(chan struct{}), written: make(chan []byte, 3)}
+			sessions[0].c = c
+			m.wg.Add(1)
+			go sessions[0].writer()
+			firstCtx, stopFirst := context.WithCancel(context.Background())
+			defer stopFirst()
+			first := sendAsync(m, firstCtx, outboundRequest("", "example.net"))
+			<-c.entered
+			m.pendingMu.Lock()
+			started := false
+			for _, p := range m.pending[sessions[0]] {
+				started = p.entries[sessions[0]].writing
+			}
+			m.pendingMu.Unlock()
+			if !started {
+				t.Fatal("active write was not marked as started")
+			}
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			second := sendAsync(m, ctx, outboundRequest("", "example.net"))
+			deadline := time.After(time.Second)
+			for len(sessions[0].writes) == 0 {
+				select {
+				case <-deadline:
+					t.Fatal("second request was not queued")
+				default:
+					time.Sleep(time.Millisecond)
+				}
+			}
+			if finish == "cancel" {
+				cancel()
+			} else {
+				clock.fire()
+			}
+			if got := <-second; finish == "cancel" && !errors.Is(got.err, context.Canceled) || finish == "timeout" && !errors.Is(got.err, ErrRequestTimeout) {
+				t.Fatalf("second completion = %+v", got)
+			}
+			sentinel := outboundRequest("", "example.net")
+			sentinel.Header.HopByHopID = 0xfefefefe
+			if !sessions[0].send(sentinel, false) {
+				t.Fatal("sentinel not queued")
+			}
+			close(c.release)
+			<-c.written // first request
+			select {
+			case wire := <-c.written:
+				msg, err := diam.ReadMessage(bytes.NewReader(wire), dict.Default)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if msg.Header.HopByHopID != sentinel.Header.HopByHopID {
+					t.Fatalf("completed queued request was transmitted: H2H %x", msg.Header.HopByHopID)
+				}
+			case <-time.After(time.Second):
+				t.Fatal("writer did not reach sentinel")
+			}
+			stopFirst()
+			<-first
+		})
 	}
 }
 
