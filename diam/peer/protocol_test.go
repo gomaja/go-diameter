@@ -1,6 +1,7 @@
 package peer
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"errors"
@@ -326,6 +327,95 @@ func TestPreCERGateAndUnknownPeer(t *testing.T) {
 			}
 			if n, ok := e.(net.Error); ok && n.Timeout() {
 				t.Fatal("connection did not close")
+			}
+		})
+	}
+}
+
+func TestMalformedFirstMessageCannotAdmitLaterCER(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		firstCER   bool
+		wantAnswer bool
+	}{
+		{name: "malformed CER", firstCER: true, wantAnswer: true},
+		{name: "malformed non-CER"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			clock := &fakeClock{}
+			m, err := New(Config{Settings: testSettings("local.example.net"), Clock: clock})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := m.AddPeer(PeerConfig{Host: "known.example.net"}); err != nil {
+				t.Fatal(err)
+			}
+			l, srv := startReceiver(t, m)
+			defer closeManager(t, m, srv)
+			c, err := net.Dial("tcp", l.Addr().String())
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() { _ = c.Close() }()
+			cfg := testBase("known.example.net")
+			cer, err := base.BuildCER(dict.Default, cfg)
+			if err != nil {
+				t.Fatal(err)
+			}
+			first := cer
+			if !tc.firstCER {
+				first, err = base.BuildDWR(dict.Default, cfg, 0)
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			var raw, valid bytes.Buffer
+			if _, err := first.WriteTo(&raw); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := cer.WriteTo(&valid); err != nil {
+				t.Fatal(err)
+			}
+			wire := raw.Bytes()
+			wire[25], wire[26], wire[27] = 0xff, 0xff, 0xff // First AVP length exceeds this message.
+			batch := append(append([]byte(nil), wire...), valid.Bytes()...)
+			if n, err := c.Write(batch); err != nil || n != len(batch) {
+				t.Fatalf("write %d/%d: %v", n, len(batch), err)
+			}
+			_ = c.SetReadDeadline(time.Now().Add(time.Second))
+			if tc.wantAnswer {
+				answer, err := diam.ReadMessage(c, dict.Default)
+				if err != nil {
+					t.Fatalf("missing malformed CER answer: %v", err)
+				}
+				if got := code(t, answer); got != diam.InvalidAVPLength {
+					t.Fatalf("Result-Code=%d want %d", got, diam.InvalidAVPLength)
+				}
+			}
+			if answer, err := diam.ReadMessage(c, dict.Default); err == nil {
+				t.Fatalf("admitted later CER: answer command=%d code=%d", answer.Header.CommandCode, code(t, answer))
+			} else if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+				t.Fatalf("connection stayed open after malformed first message: %v", err)
+			}
+			select {
+			case report := <-m.ErrorReports():
+				if report == nil || report.Error == nil {
+					t.Fatal("missing malformed first-message error")
+				}
+			case <-time.After(time.Second):
+				t.Fatal("malformed first message was not reported")
+			}
+			clock.mu.Lock()
+			timers := append([]*fakeTimer(nil), clock.timers...)
+			clock.mu.Unlock()
+			if len(timers) == 0 {
+				t.Fatal("pre-CER timer was not armed")
+			}
+			timers[0].mu.Lock()
+			active := timers[0].active
+			timers[0].mu.Unlock()
+			if active {
+				t.Fatal("pre-CER timer remained active after connection close")
 			}
 		})
 	}
