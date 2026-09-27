@@ -4,6 +4,7 @@ import (
 	"context"
 	"net"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -14,30 +15,32 @@ import (
 
 func TestRFC6733StateTable(t *testing.T) {
 	cases := []struct {
-		state  PeerState
-		events string
-		next   string
+		state   PeerState
+		events  string
+		next    string
+		actions string
 	}{
-		{Closed, "Start,R-Conn-CER", "Wait-Conn-Ack,R-Open"},
-		{WaitConnAck, "I-Rcv-Conn-Ack,I-Rcv-Conn-Nack,R-Conn-CER,Timeout", "Wait-I-CEA,Closed,Wait-Conn-Ack/Elect,Closed"},
-		{WaitICEA, "I-Rcv-CEA,R-Conn-CER,I-Peer-Disc,I-Rcv-Non-CEA,Timeout", "I-Open,Wait-Returns,Closed,Closed,Closed"},
-		{WaitConnAckElect, "I-Rcv-Conn-Ack,I-Rcv-Conn-Nack,R-Peer-Disc,R-Conn-CER,Timeout", "Wait-Returns,R-Open,Wait-Conn-Ack,Wait-Conn-Ack/Elect,Closed"},
-		{WaitReturns, "Win-Election,I-Peer-Disc,I-Rcv-CEA,R-Peer-Disc,R-Conn-CER,Timeout", "R-Open,R-Open,I-Open,Wait-I-CEA,Wait-Returns,Closed"},
-		{ROpen, "Send-Message,R-Rcv-Message,R-Rcv-DWR,R-Rcv-DWA,R-Conn-CER,Stop,R-Rcv-DPR,R-Peer-Disc", "R-Open,R-Open,R-Open,R-Open,R-Open,Closing,Closing,Closed"},
-		{IOpen, "Send-Message,I-Rcv-Message,I-Rcv-DWR,I-Rcv-DWA,R-Conn-CER,Stop,I-Rcv-DPR,I-Peer-Disc", "I-Open,I-Open,I-Open,I-Open,I-Open,Closing,Closing,Closed"},
-		{Closing, "I-Rcv-DPA,R-Rcv-DPA,Timeout,I-Peer-Disc,R-Peer-Disc", "Closed,Closed,Closed,Closed,Closed"},
+		{Closed, "Start,R-Conn-CER", "Wait-Conn-Ack,R-Open", "I-Snd-Conn-Req|R-Accept,Process-CER,R-Snd-CEA"},
+		{WaitConnAck, "I-Rcv-Conn-Ack,I-Rcv-Conn-Nack,R-Conn-CER,Timeout", "Wait-I-CEA,Closed,Wait-Conn-Ack/Elect,Closed", "I-Snd-CER|Cleanup|R-Accept,Process-CER|Error"},
+		{WaitICEA, "I-Rcv-CEA,R-Conn-CER,I-Peer-Disc,I-Rcv-Non-CEA,Timeout", "I-Open,Wait-Returns,Closed,Closed,Closed", "Process-CEA|R-Accept,Process-CER,Elect|I-Disc|Error|Error"},
+		{WaitConnAckElect, "I-Rcv-Conn-Ack,I-Rcv-Conn-Nack,R-Peer-Disc,R-Conn-CER,Timeout", "Wait-Returns,R-Open,Wait-Conn-Ack,Wait-Conn-Ack/Elect,Closed", "I-Snd-CER,Elect|R-Snd-CEA|R-Disc|R-Reject|Error"},
+		{WaitReturns, "Win-Election,I-Peer-Disc,I-Rcv-CEA,R-Peer-Disc,R-Conn-CER,Timeout", "R-Open,R-Open,I-Open,Wait-I-CEA,Wait-Returns,Closed", "I-Disc,R-Snd-CEA|I-Disc,R-Snd-CEA|R-Disc|R-Disc|R-Reject|Error"},
+		{ROpen, "Send-Message,R-Rcv-Message,R-Rcv-DWR,R-Rcv-DWA,R-Conn-CER,Stop,R-Rcv-DPR,R-Peer-Disc", "R-Open,R-Open,R-Open,R-Open,R-Open,Closing,Closing,Closed", "R-Snd-Message|Process|Process-DWR,R-Snd-DWA|Process-DWA|R-Reject|R-Snd-DPR|R-Snd-DPA|R-Disc"},
+		{IOpen, "Send-Message,I-Rcv-Message,I-Rcv-DWR,I-Rcv-DWA,R-Conn-CER,Stop,I-Rcv-DPR,I-Peer-Disc", "I-Open,I-Open,I-Open,I-Open,I-Open,Closing,Closing,Closed", "I-Snd-Message|Process|Process-DWR,I-Snd-DWA|Process-DWA|R-Reject|I-Snd-DPR|I-Snd-DPA|I-Disc"},
+		{Closing, "I-Rcv-DPA,R-Rcv-DPA,Timeout,I-Peer-Disc,R-Peer-Disc", "Closed,Closed,Closed,Closed,Closed", "I-Disc|R-Disc|Error|I-Disc|R-Disc"},
 	}
 	count := 0
 	for _, tc := range cases {
 		events := split(tc.events)
 		next := split(tc.next)
-		if len(events) != len(next) {
+		actions := strings.Split(tc.actions, "|")
+		if len(events) != len(next) || len(events) != len(actions) {
 			t.Fatal(tc.state)
 		}
 		for i, e := range events {
 			t.Run(string(tc.state)+"/"+e, func(t *testing.T) {
 				row, ok := transition(tc.state, psmEvent(e))
-				if !ok || row.next != PeerState(next[i]) || row.actions == "" {
+				if !ok || row.next != PeerState(next[i]) || row.actions != actions[i] {
 					t.Fatalf("row=%+v ok=%v", row, ok)
 				}
 			})
@@ -181,7 +184,8 @@ func TestStaleCandidateEventsIgnored(t *testing.T) {
 	a.active = winner
 	a.publish(nil)
 	a.onGone(loser)
-	a.onWire(event{kind: wireEvent, s: loser, msg: diam.NewRequest(diam.CapabilitiesExchange, 0, nil)})
+	lateCEA := diam.NewRequest(diam.CapabilitiesExchange, 0, nil).Answer(diam.Success)
+	a.onWire(event{kind: wireEvent, s: loser, msg: lateCEA})
 	a.handle(event{kind: timeout, token: 6})
 	if a.state != ROpen || a.active != winner {
 		t.Fatalf("stale candidate changed winner: %+v", a.snapshot())
