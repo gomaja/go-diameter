@@ -6,6 +6,7 @@ package sm
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/datatype"
@@ -94,12 +95,21 @@ type Settings struct {
 	// of unknown mandatory AVPs. It defaults to false: relays must forward
 	// unknown AVPs, and incomplete application dictionaries may omit vendor AVPs.
 	RejectUnknownMandatoryAVPs bool
+
+	// OnDPR observes a validated peer DPR and its Disconnect-Cause after the
+	// DPA is sent. Callers decide whether to reconnect (RFC 6733 §5.4.3).
+	OnDPR func(diam.Conn, DisconnectCause)
+
+	// DPRCloseTimeout bounds the receiver's Closing state (RFC 6733 §5.6).
+	// Zero uses 5 seconds.
+	DPRCloseTimeout time.Duration
 }
 
 var (
 	baseCERIdx = diam.CommandIndex{AppID: 0, Code: diam.CapabilitiesExchange, Request: true}
 	baseCEAIdx = diam.CommandIndex{AppID: 0, Code: diam.CapabilitiesExchange, Request: false}
 	baseDWRIdx = diam.CommandIndex{AppID: 0, Code: diam.DeviceWatchdog, Request: true}
+	baseDPRIdx = diam.CommandIndex{AppID: 0, Code: diam.DisconnectPeer, Request: true}
 )
 
 // StateMachine is a specialized type of diam.ServeMux that handles
@@ -134,9 +144,11 @@ func New(settings *Settings) *StateMachine {
 	dwrHandler := chainPreHook(settings.OnDWR, handleDWR(sm))
 	sm.mux.Handle("CER", cerHandler)
 	sm.mux.Handle("DWR", handshakeOK(dwrHandler))
+	sm.mux.Handle("DPR", handshakeOK(handleDPR(sm)))
 	sm.mux.HandleIdx(baseCERIdx, cerHandler)
 	sm.mux.HandleIdx(baseDWRIdx, dwrHandler)
 	sm.mux.Handle("ALL", diam.HandlerFunc(sm.handleUnsupportedCommand))
+	sm.mux.HandleIdx(baseDPRIdx, handshakeOK(handleDPR(sm)))
 	return sm
 }
 
@@ -180,7 +192,7 @@ func (sm *StateMachine) Handle(cmd string, handler diam.Handler) {
 
 func (sm *StateMachine) HandleIdx(cmd diam.CommandIndex, handler diam.Handler) {
 	switch cmd {
-	case baseCERIdx, baseCEAIdx, baseDWRIdx:
+	case baseCERIdx, baseCEAIdx, baseDWRIdx, baseDPRIdx:
 		sm.Error(&diam.ErrorReport{
 			Error: fmt.Errorf("cannot overwrite %v command in the state machine", cmd),
 		})
@@ -192,7 +204,7 @@ func (sm *StateMachine) HandleIdx(cmd diam.CommandIndex, handler diam.Handler) {
 // HandleFunc implements the diam.Handler interface.
 func (sm *StateMachine) HandleFunc(cmd string, handler diam.HandlerFunc) {
 	switch cmd {
-	case "CER", "CEA", "DWR":
+	case "CER", "CEA", "DWR", "DPR":
 		sm.Error(&diam.ErrorReport{
 			Error: fmt.Errorf("cannot overwrite %s command in the state machine", cmd),
 		})
