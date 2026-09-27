@@ -28,7 +28,6 @@ const (
 	AccountingRealtimeRequired                 = 483
 	AccountingRecordNumber                     = 485
 	AccountingRecordType                       = 480
-	AccountingSessionID                        = 44
 	AccountingSubSessionID                     = 287
 	AcctApplicationID                          = 259
 	AcctAuthentic                              = 45
@@ -36,6 +35,7 @@ const (
 	AcctInterimInterval                        = 85
 	AcctLinkCount                              = 51
 	AcctMultiSessionID                         = 50
+	AcctSessionID                              = 44
 	AcctSessionTime                            = 46
 	AcctTunnelConnection                       = 68
 	AcctTunnelPacketsLost                      = 86
