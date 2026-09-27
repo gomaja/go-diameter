@@ -89,6 +89,11 @@ type Settings struct {
 	// OnDWA, if non-nil, is invoked immediately before a DWA is sent in
 	// response to a peer DWR. Useful for logging or metrics.
 	OnDWA diam.HandlerFunc
+
+	// RejectUnknownMandatoryAVPs enables RFC 6733 §§4.1 and 7.1.5 rejection
+	// of unknown mandatory AVPs. It defaults to false: relays must forward
+	// unknown AVPs, and incomplete application dictionaries may omit vendor AVPs.
+	RejectUnknownMandatoryAVPs bool
 }
 
 var (
@@ -155,6 +160,16 @@ func (sm *StateMachine) Settings() *Settings {
 
 // ServeDIAM implements the diam.Handler interface.
 func (sm *StateMachine) ServeDIAM(c diam.Conn, m *diam.Message) {
+	if sm.cfg.RejectUnknownMandatoryAVPs && m.Header.CommandFlags&diam.RequestFlag != 0 {
+		if failed := m.UnknownMandatoryAVPs(); len(failed) != 0 {
+			// RFC 6733 §7.1.5, Verified Erratum 4615: one Failed-AVP
+			// contains the unsupported AVP(s), including Grouped hierarchy.
+			if err := sm.writeErrorAnswer(c, m, diam.AVPUnsupported, failed, false); err != nil {
+				sm.Error(&diam.ErrorReport{Conn: c, Message: m, Error: err})
+			}
+			return
+		}
+	}
 	sm.mux.ServeDIAM(c, m)
 }
 
