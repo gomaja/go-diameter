@@ -17,21 +17,22 @@ type incoming struct {
 	seq uint64
 }
 type session struct {
-	m              *Manager
-	c              diam.Conn
-	actor          *actor
-	gen            uint64
-	inbound        bool
-	firstMu        sync.Mutex
-	first          bool
-	rejectingFirst bool
-	preTimer       Timer
-	writes         chan writeRequest
-	ingress        chan incoming
-	closed         chan struct{}
-	closeOnce      sync.Once
-	cerRequest     *diam.Message
-	cerHop, cerEnd uint32
+	m               *Manager
+	c               diam.Conn
+	actor           *actor
+	gen             uint64
+	inbound         bool
+	firstMu         sync.Mutex
+	first           bool
+	rejectingFirst  bool
+	preTimer        Timer
+	writes          chan writeRequest
+	beforeAdmission func()
+	ingress         chan incoming
+	closed          chan struct{}
+	closeOnce       sync.Once
+	cerRequest      *diam.Message
+	cerHop, cerEnd  uint32
 }
 
 func (m *Manager) newSession(c diam.Conn, a *actor, gen uint64, inbound bool) *session {
@@ -120,6 +121,9 @@ func (s *session) send(msg *diam.Message, closeAfter bool) bool {
 	case <-s.closed:
 		return false
 	default:
+	}
+	if s.beforeAdmission != nil {
+		s.beforeAdmission()
 	}
 	select {
 	case <-s.closed:
