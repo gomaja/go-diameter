@@ -2,43 +2,43 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-package smparser
+package base
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/gomaja/go-diameter/diam"
-	"github.com/gomaja/go-diameter/diam/internal/base"
 )
 
 var (
 	// ErrMissingResultCode is returned by Parse when
 	// the message does nt contain a Result-Code AVP.
-	ErrMissingResultCode = base.ErrMissingResultCode
+	ErrMissingResultCode = errors.New("missing Result-Code")
 
 	// ErrMissingOriginHost is returned by Parse when
 	// the message does not contain an Origin-Host AVP.
-	ErrMissingOriginHost = base.ErrMissingOriginHost
+	ErrMissingOriginHost = errors.New("missing Origin-Host")
 
 	// ErrMissingOriginRealm is returned by Parse when
 	// the message does not contain an Origin-Realm AVP.
-	ErrMissingOriginRealm = base.ErrMissingOriginRealm
+	ErrMissingOriginRealm = errors.New("missing Origin-Realm")
 
 	// ErrMissingApplication is returned by Parse when
 	// the CER does not contain any Acct-Application-Id or
 	// Auth-Application-Id, or their embedded versions in
 	// the Vendor-Specific-Application-Id AVP.
-	ErrMissingApplication = base.ErrMissingApplication
+	ErrMissingApplication = errors.New("missing application")
 
 	// ErrNoCommonSecurity is returned by Parse when
 	// the CER contains the Inband-Security-Id.
 	// We currently don't support that.
-	ErrNoCommonSecurity = base.ErrNoCommonSecurity
+	ErrNoCommonSecurity = errors.New("no common security")
 
 	// ErrNoCommonApplication is returned by Parse when the
 	// application IDs in the CER don't match the applications
 	// defined in our dictionary.
-	ErrNoCommonApplication = base.ErrNoCommonApplication
+	ErrNoCommonApplication = errors.New("no common application")
 )
 
 // ErrUnexpectedAVP is returned by Parse when the code of the AVP passed
@@ -51,11 +51,4 @@ type ErrUnexpectedAVP struct {
 // Error implements the error interface.
 func (e *ErrUnexpectedAVP) Error() string {
 	return fmt.Sprintf("unexpected AVP: %s", e.AVP)
-}
-
-func adaptError(err error) error {
-	if unexpected, ok := err.(*base.ErrUnexpectedAVP); ok {
-		return &ErrUnexpectedAVP{AVP: unexpected.AVP}
-	}
-	return err
 }

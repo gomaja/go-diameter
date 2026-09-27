@@ -2,12 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-package smparser
+package base
 
 import (
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/datatype"
-	"github.com/gomaja/go-diameter/diam/internal/base"
 )
 
 // DWR is a Device-Watchdog-Request message.
@@ -21,10 +20,23 @@ type DWR struct {
 // Parse parses and validates the given message, and returns nil when
 // all AVPs are ok.
 func (dwr *DWR) Parse(m *diam.Message) error {
-	parsed := &base.DWR{OriginHost: dwr.OriginHost, OriginRealm: dwr.OriginRealm, OriginStateID: dwr.OriginStateID}
-	err := parsed.Parse(m)
-	dwr.OriginHost = parsed.OriginHost
-	dwr.OriginRealm = parsed.OriginRealm
-	dwr.OriginStateID = parsed.OriginStateID
-	return adaptError(err)
+	err := m.Unmarshal(dwr)
+	if err != nil {
+		return err
+	}
+	if err = dwr.sanityCheck(); err != nil {
+		return err
+	}
+	return nil
+}
+
+// sanityCheck ensures all mandatory AVPs are present.
+func (dwr *DWR) sanityCheck() error {
+	if len(dwr.OriginHost) == 0 {
+		return ErrMissingOriginHost
+	}
+	if len(dwr.OriginRealm) == 0 {
+		return ErrMissingOriginRealm
+	}
+	return nil
 }
