@@ -5253,7 +5253,7 @@ var tgpprxXML = `<?xml version="1.0" encoding="UTF-8"?>
 				<rule avp="Media-Component-Description" required="false"/>
 				<rule avp="Service-Info-Status" required="false" max="1"/>
 				<rule avp="AF-Charging-Identifier" required="false" max="1"/>
-				<rule avp="SIP-Forking-Indication " required="false" max="1"/>
+				<rule avp="SIP-Forking-Indication" required="false" max="1"/>
 				<rule avp="Specific-Action" required="false"/>
 				<rule avp="Subscription-Id" required="false"/>
 				<rule avp="OC-Supported-Features" required="false" max="1"/>
@@ -5263,7 +5263,7 @@ var tgpprxXML = `<?xml version="1.0" encoding="UTF-8"?>
 				<rule avp="Framed-Ipv6-Prefix" required="false" max="1"/>
 				<rule avp="Called-Station-Id" required="false" max="1"/>
 				<rule avp="Service-URN" required="false" max="1"/>
-				<rule avp="Sponsored-Connectivity-Data " required="false" max="1"/>
+				<rule avp="Sponsored-Connectivity-Data" required="false" max="1"/>
 				<rule avp="MPS-Identifier" required="false" max="1"/>
 				<rule avp="GCS-Identifier" required="false" max="1"/>
 				<rule avp="MCPTT-Identifier" required="false" max="1"/>
@@ -5307,7 +5307,7 @@ var tgpprxXML = `<?xml version="1.0" encoding="UTF-8"?>
 				<rule avp="Supported-Features" required="false"/>
 				<rule avp="Subscription-Id" required="false"/>
 				<rule avp="User-Equipment-Info" required="false" max="1"/>
-				<rule avp="3GPP-SGSN-MCC-MNC" required="false" max="1"/>
+				<rule avp="TGPP-SGSN-MCC-MNC" required="false" max="1"/>
 				<rule avp="NID" required="false" max="1"/>
 				<rule avp="Class" required="false"/>
 				<rule avp="Error-Message" required="false" max="1"/>
@@ -5325,7 +5325,7 @@ var tgpprxXML = `<?xml version="1.0" encoding="UTF-8"?>
 		</command>
 		<command code="258" short="RA" name="Re-Auth">
 			<request>
-				<rule avp="Session-Id " required="true" max="1"/>
+				<rule avp="Session-Id" required="true" max="1"/>
 				<rule avp="DRMP" required="false" max="1"/>
 				<rule avp="Origin-Host" required="true" max="1"/>
 				<rule avp="Origin-Realm" required="true" max="1"/>
@@ -5346,12 +5346,12 @@ var tgpprxXML = `<?xml version="1.0" encoding="UTF-8"?>
 				<rule avp="NetLoc-Access-Support" required="false" max="1"/>
 				<rule avp="RAT-Type" required="false" max="1"/>
 				<rule avp="Sponsored-Connectivity-Data" required="false" max="1"/>
-				<rule avp="3GPP-User-Location-Info" required="false" max="1"/>
+				<rule avp="TGPP-User-Location-Info" required="false" max="1"/>
 				<rule avp="User-Location-Info-Time" required="false" max="1"/>
-				<rule avp="3GPP-MS-TimeZone" required="false" max="1"/>
+				<rule avp="TGPP-MS-TimeZone" required="false" max="1"/>
 				<rule avp="RAN-NAS-Release-Cause" required="false"/>
 				<rule avp="5GS-RAN-NAS-Release-Cause" required="false"/>
-				<rule avp="3GPP-SGSN-MCC-MNC" required="false" max="1"/>
+				<rule avp="TGPP-SGSN-MCC-MNC" required="false" max="1"/>
 				<rule avp="NID" required="false" max="1"/>
 				<rule avp="TWAN-Identifier" required="false" max="1"/>
 				<rule avp="TCP-Source-Port" required="false" max="1"/>
@@ -5418,18 +5418,18 @@ var tgpprxXML = `<?xml version="1.0" encoding="UTF-8"?>
 				<rule avp="Failed-AVP" required="false" max="1"/>
 				<rule avp="Sponsored-Connectivity-Data" required="false" max="1"/>
 				<rule avp="Origin-State-Id" required="false" max="1"/>
-				<rule avp="3GPP-User-Location-Info" required="false" max="1"/>
+				<rule avp="TGPP-User-Location-Info" required="false" max="1"/>
 				<rule avp="User-Location-Info-Time" required="false" max="1"/>
-				<rule avp="3GPP-MS-TimeZone" required="false" max="1"/>
+				<rule avp="TGPP-MS-TimeZone" required="false" max="1"/>
 				<rule avp="RAN-NAS-Release-Cause" required="false"/>
 				<rule avp="5GS-RAN-NAS-Release-Cause" required="false"/>
-				<rule avp="3GPP-SGSN-MCC-MNC" required="false" max="1"/>
+				<rule avp="TGPP-SGSN-MCC-MNC" required="false" max="1"/>
 				<rule avp="NID" required="false" max="1"/>
 				<rule avp="TWAN-Identifier" required="false" max="1"/>
 				<rule avp="TCP-Source-Port" required="false" max="1"/>
 				<rule avp="UDP-Source-Port" required="false" max="1"/>
 				<rule avp="UE-Local-IP-Address" required="false" max="1"/>
-				<rule avp="Netloc-Access-Support" required="false" max="1"/>
+				<rule avp="NetLoc-Access-Support" required="false" max="1"/>
 				<rule avp="Wireline-User-Location-Info" required="false" max="1"/>
 				<rule avp="Class" required="false"/>
 				<rule avp="Redirect-Host" required="false"/>
@@ -5476,6 +5476,14 @@ var tgpprxXML = `<?xml version="1.0" encoding="UTF-8"?>
 			</answer>
 		</command>
 	
+		<!-- 3GPP TS 29.212 V15.3.0 CR 1665 rev 2 and V20.0.0 §§5.3.138-139 define Unsigned32, tenths of a percent, 0-1000.
+		     Table 5.3.0.1 still lists the earlier Float32 type. -->
+		<avp name="Max-PLR-DL" code="2852" vendor-id="10415" must="V" may-encrypt="Y">
+			<data type="Unsigned32"/>
+		</avp>
+		<avp name="Max-PLR-UL" code="2853" vendor-id="10415" must="V" may-encrypt="Y">
+			<data type="Unsigned32"/>
+		</avp>
 		<avp name="5GS-RAN-NAS-Release-Cause" code="572" vendor-id="10415" must="V" may-encrypt="Y">
 			<data type="Grouped">
 				<rule avp="5GMM-Cause" required="false" max="1"/>
@@ -5599,7 +5607,7 @@ var tgpprxXML = `<?xml version="1.0" encoding="UTF-8"?>
 				<rule avp="Pre-emption-Capability" required="false" max="1"/>
 				<rule avp="Pre-emption-Vulnerability" required="false" max="1"/>
 				<rule avp="Reservation-Priority" required="false" max="1"/>
-				<rule avp="RS-Bandwidth " required="false" max="1"/>
+				<rule avp="RS-Bandwidth" required="false" max="1"/>
 				<rule avp="RR-Bandwidth" required="false" max="1"/>
 				<rule avp="Codec-Data" required="false"/>
 				<rule avp="Sharing-Key-DL" required="false" max="1"/>
