@@ -339,6 +339,33 @@ func TestReconnectDPRCausesAndOwnClose(t *testing.T) {
 	})
 }
 
+// RFC 6733 §5.4.3: a BUSY or DO_NOT_WANT_TO_TALK_TO_YOU DPR received on an
+// inbound connection before Start also suppresses the first dial.
+func TestStartHonorsEarlierDPRSuppression(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		cause sm.DisconnectCause
+	}{
+		{"BUSY", sm.DisconnectBusy},
+		{"DO_NOT_WANT_TO_TALK_TO_YOU", sm.DisconnectDoNotWantToTalkToYou},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			a, s, _ := newWatchdogTestActor(t, WatchdogOkay)
+			a.cfg.Endpoints = []Endpoint{{Address: "127.0.0.1:1"}}
+			dpr, err := base.BuildDPR(a.m.dictionary(), testBase("known.example.net"), uint32(tc.cause))
+			if err != nil {
+				t.Fatal(err)
+			}
+			a.onWire(event{s: s, msg: dpr})
+			a.onGone(s)
+			a.handle(event{kind: start})
+			if a.state != Closed || a.i != nil {
+				t.Fatalf("Start after %s DPR: state=%s dialing=%v", tc.name, a.state, a.i != nil)
+			}
+		})
+	}
+}
+
 func TestReconnectAfterDisconnectBeforeCEA(t *testing.T) {
 	a, s, _ := newWatchdogTestActor(t, WatchdogInitial)
 	a.state, a.i, a.r, a.active = WaitICEA, s, nil, nil
