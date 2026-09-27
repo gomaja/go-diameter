@@ -16,7 +16,7 @@ import (
 // parentAppIds map allows for hierarchical AVP search dependencies
 // If an AVP code was not found in the app's dictionary, the search will continue in the parent app
 // dictionary and only then in base diameter dictionary
-// Note: care must be taken to avoid creating parent-child loops
+// Parent cycles are rejected during lookup and dictionary loading.
 var parentAppIds map[uint32]uint32 = map[uint32]uint32{
 	16777251: 4,
 	16777238: 4,
@@ -79,12 +79,17 @@ func MakeUnknownAVP(appid, code, vendorID uint32) *AVP {
 // FindAVPWithVendor must never be called concurrently with LoadFile or Load.
 func (p *Parser) FindAVPWithVendor(appid uint32, code interface{}, vendorID uint32) (*AVP, error) {
 	var (
-		avp *AVP
-		ok  bool
-		err error
+		avp     *AVP
+		ok      bool
+		err     error
+		visited = make(map[uint32]bool)
 	)
 	origAppID := appid
 retry:
+	if visited[appid] {
+		return nil, fmt.Errorf("dictionary parent application cycle at %d", appid)
+	}
+	visited[appid] = true
 	switch codeVal := code.(type) {
 	case string:
 		avp, ok = p.avpname[nameIdx{appid, codeVal, vendorID}]
