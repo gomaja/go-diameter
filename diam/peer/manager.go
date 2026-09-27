@@ -51,11 +51,13 @@ type Config struct {
 	Timers   Timers
 	Limits   Limits
 	Dial     DialFunc
-	// EndToEnd optionally supplies a durable, concurrency-safe End-to-End ID generator.
+	// EndToEnd optionally supplies a concurrency-safe End-to-End ID generator.
+	// It must keep (Origin-Host, End-to-End ID) unique for at least four
+	// minutes, including across restarts (RFC 6733 §3).
 	// The default uses process-start seconds in the high 12 bits and a random
 	// low 20-bit counter. It assumes fewer than 2^20 requests per four minutes:
 	// sustained higher rates can collide across a restart (RFC 6733 §3).
-	EndToEnd func() uint32
+	EndToEnd func() (uint32, error)
 	// OnPeerEvent is observational. Calling Close from this callback is safe.
 	// Events are dropped when its bounded queue is full; Peers returns the
 	// current state independently.
