@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<diameter>
+    <!-- 3GPP TS 29.338 V19.3.0 §4.1, §6.3.2.2, Table 6.3.2.2/1. -->
+    <application id="16777313" type="auth" name="TGPP SGd">
+        <vendor id="10415" name="TGPP"/>
+        <!-- 3GPP TS 29.338 V19.3.0 §§6.3.2.3-6.3.2.4, Table 6.3.2.2/1. -->
+        <command code="8388645" short="OF" name="MO-Forward-Short-Message">
+          <request>
+            <rule avp="Session-Id" required="true" max="1"/>
+            <rule avp="DRMP" required="false" max="1"/>
+            <rule avp="Vendor-Specific-Application-Id" required="false" max="1"/>
+            <rule avp="Auth-Session-State" required="true" max="1"/>
+            <rule avp="Origin-Host" required="true" max="1"/>
+            <rule avp="Origin-Realm" required="true" max="1"/>
+            <rule avp="Destination-Host" required="false" max="1"/>
+            <rule avp="Destination-Realm" required="true" max="1"/>
+            <rule avp="SC-Address" required="true" max="1"/>
+            <rule avp="OFR-Flags" required="false" max="1"/>
+            <rule avp="Supported-Features" required="false"/>
+            <rule avp="User-Identifier" required="true" max="1"/>
+            <rule avp="EPS-Location-Information" required="false" max="1"/>
+            <rule avp="NR-Cell-Global-Identity" required="false" max="1"/>
+            <rule avp="SM-RP-UI" required="true" max="1"/>
+            <rule avp="SMSMI-Correlation-ID" required="false" max="1"/>
+            <rule avp="SM-Delivery-Outcome" required="false" max="1"/>
+            <rule avp="MPS-Priority" required="false" max="1"/>
+            <rule avp="AVP" required="false"/>
+            <rule avp="Proxy-Info" required="false"/>
+            <rule avp="Route-Record" required="false"/>
+          </request>
+          <answer>
+            <rule avp="Session-Id" required="true" max="1"/>
+            <rule avp="DRMP" required="false" max="1"/>
+            <rule avp="Vendor-Specific-Application-Id" required="false" max="1"/>
+            <rule avp="Result-Code" required="false" max="1"/>
+            <rule avp="Experimental-Result" required="false" max="1"/>
+            <rule avp="Auth-Session-State" required="true" max="1"/>
+            <rule avp="Origin-Host" required="true" max="1"/>
+            <rule avp="Origin-Realm" required="true" max="1"/>
+            <rule avp="Supported-Features" required="false"/>
+            <rule avp="SM-Delivery-Failure-Cause" required="false" max="1"/>
+            <rule avp="SM-RP-UI" required="false" max="1"/>
+            <rule avp="External-Identifier" required="false" max="1"/>
+            <rule avp="AVP" required="false"/>
+            <rule avp="Failed-AVP" required="false" max="1"/>
+            <rule avp="Proxy-Info" required="false"/>
+            <rule avp="Route-Record" required="false"/>
+          </answer>
+        </command>
+        <!-- 3GPP TS 29.338 V19.3.0 §§6.3.2.5-6.3.2.6, Table 6.3.2.2/1. -->
+        <command code="8388646" short="TF" name="MT-Forward-Short-Message">
+          <request>
+            <rule avp="Session-Id" required="true" max="1"/>
+            <rule avp="DRMP" required="false" max="1"/>
+            <rule avp="Vendor-Specific-Application-Id" required="false" max="1"/>
+            <rule avp="Auth-Session-State" required="true" max="1"/>
+            <rule avp="Origin-Host" required="true" max="1"/>
+            <rule avp="Origin-Realm" required="true" max="1"/>
+            <rule avp="Destination-Host" required="true" max="1"/>
+            <rule avp="Destination-Realm" required="true" max="1"/>
+            <rule avp="User-Name" required="true" max="1"/>
+            <rule avp="Supported-Features" required="false"/>
+            <rule avp="SMSMI-Correlation-ID" required="false" max="1"/>
+            <rule avp="SC-Address" required="true" max="1"/>
+            <rule avp="SM-RP-UI" required="true" max="1"/>
+            <rule avp="MME-Number-for-MT-SMS" required="false" max="1"/>
+            <rule avp="SGSN-Number" required="false" max="1"/>
+            <rule avp="TFR-Flags" required="false" max="1"/>
+            <rule avp="SM-Delivery-Timer" required="false" max="1"/>
+            <rule avp="SM-Delivery-Start-Time" required="false" max="1"/>
+            <rule avp="Maximum-Retransmission-Time" required="false" max="1"/>
+            <rule avp="SMS-GMSC-Address" required="false" max="1"/>
+            <rule avp="MPS-Priority" required="false" max="1"/>
+            <rule avp="AVP" required="false"/>
+            <rule avp="Proxy-Info" required="false"/>
+            <rule avp="Route-Record" required="false"/>
+          </request>
+          <answer>
+            <rule avp="Session-Id" required="true" max="1"/>
+            <rule avp="DRMP" required="false" max="1"/>
+            <rule avp="Vendor-Specific-Application-Id" required="false" max="1"/>
+            <rule avp="Result-Code" required="false" max="1"/>
+            <rule avp="Experimental-Result" required="false" max="1"/>
+            <rule avp="Auth-Session-State" required="true" max="1"/>
+            <rule avp="Origin-Host" required="true" max="1"/>
+            <rule avp="Origin-Realm" required="true" max="1"/>
+            <rule avp="Supported-Features" required="false"/>
+            <rule avp="Absent-User-Diagnostic-SM" required="false" max="1"/>
+            <rule avp="SM-Delivery-Failure-Cause" required="false" max="1"/>
+            <rule avp="SM-RP-UI" required="false" max="1"/>
+            <rule avp="Requested-Retransmission-Time" required="false" max="1"/>
+            <rule avp="User-Identifier" required="false" max="1"/>
+            <rule avp="EPS-Location-Information" required="false" max="1"/>
+            <rule avp="NR-Cell-Global-Identity" required="false" max="1"/>
+            <rule avp="AVP" required="false"/>
+            <rule avp="Failed-AVP" required="false" max="1"/>
+            <rule avp="Proxy-Info" required="false"/>
+            <rule avp="Route-Record" required="false"/>
+          </answer>
+        </command>
+    </application>
+</diameter>
