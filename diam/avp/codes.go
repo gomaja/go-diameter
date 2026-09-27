@@ -474,6 +474,9 @@ const (
 	MultiRoundTimeOut                          = 272
 	MWDStatus                                  = 3312
 	NASFilterRule                              = 400
+	NASIdentifier                              = 32
+	NASIPAddress                               = 4
+	NASIPv6Address                             = 95
 	NASPort                                    = 5
 	NASPortID                                  = 87
 	NASPortType                                = 61
@@ -524,6 +527,7 @@ const (
 	OnlineChargingFlag                         = 2303
 	OperatorDeterminedBarring                  = 1425
 	OptionalCapability                         = 605
+	OriginAAAProtocol                          = 408
 	OriginatingIOI                             = 839
 	OriginatingLineInfo                        = 94
 	OriginatingSIPURI                          = 3326
@@ -804,6 +808,7 @@ const (
 	SSStatus                                   = 1477
 	StartofCharging                            = 3419
 	StartTime                                  = 2041
+	State                                      = 24
 	StatusASCode                               = 2702
 	STNSR                                      = 1433
 	StopTime                                   = 2042
