@@ -155,6 +155,23 @@ func cloneRequest(msg *diam.Message) (*diam.Message, error) {
 	return diam.ReadMessage(bytes.NewReader(wire), msg.Dictionary())
 }
 
+func ensureOrigin(msg *diam.Message, code uint32, local datatype.DiameterIdentity, name string) error {
+	value, err := destination(msg, code)
+	if err != nil {
+		return fmt.Errorf("%w: %s: %v", ErrInvalidRequest, name, err)
+	}
+	if value == "" {
+		if _, err := msg.NewAVP(code, avp.Mbit, 0, local); err != nil {
+			return fmt.Errorf("%w: %s: %v", ErrInvalidRequest, name, err)
+		}
+		return nil
+	}
+	if value != identity(local) {
+		return fmt.Errorf("%w: %s does not match local identity", ErrInvalidRequest, name)
+	}
+	return nil
+}
+
 // Send copies and sends a locally originated request. Cancellation after the
 // writer accepts bytes leaves the remote outcome ambiguous (RFC 6733 §5.5.4).
 // A failover retransmission keeps the End-to-End ID and payload but sets T.
@@ -165,12 +182,20 @@ func (m *Manager) Send(ctx context.Context, msg *diam.Message) (*diam.Message, e
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if msg == nil || msg.Header == nil || msg.Header.CommandFlags&diam.RequestFlag == 0 || msg.Header.ApplicationID == 0 || msg.Header.CommandCode == diam.CapabilitiesExchange || msg.Header.CommandCode == diam.DeviceWatchdog || msg.Header.CommandCode == diam.DisconnectPeer {
+	if msg == nil || msg.Header == nil || msg.Header.CommandFlags&diam.RequestFlag == 0 || msg.Header.CommandFlags&diam.ErrorFlag != 0 || msg.Header.ApplicationID == 0 || msg.Header.CommandCode == diam.CapabilitiesExchange || msg.Header.CommandCode == diam.DeviceWatchdog || msg.Header.CommandCode == diam.DisconnectPeer {
 		return nil, ErrInvalidRequest
 	}
 	copy, err := cloneRequest(msg)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrInvalidRequest, err)
+	}
+	// RFC 6733 §6.1.1 requires the local Origin-Host and Origin-Realm on
+	// every locally created request; §3 forbids the E bit on requests.
+	if err := ensureOrigin(copy, avp.OriginHost, m.cfg.Settings.OriginHost, "Origin-Host"); err != nil {
+		return nil, err
+	}
+	if err := ensureOrigin(copy, avp.OriginRealm, m.cfg.Settings.OriginRealm, "Origin-Realm"); err != nil {
+		return nil, err
 	}
 	// RFC 6733 §3: this is a first transmission regardless of the caller's
 	// header; only retransmission after failover carries T.
