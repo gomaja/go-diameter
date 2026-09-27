@@ -91,6 +91,7 @@ type Client struct {
 	OnWatchdogEvent func(WatchdogEvent)
 
 	watchdogEventMu sync.Mutex
+	defaultsOnce    sync.Once
 	watchdogTiming  *watchdogTiming // unexported test override for short timers
 }
 
@@ -100,18 +101,21 @@ type watchdogTiming struct {
 }
 
 type watchdogActivity struct {
-	signal chan struct{}
-	last   atomic.Int64
-	dwac   chan struct{}
+	signal  chan struct{}
+	last    atomic.Int64
+	dwac    chan struct{}
+	ceac    chan error
+	ceaOnce sync.Once
 }
 
 func newWatchdogActivity() *watchdogActivity {
-	return &watchdogActivity{signal: make(chan struct{}, 1), dwac: make(chan struct{}, 1)}
+	return &watchdogActivity{signal: make(chan struct{}, 1), dwac: make(chan struct{}, 1), ceac: make(chan error)}
 }
 
 type activityHandler struct {
 	*StateMachine
 	activity *watchdogActivity
+	cea      diam.Handler
 	dwa      diam.Handler
 }
 
@@ -121,6 +125,13 @@ func (h activityHandler) ServeDIAM(c diam.Conn, m *diam.Message) {
 	select {
 	case h.activity.signal <- struct{}{}:
 	default:
+	}
+	// RFC 6733 §5.3: CEA completes the CER exchange on this connection.
+	// Do not publish its result through the shared state-machine mux.
+	if m.Header.ApplicationID == 0 && m.Header.CommandCode == diam.CapabilitiesExchange &&
+		m.Header.CommandFlags&diam.RequestFlag == 0 {
+		h.activity.ceaOnce.Do(func() { h.cea.ServeDIAM(c, m) })
+		return
 	}
 	// RFC 6733 §5.5.2: DWA belongs to the connection that received it.
 	// Keep its handler with that connection instead of replacing a handler on
@@ -230,7 +241,8 @@ func (cli *Client) NewConn(rw net.Conn, addr string) (diam.Conn, error) {
 func (cli *Client) server(network, addr string, laddr net.Addr, activity *watchdogActivity) *diam.Server {
 	var handler diam.Handler = cli.Handler
 	if activity != nil {
-		h := activityHandler{StateMachine: cli.Handler, activity: activity}
+		h := activityHandler{StateMachine: cli.Handler, activity: activity,
+			cea: handleCEA(cli.Handler, activity.ceac)}
 		if cli.EnableWatchdog {
 			h.dwa = handshakeOK(handleDWA(cli.Handler, activity.dwac, cli.observeWatchdog))
 		}
@@ -267,17 +279,20 @@ func (cli *Client) validate() error {
 	if cli.Handler == nil {
 		return ErrMissingStateMachine
 	}
-	if cli.Dict == nil {
-		cli.Dict = dict.Default
-	}
-	if cli.RetransmitInterval == 0 {
-		// Set default RetransmitInterval.
-		cli.RetransmitInterval = time.Second
-	}
-	if cli.WatchdogInterval == 0 {
-		// RFC 3539 §3.4.1 [1] default Twinit.
-		cli.WatchdogInterval = 30 * time.Second
-	}
+	// Concurrent Dials share Client configuration. Publish the defaults once
+	// before any connection starts reading them.
+	cli.defaultsOnce.Do(func() {
+		if cli.Dict == nil {
+			cli.Dict = dict.Default
+		}
+		if cli.RetransmitInterval == 0 {
+			cli.RetransmitInterval = time.Second
+		}
+		if cli.WatchdogInterval == 0 {
+			// RFC 3539 §3.4.1 [1] default Twinit.
+			cli.WatchdogInterval = 30 * time.Second
+		}
+	})
 	if cli.EnableWatchdog {
 		floor, _ := cli.watchdogParameters()
 		if cli.WatchdogInterval < floor {
@@ -343,9 +358,8 @@ func (cli *Client) handshake(c diam.Conn, activity *watchdogActivity) (diam.Conn
 	// See sm.go for Base Diam Idx declarations
 	cli.Handler.mux.HandleIdx(baseCERIdx, diam.HandlerFunc(cerClientHandler))
 	cli.Handler.mux.HandleFunc("CER", cerClientHandler)
-	// Handle CEA. DWA is dispatched by the per-connection activityHandler.
-	errc := make(chan error)
-	cli.Handler.mux.Handle("CEA", handleCEA(cli.Handler, errc))
+	// CEA and DWA are dispatched by the per-connection activityHandler.
+	errc := activity.ceac
 	for i := 0; i < (int(cli.MaxRetransmits) + 1); i++ {
 		_, err := m.WriteTo(c)
 		if err != nil {
