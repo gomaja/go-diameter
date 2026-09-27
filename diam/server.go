@@ -95,6 +95,9 @@ type conn struct {
 	// handshakeDone is closed after the TLS handshake and its deadline reset.
 	// It is nil for non-TLS connections and is set before trackConn.
 	handshakeDone chan struct{}
+	// accepted marks a connection taken from a listener by Serve. Dialed
+	// connections share serve but run the client side of the handshake.
+	accepted bool
 
 	hwg         sync.WaitGroup // tracks in-flight handler goroutines
 	sem         chan struct{}  // bounds concurrent handlers; nil = unbounded/sequential
@@ -261,10 +264,14 @@ func (c *conn) serve() {
 	}
 }
 
-// handshakeTLS bounds only the handshake. RFC 6733 §2.1 and §13 require TLS
-// before Diameter messages, so the normal message read deadline starts later.
+// handshakeTLS bounds only the handshake of an accepted connection. RFC 6733
+// §2.1 and §13 require TLS before Diameter messages, so the normal message
+// read deadline starts later.
 func (c *conn) handshakeTLS(tlsConn *tls.Conn) error {
-	limit := c.server.tlsHandshakeTimeout()
+	var limit time.Duration
+	if c.accepted {
+		limit = c.server.tlsHandshakeTimeout()
+	}
 	if limit > 0 {
 		if err := tlsConn.SetDeadline(time.Now().Add(limit)); err != nil {
 			return err
@@ -826,9 +833,10 @@ type Server struct {
 	Dict         *dict.Parser  // diameter dictionaries for this server
 	ReadTimeout  time.Duration // maximum duration before timing out read of the request
 	WriteTimeout time.Duration // maximum duration before timing out write of the response
-	// TLSHandshakeTimeout limits a server-side TLS handshake. Zero defaults to
-	// 10 seconds; a negative value disables the handshake deadline. Positive
-	// ReadTimeout or WriteTimeout values can shorten this limit.
+	// TLSHandshakeTimeout limits the TLS handshake of connections accepted by
+	// Serve; dialed connections are not affected. Zero defaults to 10 seconds;
+	// a negative value disables the handshake deadline. Positive ReadTimeout
+	// or WriteTimeout values can shorten this limit.
 	TLSHandshakeTimeout time.Duration
 	TLSConfig           *tls.Config // optional TLS config, used by ListenAndServeTLS
 	LocalAddr           net.Addr    // optional Local Address to bind dailer's (Dail...) socket to
@@ -1176,6 +1184,7 @@ func (srv *Server) Serve(l net.Listener) error {
 			_ = rw.Close()
 			continue
 		} else {
+			c.accepted = true
 			if !srv.trackConn(c) {
 				_ = rw.Close()
 				return ErrServerClosed

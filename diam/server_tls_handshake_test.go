@@ -220,3 +220,48 @@ func TestServerShutdownDuringTLSHandshake(t *testing.T) {
 	}
 	expectTLSClientClosed(t, client, time.Second)
 }
+
+// Server.NewConn, DialTLS and the sm and peer dialers run the client side of
+// the handshake through the same serve path; the accept-side limit must not
+// cut it short.
+func TestServerTLSHandshakeDeadlineSkipsClientConnections(t *testing.T) {
+	certFile, _, cert := newTestCertificateFiles(t)
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = ln.Close() }()
+	peerDone := make(chan struct{})
+	defer close(peerDone)
+	go func() {
+		conn, err := ln.Accept()
+		if err != nil {
+			return
+		}
+		defer func() { _ = conn.Close() }()
+		time.Sleep(300 * time.Millisecond) // well past the client Server's limit
+		_ = tls.Server(conn, &tls.Config{Certificates: []tls.Certificate{cert}, MinVersion: tls.VersionTLS13}).Handshake()
+		<-peerDone
+	}()
+	rw, err := net.Dial("tcp", ln.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	connected := make(chan struct{})
+	srv := &diam.Server{
+		TLSHandshakeTimeout: 50 * time.Millisecond,
+		OnNewConnection:     func(diam.Conn) { close(connected) },
+	}
+	cfg := testClientTLSConfig(t, certFile)
+	cfg.ServerName = "localhost"
+	c, err := srv.NewConn(tls.Client(rw, cfg))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	select {
+	case <-connected:
+	case <-time.After(2 * time.Second):
+		t.Fatal("client TLS handshake was cut short by the server-side handshake limit")
+	}
+}
