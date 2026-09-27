@@ -482,6 +482,65 @@ func TestFakeTransportOpenControl(t *testing.T) {
 	closeManager(t, m, nil)
 }
 
+func TestMismatchedDPRIsReportedWithoutDPA(t *testing.T) {
+	for _, state := range []PeerState{IOpen, ROpen, Closing} {
+		t.Run(string(state), func(t *testing.T) {
+			m, err := New(Config{Settings: testSettings("local.example.net")})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer closeManager(t, m, nil)
+			a := &actor{m: m, cfg: PeerConfig{Host: "known.example.net"}, state: state, events: make(chan event, 8), done: make(chan struct{})}
+			s := &session{m: m, c: newFakeConn(), actor: a, gen: 1, writes: make(chan writeRequest, 8), closed: make(chan struct{})}
+			defer s.close()
+			if state == IOpen {
+				a.i = s
+			} else {
+				a.r = s
+			}
+			a.active = s
+			a.publish(nil)
+			bad, err := base.BuildDPR(dict.Default, testBase("other.example.net"), 0)
+			if err != nil {
+				t.Fatal(err)
+			}
+			a.onWire(event{kind: wireEvent, s: s, msg: bad})
+			if a.state != state {
+				t.Fatalf("mismatched DPR moved state from %s to %s", state, a.state)
+			}
+			select {
+			case <-s.writes:
+				t.Fatal("mismatched DPR received DPA")
+			default:
+			}
+			select {
+			case report := <-m.ErrorReports():
+				if report.Error == nil || !strings.Contains(report.Error.Error(), "DPR Origin-Host mismatch") {
+					t.Fatalf("mismatch report=%v", report.Error)
+				}
+			default:
+				t.Fatal("mismatched DPR was not reported")
+			}
+			good, err := base.BuildDPR(dict.Default, testBase("KNOWN.example.net"), 0)
+			if err != nil {
+				t.Fatal(err)
+			}
+			a.onWire(event{kind: wireEvent, s: s, msg: good})
+			if a.state != Closing {
+				t.Fatalf("matching DPR left state %s", a.state)
+			}
+			select {
+			case answer := <-s.writes:
+				if answer.msg.Header.CommandCode != diam.DisconnectPeer || code(t, answer.msg) != diam.Success {
+					t.Fatal("matching DPR did not receive successful DPA")
+				}
+			default:
+				t.Fatal("matching DPR received no DPA")
+			}
+		})
+	}
+}
+
 func TestFakeTransportDPAIdentifiersAndPeer(t *testing.T) {
 	for _, state := range []PeerState{IOpen, ROpen} {
 		t.Run(string(state), func(t *testing.T) {
