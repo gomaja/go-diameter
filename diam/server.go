@@ -517,6 +517,13 @@ func (w *response) CloseNotify() <-chan struct{} {
 	return w.conn.closeNotify()
 }
 
+// DispatchDone closes after the read loop and all handlers for this
+// connection have finished. It can be used to order connection teardown
+// after messages already read from the transport.
+func (w *response) DispatchDone() <-chan struct{} {
+	return w.conn.done
+}
+
 // Context returns the internal context or a new context.Background.
 func (w *response) Context() context.Context {
 	w.xmu.Lock()

@@ -192,6 +192,7 @@ func (a *actor) handle(e event) {
 	}
 	if e.kind == connGone {
 		a.onGone(e.s)
+		a.m.failoverSession(e.s)
 		return
 	}
 	if e.kind == rConnCER {
