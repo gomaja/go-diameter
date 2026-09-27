@@ -184,27 +184,36 @@ func (m *Manager) Send(ctx context.Context, msg *diam.Message) (*diam.Message, e
 		copy.Header.EndToEndID = m.endToEnd.allocate()
 	}
 	p := &pendingRequest{msg: copy, attempted: make(map[*actor]bool), entries: make(map[*session]pendingAttempt), result: make(chan sendResult, 1)}
+	// Arm the logical deadline before any reservation: a closing session can
+	// hand the request to another peer before queue admission returns.
+	timer := m.cfg.Clock.AfterFunc(m.cfg.Timers.Request, func() { m.complete(p, nil, ErrRequestTimeout) })
+	defer timer.Stop()
 	for {
 		if err := ctx.Err(); err != nil {
-			return nil, err
+			m.complete(p, nil, err)
+			break
+		}
+		m.pendingMu.Lock()
+		done := p.done
+		m.pendingMu.Unlock()
+		if done {
+			break
 		}
 		err = m.reserveAndSend(p, a, s, false)
 		if err == nil {
 			break
 		}
 		if !errors.Is(err, ErrFailover) {
-			return nil, err
+			m.complete(p, nil, err)
+			break
 		}
 		p.attempted[a] = true
 		a, s, err = m.selectPeer(copy, p.attempted)
 		if err != nil {
-			return nil, ErrFailover
+			m.complete(p, nil, ErrFailover)
+			break
 		}
 	}
-	// The request budget starts at its first accepted queue admission and is
-	// not reset by later transport attempts (RFC 6733 §5.5.4).
-	timer := m.cfg.Clock.AfterFunc(m.cfg.Timers.Request, func() { m.complete(p, nil, ErrRequestTimeout) })
-	defer timer.Stop()
 	select {
 	case out := <-p.result:
 		return out.answer, out.err
@@ -257,17 +266,11 @@ func (m *Manager) reserveAndSend(p *pendingRequest, a *actor, s *session, retran
 	p.attempted[a] = true
 	m.pendingMu.Unlock()
 	if !s.send(&attempt, false) {
-		// Queue admission failed after reservation; the transport is retired so
-		// no later request can overtake an uncertain attempt.
-		m.pendingMu.Lock()
-		delete(m.pending[s], hop)
-		delete(p.entries, s)
-		if len(m.pending[s]) == 0 {
-			delete(m.pending, s)
-		}
-		m.pendingMu.Unlock()
+		// Closing the session transfers ownership to failover. Close may have
+		// raced ahead of this reservation, so check pending again afterwards.
 		s.close()
-		return ErrFailover
+		m.failoverSession(s)
+		return nil
 	}
 	return nil
 }

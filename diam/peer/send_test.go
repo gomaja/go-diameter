@@ -421,6 +421,34 @@ func TestConnectionLossFailsOverAndNoAlternateFails(t *testing.T) {
 	}
 }
 
+func TestAdmissionFailureLeavesFailoverOwnerAndDeadline(t *testing.T) {
+	m, _, sessions := outboundTestManager(t)
+	clock := &fakeClock{}
+	m.cfg.Clock = clock
+	if err := m.SetRoutes([]Route{{Realm: "example.net", ApplicationID: 4, PeerHosts: []datatype.DiameterIdentity{"a.example.net", "b.example.net"}}}); err != nil {
+		t.Fatal(err)
+	}
+	// Close A after the pending reservation but before queue admission.
+	sessions[0].beforeAdmission = sessions[0].close
+	result := sendAsync(m, context.Background(), outboundRequest("", "example.net"))
+	retry := nextWrite(t, sessions[1])
+	select {
+	case premature := <-result:
+		t.Fatalf("Send returned while B owns request: %+v", premature)
+	default:
+	}
+	clock.mu.Lock()
+	armed := len(clock.timers)
+	clock.mu.Unlock()
+	if armed == 0 {
+		t.Fatal("failover request has no deadline")
+	}
+	m.receiveAnswer(sessions[1], retry.Answer(diam.Success))
+	if got := <-result; got.err != nil || got.answer == nil {
+		t.Fatalf("failover result = %+v", got)
+	}
+}
+
 func TestFixedDestinationDoesNotRerouteDuringClosePublication(t *testing.T) {
 	m, _, sessions := outboundTestManager(t)
 	if err := m.SetRoutes([]Route{{Realm: "example.net", ApplicationID: 4, PeerHosts: []datatype.DiameterIdentity{"a.example.net", "b.example.net"}}}); err != nil {
