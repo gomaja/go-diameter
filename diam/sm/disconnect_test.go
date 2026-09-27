@@ -87,6 +87,9 @@ func TestDisconnectReceivesDPAAndCloses(t *testing.T) {
 		if _, err := validateDPR(m); err != nil {
 			t.Fatalf("outbound DPR invalid: %v", err)
 		}
+		if err := m.Validate(); err != nil {
+			t.Fatalf("outbound DPR violates dictionary: %v", err)
+		}
 	case <-time.After(time.Second):
 		t.Fatal("no DPR")
 	}
