@@ -87,7 +87,10 @@ func errorCEA(sm *StateMachine, c diam.Conn, m *diam.Message, errMessage error) 
 	default:
 		a = m.Answer(diam.UnableToComply)
 	}
-	a.Header.CommandFlags |= diam.ErrorFlag
+	// RFC 6733 §§7.1.5 and 7.2: 5xxx CEA failures use the command answer
+	// grammar without E; only 3xxx protocol errors set E.
+	a.Header.CommandFlags = 0
+	a.Header.ApplicationID = 0
 	addCEAAVP(a, avp.OriginHost, avp.Mbit, 0, sm.cfg.OriginHost)
 	addCEAAVP(a, avp.OriginRealm, avp.Mbit, 0, sm.cfg.OriginRealm)
 	for _, hostAddress := range hostAddresses {
@@ -129,6 +132,8 @@ func successCEA(sm *StateMachine, c diam.Conn, m *diam.Message) error {
 	}
 
 	a := m.Answer(diam.Success)
+	a.Header.CommandFlags = 0 // RFC 6733 §5.3.2: CEA has no P, E or T bit.
+	a.Header.ApplicationID = 0
 	addCEAAVP(a, avp.OriginHost, avp.Mbit, 0, sm.cfg.OriginHost)
 	addCEAAVP(a, avp.OriginRealm, avp.Mbit, 0, sm.cfg.OriginRealm)
 	for _, hostAddress := range hostAddresses {

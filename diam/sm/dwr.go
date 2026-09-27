@@ -30,6 +30,8 @@ func handleDWR(sm *StateMachine) diam.HandlerFunc {
 			return
 		}
 		a := m.Answer(diam.Success)
+		a.Header.CommandFlags = 0 // RFC 6733 §5.5.2: DWA has no P, E or T bit.
+		a.Header.ApplicationID = 0
 		if _, err := a.NewAVP(avp.OriginHost, avp.Mbit, 0, sm.cfg.OriginHost); err != nil {
 			sm.Error(&diam.ErrorReport{
 				Conn:    c,
