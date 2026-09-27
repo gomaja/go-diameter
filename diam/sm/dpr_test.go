@@ -11,13 +11,13 @@ import (
 	"github.com/gomaja/go-diameter/diam/dict"
 )
 
-func dialHandshakeForDPR(t *testing.T, handler diam.Handler, addr string) diam.Conn {
+func dialHandshakeForDPR(t *testing.T, command string, handler diam.Handler, addr string) diam.Conn {
 	t.Helper()
 	answers := make(chan *diam.Message, 1)
 	mux := diam.NewServeMux()
 	mux.HandleFunc("CEA", func(_ diam.Conn, m *diam.Message) { answers <- m })
 	if handler != nil {
-		mux.HandleFunc("DPA", handler.ServeDIAM)
+		mux.HandleFunc(command, handler.ServeDIAM)
 	}
 	c, err := diam.Dial(addr, mux, dict.Default)
 	if err != nil {
@@ -54,7 +54,7 @@ func TestPeerDPRAnsweredAndWaitsForPeerClose(t *testing.T) {
 	srv := diamtest.NewServer(sm, dict.Default)
 	defer srv.Close()
 	answers := make(chan *diam.Message, 1)
-	c := dialHandshakeForDPR(t, diam.HandlerFunc(func(_ diam.Conn, m *diam.Message) { answers <- m }), srv.Addr)
+	c := dialHandshakeForDPR(t, "DPA", diam.HandlerFunc(func(_ diam.Conn, m *diam.Message) { answers <- m }), srv.Addr)
 	peer := <-sm.HandshakeNotify()
 	dpr := diam.NewRequest(diam.DisconnectPeer, 0, dict.Default)
 	mustSMClientAVP(t, dpr, avp.OriginHost, avp.Mbit, 0, clientSettings.OriginHost)
