@@ -343,7 +343,6 @@ func (m *Manager) notify(e PeerEvent) {
 	}
 }
 
-func (m *Manager) register(s *session)   { m.mu.Lock(); m.sessions[s.c] = s; m.mu.Unlock() }
 func (m *Manager) unregister(s *session) { m.mu.Lock(); delete(m.sessions, s.c); m.mu.Unlock() }
 func (m *Manager) getSession(c diam.Conn) *session {
 	m.mu.RLock()
@@ -352,14 +351,10 @@ func (m *Manager) getSession(c diam.Conn) *session {
 	return s
 }
 func (m *Manager) acceptConnection(c diam.Conn) {
-	m.mu.RLock()
-	closing := m.closing
-	m.mu.RUnlock()
-	if closing {
-		c.Close()
+	s := m.newSession(c, nil, 0, true)
+	if s == nil {
 		return
 	}
-	s := m.newSession(c, nil, 0, true)
 	s.firstMu.Lock()
 	s.preTimer = m.cfg.Clock.AfterFunc(m.cfg.Timers.CER, func() {
 		s.firstMu.Lock()

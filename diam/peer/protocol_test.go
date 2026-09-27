@@ -832,6 +832,106 @@ func TestBindServerRequiresMatchingDictionary(t *testing.T) {
 	}
 }
 
+func TestSessionAdmissionRejectsAfterClose(t *testing.T) {
+	t.Run("inbound", func(t *testing.T) {
+		m, err := New(Config{Settings: testSettings("local.example.net")})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := m.Close(context.Background(), sm.DisconnectRebooting); err != nil {
+			t.Fatal(err)
+		}
+		c := newFakeConn()
+		if s := m.newSession(c, nil, 0, true); s != nil {
+			s.close()
+			t.Fatal("inbound session admitted after Close returned")
+		}
+		select {
+		case <-c.done:
+		default:
+			t.Fatal("rejected inbound transport remained open")
+		}
+	})
+	t.Run("outbound dial", func(t *testing.T) {
+		var remote net.Conn
+		m, err := New(Config{Settings: testSettings("local.example.net"), Dial: func(context.Context, Endpoint) (net.Conn, error) {
+			local, peer := net.Pipe()
+			remote = peer
+			return local, nil
+		}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := m.Close(context.Background(), sm.DisconnectRebooting); err != nil {
+			t.Fatal(err)
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		s, err := m.dialEndpoint(ctx, Endpoint{Network: "tcp", Address: "peer.example.net:3868"}, nil, 1)
+		if remote != nil {
+			defer func() { _ = remote.Close() }()
+		}
+		if s != nil {
+			s.close()
+			t.Fatal("outbound session admitted after Close returned")
+		}
+		if err == nil {
+			t.Fatal("outbound dial did not report manager shutdown")
+		}
+	})
+}
+
+func TestCloseRacesInboundConnections(t *testing.T) {
+	for run := 0; run < 40; run++ {
+		m, err := New(Config{Settings: testSettings("local.example.net")})
+		if err != nil {
+			t.Fatal(err)
+		}
+		l, err := net.Listen("tcp", "127.0.0.1:0")
+		if err != nil {
+			t.Fatal(err)
+		}
+		srv := &diam.Server{}
+		if err := m.BindServer(srv); err != nil {
+			t.Fatal(err)
+		}
+		go func() { _ = srv.Serve(l) }()
+		start := make(chan struct{})
+		var clients sync.WaitGroup
+		for attempt := 0; attempt < 4; attempt++ {
+			clients.Add(1)
+			go func() {
+				defer clients.Done()
+				<-start
+				if c, err := net.DialTimeout("tcp", l.Addr().String(), time.Second); err == nil {
+					_ = c.Close()
+				}
+			}()
+		}
+		closed := make(chan error, 1)
+		go func() {
+			<-start
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+			closed <- m.Close(ctx, sm.DisconnectRebooting)
+		}()
+		close(start)
+		clients.Wait()
+		if err := <-closed; err != nil {
+			t.Fatalf("run %d Close: %v", run, err)
+		}
+		if err := srv.Close(); err != nil {
+			t.Fatalf("run %d server Close: %v", run, err)
+		}
+		m.mu.RLock()
+		remaining := len(m.sessions)
+		m.mu.RUnlock()
+		if remaining != 0 {
+			t.Fatalf("run %d left %d sessions after Close", run, remaining)
+		}
+	}
+}
+
 func TestBindServerChainsHooks(t *testing.T) {
 	m, err := New(Config{Settings: testSettings("local.example.net")})
 	if err != nil {
