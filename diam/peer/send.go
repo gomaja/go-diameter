@@ -200,6 +200,15 @@ func (m *Manager) Send(ctx context.Context, msg *diam.Message) (*diam.Message, e
 	// RFC 6733 §3: this is a first transmission regardless of the caller's
 	// header; only retransmission after failover carries T.
 	copy.Header.CommandFlags &^= diam.RetransmittedFlag
+	// RFC 6733 §6.1.4: a request addressed to this node is for local
+	// consumption. Local request dispatch is not available in this manager.
+	host, err := destination(copy, avp.DestinationHost)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrInvalidRequest, err)
+	}
+	if host == identity(m.cfg.Settings.OriginHost) {
+		return nil, fmt.Errorf("%w: local Destination-Host requires local dispatch", ErrInvalidRequest)
+	}
 	a, s, err := m.selectPeer(copy, nil)
 	if err != nil {
 		return nil, err
