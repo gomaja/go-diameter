@@ -37,14 +37,24 @@ var unknownCommand = &dict.Command{
 
 // Message represents a Diameter message.
 type Message struct {
-	Header *Header
-	AVP    []*AVP // AVPs in this message.
+	Header      *Header
+	AVP         []*AVP // AVPs in this message.
+	dispatchSeq uint64 // read order on a Server connection; zero outside Server dispatch
 
 	DecodeErr            error // Possible decoding error on one or more AVPs (does not halt parsing)
 	unknownMandatoryAVPs []*AVP
 	dictionary           *dict.Parser // dictionary parser object used to encode and decode AVPs.
 	stream               uint         // the stream this message was received on (if any)
 	ctx                  context.Context
+}
+
+// DispatchSequence is the read order of a message dispatched by Server.
+// It is zero for messages constructed or read outside Server.
+func (m *Message) DispatchSequence() uint64 {
+	if m == nil {
+		return 0
+	}
+	return m.dispatchSeq
 }
 
 // UnknownMandatoryAVPs returns the unknown mandatory AVPs found during decode.

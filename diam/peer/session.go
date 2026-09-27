@@ -1,6 +1,7 @@
 package peer
 
 import (
+	"errors"
 	"sync"
 	"time"
 
@@ -10,6 +11,10 @@ import (
 type writeRequest struct {
 	msg        *diam.Message
 	closeAfter bool
+}
+type incoming struct {
+	msg *diam.Message
+	seq uint64
 }
 type session struct {
 	m              *Manager
@@ -21,6 +26,7 @@ type session struct {
 	first          bool
 	preTimer       Timer
 	writes         chan writeRequest
+	ingress        chan incoming
 	closed         chan struct{}
 	closeOnce      sync.Once
 	cerRequest     *diam.Message
@@ -28,15 +34,61 @@ type session struct {
 }
 
 func (m *Manager) newSession(c diam.Conn, a *actor, gen uint64, inbound bool) *session {
-	s := &session{m: m, c: c, actor: a, gen: gen, inbound: inbound, writes: make(chan writeRequest, m.cfg.Limits.Events), closed: make(chan struct{})}
+	s := &session{m: m, c: c, actor: a, gen: gen, inbound: inbound, writes: make(chan writeRequest, m.cfg.Limits.Events), ingress: make(chan incoming, m.cfg.Limits.Events), closed: make(chan struct{})}
 	m.register(s)
-	m.wg.Add(2)
+	m.wg.Add(3)
 	go s.writer()
 	go s.watch()
+	go s.dispatch()
 	if m.isClosing() {
 		s.close()
 	}
 	return s
+}
+func (s *session) enqueue(msg *diam.Message) bool {
+	select {
+	case <-s.closed:
+		return false
+	case s.ingress <- incoming{msg: msg, seq: msg.DispatchSequence()}:
+		return true
+	default:
+		return false
+	}
+}
+func (s *session) dispatch() {
+	defer s.m.wg.Done()
+	next := uint64(1)
+	pending := make(map[uint64]*diam.Message)
+	for {
+		select {
+		case <-s.closed:
+			return
+		case in := <-s.ingress:
+			if in.seq == 0 {
+				s.m.processDIAM(s, in.msg)
+				continue
+			}
+			if in.seq < next {
+				continue
+			}
+			if len(pending) >= s.m.cfg.Limits.Events {
+				s.m.report(s, in.msg, errors.New("peer: ordered ingress queue full"))
+				s.close()
+				return
+			}
+			pending[in.seq] = in.msg
+			for msg := pending[next]; msg != nil; msg = pending[next] {
+				select {
+				case <-s.closed:
+					return
+				default:
+				}
+				delete(pending, next)
+				next++
+				s.m.processDIAM(s, msg)
+			}
+		}
+	}
 }
 func (s *session) binding() (*actor, uint64) {
 	s.firstMu.Lock()

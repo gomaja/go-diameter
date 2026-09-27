@@ -69,17 +69,64 @@ func testBase(host string) base.Settings {
 	return cfg
 }
 func startReceiver(t *testing.T, m *Manager) (net.Listener, *diam.Server) {
+	return startReceiverWithHandlers(t, m, 0)
+}
+func startReceiverWithHandlers(t *testing.T, m *Manager, concurrent int) (net.Listener, *diam.Server) {
 	t.Helper()
 	l, e := net.Listen("tcp", "127.0.0.1:0")
 	if e != nil {
 		t.Fatal(e)
 	}
-	srv := &diam.Server{}
+	srv := &diam.Server{MaxConcurrentHandlers: concurrent}
 	if e = m.BindServer(srv); e != nil {
 		t.Fatal(e)
 	}
 	go func() { _ = srv.Serve(l) }()
 	return l, srv
+}
+
+func TestConcurrentDispatchPreservesFirstCER(t *testing.T) {
+	m, err := New(Config{Settings: testSettings("local.example.net")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := m.AddPeer(PeerConfig{Host: "known.example.net"}); err != nil {
+		t.Fatal(err)
+	}
+	l, srv := startReceiverWithHandlers(t, m, 16)
+	defer closeManager(t, m, srv)
+	cfg := testBase("known.example.net")
+	for run := 0; run < 20; run++ {
+		c, err := net.Dial("tcp", l.Addr().String())
+		if err != nil {
+			t.Fatal(err)
+		}
+		cer, err := base.BuildCER(dict.Default, cfg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		dwr, err := base.BuildDWR(dict.Default, cfg, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		write(t, c, cer)
+		write(t, c, dwr)
+		cea, dwa := read(t, c), read(t, c)
+		if cea.Header.CommandCode != diam.CapabilitiesExchange || code(t, cea) != diam.Success || dwa.Header.CommandCode != diam.DeviceWatchdog || code(t, dwa) != diam.Success {
+			t.Fatalf("run %d: response order %d/%d", run, cea.Header.CommandCode, dwa.Header.CommandCode)
+		}
+		dpr, err := base.BuildDPR(dict.Default, cfg, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		write(t, c, dpr)
+		dpa := read(t, c)
+		if dpa.Header.CommandCode != diam.DisconnectPeer || code(t, dpa) != diam.Success {
+			t.Fatalf("run %d: no DPA", run)
+		}
+		_ = c.Close()
+		awaitState(t, m, Closed)
+	}
 }
 func closeManager(t *testing.T, m *Manager, s *diam.Server) {
 	t.Helper()

@@ -44,11 +44,13 @@ type PeerConfig struct {
 	Endpoints []Endpoint
 }
 type Config struct {
-	Settings    sm.Settings
-	Clock       Clock
-	Timers      Timers
-	Limits      Limits
-	Dial        DialFunc
+	Settings sm.Settings
+	Clock    Clock
+	Timers   Timers
+	Limits   Limits
+	Dial     DialFunc
+	// OnPeerEvent is observational. Events are dropped when its bounded
+	// queue is full; Peers returns the current state independently.
 	OnPeerEvent func(PeerEvent)
 }
 type PeerSnapshot struct {
@@ -71,6 +73,7 @@ type Manager struct {
 	started, closing bool
 	runCtx           context.Context
 	done             chan struct{}
+	closed           chan struct{}
 	wg               sync.WaitGroup
 	callbackQ        chan PeerEvent
 	errors           *diam.ServeMux
@@ -96,7 +99,7 @@ func New(cfg Config) (*Manager, error) {
 	if cfg.Limits.Events <= 0 {
 		cfg.Limits.Events = 64
 	}
-	m := &Manager{cfg: cfg, peers: make(map[string]*actor), sessions: make(map[diam.Conn]*session), done: make(chan struct{}), callbackQ: make(chan PeerEvent, cfg.Limits.Events), errors: diam.NewServeMux()}
+	m := &Manager{cfg: cfg, peers: make(map[string]*actor), sessions: make(map[diam.Conn]*session), done: make(chan struct{}), closed: make(chan struct{}), callbackQ: make(chan PeerEvent, cfg.Limits.Events), errors: diam.NewServeMux()}
 	m.wg.Add(1)
 	go m.deliverEvents()
 	return m, nil
@@ -221,7 +224,7 @@ func (m *Manager) Close(ctx context.Context, cause sm.DisconnectCause) error {
 	if m.closing {
 		m.mu.Unlock()
 		select {
-		case <-m.done:
+		case <-m.closed:
 			return nil
 		case <-ctx.Done():
 			return ctx.Err()
@@ -244,6 +247,7 @@ func (m *Manager) Close(ctx context.Context, cause sm.DisconnectCause) error {
 		m.closeSessions()
 		close(m.done)
 		m.wg.Wait()
+		close(m.closed)
 		close(finished)
 	}()
 	select {
@@ -251,7 +255,6 @@ func (m *Manager) Close(ctx context.Context, cause sm.DisconnectCause) error {
 		return nil
 	case <-ctx.Done():
 		m.forceClose()
-		<-finished
 		return ctx.Err()
 	}
 }
@@ -382,6 +385,13 @@ func (m *Manager) ServeDIAM(c diam.Conn, msg *diam.Message) {
 		c.Close()
 		return
 	}
+	if !s.enqueue(msg) {
+		m.report(s, msg, errors.New("peer: ordered ingress queue full"))
+		s.close()
+	}
+}
+func (m *Manager) processDIAM(s *session, msg *diam.Message) {
+	c := s.c
 	if s.inbound {
 		s.firstMu.Lock()
 		first := !s.first
@@ -426,6 +436,7 @@ func (m *Manager) ServeDIAM(c diam.Conn, msg *diam.Message) {
 				m.rejectCER(s, msg, code, err)
 				return
 			}
+			s.bind(a, 0)
 			a.post(event{kind: rConnCER, s: s, msg: msg, meta: smpeer.FromCER(cer).Clone()})
 			return
 		}
