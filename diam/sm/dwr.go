@@ -30,9 +30,6 @@ func handleDWR(sm *StateMachine) diam.HandlerFunc {
 			return
 		}
 		a := m.Answer(diam.Success)
-		// Fix for Same H2H and E2E Identifier in success response
-		a.Header.HopByHopID = m.Header.HopByHopID
-		a.Header.EndToEndID = m.Header.EndToEndID
 		if _, err := a.NewAVP(avp.OriginHost, avp.Mbit, 0, sm.cfg.OriginHost); err != nil {
 			sm.Error(&diam.ErrorReport{
 				Conn:    c,

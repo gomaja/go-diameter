@@ -580,6 +580,10 @@ func (m *Message) Answer(resultCode uint32) *Message {
 		m.Header.EndToEndID,
 		m.Dictionary(),
 	)
+	// RFC 6733 §3: an answer copies both identifiers from its request,
+	// including zero values. NewMessage generates IDs only for new messages.
+	nm.Header.HopByHopID = m.Header.HopByHopID
+	nm.Header.EndToEndID = m.Header.EndToEndID
 	if resultCode != 0 {
 		if _, err := nm.NewAVP(avp.ResultCode, avp.Mbit, 0, datatype.Unsigned32(resultCode)); err != nil {
 			panic(err)
