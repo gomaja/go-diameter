@@ -46,7 +46,7 @@ var baseXML = `<?xml version="1.0" encoding="UTF-8"?>
 	<application id="0" name="Base"> <!-- Diameter Common Messages -->
 
 		<command code="257" short="CE" name="Capabilities-Exchange">
-			<request>
+			<request proxiable="false">
 				<rule avp="Origin-Host" required="true" max="1"/>
 				<rule avp="Origin-Realm" required="true" max="1"/>
 				<rule avp="Host-IP-Address" required="true" min="1"/>
@@ -59,8 +59,9 @@ var baseXML = `<?xml version="1.0" encoding="UTF-8"?>
 				<rule avp="Acct-Application-Id" required="False"/>
 				<rule avp="Vendor-Specific-Application-Id" required="False"/>
 				<rule avp="Firmware-Revision" required="False" max="1"/>
+				<rule avp="AVP"/>
 			</request>
-			<answer>
+			<answer proxiable="false">
 				<rule avp="Result-Code" required="true" max="1"/>
 				<rule avp="Origin-Host" required="true" max="1"/>
 				<rule avp="Origin-Realm" required="true" max="1"/>
@@ -76,11 +77,12 @@ var baseXML = `<?xml version="1.0" encoding="UTF-8"?>
 				<rule avp="Acct-Application-Id" required="False"/>
 				<rule avp="Vendor-Specific-Application-Id" required="False"/>
 				<rule avp="Firmware-Revision" required="False" max="1"/>
+				<rule avp="AVP"/>
 			</answer>
 		</command>
 
 		<command code="258" short="RA" name="Re-Auth">
-			<request>
+			<request proxiable="true">
 				<rule avp="Session-Id" required="true" max="1"/>
 				<rule avp="Origin-Host" required="true" max="1"/>
 				<rule avp="Origin-Realm" required="true" max="1"/>
@@ -92,8 +94,9 @@ var baseXML = `<?xml version="1.0" encoding="UTF-8"?>
 				<rule avp="Origin-State-Id" required="false" max="1"/>
 				<rule avp="Proxy-Info" required="false"/>
 				<rule avp="Route-Record" required="false"/>
+				<rule avp="AVP"/>
 			</request>
-			<answer>
+			<answer proxiable="true">
 				<rule avp="Session-Id" required="true" max="1"/>
 				<rule avp="Result-Code" required="true" max="1"/>
 				<rule avp="Origin-Host" required="true" max="1"/>
@@ -107,11 +110,12 @@ var baseXML = `<?xml version="1.0" encoding="UTF-8"?>
 				<rule avp="Redirect-Host-Usage" required="false" max="1"/>
 				<rule avp="Redirect-Max-Cache-Time" required="false" max="1"/>
 				<rule avp="Proxy-Info" required="false"/>
+				<rule avp="AVP"/>
 			</answer>
 		</command>
 
 		<command code="271" short="AC" name="Accounting">
-			<request>
+			<request proxiable="true">
 				<rule avp="Session-Id" required="true" max="1"/>
 				<rule avp="Origin-Host" required="true" max="1"/>
 				<rule avp="Origin-Realm" required="true" max="1"/>
@@ -131,8 +135,9 @@ var baseXML = `<?xml version="1.0" encoding="UTF-8"?>
 				<rule avp="Event-Timestamp" required="false" max="1"/>
 				<rule avp="Proxy-Info" required="false"/>
 				<rule avp="Route-Record" required="false"/>
+				<rule avp="AVP"/>
 			</request>
-			<answer>
+			<answer proxiable="true">
 				<rule avp="Session-Id" required="true" max="1"/>
 				<rule avp="Result-Code" required="true" max="1"/>
 				<rule avp="Origin-Host" required="true" max="1"/>
@@ -153,11 +158,12 @@ var baseXML = `<?xml version="1.0" encoding="UTF-8"?>
 				<rule avp="Origin-State-Id" required="false" max="1"/>
 				<rule avp="Event-Timestamp" required="false" max="1"/>
 				<rule avp="Proxy-Info" required="false"/>
+				<rule avp="AVP"/>
 			</answer>
 		</command>
 
 		<command code="274" short="AS" name="Abort-Session">
-			<request>
+			<request proxiable="true">
 				<rule avp="Session-Id" required="true" max="1"/>
 				<rule avp="Origin-Host" required="true" max="1"/>
 				<rule avp="Origin-Realm" required="true" max="1"/>
@@ -168,8 +174,9 @@ var baseXML = `<?xml version="1.0" encoding="UTF-8"?>
 				<rule avp="Origin-State-Id" required="false" max="1"/>
 				<rule avp="Proxy-Info" required="false"/>
 				<rule avp="Route-Record" required="false"/>
+				<rule avp="AVP"/>
 			</request>
-			<answer>
+			<answer proxiable="true">
 				<rule avp="Session-Id" required="true" max="1"/>
 				<rule avp="Result-Code" required="true" max="1"/>
 				<rule avp="Origin-Host" required="true" max="1"/>
@@ -183,11 +190,12 @@ var baseXML = `<?xml version="1.0" encoding="UTF-8"?>
 				<rule avp="Redirect-Host-Usage" required="false" max="1"/>
 				<rule avp="Redirect-Max-Cache-Time" required="false" max="1"/>
 				<rule avp="Proxy-Info" required="false"/>
+				<rule avp="AVP"/>
 			</answer>
 		</command>
 
 		<command code="275" short="ST" name="Session-Termination">
-			<request>
+			<request proxiable="true">
 				<rule avp="Session-Id" required="true" max="1"/>
 				<rule avp="Origin-Host" required="true" max="1"/>
 				<rule avp="Origin-Realm" required="true" max="1"/>
@@ -200,8 +208,9 @@ var baseXML = `<?xml version="1.0" encoding="UTF-8"?>
 				<rule avp="Origin-State-Id" required="false" max="1"/>
 				<rule avp="Proxy-Info" required="false"/>
 				<rule avp="Route-Record" required="false"/>
+				<rule avp="AVP"/>
 			</request>
-			<answer>
+			<answer proxiable="true">
 				<rule avp="Session-Id" required="true" max="1"/>
 				<rule avp="Result-Code" required="true" max="1"/>
 				<rule avp="Origin-Host" required="true" max="1"/>
@@ -216,37 +225,42 @@ var baseXML = `<?xml version="1.0" encoding="UTF-8"?>
 				<rule avp="Redirect-Host-Usage" required="false" max="1"/>
 				<rule avp="Redirect-Max-Cache-Time" required="false" max="1"/>
 				<rule avp="Proxy-Info" required="false"/>
+				<rule avp="AVP"/>
 			</answer>
 		</command>
 
 		<command code="280" short="DW" name="Device-Watchdog">
-			<request>
+			<request proxiable="false">
 				<rule avp="Origin-Host" required="true" max="1"/>
 				<rule avp="Origin-Realm" required="true" max="1"/>
 				<rule avp="Origin-State-Id" required="false" max="1"/>
+				<rule avp="AVP"/>
 			</request>
-			<answer>
+			<answer proxiable="false">
 				<rule avp="Result-Code" required="true" max="1"/>
 				<rule avp="Origin-Host" required="true" max="1"/>
 				<rule avp="Origin-Realm" required="true" max="1"/>
 				<rule avp="Error-Message" required="false" max="1"/>
 				<rule avp="Failed-AVP" required="false" max="1"/>
 				<rule avp="Origin-State-Id" required="false" max="1"/>
+				<rule avp="AVP"/>
 			</answer>
 		</command>
 
 		<command code="282" short="DP" name="Disconnect-Peer">
-			<request>
+			<request proxiable="false">
 				<rule avp="Origin-Host" required="true" max="1"/>
 				<rule avp="Origin-Realm" required="true" max="1"/>
-				<rule avp="Disconnect-Cause" required="false" max="1"/>
+				<rule avp="Disconnect-Cause" required="true" max="1"/>
+				<rule avp="AVP"/>
 			</request>
-			<answer>
+			<answer proxiable="false">
 				<rule avp="Result-Code" required="true" max="1"/>
 				<rule avp="Origin-Host" required="true" max="1"/>
 				<rule avp="Origin-Realm" required="true" max="1"/>
 				<rule avp="Error-Message" required="false" max="1"/>
 				<rule avp="Failed-AVP" required="false" max="1"/>
+				<rule avp="AVP"/>
 			</answer>
 		</command>
 
@@ -495,9 +509,9 @@ var baseXML = `<?xml version="1.0" encoding="UTF-8"?>
 
 		<avp name="Vendor-Specific-Application-Id" code="260" must="M" may="P" must-not="V" may-encrypt="-">
 			<data type="Grouped">
-				<rule avp="Vendor-Id" required="false" max="1"/>
-				<rule avp="Auth-Application-Id" required="true" max="1"/>
-				<rule avp="Acct-Application-Id" required="true" max="1"/>
+				<rule avp="Vendor-Id" required="true" max="1"/>
+				<rule avp="Auth-Application-Id" required="false" max="1"/>
+				<rule avp="Acct-Application-Id" required="false" max="1"/>
 			</data>
 		</avp>
 
@@ -578,9 +592,9 @@ var creditcontrolXML = `<?xml version="1.0" encoding="UTF-8"?>
 		<!-- https://www.rfc-editor.org/rfc/rfc8506 -->
 
 		<command code="272" short="CC" name="Credit-Control">
-			<request>
+			<request proxiable="true">
 				<!-- https://www.rfc-editor.org/rfc/rfc8506#section-3.1 -->
-				<rule avp="Session-Id" required="true" max="1"/>
+				<rule avp="Session-Id" required="true" max="1" fixed="true"/>
 				<rule avp="Origin-Host" required="true" max="1"/>
 				<rule avp="Origin-Realm" required="true" max="1"/>
 				<rule avp="Destination-Realm" required="true" max="1"/>
@@ -610,10 +624,11 @@ var creditcontrolXML = `<?xml version="1.0" encoding="UTF-8"?>
 				<rule avp="Proxy-Info" required="false"/>
 				<rule avp="Route-Record" required="false"/>
 				<rule avp="Service-Information" required="false" max="1"/>
+				<rule avp="AVP" required="false"/>
 			</request>
-			<answer>
+			<answer proxiable="true">
 				<!-- https://www.rfc-editor.org/rfc/rfc8506#section-3.2 -->
-				<rule avp="Session-Id" required="true" max="1"/>
+				<rule avp="Session-Id" required="true" max="1" fixed="true"/>
 				<rule avp="Result-Code" required="true" max="1"/>
 				<rule avp="Origin-Host" required="true" max="1"/>
 				<rule avp="Origin-Realm" required="true" max="1"/>
@@ -641,6 +656,7 @@ var creditcontrolXML = `<?xml version="1.0" encoding="UTF-8"?>
 				<rule avp="Proxy-Info" required="false"/>
 				<rule avp="Route-Record" required="false"/>
 				<rule avp="Failed-AVP" required="false"/>
+				<rule avp="AVP" required="false"/>
 			</answer>
 		</command>
 

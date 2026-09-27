@@ -6,9 +6,9 @@
 		<!-- https://www.rfc-editor.org/rfc/rfc8506 -->
 
 		<command code="272" short="CC" name="Credit-Control">
-			<request>
+			<request proxiable="true">
 				<!-- https://www.rfc-editor.org/rfc/rfc8506#section-3.1 -->
-				<rule avp="Session-Id" required="true" max="1"/>
+				<rule avp="Session-Id" required="true" max="1" fixed="true"/>
 				<rule avp="Origin-Host" required="true" max="1"/>
 				<rule avp="Origin-Realm" required="true" max="1"/>
 				<rule avp="Destination-Realm" required="true" max="1"/>
@@ -38,10 +38,11 @@
 				<rule avp="Proxy-Info" required="false"/>
 				<rule avp="Route-Record" required="false"/>
 				<rule avp="Service-Information" required="false" max="1"/>
+				<rule avp="AVP" required="false"/>
 			</request>
-			<answer>
+			<answer proxiable="true">
 				<!-- https://www.rfc-editor.org/rfc/rfc8506#section-3.2 -->
-				<rule avp="Session-Id" required="true" max="1"/>
+				<rule avp="Session-Id" required="true" max="1" fixed="true"/>
 				<rule avp="Result-Code" required="true" max="1"/>
 				<rule avp="Origin-Host" required="true" max="1"/>
 				<rule avp="Origin-Realm" required="true" max="1"/>
@@ -69,6 +70,7 @@
 				<rule avp="Proxy-Info" required="false"/>
 				<rule avp="Route-Record" required="false"/>
 				<rule avp="Failed-AVP" required="false"/>
+				<rule avp="AVP" required="false"/>
 			</answer>
 		</command>
 
