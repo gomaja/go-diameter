@@ -95,8 +95,8 @@ func (m *Manager) usable(a *actor, app uint32) *session {
 }
 
 // selectPeer applies RFC 6733 §§6.1.1–6.1.6 for a request originating here.
-// A fixed Destination-Host remains untouched when an explicit realm route
-// permits another next hop to carry it.
+// A configured Destination-Host is the final destination and cannot fail over.
+// An unconfigured Destination-Host can be carried through a routed agent.
 func (m *Manager) selectPeer(msg *diam.Message, excluded map[*actor]bool) (*actor, *session, error) {
 	if msg == nil || msg.Header == nil {
 		return nil, nil, ErrInvalidRequest
@@ -117,27 +117,15 @@ func (m *Manager) selectPeer(msg *diam.Message, excluded map[*actor]bool) (*acto
 	if m.closing {
 		return nil, nil, ErrFailover
 	}
-	if host != "" {
-		if a := m.peers[host]; a != nil && !excluded[a] {
+	if a := m.peers[host]; a != nil {
+		// RFC 6733 §5.5.4: no alternate peer can deliver to an unavailable
+		// configured final destination.
+		if !excluded[a] {
 			if s := m.usable(a, msg.Header.ApplicationID); s != nil {
 				return a, s, nil
 			}
-			// A newly originated request pinned to a configured but down
-			// destination has no known agent path. A retransmission may use
-			// the explicit realm route selected below (RFC 6733 §5.5.4).
-			if len(excluded) == 0 {
-				state := a.snapshot()
-				active := a.activeSession.Load()
-				if !state.Eligible || active == nil || active.gen != state.Generation {
-					return nil, nil, ErrUnableToDeliver
-				}
-				select {
-				case <-active.closed:
-					return nil, nil, ErrUnableToDeliver
-				default:
-				}
-			}
 		}
+		return nil, nil, ErrUnableToDeliver
 	}
 	peers, ok := m.routes.Load().entries[routeKey{realm: realm, app: msg.Header.ApplicationID}]
 	if !ok {
