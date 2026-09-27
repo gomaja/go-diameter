@@ -6,6 +6,7 @@ package dict
 
 import (
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -24,6 +25,49 @@ func TestNewParser(t *testing.T) {
 			t.Fatalf("Error Creating Parser from %s: %s", dict, err)
 		}
 		t.Log(p)
+	}
+}
+
+// TS 29.214 §5.3.0 and §5.4.0: Rx AVPs with V set carry a vendor ID.
+func TestDefaultDictVendorID(t *testing.T) {
+	for _, app := range Default.Apps() {
+		for _, avp := range app.AVP {
+			if strings.Contains(avp.Must, "V") && avp.VendorID == 0 {
+				t.Errorf("app %d: AVP %s (%d) has V in must but no vendor-id", app.ID, avp.Name, avp.Code)
+			}
+		}
+	}
+}
+
+func TestRxVendorIDs(t *testing.T) {
+	// TS 29.214 §5.3.0 (defined AVPs) and §5.4.0 (reused AVPs).
+	const rxAppID, vendorID = 16777236, 10415
+	for _, tc := range []struct {
+		name string
+		code uint32
+	}{
+		{"IMS-Content-Identifier", 563}, {"IMS-Content-Type", 564},
+		{"AN-Trusted", 1503}, {"User-Location-Info-Time", 2812},
+		{"RAN-NAS-Release-Cause", 2819}, {"TWAN-Identifier", 29},
+		{"TCP-Source-Port", 2843}, {"UDP-Source-Port", 2806},
+		{"UE-Local-IP-Address", 2805},
+	} {
+		for _, source := range []struct {
+			name string
+			load func() (*Parser, error)
+		}{
+			{"embedded", func() (*Parser, error) { return Default, nil }},
+			{"xml", func() (*Parser, error) { return NewParser("testdata/tgpp_rx.xml") }},
+		} {
+			p, err := source.load()
+			if err != nil {
+				t.Fatal(err)
+			}
+			avp, err := p.FindAVPWithVendor(rxAppID, tc.code, vendorID)
+			if err != nil || avp.Name != tc.name || avp.VendorID != vendorID {
+				t.Errorf("%s: %s (%d) vendor lookup = %v, %v", source.name, tc.name, tc.code, avp, err)
+			}
+		}
 	}
 }
 
