@@ -302,9 +302,17 @@ func invalidAVPFlags(flags uint8, definition *dict.AVP) bool {
 	return false
 }
 
+// flagListed reports whether a dictionary flag rule such as "M,V" names flag.
+// Rules are single-letter flags; the comma-separated form used by the bundled
+// dictionaries and the compact form ("MV") that user dictionaries may use are
+// both accepted, so a formatting choice never weakens validation.
 func flagListed(list, flag string) bool {
 	for _, item := range strings.Split(list, ",") {
-		if strings.TrimSpace(item) == flag {
+		item = strings.TrimSpace(item)
+		if item == flag {
+			return true
+		}
+		if len(item) > 1 && len(flag) == 1 && !strings.ContainsAny(item, " -") && strings.Contains(item, flag) {
 			return true
 		}
 	}
