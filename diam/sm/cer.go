@@ -30,7 +30,7 @@ func handleCER(sm *StateMachine) diam.HandlerFunc {
 		cer := new(smparser.CER)
 		_, err := cer.ParseWithSecurity(m, smparser.Server, c.TLS() != nil)
 		if err != nil {
-			err = errorCEA(sm, c, m, cer, err)
+			err = errorCEA(sm, c, m, err)
 			if err != nil {
 				sm.Error(&diam.ErrorReport{
 					Conn:    c,
@@ -41,7 +41,7 @@ func handleCER(sm *StateMachine) diam.HandlerFunc {
 			c.Close()
 			return
 		}
-		err = successCEA(sm, c, m, cer)
+		err = successCEA(sm, c, m)
 
 		if err != nil {
 			sm.Error(&diam.ErrorReport{
@@ -64,7 +64,7 @@ func handleCER(sm *StateMachine) diam.HandlerFunc {
 // errorCEA sends an error answer indicating that the CER failed due to
 // an unsupported (acct/auth) application, and includes the AVP that
 // caused the failure in the message.
-func errorCEA(sm *StateMachine, c diam.Conn, m *diam.Message, cer *smparser.CER, errMessage error) error {
+func errorCEA(sm *StateMachine, c diam.Conn, m *diam.Message, errMessage error) error {
 	var (
 		hostAddresses []datatype.Address
 		err           error
@@ -98,8 +98,9 @@ func errorCEA(sm *StateMachine, c diam.Conn, m *diam.Message, cer *smparser.CER,
 	}
 	addCEAAVP(a, avp.VendorID, avp.Mbit, 0, sm.cfg.VendorID)
 	addCEAAVP(a, avp.ProductName, 0, 0, sm.cfg.ProductName)
-	if cer.OriginStateID != nil {
-		a.AddAVP(cer.OriginStateID)
+	// RFC 6733 §8.16: Origin-State-Id reflects the entity in Origin-Host.
+	if sm.cfg.OriginStateID != 0 {
+		addCEAAVP(a, avp.OriginStateID, avp.Mbit, 0, sm.cfg.OriginStateID)
 	}
 	if sm.cfg.FirmwareRevision != 0 {
 		addCEAAVP(a, avp.FirmwareRevision, 0, 0, sm.cfg.FirmwareRevision)
@@ -116,7 +117,7 @@ func errorCEA(sm *StateMachine, c diam.Conn, m *diam.Message, cer *smparser.CER,
 
 // successCEA sends a success answer indicating that the CER was successfully
 // parsed and accepted by the server.
-func successCEA(sm *StateMachine, c diam.Conn, m *diam.Message, cer *smparser.CER) error {
+func successCEA(sm *StateMachine, c diam.Conn, m *diam.Message) error {
 	var (
 		hostAddresses []datatype.Address
 		err           error
@@ -141,8 +142,9 @@ func successCEA(sm *StateMachine, c diam.Conn, m *diam.Message, cer *smparser.CE
 	}
 	addCEAAVP(a, avp.VendorID, avp.Mbit, 0, sm.cfg.VendorID)
 	addCEAAVP(a, avp.ProductName, 0, 0, sm.cfg.ProductName)
-	if cer.OriginStateID != nil {
-		a.AddAVP(cer.OriginStateID)
+	// RFC 6733 §8.16: Origin-State-Id reflects the entity in Origin-Host.
+	if sm.cfg.OriginStateID != 0 {
+		addCEAAVP(a, avp.OriginStateID, avp.Mbit, 0, sm.cfg.OriginStateID)
 	}
 	for _, app := range sm.supportedApps {
 		var typ uint32
