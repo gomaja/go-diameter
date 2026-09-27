@@ -76,12 +76,13 @@ const (
 	APNConfiguration                           = 1430
 	APNConfigurationProfile                    = 1429
 	APNOIReplacement                           = 1427
-	ApplicationPortIdentifer                   = 3010
+	ApplicationPortIdentifier                  = 3010
 	ApplicationProvidedCalledPartyAddress      = 837
 	ApplicationServer                          = 836
 	ApplicationServerID                        = 2101
 	ApplicationServerInformation               = 850
 	ApplicationServiceProviderIdentity         = 532
+	ApplicationServiceType                     = 2102
 	ApplicationSessionID                       = 2103
 	ApplicID                                   = 1218
 	ARAPChallengeResponse                      = 84
@@ -159,6 +160,7 @@ const (
 	CNOperatorSelectionEntity                  = 3421
 	CodecData                                  = 524
 	CompleteDataListIncludedIndicator          = 1468
+	ConditionalAPNAggregateMaxBitrate          = 2818
 	ConfidentialityKey                         = 625
 	ConfigurationToken                         = 78
 	ConnectInfo                                = 77
@@ -184,6 +186,7 @@ const (
 	CurrentLocationRetrieved                   = 1610
 	CurrentTariff                              = 2056
 	DataCodingScheme                           = 2001
+	DCDInformation                             = 2115
 	DefaultEPSBearerQoS                        = 1049
 	DeferredLocationEventType                  = 1230
 	DeliveryReportRequested                    = 1216
@@ -308,6 +311,7 @@ const (
 	IdleTimeout                                = 28
 	IDRFlags                                   = 1490
 	IMEI                                       = 1402
+	IMInformation                              = 2110
 	ImmediateResponsePreferred                 = 1412
 	IMSApplicationReferenceIdentifier          = 2601
 	IMSChargingIdentifier                      = 841
@@ -372,6 +376,7 @@ const (
 	LocationEstimate                           = 1242
 	LocationEstimateType                       = 1243
 	LocationType                               = 1244
+	LogicalAccessID                            = 302
 	LoginIPHost                                = 14
 	LoginIPv6Host                              = 98
 	LoginLATGroup                              = 36
@@ -525,6 +530,7 @@ const (
 	PDPContext                                 = 1469
 	PDPContextType                             = 1247
 	PDPType                                    = 1470
+	PhysicalAccessID                           = 313
 	PLMNClient                                 = 1482
 	PoCChangeCondition                         = 1261
 	PoCChangeTime                              = 1262
@@ -546,6 +552,7 @@ const (
 	PreemptionControlInfo                      = 553
 	PreemptionVulnerability                    = 1048
 	PreferredAoCCurrency                       = 2315
+	PresenceReportingAreaElementsList          = 2820
 	PresenceReportingAreaIdentifier            = 2821
 	PresenceReportingAreaInformation           = 2822
 	PresenceReportingAreaStatus                = 2823
@@ -660,6 +667,7 @@ const (
 	ServiceAuthorizationInfo                   = 548
 	ServiceContextID                           = 461
 	ServiceDataContainer                       = 2040
+	ServiceGenericInformation                  = 1256
 	ServiceID                                  = 855
 	ServiceIdentifier                          = 439
 	ServiceInformation                         = 873
@@ -907,6 +915,8 @@ const (
 	VPLMNDynamicAddressAllowed                 = 1432
 	VPLMNLIPAAllowed                           = 1617
 	WirelineUserLocationInfo                   = 578
+	X3GPP2BSID                                 = 9010
+	X3GPP2MEID                                 = 1471
 	X5GMMCause                                 = 573
 	X5GSMCause                                 = 574
 	X5GSRANNASReleaseCause                     = 572

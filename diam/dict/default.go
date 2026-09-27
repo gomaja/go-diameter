@@ -2603,6 +2603,8 @@ var tgpprorfXML = `<?xml version="1.0" encoding="UTF-8"?>
 <diameter>
 	<application id="4" type="auth" name="TGPP">
 		<vendor id="10415" name="TGPP"/>
+		<vendor id="13019" name="ETSI"/>
+		<vendor id="5535" name="TGPP2"/>
 
 		<avp name="TGPP-Charging-Characteristics" code="13" must="V" may="P" must-not="M" may-encrypt="Y" vendor-id="10415">
 			<data type="UTF8String"/>
@@ -2836,7 +2838,8 @@ var tgpprorfXML = `<?xml version="1.0" encoding="UTF-8"?>
 			</data>
 		</avp>
 
-		<avp name="Application-Port-Identifer" code="3010" must="V,M" may="P" must-not="-" may-encrypt="N" vendor-id="10415">
+		<!-- 3GPP TS 29.230 V19.3.0 §7.1; TS 32.299 V19.0.0 §7.2.0. -->
+		<avp name="Application-Port-Identifier" code="3010" must="V,M" may="P" must-not="-" may-encrypt="N" vendor-id="10415">
 			<data type="Unsigned32"/>
 		</avp>
 
@@ -2860,7 +2863,7 @@ var tgpprorfXML = `<?xml version="1.0" encoding="UTF-8"?>
 			<data type="Grouped">
 				<rule avp="Application-Server" required="false" max="1"/>
 				<rule avp="Application-Provided-Called-Party-Address" required="false"/>
-				<rule avp="Status- AS-Code" required="false" max="1"/>
+				<rule avp="Status-AS-Code" required="false" max="1"/>
 			</data>
 		</avp>
 
@@ -3200,8 +3203,8 @@ var tgpprorfXML = `<?xml version="1.0" encoding="UTF-8"?>
 			<data type="Grouped">
 				<rule avp="SSID" required="false" max="1"/>
 				<rule avp="BSSID" required="false" max="1"/>
-				<rule avp="Logical-Access-Id" required="true" max="1"/>
-				<rule avp="Physical-Access-Id" required="true" max="1"/>
+				<rule avp="Logical-Access-ID" required="true" max="1"/>
+				<rule avp="Physical-Access-ID" required="true" max="1"/>
 			</data>
 		</avp>
 
@@ -3386,7 +3389,7 @@ var tgpprorfXML = `<?xml version="1.0" encoding="UTF-8"?>
 			<data type="Grouped">
 				<rule avp="ISUP-Cause-Location" required="false" max="1"/>
 				<rule avp="ISUP-Cause-Value" required="false" max="1"/>
-				<rule avp="ISUP-Cause-Diagnostic" required="false" max="1"/>
+				<rule avp="ISUP-Cause-Diagnostics" required="false" max="1"/>
 			</data>
 		</avp>
 
@@ -4163,7 +4166,7 @@ var tgpprorfXML = `<?xml version="1.0" encoding="UTF-8"?>
 				<rule avp="User-Location-Info-Time" required="false" max="1"/>
 				<rule avp="User-CSG-Information" required="false" max="1"/>
 				<rule avp="Presence-Reporting-Area-Information" required="false" max="1"/>
-				<rule avp="TGPP2-BSID" required="false" max="1"/>
+				<rule avp="3GPP2-BSID" required="false" max="1"/>
 				<rule avp="TWAN-User-Location-Info" required="false" max="1"/>
 				<rule avp="TGPP-RAT-Type" required="false" max="1"/>
 				<rule avp="PS-Furnish-Charging-Information" required="false" max="1"/>
@@ -4181,8 +4184,8 @@ var tgpprorfXML = `<?xml version="1.0" encoding="UTF-8"?>
 				<rule avp="MME-Number-for-MT-SMS" required="false" max="1"/>
 				<rule avp="MME-Name" required="false" max="1"/>
 				<rule avp="MME-Realm" required="false" max="1"/>
-				<rule avp="Logical-Access-Id" required="false" max="1"/>
-				<rule avp="Physical-Access-Id" required="false" max="1"/>
+				<rule avp="Logical-Access-ID" required="false" max="1"/>
+				<rule avp="Physical-Access-ID" required="false" max="1"/>
 				<rule avp="Fixed-User-Location-Info" required="false" max="1"/>
 				<rule avp="CN-Operator-Selection-Entity" required="false" max="1"/>
 			</data>
@@ -4528,7 +4531,7 @@ var tgpprorfXML = `<?xml version="1.0" encoding="UTF-8"?>
 				<rule avp="Time-Usage" required="false" max="1"/>
 				<rule avp="Change-Condition" required="false"/>
 				<rule avp="TGPP-User-Location-Info" required="false" max="1"/>
-				<rule avp="TGPP2-BSID" required="false" max="1"/>
+				<rule avp="3GPP2-BSID" required="false" max="1"/>
 				<rule avp="Sponsor-Identity" required="false" max="1"/>
 				<rule avp="Application-Service-Provider-Identity" required="false" max="1"/>
 				<rule avp="Presence-Reporting-Area-Status" required="false" max="1"/>
@@ -4845,7 +4848,7 @@ var tgpprorfXML = `<?xml version="1.0" encoding="UTF-8"?>
 		<avp name="Terminal-Information" code="1401" must="V,M"	may="-" must-not="-" may-encrypt="N" vendor-id="10415">
 			<data type="Grouped">
 				<rule avp="IMEI" required="false" max="1"/>
-				<rule avp="TGPP2-MEID" required="false" max="1"/>
+				<rule avp="3GPP2-MEID" required="false" max="1"/>
 				<rule avp="Software-Version" required="false" max="1"/>
 				<rule avp="AVP" required="false"/>
 			</data>
@@ -4923,7 +4926,7 @@ var tgpprorfXML = `<?xml version="1.0" encoding="UTF-8"?>
 				<rule avp="QoS-Information" required="false" max="1"/>
 				<rule avp="Accounting-Input-Octets" required="false" max="1"/>
 				<rule avp="Accounting-Output-Octets" required="false" max="1"/>
-				<rule avp="Change-condition" required="false" max="1"/>
+				<rule avp="Change-Condition" required="false" max="1"/>
 				<rule avp="Change-Time" required="false" max="1"/>
 				<rule avp="TGPP-User-Location-Info" required="false" max="1"/>
 				<rule avp="TGPP-Charging-Id" required="false" max="1"/>
@@ -5065,7 +5068,7 @@ var tgpprorfXML = `<?xml version="1.0" encoding="UTF-8"?>
 				<rule avp="ISUP-Location-Number" required="false" max="1"/>
 				<rule avp="VLR-Number" required="false" max="1"/>
 				<rule avp="Forwarding-Pending" required="false" max="1"/>
-				<rule avp="ISUP-Release-Cause" required="false" max="1"/>
+				<rule avp="ISUP-Cause" required="false" max="1"/>
 				<rule avp="Start-Time" required="false" max="1"/>
 				<rule avp="Start-of-Charging" required="false" max="1"/>
 				<rule avp="Stop-Time" required="false" max="1"/>
@@ -5120,6 +5123,92 @@ var tgpprorfXML = `<?xml version="1.0" encoding="UTF-8"?>
     <avp name="Extended-APN-AMBR-UL" code="2849" must="V" must-not="M" may="P" may-encrypt="Y" vendor-id="10415">
       <data type="Unsigned32"/>
     </avp>
+
+        <!-- 3GPP TS 29.212 V20.0.0 §5.3.105. -->
+        <avp name="Conditional-APN-Aggregate-Max-Bitrate" code="2818" vendor-id="10415" must="V" must-not="M" may-encrypt="Y">
+            <data type="Grouped">
+                <rule avp="APN-Aggregate-Max-Bitrate-UL" required="false" max="1"/>
+                <rule avp="APN-Aggregate-Max-Bitrate-DL" required="false" max="1"/>
+                <rule avp="Extended-APN-AMBR-UL" required="false" max="1"/>
+                <rule avp="Extended-APN-AMBR-DL" required="false" max="1"/>
+                <rule avp="IP-CAN-Type" required="false"/>
+                <rule avp="RAT-Type" required="false"/>
+                <rule avp="AVP"/>
+            </data>
+        </avp>
+
+        <!-- OMA-DDS-Charging_Data V1.0 20110201-A §8.5.5; 3GPP TS 32.299 V19.0.0 §7.2.50. -->
+        <avp name="DCD-Information" code="2115" vendor-id="10415" must="V,M" may="P" may-encrypt="N">
+            <data type="Grouped">
+                <rule avp="Content-Id" required="false" max="1"/>
+                <rule avp="Content-Provider-Id" required="false" max="1"/>
+            </data>
+        </avp>
+
+        <!-- OMA-DDS-Charging_Data V1.0 20110201-A §8.5.6; 3GPP TS 32.299 V19.0.0 §7.2.69. -->
+        <avp name="IM-Information" code="2110" vendor-id="10415" must="V,M" may="P" may-encrypt="N">
+            <data type="Grouped">
+                <rule avp="Total-Number-Of-Messages-Sent" required="false" max="1"/>
+                <rule avp="Total-Number-Of-Messages-Exploded" required="false" max="1"/>
+                <rule avp="Number-Of-Messages-Successfully-Sent" required="false" max="1"/>
+                <rule avp="Number-Of-Messages-Successfully-Exploded" required="false" max="1"/>
+            </data>
+        </avp>
+
+        <!-- OMA-DDS-Charging_Data V1.0 20110201-A §8.5.10; 3GPP TS 32.299 V19.0.0 §7.2.191. -->
+        <avp name="Service-Generic-Information" code="1256" vendor-id="10415" must="V,M" may="P" may-encrypt="N">
+            <data type="Grouped">
+                <rule avp="Application-Server-Id" required="false" max="1"/>
+                <rule avp="Application-Service-Type" required="false" max="1"/>
+                <rule avp="Application-Session-Id" required="false" max="1"/>
+                <rule avp="Delivery-Status" required="false" max="1"/>
+            </data>
+        </avp>
+
+        <!-- OMA-DDS-Charging_Data V1.0 20110201-A AVP table; 3GPP TS 32.299 V19.0.0 §7.2.0. -->
+        <avp name="Application-Service-Type" code="2102" vendor-id="10415" must="V,M" may="P" may-encrypt="N"><data type="Enumerated"/></avp>
+
+        <!-- 3GPP TS 29.212 V20.0.0 §5.3.27. The Gx scope defines the same code separately. -->
+        <avp name="IP-CAN-Type" code="1027" vendor-id="10415" must="V,M" may="P" may-encrypt="Y">
+            <data type="Enumerated">
+                <item code="0" name="3GPP-GPRS"/>
+                <item code="1" name="DOCSIS"/>
+                <item code="2" name="xDSL"/>
+                <item code="3" name="WiMAX"/>
+                <item code="4" name="3GPP2"/>
+                <item code="5" name="3GPP-EPS"/>
+                <item code="6" name="Non-3GPP-EPS"/>
+                <item code="7" name="FBA"/>
+                <item code="8" name="3GPP-5GS"/>
+                <item code="9" name="Non-3GPP-5GS"/>
+            </data>
+        </avp>
+
+        <!-- 3GPP TS 29.214 V20.0.0 §§5.3.9, 5.3.17. The Rx scope defines the same codes separately. -->
+        <avp name="Flow-Number" code="509" vendor-id="10415" must="V,M" may-encrypt="Y"><data type="Unsigned32"/></avp>
+        <!-- 3GPP TS 29.214 V20.0.0 §5.3.17. -->
+        <avp name="Media-Component-Number" code="518" vendor-id="10415" must="V,M" may-encrypt="Y"><data type="Unsigned32"/></avp>
+
+        <!-- ETSI ES 283 034 V2.2.0 §7.3 and 3GPP TS 32.299 V19.0.0 §7.4. -->
+        <avp name="Logical-Access-ID" code="302" vendor-id="13019" must="V" may="M" may-encrypt="Y"><data type="OctetString"/></avp>
+        <!-- ETSI ES 283 034 V2.2.0 §7.3.14 and 3GPP TS 32.299 V19.0.0 §7.4. -->
+        <avp name="Physical-Access-ID" code="313" vendor-id="13019" must="V" may="M" may-encrypt="Y"><data type="UTF8String"/></avp>
+
+        <!-- 3GPP TS 29.212 V20.0.0 §5.3.107. -->
+        <avp name="Presence-Reporting-Area-Elements-List" code="2820" vendor-id="10415" must="V" must-not="M" may-encrypt="Y"><data type="OctetString"/></avp>
+
+        <!-- 3GPP2 X.S0057-0 v2.0 §5.6.2.1.1 and 3GPP TS 32.299 V19.0.0 §7.3. -->
+        <avp name="3GPP2-BSID" code="9010" vendor-id="5535" must="V,M" may="P" may-encrypt="N"><data type="UTF8String"/></avp>
+
+        <!-- 3GPP TS 29.272 V19.5.0 §7.3.6. -->
+        <avp name="3GPP2-MEID" code="1471" vendor-id="10415" must="V,M" may-encrypt="N"><data type="OctetString"/></avp>
+
+        <!-- 3GPP TS 29.338 V19.3.0 §5.3.3.1/2; defining TS 29.173 V19.0.0 §§6.4.5, 6.4.13, 6.4.14. -->
+        <avp name="MSC-Number" code="2403" vendor-id="10415" must="V,M" may-encrypt="N"><data type="OctetString"/></avp>
+        <!-- 3GPP TS 29.173 V19.0.0 §6.4.13. -->
+        <avp name="SGSN-Name" code="2409" vendor-id="10415" must="V" must-not="M" may-encrypt="N"><data type="DiameterIdentity"/></avp>
+        <!-- 3GPP TS 29.173 V19.0.0 §6.4.14. -->
+        <avp name="SGSN-Realm" code="2410" vendor-id="10415" must="V" must-not="M" may-encrypt="N"><data type="DiameterIdentity"/></avp>
 
 	</application>
 </diameter>`

@@ -337,7 +337,9 @@ func TestCreditControlRFC8506Occurrences(t *testing.T) {
 }
 
 func TestCreditControlRFC8506QoSReferences(t *testing.T) {
-	avp, err := Default.FindAVPByCode(4, 509, UndefinedVendorID)
+	// RFC 5777 §3.2 uses vendor 0; 3GPP TS 29.214 §5.3.9 also
+	// assigns code 509 to Flow-Number under vendor 10415.
+	avp, err := Default.FindAVPByCode(4, 509, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
