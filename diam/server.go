@@ -92,8 +92,9 @@ type conn struct {
 	tlsState *tls.ConnectionState // or nil when not using TLS
 	writer   *response            // the diam.Conn exposed to handlers
 
-	hwg sync.WaitGroup // tracks in-flight handler goroutines
-	sem chan struct{}  // bounds concurrent handlers; nil = unbounded/sequential
+	hwg         sync.WaitGroup // tracks in-flight handler goroutines
+	sem         chan struct{}  // bounds concurrent handlers; nil = unbounded/sequential
+	dispatchSeq uint64         // read order assigned before concurrent handler dispatch
 
 	drainMu      sync.Mutex
 	draining     bool
@@ -297,6 +298,8 @@ func (c *conn) dispatch(m *Message) {
 		c.drainMu.Unlock()
 		return
 	}
+	c.dispatchSeq++
+	m.dispatchSeq = c.dispatchSeq
 	c.active++
 	c.drainMu.Unlock()
 	if c.server.MaxConcurrentHandlers == 0 {
