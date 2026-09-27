@@ -12,6 +12,27 @@ import (
 	"github.com/gomaja/go-diameter/diam/datatype"
 )
 
+// handleUnsupportedCommand is the default ALL handler. A caller's ALL
+// registration replaces it, preserving ServeMux dispatch precedence.
+func (sm *StateMachine) handleUnsupportedCommand(c diam.Conn, request *diam.Message) {
+	isRequest := request.Header.CommandFlags&diam.RequestFlag != 0
+	// RFC 6733 §§7.1.3 and 7.2: 3001 is a protocol error on a request;
+	// an answer must never cause another answer.
+	if isRequest {
+		if err := sm.HandleMessageError(c, request, &diam.MessageError{ResultCode: diam.CommandUnsupported}); err != nil {
+			sm.Error(&diam.ErrorReport{Conn: c, Message: request, Error: err})
+		}
+	}
+	// Report every unhandled message, as ServeMux did before this fallback
+	// existed, so an unhandled answer is not dropped without a trace.
+	sm.Error(&diam.ErrorReport{Conn: c, Message: request, Error: fmt.Errorf(
+		"unhandled message for index: %+v", diam.CommandIndex{
+			AppID:   request.Header.ApplicationID,
+			Code:    request.Header.CommandCode,
+			Request: isRequest,
+		})})
+}
+
 // HandleMessageError implements diam.MessageErrorHandler. RFC 6733 Sections
 // 7.1.5 and 7.2 permit the generic error grammar when malformed framing makes
 // an application-specific answer impractical. Answers never receive answers.
