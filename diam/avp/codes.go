@@ -346,6 +346,7 @@ const (
 	KASME                                      = 1450
 	Kc                                         = 1453
 	LCSAPN                                     = 1231
+	LCSCapabilitiesSets                        = 2404
 	LCSClientDialedByMS                        = 1233
 	LCSClientExternalID                        = 1234
 	LCSClientID                                = 1232
