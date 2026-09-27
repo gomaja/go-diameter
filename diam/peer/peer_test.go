@@ -206,3 +206,33 @@ func TestEqualIdentityRejected(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestCloseRespectsContextWithBlockedObserver(t *testing.T) {
+	entered := make(chan struct{}, 1)
+	release := make(chan struct{})
+	m, err := New(Config{Settings: sm.Settings{OriginHost: "local.example.net", OriginRealm: "example.net"}, OnPeerEvent: func(PeerEvent) {
+		select {
+		case entered <- struct{}{}:
+		default:
+		}
+		<-release
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := m.AddPeer(PeerConfig{Host: "peer.example.net"}); err != nil {
+		t.Fatal(err)
+	}
+	<-entered
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	if err := m.Close(ctx, sm.DisconnectRebooting); err != context.DeadlineExceeded {
+		t.Fatalf("Close error=%v", err)
+	}
+	close(release)
+	ctx2, cancel2 := context.WithTimeout(context.Background(), time.Second)
+	defer cancel2()
+	if err := m.Close(ctx2, sm.DisconnectRebooting); err != nil {
+		t.Fatal(err)
+	}
+}
