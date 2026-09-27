@@ -30,6 +30,20 @@ type Metadata struct {
 	CEA *smparser.CEA
 }
 
+// Clone returns an independent snapshot of handshake metadata. The returned
+// application list and parsed capability AVPs can be changed without changing
+// the connection's metadata.
+func (m *Metadata) Clone() *Metadata {
+	if m == nil {
+		return nil
+	}
+	copy := *m
+	copy.Applications = append([]uint32(nil), m.Applications...)
+	copy.CER = m.CER.Clone()
+	copy.CEA = m.CEA.Clone()
+	return &copy
+}
+
 // FromCER creates a Metadata object from data in the CER.
 func FromCER(cer *smparser.CER) *Metadata {
 	return &Metadata{
