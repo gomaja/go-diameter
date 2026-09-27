@@ -22,7 +22,7 @@ type DWR struct {
 func (dwr *DWR) Parse(m *diam.Message) error {
 	err := m.Unmarshal(dwr)
 	if err != nil {
-		return nil
+		return err
 	}
 	if err = dwr.sanityCheck(); err != nil {
 		return err
