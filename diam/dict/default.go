@@ -1202,6 +1202,10 @@ var diametersyXML = `<?xml version="1.0" encoding="UTF-8"?>
 			</answer>
 		</command>
 
+		<!-- 3GPP TS 29.219 V19.0.0 §5.3.1, Table 5.3.0.1. -->
+		<avp name="Policy-Counter-Identifier" code="2901" vendor-id="10415" must="M,V" may="P" may-encrypt="Y">
+			<data type="UTF8String"/>
+		</avp>
 		<avp name="SL-Request-Type" code="2904" must="M" may="P" must-not="V" may-encrypt="-">
 			<data type="Enumerated">
 				<item code="0" name="INITIAL_REQUEST"/>

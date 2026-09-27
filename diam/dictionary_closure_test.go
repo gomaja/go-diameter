@@ -10,6 +10,45 @@ import (
 	"github.com/gomaja/go-diameter/diam/dict"
 )
 
+// 3GPP TS 29.219 V19.0.0 §5.3.1 and RFC 8506 §8.
+func TestSyDictionaryClosureWire(t *testing.T) {
+	const appID = 16777302
+	for _, tc := range []struct {
+		name     string
+		code     uint32
+		vendor   uint32
+		typeName string
+	}{
+		{"Policy-Counter-Identifier", 2901, 10415, "UTF8String"},
+		{"Service-Information", 873, 10415, "Grouped"},
+		{"Subscription-Id", 443, 0, "Grouped"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			d, err := dict.Default.FindAVP(appID, tc.name)
+			if err != nil || d.Code != tc.code || d.VendorID != tc.vendor || d.Data.TypeName != tc.typeName {
+				t.Fatalf("definition: %v, %v", d, err)
+			}
+			msg := NewRequest(8388635, appID, dict.Default)
+			msg.AddAVP(smsAVP(t, appID, tc.name))
+			left, right := net.Pipe()
+			done := make(chan error, 1)
+			go func() { _, e := msg.WriteTo(left); done <- e }()
+			got, err := ReadMessage(right, dict.Default)
+			_ = left.Close()
+			_ = right.Close()
+			if writeErr := <-done; writeErr != nil {
+				t.Fatal(writeErr)
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got.DecodeErr != nil || len(got.AVP) != 1 || got.AVP[0].Data.Type() != msg.AVP[0].Data.Type() {
+				t.Fatalf("connection decode: %v", got.DecodeErr)
+			}
+		})
+	}
+}
+
 // 3GPP TS 29.214 V20.0.0 §5.4 and TS 29.212 V20.0.0 §§5.3.138-139.
 func TestRxDictionaryClosureWire(t *testing.T) {
 	const appID = 16777236

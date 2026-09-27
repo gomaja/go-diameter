@@ -13,7 +13,6 @@ var knownRuleExceptions = map[uint32][]string{
 	16777265: {"3GPP-Charging-Characteristics", "Feature-List", "Feature-List-ID", "IMEI",
 		"MIP-Home-Agent-Address", "MIP-Home-Agent-Host", "MIP6-Home-Link-Prefix",
 		"Software-Version", "TGPP2-MEID"},
-	16777302: {"Policy-Counter-Identifier", "Service-Information", "Subscription-Id"},
 }
 
 // TestDefaultRuleClosure keeps command and grouped AVP grammars usable through
