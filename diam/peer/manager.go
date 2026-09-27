@@ -170,6 +170,16 @@ func (m *Manager) BindServer(s *diam.Server) error {
 	if m.server != nil || m.closing {
 		return errors.New("peer: Server already bound or manager closed")
 	}
+	managerDict, serverDict := m.cfg.Settings.Dict, s.Dict
+	if managerDict == nil {
+		managerDict = dict.Default
+	}
+	if serverDict == nil {
+		serverDict = dict.Default
+	}
+	if managerDict != serverDict { // RFC 6733 §5.3: validate CER and advertise CEA applications from one dictionary.
+		return errors.New("peer: Server dictionary differs from manager dictionary")
+	}
 	if err := s.ConfigureHandlerBeforeServe(m, m.acceptConnection, m.shutdownConnection); err != nil {
 		return err
 	}
