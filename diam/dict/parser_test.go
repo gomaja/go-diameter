@@ -71,6 +71,36 @@ func TestRxVendorIDs(t *testing.T) {
 	}
 }
 
+func TestS6aReusedIETFAVPsHaveNoVendor(t *testing.T) {
+	// TS 29.272 Table 7.3.1/2 and §§7.3.36, 7.3.42, 7.3.45.
+	const s6aAppID = 16777251
+	for _, source := range []struct {
+		name string
+		load func() (*Parser, error)
+	}{
+		{"embedded", func() (*Parser, error) { return Default, nil }},
+		{"xml", func() (*Parser, error) { return NewParser("testdata/tgpp_s6a.xml") }},
+	} {
+		p, err := source.load()
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, tc := range []struct {
+			name string
+			code uint32
+		}{
+			{"MIP-Home-Agent-Address", 334},
+			{"MIP6-Agent-Info", 486},
+			{"Service-Selection", 493},
+		} {
+			avp, err := p.FindAVPWithVendor(s6aAppID, tc.code, 0)
+			if err != nil || avp.Name != tc.name || avp.VendorID != 0 {
+				t.Errorf("%s: %s (%d) vendor-zero lookup = %v, %v", source.name, tc.name, tc.code, avp, err)
+			}
+		}
+	}
+}
+
 func TestLoadFile(t *testing.T) {
 	for _, dict := range testDicts {
 		p, err := NewParser()
