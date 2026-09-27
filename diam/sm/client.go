@@ -8,9 +8,11 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"math/rand"
 	"net"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gomaja/go-diameter/diam"
@@ -54,7 +56,7 @@ type Client struct {
 	MaxRetransmits              uint          // Max number of retransmissions before aborting
 	RetransmitInterval          time.Duration // Interval between retransmissions (default 1s)
 	EnableWatchdog              bool          // Enable automatic DWR
-	WatchdogInterval            time.Duration // Interval between DWRs (default 5s)
+	WatchdogInterval            time.Duration // RFC 3539 §3.4.1 Twinit; default 30s, minimum 6s, with ±2s jitter
 	WatchdogStream              uint          // Stream to send DWR on (for multistreaming protocols), default is 0
 	SupportedVendorID           []*diam.AVP   // Supported vendor ID
 	AcctApplicationID           []*diam.AVP   // Acct applications
@@ -84,6 +86,36 @@ type Client struct {
 	OnWatchdogEvent func(WatchdogEvent)
 
 	watchdogEventMu sync.Mutex
+	watchdogTiming  *watchdogTiming // unexported test override for short timers
+}
+
+type watchdogTiming struct {
+	floor  time.Duration
+	jitter time.Duration
+}
+
+type watchdogActivity struct {
+	signal chan struct{}
+	last   atomic.Int64
+}
+
+func newWatchdogActivity() *watchdogActivity {
+	return &watchdogActivity{signal: make(chan struct{}, 1)}
+}
+
+type activityHandler struct {
+	*StateMachine
+	activity *watchdogActivity
+}
+
+func (h activityHandler) ServeDIAM(c diam.Conn, m *diam.Message) {
+	// RFC 3539 §3.4.1 [2]: any received AAA message resets Tw.
+	h.activity.last.Store(time.Now().UnixNano())
+	select {
+	case h.activity.signal <- struct{}{}:
+	default:
+	}
+	h.StateMachine.ServeDIAM(c, m)
 }
 
 // WatchdogEvent identifies a bounded client-side watchdog outcome from the
@@ -125,8 +157,8 @@ func (cli *Client) DialNetwork(network, addr string) (diam.Conn, error) {
 // DialNetworkBind calls the network address set as ip:port, performs a handshake and optionally
 // start a watchdog goroutine in background.
 func (cli *Client) DialNetworkBind(network, laddr, raddr string) (diam.Conn, error) {
-	return cli.dial(func() (diam.Conn, error) {
-		return cli.server(network, raddr, nil).DialBind(laddr, 0)
+	return cli.dial(func(activity *watchdogActivity) (diam.Conn, error) {
+		return cli.server(network, raddr, nil, activity).DialBind(laddr, 0)
 	})
 }
 
@@ -154,8 +186,8 @@ func (cli *Client) DialNetworkTLS(network, addr, certFile, keyFile string, laddr
 // DialExt - Optionally binds client to laddr, calls the network address set as ip:port,
 // performs a handshake and optionally start a watchdog goroutine in background.
 func (cli *Client) DialExt(network, addr string, timeout time.Duration, laddr net.Addr) (diam.Conn, error) {
-	return cli.dial(func() (diam.Conn, error) {
-		return cli.server(network, addr, laddr).Dial(timeout)
+	return cli.dial(func(activity *watchdogActivity) (diam.Conn, error) {
+		return cli.server(network, addr, laddr, activity).Dial(timeout)
 	})
 }
 
@@ -164,25 +196,29 @@ func (cli *Client) DialExt(network, addr string, timeout time.Duration, laddr ne
 func (cli *Client) DialTLSExt(
 	network, addr, certFile, keyFile string, timeout time.Duration, laddr net.Addr) (diam.Conn, error) {
 
-	return cli.dial(func() (diam.Conn, error) {
-		return cli.server(network, addr, laddr).DialTLS(certFile, keyFile, timeout)
+	return cli.dial(func(activity *watchdogActivity) (diam.Conn, error) {
+		return cli.server(network, addr, laddr, activity).DialTLS(certFile, keyFile, timeout)
 	})
 }
 
 // NewConn is like Dial, but using an already open net.Conn.
 func (cli *Client) NewConn(rw net.Conn, addr string) (diam.Conn, error) {
-	return cli.dial(func() (diam.Conn, error) {
-		return cli.server("", addr, nil).NewConn(rw)
+	return cli.dial(func(activity *watchdogActivity) (diam.Conn, error) {
+		return cli.server("", addr, nil, activity).NewConn(rw)
 	})
 }
 
 // server builds the diam.Server template used to open outgoing connections,
 // carrying the client's dictionary, handler and I/O timeouts.
-func (cli *Client) server(network, addr string, laddr net.Addr) *diam.Server {
+func (cli *Client) server(network, addr string, laddr net.Addr, activity *watchdogActivity) *diam.Server {
+	var handler diam.Handler = cli.Handler
+	if activity != nil {
+		handler = activityHandler{StateMachine: cli.Handler, activity: activity}
+	}
 	return &diam.Server{
 		Network:      network,
 		Addr:         addr,
-		Handler:      cli.Handler,
+		Handler:      handler,
 		Dict:         cli.Dict,
 		LocalAddr:    laddr,
 		TLSConfig:    cli.TLSConfig,
@@ -191,17 +227,18 @@ func (cli *Client) server(network, addr string, laddr net.Addr) *diam.Server {
 	}
 }
 
-type dialFunc func() (diam.Conn, error)
+type dialFunc func(*watchdogActivity) (diam.Conn, error)
 
 func (cli *Client) dial(f dialFunc) (diam.Conn, error) {
 	if err := cli.validate(); err != nil {
 		return nil, err
 	}
-	c, err := f()
+	activity := newWatchdogActivity()
+	c, err := f(activity)
 	if err != nil {
 		return c, err
 	}
-	c, err = cli.handshake(c)
+	c, err = cli.handshake(c, activity)
 	return c, err
 }
 
@@ -217,8 +254,14 @@ func (cli *Client) validate() error {
 		cli.RetransmitInterval = time.Second
 	}
 	if cli.WatchdogInterval == 0 {
-		// Set default WatchdogInterval
-		cli.WatchdogInterval = 5 * time.Second
+		// RFC 3539 §3.4.1 [1] default Twinit.
+		cli.WatchdogInterval = 30 * time.Second
+	}
+	if cli.EnableWatchdog {
+		floor, _ := cli.watchdogParameters()
+		if cli.WatchdogInterval < floor {
+			return fmt.Errorf("watchdog interval %s is below RFC 3539 §3.4.1 minimum %s", cli.WatchdogInterval, floor)
+		}
 	}
 	// Make sure the applications supplied to Client are supported locally
 	for _, submittedAcctApp := range cli.AcctApplicationID {
@@ -254,7 +297,7 @@ func (cli *Client) validate() error {
 	return nil
 }
 
-func (cli *Client) handshake(c diam.Conn) (diam.Conn, error) {
+func (cli *Client) handshake(c diam.Conn, activity *watchdogActivity) (diam.Conn, error) {
 	var (
 		hostAddresses []datatype.Address
 		err           error
@@ -302,7 +345,7 @@ func (cli *Client) handshake(c diam.Conn) (diam.Conn, error) {
 				return nil, err
 			}
 			if cli.EnableWatchdog {
-				go cli.watchdog(c, dwac)
+				go cli.watchdog(c, dwac, activity)
 			}
 			return c, nil
 		case <-time.After(cli.RetransmitInterval):
@@ -368,15 +411,38 @@ func (cli *Client) makeCER(hostIPAddresses []datatype.Address) (*diam.Message, e
 	return m, nil
 }
 
-func (cli *Client) watchdog(c diam.Conn, dwac chan struct{}) {
+func (cli *Client) watchdogParameters() (floor, jitter time.Duration) {
+	if cli.watchdogTiming != nil {
+		return cli.watchdogTiming.floor, cli.watchdogTiming.jitter
+	}
+	return 6 * time.Second, 2 * time.Second
+}
+
+func (cli *Client) nextWatchdogInterval() time.Duration {
+	_, jitter := cli.watchdogParameters()
+	if jitter == 0 {
+		return cli.WatchdogInterval
+	}
+	// RFC 3539 §3.4.1 [1]: Tw = Twinit - 2s + 4s * random().
+	return cli.WatchdogInterval - jitter + time.Duration(rand.Int63n(int64(2*jitter)+1))
+}
+
+func (cli *Client) watchdog(c diam.Conn, dwac chan struct{}, activity *watchdogActivity) {
 	disconnect := c.(diam.CloseNotifier).CloseNotify()
 	var osid = uint32(cli.Handler.cfg.OriginStateID)
 	for {
+		armedAt := time.Now()
+		timer := time.NewTimer(cli.nextWatchdogInterval())
 		select {
 		case <-disconnect:
+			timer.Stop()
 			return
-		case <-time.After(cli.WatchdogInterval):
-			cli.dwr(c, osid, dwac)
+		case <-activity.signal:
+			timer.Stop()
+		case <-timer.C:
+			if activity.last.Load() <= armedAt.UnixNano() {
+				cli.dwr(c, osid, dwac)
+			}
 		}
 	}
 }

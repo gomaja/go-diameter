@@ -117,6 +117,7 @@ func testS6aClientServer(network string, t *testing.T) {
 		RetransmitInterval: time.Second,
 		EnableWatchdog:     true,
 		WatchdogInterval:   time.Second * 3,
+		watchdogTiming:     &watchdogTiming{floor: time.Millisecond},
 		SupportedVendorID: []*diam.AVP{
 			diam.NewAVP(avp.SupportedVendorID, avp.Mbit, 0, datatype.Unsigned32(VENDOR_3GPP)),
 		},

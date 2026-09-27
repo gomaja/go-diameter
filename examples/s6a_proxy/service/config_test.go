@@ -1,6 +1,9 @@
 package service
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func TestS6aProxyConfigCloneWithDefaults(t *testing.T) {
 	src := &S6aProxyConfig{}
@@ -26,5 +29,23 @@ func TestS6aProxyConfigCloneWithDefaults(t *testing.T) {
 	}
 	if src.Protocol != "" || src.Host != "" || src.Realm != "" {
 		t.Fatal("CloneWithDefaults modified source config")
+	}
+}
+
+func TestS6aProxyUsesConfiguredWatchdogInterval(t *testing.T) {
+	for _, tc := range []struct {
+		configured uint
+		want       time.Duration
+	}{{0, 7 * time.Second}, {11, 11 * time.Second}} {
+		proxy, err := NewS6aProxy(&S6aProxyConfig{
+			HssAddr: "127.0.0.1:3868", Protocol: "tcp",
+			Host: "proxy.example", Realm: "example", WatchdogInterval: tc.configured,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if proxy.smClient.WatchdogInterval != tc.want {
+			t.Errorf("configured %d: watchdog interval = %s, want %s", tc.configured, proxy.smClient.WatchdogInterval, tc.want)
+		}
 	}
 }
