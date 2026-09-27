@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"net"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -780,6 +781,55 @@ func TestBindServerRejectsServingAndHandler(t *testing.T) {
 		t.Fatal("accepted serving server")
 	}
 	_ = serving.Close()
+}
+
+func TestBindServerRequiresMatchingDictionary(t *testing.T) {
+	first, err := dict.NewParser()
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := dict.NewParser()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name       string
+		manager    *dict.Parser
+		server     *dict.Parser
+		wantReject bool
+	}{
+		{name: "both default"},
+		{name: "explicit default manager", manager: dict.Default},
+		{name: "explicit default server", server: dict.Default},
+		{name: "same custom parser", manager: first, server: first},
+		{name: "manager custom server default", manager: first, wantReject: true},
+		{name: "manager default server custom", server: first, wantReject: true},
+		{name: "distinct custom parsers", manager: first, server: second, wantReject: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			settings := testSettings("local.example.net")
+			settings.Dict = tc.manager
+			m, err := New(Config{Settings: settings})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer closeManager(t, m, nil)
+			srv := &diam.Server{Dict: tc.server}
+			err = m.BindServer(srv)
+			if tc.wantReject {
+				if err == nil || !strings.Contains(err.Error(), "dictionary") {
+					t.Fatalf("BindServer mismatch error=%v", err)
+				}
+				if srv.Handler != nil {
+					t.Fatal("rejected server was modified")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
 }
 
 func TestBindServerChainsHooks(t *testing.T) {
