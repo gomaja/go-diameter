@@ -91,3 +91,83 @@ func TestClientWatchdogDoesNotCreditAnotherPeersAnswer(t *testing.T) {
 	default:
 	}
 }
+
+func TestClientWatchdogConnectionEventAttribution(t *testing.T) {
+	healthy := diamtest.NewServer(New(serverSettings), dict.Default)
+	defer healthy.Close()
+	silentSM := New(serverSettings)
+	silentSM.mux.HandleIdx(baseDWRIdx, handshakeOK(func(diam.Conn, *diam.Message) {}))
+	silent := diamtest.NewServer(silentSM, dict.Default)
+	defer silent.Close()
+
+	type connEvent struct {
+		conn  diam.Conn
+		event WatchdogEvent
+	}
+	connEvents := make(chan connEvent, 32)
+	legacyEvents := make(chan WatchdogEvent, 32)
+	cli := newLivenessClient()
+	cli.WatchdogInterval = 30 * time.Millisecond
+	cli.OnWatchdogEvent = func(event WatchdogEvent) { legacyEvents <- event }
+	cli.OnWatchdogConnEvent = func(c diam.Conn, event WatchdogEvent) {
+		connEvents <- connEvent{c, event}
+	}
+	healthyConn, err := cli.Dial(healthy.Addr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer healthyConn.Close()
+	silentConn, err := cli.Dial(silent.Addr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer silentConn.Close()
+
+	sawHealthyAnswer := false
+	for _, want := range []WatchdogEvent{WatchdogSuspect, WatchdogTimedOut} {
+		deadline := time.After(time.Second)
+		for {
+			select {
+			case got := <-connEvents:
+				if got.event == WatchdogAnswerReceived {
+					if got.conn != healthyConn {
+						t.Fatalf("answer credited to %v, want healthy connection %v", got.conn, healthyConn)
+					}
+					sawHealthyAnswer = true
+				}
+				if got.event == WatchdogSuspect || got.event == WatchdogTimedOut {
+					if got.conn != silentConn || got.event != want {
+						t.Fatalf("state event = (%v, %q), want (%v, %q)", got.conn, got.event, silentConn, want)
+					}
+					goto next
+				}
+			case <-deadline:
+				t.Fatalf("missing connection event %q", want)
+			}
+		}
+	next:
+	}
+	if !sawHealthyAnswer {
+		t.Fatal("healthy peer's DWA was not attributed")
+	}
+	select {
+	case <-silentConn.(diam.CloseNotifier).CloseNotify():
+	case <-time.After(time.Second):
+		t.Fatal("silent peer was not closed")
+	}
+	select {
+	case <-healthyConn.(diam.CloseNotifier).CloseNotify():
+		t.Fatal("healthy peer was closed")
+	default:
+	}
+	stateEvents := 0
+	for len(legacyEvents) > 0 {
+		event := <-legacyEvents
+		if event == WatchdogSuspect || event == WatchdogTimedOut {
+			stateEvents++
+		}
+	}
+	if stateEvents != 2 {
+		t.Fatalf("legacy callback received %d state events, want 2", stateEvents)
+	}
+}
