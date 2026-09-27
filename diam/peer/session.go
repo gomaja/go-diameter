@@ -11,6 +11,7 @@ import (
 type writeRequest struct {
 	msg        *diam.Message
 	closeAfter bool
+	pending    *pendingRequest
 }
 type incoming struct {
 	msg *diam.Message
@@ -114,6 +115,10 @@ func (s *session) bind(a *actor, gen uint64) {
 	s.firstMu.Unlock()
 }
 func (s *session) send(msg *diam.Message, closeAfter bool) bool {
+	return s.sendWrite(writeRequest{msg: msg, closeAfter: closeAfter})
+}
+func (s *session) sendWrite(w writeRequest) bool {
+	msg := w.msg
 	if msg == nil {
 		return false
 	}
@@ -128,7 +133,7 @@ func (s *session) send(msg *diam.Message, closeAfter bool) bool {
 	select {
 	case <-s.closed:
 		return false
-	case s.writes <- writeRequest{msg: msg, closeAfter: closeAfter}:
+	case s.writes <- w:
 		return true
 	default:
 		return false
@@ -192,6 +197,19 @@ func (s *session) writer() {
 				s.m.report(s, w.msg, err)
 				s.close()
 				return
+			}
+			if w.pending != nil {
+				s.m.pendingMu.Lock()
+				if w.pending.done || w.pending.current != s {
+					s.m.pendingMu.Unlock()
+					continue
+				}
+				// The write begins here. A later completion cannot retract bytes
+				// already submitted to the transport (RFC 6733 §5.5.4).
+				attempt := w.pending.entries[s]
+				attempt.writing = true
+				w.pending.entries[s] = attempt
+				s.m.pendingMu.Unlock()
 			}
 			_, err := w.msg.WriteTo(s.c)
 			if err != nil {
