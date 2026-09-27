@@ -71,12 +71,17 @@ func (s *session) dispatch() {
 			if in.seq < next {
 				continue
 			}
-			if len(pending) >= s.m.cfg.Limits.Events {
-				s.m.report(s, in.msg, errors.New("peer: ordered ingress queue full"))
-				s.close()
-				return
+			if in.seq > next {
+				if _, exists := pending[in.seq]; !exists && len(pending) >= s.m.cfg.Limits.Events {
+					s.m.report(s, in.msg, errors.New("peer: ordered ingress queue full"))
+					s.close()
+					return
+				}
+				pending[in.seq] = in.msg
+				continue
 			}
-			pending[in.seq] = in.msg
+			s.m.processDIAM(s, in.msg)
+			next++
 			for msg := pending[next]; msg != nil; msg = pending[next] {
 				select {
 				case <-s.closed:

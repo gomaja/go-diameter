@@ -154,6 +154,42 @@ func TestConcurrentDispatchPreservesFirstCER(t *testing.T) {
 		awaitState(t, m, Closed)
 	}
 }
+
+func TestOrderedIngressAwaitedMessageBypassesPendingLimit(t *testing.T) {
+	m, err := New(Config{Settings: testSettings("local.example.net"), Limits: Limits{Events: 1}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := m.AddPeer(PeerConfig{Host: "known.example.net"}); err != nil {
+		t.Fatal(err)
+	}
+	c := newFakeConn()
+	s := m.newSession(c, nil, 0, true)
+	defer func() { s.close(); closeManager(t, m, nil) }()
+	cer, err := base.BuildCER(dict.Default, testBase("known.example.net"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	dwr, err := base.BuildDWR(dict.Default, testBase("known.example.net"), 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.ingress <- incoming{msg: dwr, seq: 2}
+	deadline := time.Now().Add(time.Second)
+	for len(s.ingress) != 0 && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+	if len(s.ingress) != 0 {
+		t.Fatal("out-of-order message was not received")
+	}
+	s.ingress <- incoming{msg: cer, seq: 1}
+	awaitState(t, m, ROpen)
+	select {
+	case <-s.closed:
+		t.Fatal("awaited CER closed connection while an out-of-order message was buffered")
+	default:
+	}
+}
 func closeManager(t *testing.T, m *Manager, s *diam.Server) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
