@@ -193,6 +193,12 @@ func TestWatchdogReportsWriteError(t *testing.T) {
 	events := make(chan WatchdogEvent, 2)
 	cli.OnWatchdogEvent = func(event WatchdogEvent) { events <- event }
 	c := newErrWriteConn()
+	connEvents := make(chan diam.Conn, 1)
+	cli.OnWatchdogConnEvent = func(conn diam.Conn, event WatchdogEvent) {
+		if event == WatchdogWriteFailed {
+			connEvents <- conn
+		}
+	}
 
 	cli.dwr(c, 0)
 
@@ -218,6 +224,14 @@ func TestWatchdogReportsWriteError(t *testing.T) {
 		}
 	default:
 		t.Fatal("watchdog write failure event was not reported")
+	}
+	select {
+	case got := <-connEvents:
+		if got != c {
+			t.Fatalf("write failure attributed to %v, want %v", got, c)
+		}
+	default:
+		t.Fatal("watchdog write failure had no connection event")
 	}
 	select {
 	case got := <-events:

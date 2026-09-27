@@ -89,6 +89,10 @@ type Client struct {
 	// so it must be concurrency-safe and return promptly. Events carry no
 	// Diameter message or AVP payload.
 	OnWatchdogEvent func(WatchdogEvent)
+	// OnWatchdogConnEvent observes the same events with the connection that
+	// produced each event. Like OnWatchdogEvent, it must be concurrency-safe
+	// and return promptly. The existing callback runs first when both are set.
+	OnWatchdogConnEvent func(diam.Conn, WatchdogEvent)
 
 	watchdogEventMu sync.Mutex
 	defaultsOnce    sync.Once
@@ -158,15 +162,18 @@ const (
 	WatchdogTimedOut       WatchdogEvent = "timeout"   // RFC 3539 Appendix A: DOWN after another Tw expiration
 )
 
-func (cli *Client) observeWatchdog(event WatchdogEvent) {
+func (cli *Client) observeWatchdog(c diam.Conn, event WatchdogEvent) {
 	cli.watchdogEventMu.Lock()
 	defer cli.watchdogEventMu.Unlock()
-	cli.emitWatchdog(event)
+	cli.emitWatchdog(c, event)
 }
 
-func (cli *Client) emitWatchdog(event WatchdogEvent) {
+func (cli *Client) emitWatchdog(c diam.Conn, event WatchdogEvent) {
 	if cli.OnWatchdogEvent != nil {
 		cli.OnWatchdogEvent(event)
+	}
+	if cli.OnWatchdogConnEvent != nil {
+		cli.OnWatchdogConnEvent(c, event)
 	}
 }
 
@@ -474,14 +481,14 @@ func (cli *Client) watchdog(c diam.Conn, dwac chan struct{}, activity *watchdogA
 			timer.Stop()
 			if suspect {
 				suspect = false
-				cli.observeWatchdog(WatchdogRecovered)
+				cli.observeWatchdog(c, WatchdogRecovered)
 			}
 		case <-dwac:
 			timer.Stop()
 			pending = false
 			if suspect {
 				suspect = false
-				cli.observeWatchdog(WatchdogRecovered)
+				cli.observeWatchdog(c, WatchdogRecovered)
 			}
 		case <-timer.C:
 			// Prefer traffic delivered at the timer boundary to a false
@@ -489,7 +496,7 @@ func (cli *Client) watchdog(c diam.Conn, dwac chan struct{}, activity *watchdogA
 			if activity.last.Load() > armedAt.UnixNano() {
 				if suspect {
 					suspect = false
-					cli.observeWatchdog(WatchdogRecovered)
+					cli.observeWatchdog(c, WatchdogRecovered)
 				}
 				continue
 			}
@@ -498,7 +505,7 @@ func (cli *Client) watchdog(c diam.Conn, dwac chan struct{}, activity *watchdogA
 				pending = false
 				if suspect {
 					suspect = false
-					cli.observeWatchdog(WatchdogRecovered)
+					cli.observeWatchdog(c, WatchdogRecovered)
 				}
 				continue
 			default:
@@ -506,7 +513,7 @@ func (cli *Client) watchdog(c diam.Conn, dwac chan struct{}, activity *watchdogA
 			if suspect {
 				// RFC 3539 Appendix A: a second Tw expiry in SUSPECT
 				// transitions to DOWN and closes this connection.
-				cli.observeWatchdog(WatchdogTimedOut)
+				cli.observeWatchdog(c, WatchdogTimedOut)
 				c.Close()
 				return
 			}
@@ -514,7 +521,7 @@ func (cli *Client) watchdog(c diam.Conn, dwac chan struct{}, activity *watchdogA
 				// RFC 3539 Appendix A: failover belongs to the caller's
 				// supervisor; Client reports SUSPECT but has no peer queue.
 				suspect = true
-				cli.observeWatchdog(WatchdogSuspect)
+				cli.observeWatchdog(c, WatchdogSuspect)
 				continue
 			}
 			if !cli.dwr(c, osid) {
@@ -538,13 +545,13 @@ func (cli *Client) dwr(c diam.Conn, osid uint32) bool {
 	cli.watchdogEventMu.Lock()
 	_, err = m.WriteToStream(c, cli.WatchdogStream)
 	if err != nil {
-		cli.emitWatchdog(WatchdogWriteFailed)
+		cli.emitWatchdog(c, WatchdogWriteFailed)
 		cli.watchdogEventMu.Unlock()
 		cli.Handler.Error(&diam.ErrorReport{Conn: c, Message: m, Error: err})
 		c.Close()
 		return false
 	}
-	cli.emitWatchdog(WatchdogRequestSent)
+	cli.emitWatchdog(c, WatchdogRequestSent)
 	cli.watchdogEventMu.Unlock()
 	return true
 }
