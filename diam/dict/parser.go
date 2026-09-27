@@ -140,8 +140,7 @@ func (p *Parser) Load(r io.Reader) error {
 	}
 	// Pre-merge inherited AVPs so that lookups for child apps resolve in a
 	// single map access instead of walking the parent chain at runtime.
-	p.mergeInheritedAVPs()
-	return nil
+	return p.mergeInheritedAVPs()
 }
 
 // mergeInheritedAVPs copies AVP entries from ancestor applications into
@@ -163,7 +162,7 @@ func (p *Parser) Load(r io.Reader) error {
 //
 // Memory: base AVPs are duplicated per child app at Load time,
 // not per message; bounded by dictionary size.
-func (p *Parser) mergeInheritedAVPs() {
+func (p *Parser) mergeInheritedAVPs() error {
 	// Collect every declared application so apps that inherit all their
 	// AVPs from an ancestor (and define none of their own) are still
 	// processed. Also include any appIDs that only appear as AVP owners.
@@ -203,9 +202,14 @@ func (p *Parser) mergeInheritedAVPs() {
 		// Build the ancestor chain: e.g. for app 4 → [1, 0]
 		var ancestors []uint32
 		cur := appID
+		visited := map[uint32]bool{appID: true}
 		for {
 			parent, hasParent := parentAppIds[cur]
 			if hasParent {
+				if visited[parent] {
+					return fmt.Errorf("dictionary parent application cycle at %d", parent)
+				}
+				visited[parent] = true
 				ancestors = append(ancestors, parent)
 				cur = parent
 			} else if cur != 0 {
@@ -232,6 +236,7 @@ func (p *Parser) mergeInheritedAVPs() {
 			}
 		}
 	}
+	return nil
 }
 
 func updateType(a *AVP) error {
