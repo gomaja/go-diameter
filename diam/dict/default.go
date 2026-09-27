@@ -25,6 +25,7 @@ func init() {
 		{"TGPP_Rx", tgpprxXML},
 		{"TGPP_S6a", tgpps6aXML},
 		{"TGPP_S6c", tgpps6cXML},
+		{"TGPP_SGd", tgppsgdXML},
 		{"TGPP_S13", tgpps13XML},
 		{"TGPP_Swx", tgppswxXML},
 	}
@@ -8067,6 +8068,191 @@ var tgpps6cXML = `<?xml version="1.0" encoding="UTF-8"?>
           <data type="Unsigned32">
           </data>
         </avp>
+        <!-- 3GPP TS 29.272 V19.5.0 §7.3.115, Table 7.3.1/1; reused by TS 29.338 V19.3.0 Table 6.3.3.1/2. -->
+        <avp name="MME-Location-Information" code="1600" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+          <data type="Grouped">
+            <rule avp="E-UTRAN-Cell-Global-Identity" required="false" max="1"/>
+            <rule avp="Tracking-Area-Identity" required="false" max="1"/>
+            <rule avp="Geographical-Information" required="false" max="1"/>
+            <rule avp="Geodetic-Information" required="false" max="1"/>
+            <rule avp="Current-Location-Retrieved" required="false" max="1"/>
+            <rule avp="Age-Of-Location-Information" required="false" max="1"/>
+            <rule avp="User-CSG-Information" required="false" max="1"/>
+            <rule avp="eNodeB-ID" required="false" max="1"/>
+            <rule avp="Extended-eNodeB-ID" required="false" max="1"/>
+          </data>
+        </avp>
+        <!-- 3GPP TS 29.272 V19.5.0 §7.3.116, Table 7.3.1/1; reused by TS 29.338 V19.3.0 Table 6.3.3.1/2. -->
+        <avp name="SGSN-Location-Information" code="1601" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+          <data type="Grouped">
+            <rule avp="Cell-Global-Identity" required="false" max="1"/>
+            <rule avp="Location-Area-Identity" required="false" max="1"/>
+            <rule avp="Service-Area-Identity" required="false" max="1"/>
+            <rule avp="Routing-Area-Identity" required="false" max="1"/>
+            <rule avp="Geographical-Information" required="false" max="1"/>
+            <rule avp="Geodetic-Information" required="false" max="1"/>
+            <rule avp="Current-Location-Retrieved" required="false" max="1"/>
+            <rule avp="Age-Of-Location-Information" required="false" max="1"/>
+            <rule avp="User-CSG-Information" required="false" max="1"/>
+          </data>
+        </avp>
+        <!-- 3GPP TS 29.272 V19.5.0 §7.3.117, Table 7.3.1/1; reused by TS 29.338 V19.3.0 Table 6.3.3.1/2. -->
+        <avp name="E-UTRAN-Cell-Global-Identity" code="1602" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+          <data type="OctetString">
+          </data>
+        </avp>
+        <!-- 3GPP TS 29.272 V19.5.0 §7.3.118, Table 7.3.1/1; reused by TS 29.338 V19.3.0 Table 6.3.3.1/2. -->
+        <avp name="Tracking-Area-Identity" code="1603" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+          <data type="OctetString">
+          </data>
+        </avp>
+        <!-- 3GPP TS 29.272 V19.5.0 §7.3.119, Table 7.3.1/1; reused by TS 29.338 V19.3.0 Table 6.3.3.1/2. -->
+        <avp name="Cell-Global-Identity" code="1604" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+          <data type="OctetString">
+          </data>
+        </avp>
+        <!-- 3GPP TS 29.272 V19.5.0 §7.3.120, Table 7.3.1/1; reused by TS 29.338 V19.3.0 Table 6.3.3.1/2. -->
+        <avp name="Routing-Area-Identity" code="1605" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+          <data type="OctetString">
+          </data>
+        </avp>
+        <!-- 3GPP TS 29.272 V19.5.0 §7.3.121, Table 7.3.1/1; reused by TS 29.338 V19.3.0 Table 6.3.3.1/2. -->
+        <avp name="Location-Area-Identity" code="1606" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+          <data type="OctetString">
+          </data>
+        </avp>
+        <!-- 3GPP TS 29.272 V19.5.0 §7.3.122, Table 7.3.1/1; reused by TS 29.338 V19.3.0 Table 6.3.3.1/2. -->
+        <avp name="Service-Area-Identity" code="1607" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+          <data type="OctetString">
+          </data>
+        </avp>
+        <!-- 3GPP TS 29.272 V19.5.0 §7.3.123, Table 7.3.1/1; reused by TS 29.338 V19.3.0 Table 6.3.3.1/2. -->
+        <avp name="Geographical-Information" code="1608" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+          <data type="OctetString">
+          </data>
+        </avp>
+        <!-- 3GPP TS 29.272 V19.5.0 §7.3.124, Table 7.3.1/1; reused by TS 29.338 V19.3.0 Table 6.3.3.1/2. -->
+        <avp name="Geodetic-Information" code="1609" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+          <data type="OctetString">
+          </data>
+        </avp>
+        <!-- 3GPP TS 29.272 V19.5.0 §7.3.125, Table 7.3.1/1; reused by TS 29.338 V19.3.0 Table 6.3.3.1/2. -->
+        <avp name="Current-Location-Retrieved" code="1610" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+          <data type="Enumerated">
+          </data>
+        </avp>
+        <!-- 3GPP TS 29.272 V19.5.0 §7.3.126, Table 7.3.1/1; reused by TS 29.338 V19.3.0 Table 6.3.3.1/2. -->
+        <avp name="Age-Of-Location-Information" code="1611" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+          <data type="Unsigned32">
+          </data>
+        </avp>
+        <!-- 3GPP TS 29.217 V19.0.0 §5.3.10, Table 5.3.1.1; TS 29.272 V19.5.0 §7.3.115. -->
+        <avp name="eNodeB-ID" code="4008" vendor-id="10415" must="V" must-not="M" may-encrypt="Y"><data type="OctetString"/></avp>
+        <!-- 3GPP TS 29.217 V19.0.0 §5.3.15, Table 5.3.1.1; TS 29.272 V19.5.0 §7.3.115. -->
+        <avp name="Extended-eNodeB-ID" code="4013" vendor-id="10415" must="V" must-not="M" may-encrypt="Y"><data type="OctetString"/></avp>
+    </application>
+</diameter>`
+
+var tgppsgdXML = `<?xml version="1.0" encoding="UTF-8"?>
+<diameter>
+    <!-- 3GPP TS 29.338 V19.3.0 §4.1, §6.3.2.2, Table 6.3.2.2/1. -->
+    <application id="16777313" type="auth" name="TGPP SGd">
+        <vendor id="10415" name="TGPP"/>
+        <!-- 3GPP TS 29.338 V19.3.0 §§6.3.2.3-6.3.2.4, Table 6.3.2.2/1. -->
+        <command code="8388645" short="OF" name="MO-Forward-Short-Message">
+          <request>
+            <rule avp="Session-Id" required="true" max="1"/>
+            <rule avp="DRMP" required="false" max="1"/>
+            <rule avp="Vendor-Specific-Application-Id" required="false" max="1"/>
+            <rule avp="Auth-Session-State" required="true" max="1"/>
+            <rule avp="Origin-Host" required="true" max="1"/>
+            <rule avp="Origin-Realm" required="true" max="1"/>
+            <rule avp="Destination-Host" required="false" max="1"/>
+            <rule avp="Destination-Realm" required="true" max="1"/>
+            <rule avp="SC-Address" required="true" max="1"/>
+            <rule avp="OFR-Flags" required="false" max="1"/>
+            <rule avp="Supported-Features" required="false"/>
+            <rule avp="User-Identifier" required="true" max="1"/>
+            <rule avp="EPS-Location-Information" required="false" max="1"/>
+            <rule avp="NR-Cell-Global-Identity" required="false" max="1"/>
+            <rule avp="SM-RP-UI" required="true" max="1"/>
+            <rule avp="SMSMI-Correlation-ID" required="false" max="1"/>
+            <rule avp="SM-Delivery-Outcome" required="false" max="1"/>
+            <rule avp="MPS-Priority" required="false" max="1"/>
+            <rule avp="AVP" required="false"/>
+            <rule avp="Proxy-Info" required="false"/>
+            <rule avp="Route-Record" required="false"/>
+          </request>
+          <answer>
+            <rule avp="Session-Id" required="true" max="1"/>
+            <rule avp="DRMP" required="false" max="1"/>
+            <rule avp="Vendor-Specific-Application-Id" required="false" max="1"/>
+            <rule avp="Result-Code" required="false" max="1"/>
+            <rule avp="Experimental-Result" required="false" max="1"/>
+            <rule avp="Auth-Session-State" required="true" max="1"/>
+            <rule avp="Origin-Host" required="true" max="1"/>
+            <rule avp="Origin-Realm" required="true" max="1"/>
+            <rule avp="Supported-Features" required="false"/>
+            <rule avp="SM-Delivery-Failure-Cause" required="false" max="1"/>
+            <rule avp="SM-RP-UI" required="false" max="1"/>
+            <rule avp="External-Identifier" required="false" max="1"/>
+            <rule avp="AVP" required="false"/>
+            <rule avp="Failed-AVP" required="false" max="1"/>
+            <rule avp="Proxy-Info" required="false"/>
+            <rule avp="Route-Record" required="false"/>
+          </answer>
+        </command>
+        <!-- 3GPP TS 29.338 V19.3.0 §§6.3.2.5-6.3.2.6, Table 6.3.2.2/1. -->
+        <command code="8388646" short="TF" name="MT-Forward-Short-Message">
+          <request>
+            <rule avp="Session-Id" required="true" max="1"/>
+            <rule avp="DRMP" required="false" max="1"/>
+            <rule avp="Vendor-Specific-Application-Id" required="false" max="1"/>
+            <rule avp="Auth-Session-State" required="true" max="1"/>
+            <rule avp="Origin-Host" required="true" max="1"/>
+            <rule avp="Origin-Realm" required="true" max="1"/>
+            <rule avp="Destination-Host" required="true" max="1"/>
+            <rule avp="Destination-Realm" required="true" max="1"/>
+            <rule avp="User-Name" required="true" max="1"/>
+            <rule avp="Supported-Features" required="false"/>
+            <rule avp="SMSMI-Correlation-ID" required="false" max="1"/>
+            <rule avp="SC-Address" required="true" max="1"/>
+            <rule avp="SM-RP-UI" required="true" max="1"/>
+            <rule avp="MME-Number-for-MT-SMS" required="false" max="1"/>
+            <rule avp="SGSN-Number" required="false" max="1"/>
+            <rule avp="TFR-Flags" required="false" max="1"/>
+            <rule avp="SM-Delivery-Timer" required="false" max="1"/>
+            <rule avp="SM-Delivery-Start-Time" required="false" max="1"/>
+            <rule avp="Maximum-Retransmission-Time" required="false" max="1"/>
+            <rule avp="SMS-GMSC-Address" required="false" max="1"/>
+            <rule avp="MPS-Priority" required="false" max="1"/>
+            <rule avp="AVP" required="false"/>
+            <rule avp="Proxy-Info" required="false"/>
+            <rule avp="Route-Record" required="false"/>
+          </request>
+          <answer>
+            <rule avp="Session-Id" required="true" max="1"/>
+            <rule avp="DRMP" required="false" max="1"/>
+            <rule avp="Vendor-Specific-Application-Id" required="false" max="1"/>
+            <rule avp="Result-Code" required="false" max="1"/>
+            <rule avp="Experimental-Result" required="false" max="1"/>
+            <rule avp="Auth-Session-State" required="true" max="1"/>
+            <rule avp="Origin-Host" required="true" max="1"/>
+            <rule avp="Origin-Realm" required="true" max="1"/>
+            <rule avp="Supported-Features" required="false"/>
+            <rule avp="Absent-User-Diagnostic-SM" required="false" max="1"/>
+            <rule avp="SM-Delivery-Failure-Cause" required="false" max="1"/>
+            <rule avp="SM-RP-UI" required="false" max="1"/>
+            <rule avp="Requested-Retransmission-Time" required="false" max="1"/>
+            <rule avp="User-Identifier" required="false" max="1"/>
+            <rule avp="EPS-Location-Information" required="false" max="1"/>
+            <rule avp="NR-Cell-Global-Identity" required="false" max="1"/>
+            <rule avp="AVP" required="false"/>
+            <rule avp="Failed-AVP" required="false" max="1"/>
+            <rule avp="Proxy-Info" required="false"/>
+            <rule avp="Route-Record" required="false"/>
+          </answer>
+        </command>
     </application>
 </diameter>`
 

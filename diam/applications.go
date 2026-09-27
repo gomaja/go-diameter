@@ -20,4 +20,5 @@ const (
 	TGPP_SWX_APP_ID            = 16777265
 	DIAMETER_SY_APP_ID         = 16777302
 	TGPP_S6C_APP_ID            = 16777312
+	TGPP_SGD_APP_ID            = 16777313
 )

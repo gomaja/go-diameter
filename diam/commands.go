@@ -21,6 +21,8 @@ const (
 	DisconnectPeer            = 282
 	InsertSubscriberData      = 319
 	MEIdentityCheck           = 324
+	MOForwardShortMessage     = 8388645
+	MTForwardShortMessage     = 8388646
 	MultimediaAuth            = 303
 	Notify                    = 323
 	PurgeUE                   = 321
@@ -67,6 +69,8 @@ const (
 	MAR = "MAR"
 	NOA = "NOA"
 	NOR = "NOR"
+	OFA = "OFA"
+	OFR = "OFR"
 	PUA = "PUA"
 	PUR = "PUR"
 	RAA = "RAA"
@@ -85,6 +89,8 @@ const (
 	SRR = "SRR"
 	STA = "STA"
 	STR = "STR"
+	TFA = "TFA"
+	TFR = "TFR"
 	ULA = "ULA"
 	ULR = "ULR"
 )
