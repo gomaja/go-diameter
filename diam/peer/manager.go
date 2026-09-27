@@ -33,8 +33,8 @@ type realClock struct{}
 
 func (realClock) AfterFunc(d time.Duration, f func()) Timer { return time.AfterFunc(d, f) }
 
-type Timers struct{ Tc, TwInit, Connect, CER, Closing time.Duration }
-type Limits struct{ Events int }
+type Timers struct{ Tc, TwInit, Connect, CER, Closing, Request time.Duration }
+type Limits struct{ Events, PendingPerPeer int }
 type DialFunc func(context.Context, Endpoint) (net.Conn, error)
 type Endpoint struct {
 	Network, Address string
@@ -90,6 +90,11 @@ type Manager struct {
 	errors           *diam.ServeMux
 	routes           atomic.Pointer[routeTable]
 	endToEnd         endToEndAllocator
+	pendingMu        sync.Mutex
+	pending          map[*session]map[uint32]*pendingRequest
+	controls         map[*session]map[uint32]struct{}
+	nextHop          uint32
+	localApps        map[uint32]struct{}
 }
 
 func New(cfg Config) (*Manager, error) {
@@ -128,7 +133,20 @@ func New(cfg Config) (*Manager, error) {
 	if cfg.Limits.Events <= 0 {
 		cfg.Limits.Events = 64
 	}
-	m := &Manager{cfg: cfg, peers: make(map[string]*actor), sessions: make(map[diam.Conn]*session), done: make(chan struct{}), closed: make(chan struct{}), callbackQ: make(chan PeerEvent, cfg.Limits.Events), errors: diam.NewServeMux()}
+	if cfg.Timers.Request <= 0 {
+		cfg.Timers.Request = 30 * time.Second
+	}
+	if cfg.Limits.PendingPerPeer <= 0 {
+		cfg.Limits.PendingPerPeer = 1024
+	}
+	m := &Manager{cfg: cfg, peers: make(map[string]*actor), sessions: make(map[diam.Conn]*session), done: make(chan struct{}), closed: make(chan struct{}), callbackQ: make(chan PeerEvent, cfg.Limits.Events), errors: diam.NewServeMux(), pending: make(map[*session]map[uint32]*pendingRequest), controls: make(map[*session]map[uint32]struct{}), localApps: make(map[uint32]struct{})}
+	localDict := cfg.Settings.Dict
+	if localDict == nil {
+		localDict = dict.Default
+	}
+	for _, app := range sm.PrepareSupportedApps(localDict) {
+		m.localApps[app.ID] = struct{}{}
+	}
 	if err := m.endToEnd.init(); err != nil {
 		return nil, err
 	}

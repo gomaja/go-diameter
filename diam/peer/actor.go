@@ -54,6 +54,7 @@ type actor struct {
 	pendingDPREnd uint32
 	closeCause    sm.DisconnectCause
 	snapshotValue atomic.Value
+	activeSession atomic.Pointer[session]
 
 	watchdog          WatchdogState
 	wdTimer, tcTimer  Timer
@@ -86,6 +87,7 @@ func (a *actor) publish(err error) {
 		p.Generation = a.active.gen
 	}
 	a.snapshotValue.Store(p)
+	a.activeSession.Store(a.active)
 	if err != nil || a.state == IOpen || a.state == ROpen || a.state == Closed {
 		a.m.notify(PeerEvent{Peer: p, Reason: err})
 	}
@@ -352,6 +354,9 @@ func (a *actor) onWire(e event) {
 		return
 	}
 	if (s != a.i && s != a.r) || s.gen == 0 {
+		if msg.Header.CommandFlags&diam.RequestFlag == 0 && msg.Header.ApplicationID != 0 {
+			a.m.report(s, msg, errors.New("peer: answer on retired connection generation (RFC 6733 §6.2.1)"))
+		}
 		return
 	} // RFC 6733 §5.6: ignore retired candidate generations.
 	isI := s == a.i
@@ -373,6 +378,7 @@ func (a *actor) onWire(e event) {
 				return
 			}
 			a.meta = smpeer.FromCEA(cea).Clone()
+			s.releaseControl(s.cerHop)
 			a.step(iCEA, s, msg)
 			return
 		}
@@ -414,8 +420,10 @@ func (a *actor) onWire(e event) {
 				return
 			}
 			if isI {
+				s.releaseControl(a.pendingDPR)
 				a.step(iDPA, s, msg)
 			} else {
+				s.releaseControl(a.pendingDPR)
 				a.step(rDPA, s, msg)
 			}
 		} else if cmd == diam.DisconnectPeer && req && a.validDPR(s, msg) {
@@ -549,7 +557,7 @@ func (a *actor) step(ev psmEvent, s *session, msg *diam.Message) {
 		a.arm(a.m.cfg.Timers.CER)
 		if a.i != nil {
 			m, err := base.BuildCER(a.m.dictionary(), a.m.baseSettings(a.i.c))
-			if err != nil || !a.i.send(m, false) {
+			if err != nil || !a.i.sendControl(m) {
 				a.fail(fmt.Errorf("peer: send CER: %v", err))
 				return
 			}
@@ -628,7 +636,7 @@ func (a *actor) step(ev psmEvent, s *session, msg *diam.Message) {
 	case stop:
 		a.stopTimer()
 		dpr, err := base.BuildDPR(a.m.dictionary(), a.m.baseSettings(s.c), uint32(a.closeCause))
-		if err != nil || !s.send(dpr, false) {
+		if err != nil || !s.sendControl(dpr) {
 			a.fail(fmt.Errorf("peer: send DPR: %v", err))
 			return
 		}
@@ -641,7 +649,11 @@ func (a *actor) step(ev psmEvent, s *session, msg *diam.Message) {
 		a.active = nil
 		a.meta = nil
 	case iMessage, rMessage:
-		a.m.unsupported(s, msg)
+		if msg.Header.CommandFlags&diam.RequestFlag == 0 {
+			a.m.receiveAnswer(s, msg)
+		} else {
+			a.m.unsupported(s, msg)
+		}
 	}
 	if old != IOpen && old != ROpen && (a.state == IOpen || a.state == ROpen) {
 		a.onOpen()
