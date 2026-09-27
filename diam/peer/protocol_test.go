@@ -355,6 +355,65 @@ func TestFakeTransportOpenControl(t *testing.T) {
 	closeManager(t, m, nil)
 }
 
+func TestFakeTransportDPAIdentifiersAndPeer(t *testing.T) {
+	for _, state := range []PeerState{IOpen, ROpen} {
+		t.Run(string(state), func(t *testing.T) {
+			clock := &fakeClock{}
+			m, err := New(Config{Settings: testSettings("local.example.net"), Clock: clock})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer closeManager(t, m, nil)
+			a := &actor{m: m, cfg: PeerConfig{Host: "known.example.net"}, state: state, events: make(chan event, 8), done: make(chan struct{})}
+			s := &session{m: m, c: newFakeConn(), actor: a, gen: 1, writes: make(chan writeRequest, 8), closed: make(chan struct{})}
+			defer s.close()
+			if state == IOpen {
+				a.i = s
+			} else {
+				a.r = s
+			}
+			a.active = s
+			a.publish(nil)
+			a.stop(sm.DisconnectBusy)
+			if a.state != Closing {
+				t.Fatalf("state=%s", a.state)
+			}
+			dpr := (<-s.writes).msg
+			if dpr.Header.CommandCode != diam.DisconnectPeer || dpr.Header.CommandFlags&diam.RequestFlag == 0 {
+				t.Fatal("missing DPR")
+			}
+			answer := func() *diam.Message {
+				m, err := base.BuildDPA(dpr, testBase("known.example.net"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				return m
+			}
+			for _, mutate := range []func(*diam.Message){
+				func(m *diam.Message) { m.Header.HopByHopID++ },
+				func(m *diam.Message) { m.Header.EndToEndID++ },
+				func(m *diam.Message) {
+					a, _ := m.FindAVP(avp.ResultCode, 0)
+					a.Data = datatype.Unsigned32(diam.UnableToComply)
+				},
+				func(m *diam.Message) {
+					a, _ := m.FindAVP(avp.OriginHost, 0)
+					a.Data = datatype.DiameterIdentity("other.example.net")
+				},
+			} {
+				a.onWire(event{kind: wireEvent, s: s, msg: func() *diam.Message { m := answer(); mutate(m); return m }()})
+				if a.state != Closing {
+					t.Fatalf("invalid DPA moved state to %s", a.state)
+				}
+			}
+			a.onWire(event{kind: wireEvent, s: s, msg: answer()})
+			if a.state != Closed {
+				t.Fatalf("valid DPA left state %s", a.state)
+			}
+		})
+	}
+}
+
 func TestManagedControlAndUnsupported(t *testing.T) {
 	m, e := New(Config{Settings: testSettings("local.example.net")})
 	if e != nil {
