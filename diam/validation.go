@@ -120,7 +120,12 @@ func validateAVPs(items []*AVP, rules []*dict.Rule, appID uint32, dictionary *di
 				return &ValidationError{ResultCode: InvalidAVPBits, FailedAVP: a, Reason: "AVP flags disagree with dictionary"}
 			}
 		}
-		if !listed && !allowAny {
+		// RFC 6733 §7.1.5: 5008 is for an AVP that MUST NOT be present, which
+		// only a known AVP can be judged. An AVP the dictionary does not know
+		// is left to §4.1: ignored when M is clear, or answered with 5001 by the
+		// separate unknown-mandatory check. Rejecting it here would also turn
+		// every gap in an incomplete dictionary into a false 5008.
+		if !listed && !allowAny && known == nil {
 			return &ValidationError{ResultCode: AVPNotAllowed, FailedAVP: a, Reason: "AVP not in grammar"}
 		}
 		if listed && entry.rule.Fixed {

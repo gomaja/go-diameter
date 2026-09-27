@@ -50,6 +50,8 @@ func TestValidateDictionaryRules(t *testing.T) {
 		{"missing", func(m *Message) { m.AVP = m.AVP[:1] }, MissingAVP, 2},
 		{"too many", func(m *Message) { m.AddAVP(NewAVP(2, avp.Mbit, 0, datatype.Unsigned32(3))) }, AVPOccursTooManyTimes, 2},
 		{"not allowed", func(m *Message) { m.AddAVP(NewAVP(6, avp.Mbit, 0, datatype.Unsigned32(1))) }, AVPNotAllowed, 6},
+		{"unknown optional AVP ignored", func(m *Message) { m.AddAVP(NewAVP(77, 0, 0, datatype.Unknown{1})) }, 0, 0},
+		{"unknown mandatory AVP left to 5001", func(m *Message) { m.AddAVP(NewAVP(78, avp.Mbit, 0, datatype.Unknown{1})) }, 0, 0},
 		{"fixed position", func(m *Message) { m.AVP[0], m.AVP[1] = m.AVP[1], m.AVP[0] }, AVPNotAllowed, 2},
 		{"missing M", func(m *Message) { m.AVP[0].Flags = 0 }, InvalidAVPBits, 1},
 		{"forbidden P", func(m *Message) { m.AVP[0].Flags |= avp.Pbit }, InvalidAVPBits, 1},
