@@ -17,7 +17,7 @@ func TestDWR_MissingOriginHost(t *testing.T) {
 	m := diam.NewRequest(diam.DeviceWatchdog, 0, dict.Default)
 	dwr := new(DWR)
 	err := dwr.Parse(m)
-	if err != nil && err != ErrMissingOriginHost {
+	if err != ErrMissingOriginHost {
 		t.Fatal("Unexpected error:", err)
 	}
 }
@@ -27,7 +27,7 @@ func TestDWR_MissingOriginRealm(t *testing.T) {
 	mustDWRAVP(t, m, avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("foobar"))
 	dwr := new(DWR)
 	err := dwr.Parse(m)
-	if err != nil && err != ErrMissingOriginRealm {
+	if err != ErrMissingOriginRealm {
 		t.Fatal("Unexpected error:", err)
 	}
 }
@@ -41,6 +41,21 @@ func TestDWR_OK(t *testing.T) {
 	err := dwr.Parse(m)
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestDWRParseReturnsUnmarshalError(t *testing.T) {
+	// An incomplete dictionary makes Unmarshal fail before the mandatory-AVP
+	// checks; Parse must report that failure to its caller.
+	incomplete, err := dict.NewParser()
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := diam.NewRequest(diam.DeviceWatchdog, 0, incomplete)
+	mustDWRAVP(t, m, avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("host"))
+	mustDWRAVP(t, m, avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("test"))
+	if err := new(DWR).Parse(m); err == nil {
+		t.Fatal("Unmarshal error was suppressed")
 	}
 }
 
