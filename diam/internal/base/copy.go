@@ -1,8 +1,6 @@
 package base
 
 import (
-	"fmt"
-
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/datatype"
 )
@@ -24,11 +22,13 @@ func CloneAVP(a *diam.AVP) *diam.AVP {
 		}
 		return &copy
 	}
-	// Diameter datatype decoders allocate their own data. This also copies
-	// custom registered types instead of retaining caller-owned storage.
-	data, err := datatype.Decode(a.Data.Type(), a.Data.Serialize())
+	// Built-in datatype decoders allocate their own data. Registered custom
+	// decoders receive a copied byte slice; unregistered types keep those bytes.
+	raw := append([]byte(nil), a.Data.Serialize()...)
+	data, err := datatype.Decode(a.Data.Type(), raw)
 	if err != nil {
-		panic(fmt.Sprintf("clone Diameter AVP %d: %v", a.Code, err))
+		copy.Data = datatype.Unknown(raw)
+		return &copy
 	}
 	copy.Data = data
 	return &copy
