@@ -65,6 +65,8 @@ func handleDPR(sm *StateMachine) diam.HandlerFunc {
 		// RFC 6733 §§5.4.2, 5.6: send DPA, then wait in Closing for
 		// the initiating peer to close the transport.
 		a := m.Answer(diam.Success)
+		a.Header.CommandFlags = 0 // RFC 6733 §5.4.2: DPA has no P, E or T bit.
+		a.Header.ApplicationID = 0
 		if _, err = a.NewAVP(avp.OriginHost, avp.Mbit, 0, sm.cfg.OriginHost); err == nil {
 			_, err = a.NewAVP(avp.OriginRealm, avp.Mbit, 0, sm.cfg.OriginRealm)
 		}

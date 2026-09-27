@@ -49,6 +49,9 @@ func TestCERAndDWRAnswersCopyIdentifiers(t *testing.T) {
 					if m.Header.CommandCode != command || m.Header.HopByHopID != tc.hop || m.Header.EndToEndID != tc.end {
 						t.Fatalf("answer command/IDs = (%d,%d,%d), want (%d,%d,%d)", m.Header.CommandCode, m.Header.HopByHopID, m.Header.EndToEndID, command, tc.hop, tc.end)
 					}
+					if validationErr := m.Validate(); validationErr != nil {
+						t.Fatalf("received library-built answer violates dictionary: %v", validationErr)
+					}
 				case <-time.After(2 * time.Second):
 					t.Fatal("no answer")
 				}

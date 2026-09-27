@@ -183,8 +183,9 @@ func TestOnCEAHookErrorCEA(t *testing.T) {
 		if m.Header.CommandFlags&diam.RequestFlag != 0 {
 			t.Errorf("OnCEA invoked with a request message, want an answer")
 		}
-		if m.Header.CommandFlags&diam.ErrorFlag == 0 {
-			t.Errorf("OnCEA error-CEA message does not have the Error flag set")
+		// RFC 6733 §7.1.5: the 5xxx CEA error keeps E clear.
+		if m.Header.CommandFlags&diam.ErrorFlag != 0 {
+			t.Errorf("OnCEA 5xxx CEA has the Error flag set")
 		}
 		atomic.AddInt32(&onCEACalls, 1)
 		select {
