@@ -21,7 +21,8 @@ var parentAppIds map[uint32]uint32 = map[uint32]uint32{
 	// 3GPP TS 29.338 V19.3.0 §§5.3.3.1, 6.3.3.1, Tables 5.3.3.1/2, 6.3.3.1/2.
 	16777312: 4,
 	16777313: 16777312,
-	16777251: 4,
+	// S6a reuses TS 29.272 AVPs present in the S6c SMS dictionary.
+	16777251: 16777312,
 	16777238: 4,
 	4:        1,
 }
