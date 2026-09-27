@@ -24,6 +24,7 @@ type session struct {
 	inbound        bool
 	firstMu        sync.Mutex
 	first          bool
+	rejectingFirst bool
 	preTimer       Timer
 	writes         chan writeRequest
 	ingress        chan incoming
