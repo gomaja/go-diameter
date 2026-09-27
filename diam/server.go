@@ -735,7 +735,7 @@ func Serve(l net.Listener, handler Handler) error {
 // A Server defines parameters for running a diameter server.
 type Server struct {
 	Network      string        // network of the address - empty string defaults to tcp
-	Addr         string        // address to listen on, ":3868" if empty
+	Addr         string        // address to listen on; blank uses :3868, or :5868 with TLS
 	Handler      Handler       // handler to invoke, DefaultServeMux if nil
 	Dict         *dict.Parser  // diameter dictionaries for this server
 	ReadTimeout  time.Duration // maximum duration before timing out read of the request
@@ -976,16 +976,13 @@ func ListenAndServe(addr string, handler Handler, dp *dict.Parser) error {
 // of the server's certificate followed by the CA's certificate.
 //
 // If srv.Network is blank, "tcp" is used
-// If srv.Addr is blank, ":3868" is used.
+// If srv.Addr is blank, ":5868" is used (RFC 6733 §2.1, Verified Erratum 3997).
 func (srv *Server) ListenAndServeTLS(certFile, keyFile string) error {
 	network := srv.Network
 	if len(network) == 0 {
 		network = "tcp"
 	}
-	addr := srv.Addr
-	if len(addr) == 0 {
-		addr = ":3868"
-	}
+	addr := defaultTransportAddress(srv.Addr, true)
 	var config *tls.Config
 	if srv.TLSConfig == nil {
 		config = new(tls.Config)

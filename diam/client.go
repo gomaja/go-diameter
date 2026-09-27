@@ -79,10 +79,7 @@ func dialBind(srv *Server, laddr net.Addr, timeout time.Duration) (Conn, error) 
 	if len(network) == 0 {
 		network = "tcp"
 	}
-	addr := srv.Addr
-	if len(addr) == 0 {
-		addr = ":3868"
-	}
+	addr := defaultTransportAddress(srv.Addr, false)
 	var rw net.Conn
 	var err error
 	dialer := getMultistreamDialer(network, timeout, laddr)
@@ -98,7 +95,8 @@ func dialBind(srv *Server, laddr net.Addr, timeout time.Duration) (Conn, error) 
 	return c.writer, nil
 }
 
-// DialTLS is the same as Dial, but for TLS.
+// DialTLS is the same as Dial, but for TLS. A blank address uses port 5868
+// (RFC 6733 §2.1, Verified Erratum 3997).
 func DialTLS(addr, certFile, keyFile string, handler Handler, dp *dict.Parser) (Conn, error) {
 	return DialTLSExt("tcp", addr, certFile, keyFile, handler, dp, 0, nil)
 }
@@ -142,10 +140,7 @@ func dialTLS(srv *Server, certFile, keyFile string, timeout time.Duration) (Conn
 	if len(network) == 0 {
 		network = "tcp"
 	}
-	addr := srv.Addr
-	if len(addr) == 0 {
-		addr = ":3868"
-	}
+	addr := defaultTransportAddress(srv.Addr, true)
 	config := clientTLSConfig(addr, srv.TLSConfig)
 	if len(certFile) != 0 {
 		config.Certificates = make([]tls.Certificate, 1)
@@ -167,6 +162,17 @@ func dialTLS(srv *Server, certFile, keyFile string, timeout time.Duration) (Conn
 	}
 	go c.serve()
 	return c.writer, nil
+}
+
+// defaultTransportAddress applies RFC 6733 §2.1 and Verified Erratum 3997.
+func defaultTransportAddress(addr string, secure bool) string {
+	if addr != "" {
+		return addr
+	}
+	if secure {
+		return ":5868"
+	}
+	return ":3868"
 }
 
 func clientTLSConfig(addr string, cfg *tls.Config) *tls.Config {
@@ -217,6 +223,7 @@ func (srv *Server) DialBind(laddr string, timeout time.Duration) (Conn, error) {
 // DialTLS opens an outgoing TLS connection using srv as the client
 // configuration. Honors the same srv fields as Dial, plus srv.TLSConfig.
 // certFile and keyFile are optional; when empty, srv.TLSConfig is used as-is.
+// A blank address uses port 5868 (RFC 6733 §2.1, Verified Erratum 3997).
 func (srv *Server) DialTLS(certFile, keyFile string, timeout time.Duration) (Conn, error) {
 	return dialTLS(srv, certFile, keyFile, timeout)
 }
