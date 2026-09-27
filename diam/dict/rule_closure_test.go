@@ -22,8 +22,7 @@ var legacy3GPPGroupGaps = []string{
 var legacy3GPPServingGaps = []string{"MSC-Number", "SGSN-Name", "SGSN-Realm"}
 
 var knownRuleExceptions = map[uint32][]string{
-	0: {"Acct-Session-Id"},
-	1: {"Acct-Session-Id", "Connection-Info", "NAS-IP-Address", "NAS-IPv6-Address",
+	1: {"Connection-Info", "NAS-IP-Address", "NAS-IPv6-Address",
 		"NAS-Identifier", "Origin-AAA-Protocol", "QoS-Filter-Rule", "State"},
 	4: append(append([]string{}, legacy3GPPGroupGaps...), legacy3GPPServingGaps...),
 	16777236: {"3GPP-MS-TimeZone", "3GPP-SGSN-MCC-MNC", "3GPP-User-Location-Info",

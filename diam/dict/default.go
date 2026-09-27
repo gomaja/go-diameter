@@ -295,7 +295,8 @@ var baseXML = `<?xml version="1.0" encoding="UTF-8"?>
 			</data>
 		</avp>
 
-		<avp name="Accounting-Session-Id" code="44" must="M" may="P" must-not="V" may-encrypt="Y">
+		<!-- RFC 6733 §§9.8.4, 10.2: Acct-Session-Id is AVP 44. -->
+		<avp name="Acct-Session-Id" code="44" must="M" may="P" must-not="V" may-encrypt="Y">
 			<data type="OctetString"/>
 		</avp>
 
