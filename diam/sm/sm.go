@@ -46,10 +46,8 @@ type Settings struct {
 	VendorID    datatype.Unsigned32
 	ProductName datatype.UTF8String
 
-	// OriginStateID is optional for clients, and not added if unset.
-	//
-	// On servers it has no effect because CEA will contain the
-	// same value from CER, if present.
+	// OriginStateID is optional for clients and servers and is omitted if unset.
+	// RFC 6733 §8.16 requires it to reflect this entity's Origin-Host.
 	//
 	// May be set to datatype.Unsigned32(time.Now().Unix()).
 	OriginStateID datatype.Unsigned32
