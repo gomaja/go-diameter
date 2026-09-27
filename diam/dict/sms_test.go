@@ -91,3 +91,48 @@ func TestSMSAVPCodesAndTypes(t *testing.T) {
 		}
 	}
 }
+
+func TestSMSServingNodeReferences(t *testing.T) {
+	// 3GPP TS 29.173 V19.0.0 §6.4.6, Table 6.4.1/1; TS 29.273
+	// V19.2.0 §8.2.3.24, Table 8.2.3.0/1.
+	for _, tc := range []struct {
+		name string
+		code uint32
+		typ  string
+		apps []uint32
+	}{
+		{"TGPP-AAA-Server-Name", 318, "DiameterIdentity", []uint32{4, 16777312, 16777313, 16777265}},
+		{"LCS-Capabilities-Sets", 2404, "Unsigned32", []uint32{4, 16777312, 16777313}},
+	} {
+		for _, appID := range tc.apps {
+			got, err := Default.FindAVPWithVendor(appID, tc.name, 10415)
+			if err != nil || got.Code != tc.code || got.Data.TypeName != tc.typ || got.VendorID != 10415 || got.Must != "M,V" {
+				t.Errorf("app %d %s: got %v, err %v", appID, tc.name, got, err)
+			}
+		}
+	}
+}
+
+func TestSMSFlagRuleFormat(t *testing.T) {
+	// Parse source XML so the check fails before code generation too.
+	p, err := NewParser("testdata/tgpp_s6c.xml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	app, err := p.App(16777312)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var normalized int
+	for _, avp := range app.AVP {
+		if avp.Must == "MV" || avp.Must == "VM" {
+			t.Errorf("%s has nonstandard flag notation %q", avp.Name, avp.Must)
+		}
+		if avp.Must == "M,V" || avp.Must == "V,M" {
+			normalized++
+		}
+	}
+	if normalized != 30 {
+		t.Errorf("normalized dual-flag definitions = %d, want 30", normalized)
+	}
+}
