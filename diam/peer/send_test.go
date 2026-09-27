@@ -636,6 +636,9 @@ func TestAdmissionFailureLeavesFailoverOwnerAndDeadline(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Close A after the pending reservation but before queue admission.
+	// A full queue leaves only the closed case selectable after the hook.
+	sessions[0].writes = make(chan writeRequest, 1)
+	sessions[0].writes <- writeRequest{msg: outboundRequest("", "example.net")}
 	sessions[0].beforeAdmission = sessions[0].close
 	result := sendAsync(m, context.Background(), outboundRequest("", "example.net"))
 	retry := nextWrite(t, sessions[1])
