@@ -95,6 +95,14 @@ type conn struct {
 	hwg sync.WaitGroup // tracks in-flight handler goroutines
 	sem chan struct{}  // bounds concurrent handlers; nil = unbounded/sequential
 
+	drainMu      sync.Mutex
+	draining     bool
+	active       int
+	idle         chan struct{}
+	done         chan struct{}
+	shutdownDone chan struct{}
+	shutdownOnce sync.Once
+
 	mu           sync.Mutex // guards the following
 	closeNotifyc chan struct{}
 	clientGone   bool
@@ -174,6 +182,9 @@ func (srv *Server) newConn(rwc net.Conn) (c *conn, err error) {
 		c.buf = bufio.NewReadWriter(bufio.NewReader(&c.sr), bufio.NewWriter(rwc))
 	}
 	c.writer = &response{conn: c}
+	c.idle = make(chan struct{}, 1)
+	c.done = make(chan struct{})
+	c.shutdownDone = make(chan struct{})
 	if n := srv.MaxConcurrentHandlers; n > 0 {
 		c.sem = make(chan struct{}, n)
 	}
@@ -213,6 +224,8 @@ func (c *conn) serve() {
 			log.Printf("diam: close connection: %v", err)
 		}
 		c.notifyClientGone()
+		c.server.untrackConn(c)
+		close(c.done)
 	}()
 	if tlsConn, ok := c.rwc.(*tls.Conn); ok {
 		if err := tlsConn.Handshake(); err != nil {
@@ -276,8 +289,17 @@ func (c *conn) handleReadError(m *Message, err error) bool {
 // on Server.MaxConcurrentHandlers. A positive value bounds concurrency
 // via a per-connection semaphore; a negative value is unbounded.
 func (c *conn) dispatch(m *Message) {
+	c.drainMu.Lock()
+	isDPA := m.Header.ApplicationID == 0 && m.Header.CommandCode == DisconnectPeer && m.Header.CommandFlags&RequestFlag == 0
+	if c.draining && !isDPA {
+		c.drainMu.Unlock()
+		return
+	}
+	c.active++
+	c.drainMu.Unlock()
 	if c.server.MaxConcurrentHandlers == 0 {
 		// Sequential dispatch preserves the historical Handler contract.
+		defer c.finishDispatch()
 		serverHandler{c.server}.ServeDIAM(c.writer, m)
 		return
 	}
@@ -287,6 +309,7 @@ func (c *conn) dispatch(m *Message) {
 	c.hwg.Add(1)
 	go func() {
 		defer c.hwg.Done()
+		defer c.finishDispatch()
 		defer func() {
 			if c.sem != nil {
 				<-c.sem
@@ -302,6 +325,18 @@ func (c *conn) dispatch(m *Message) {
 		}()
 		serverHandler{c.server}.ServeDIAM(c.writer, m)
 	}()
+}
+
+func (c *conn) finishDispatch() {
+	c.drainMu.Lock()
+	c.active--
+	if c.active == 0 && c.draining {
+		select {
+		case c.idle <- struct{}{}:
+		default:
+		}
+	}
+	c.drainMu.Unlock()
 }
 
 // dictionary returns the dictionary parser associated to the Server instance
@@ -786,8 +821,15 @@ type Server struct {
 	//	}
 	OnNewConnection func(Conn)
 
+	// OnShutdownConnection runs once per open connection after its active
+	// handlers finish and before the transport closes. The read loop remains
+	// available for a DPR/DPA exchange. The callback must honor ctx and
+	// return promptly when it is canceled.
+	OnShutdownConnection func(ctx context.Context, c Conn)
+
 	mu        sync.Mutex
 	listeners map[net.Listener]struct{}
+	conns     map[*conn]struct{}
 	closed    bool
 }
 
@@ -812,6 +854,104 @@ func (srv *Server) Close() error {
 	}
 	srv.listeners = nil
 	return firstErr
+}
+
+// Shutdown stops accepting connections, waits for active handlers, runs
+// OnShutdownConnection for each connection, and closes their transports.
+// When ctx expires, remaining transports are closed and ctx.Err is returned.
+// A caller can use the hook to send a DPR before each transport closes.
+func (srv *Server) Shutdown(ctx context.Context) error {
+	if ctx == nil {
+		return fmt.Errorf("diam: nil shutdown context")
+	}
+	closeErr := srv.Close()
+	srv.mu.Lock()
+	conns := make([]*conn, 0, len(srv.conns))
+	for c := range srv.conns {
+		conns = append(conns, c)
+	}
+	srv.mu.Unlock()
+	for _, c := range conns {
+		c.drainMu.Lock()
+		c.draining = true
+		c.drainMu.Unlock()
+		c.shutdownOnce.Do(func() { go srv.shutdownConn(ctx, c) })
+	}
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		srv.mu.Lock()
+		remaining := len(srv.conns)
+		srv.mu.Unlock()
+		allActionsDone := true
+		for _, c := range conns {
+			select {
+			case <-c.shutdownDone:
+			default:
+				allActionsDone = false
+			}
+		}
+		if remaining == 0 && allActionsDone {
+			return closeErr
+		}
+		select {
+		case <-ctx.Done():
+			for _, c := range conns {
+				_ = c.rwc.Close()
+			}
+			return ctx.Err()
+		case <-ticker.C:
+		}
+	}
+}
+
+func (srv *Server) shutdownConn(ctx context.Context, c *conn) {
+	defer close(c.shutdownDone)
+	for {
+		c.drainMu.Lock()
+		active := c.active
+		c.drainMu.Unlock()
+		if active == 0 {
+			break
+		}
+		select {
+		case <-c.idle:
+		case <-c.done:
+			return
+		case <-ctx.Done():
+			return
+		}
+	}
+	select {
+	case <-c.done:
+		return
+	case <-ctx.Done():
+		return
+	default:
+	}
+	if srv.OnShutdownConnection != nil {
+		srv.OnShutdownConnection(ctx, c.writer)
+	}
+	c.writer.Close()
+}
+
+func (srv *Server) trackConn(c *conn) bool {
+	srv.mu.Lock()
+	defer srv.mu.Unlock()
+	if srv.closed {
+		return false
+	}
+	if srv.conns == nil {
+		srv.conns = make(map[*conn]struct{})
+	}
+	srv.conns[c] = struct{}{}
+	return true
+}
+
+func (srv *Server) untrackConn(c *conn) {
+	srv.mu.Lock()
+	delete(srv.conns, c)
+	srv.mu.Unlock()
 }
 
 func (srv *Server) trackListener(l net.Listener, add bool) bool {
@@ -935,8 +1075,13 @@ func (srv *Server) Serve(l net.Listener) error {
 		tempDelay = 0
 		if c, err := srv.newConn(rw); err != nil {
 			log.Printf("srv.newConn error: %v", err)
+			_ = rw.Close()
 			continue
 		} else {
+			if !srv.trackConn(c) {
+				_ = rw.Close()
+				return ErrServerClosed
+			}
 			go c.serve()
 		}
 	}
