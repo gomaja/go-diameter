@@ -612,7 +612,10 @@ func (m *Message) FindAVPsWithPath(path []interface{}, vendorID uint32) ([]*AVP,
 func (m *Message) Answer(resultCode uint32) *Message {
 	nm := NewMessage(
 		m.Header.CommandCode,
-		m.Header.CommandFlags&^RequestFlag, // Reset the Request bit.
+		// RFC 6733 §3: an answer clears R, and T "MUST NOT be set in answer
+		// messages"; E marks error answers only, so a fresh answer starts
+		// without it. P keeps the request's value (§6.2).
+		m.Header.CommandFlags&^(RequestFlag|RetransmittedFlag|ErrorFlag),
 		m.Header.ApplicationID,
 		m.Header.HopByHopID,
 		m.Header.EndToEndID,
