@@ -79,7 +79,10 @@ func TestStateMachineMessageErrorSCTPStream(t *testing.T) {
 			t.Fatalf("error answer stream = %d, want %d", got, stream)
 		}
 		assertMessageErrorAnswer(t, answer, settings, diam.UnsupportedVersion,
-			diam.ErrorFlag|diam.ProxiableFlag, false)
+			0, false)
+		if validationErr := answer.Validate(); validationErr != nil {
+			t.Fatalf("SCTP error answer violates dictionary: %v", validationErr)
+		}
 	case <-time.After(time.Second):
 		t.Fatal("timed out waiting for SCTP message error answer")
 	}
