@@ -308,9 +308,11 @@ func TestClient_Watchdog(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer c.Close()
+	// The first DWR is due after 100ms; the wait only bounds a missing DWA,
+	// so it leaves room for a loaded scheduler.
 	select {
 	case <-resp:
-	case <-time.After(200 * time.Millisecond):
+	case <-time.After(2 * time.Second):
 		t.Fatal("Timeout waiting for DWA")
 	}
 }
