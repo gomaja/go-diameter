@@ -49,8 +49,9 @@ type Config struct {
 	Timers   Timers
 	Limits   Limits
 	Dial     DialFunc
-	// OnPeerEvent is observational. Events are dropped when its bounded
-	// queue is full; Peers returns the current state independently.
+	// OnPeerEvent is observational. Calling Close from this callback is safe.
+	// Events are dropped when its bounded queue is full; Peers returns the
+	// current state independently.
 	OnPeerEvent func(PeerEvent)
 }
 type PeerSnapshot struct {
@@ -100,7 +101,6 @@ func New(cfg Config) (*Manager, error) {
 		cfg.Limits.Events = 64
 	}
 	m := &Manager{cfg: cfg, peers: make(map[string]*actor), sessions: make(map[diam.Conn]*session), done: make(chan struct{}), closed: make(chan struct{}), callbackQ: make(chan PeerEvent, cfg.Limits.Events), errors: diam.NewServeMux()}
-	m.wg.Add(1)
 	go m.deliverEvents()
 	return m, nil
 }
@@ -310,8 +310,12 @@ func (m *Manager) report(s *session, msg *diam.Message, err error) {
 	}
 }
 func (m *Manager) deliverEvents() {
-	defer m.wg.Done()
 	for {
+		select {
+		case <-m.done:
+			return
+		default:
+		}
 		select {
 		case e := <-m.callbackQ:
 			if m.cfg.OnPeerEvent != nil {
