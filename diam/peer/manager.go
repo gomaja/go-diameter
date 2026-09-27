@@ -10,6 +10,7 @@ import (
 	"net"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gomaja/go-diameter/diam"
@@ -50,6 +51,11 @@ type Config struct {
 	Timers   Timers
 	Limits   Limits
 	Dial     DialFunc
+	// EndToEnd optionally supplies a durable, concurrency-safe End-to-End ID generator.
+	// The default uses process-start seconds in the high 12 bits and a random
+	// low 20-bit counter. It assumes fewer than 2^20 requests per four minutes:
+	// sustained higher rates can collide across a restart (RFC 6733 §3).
+	EndToEnd func() uint32
 	// OnPeerEvent is observational. Calling Close from this callback is safe.
 	// Events are dropped when its bounded queue is full; Peers returns the
 	// current state independently.
@@ -82,6 +88,8 @@ type Manager struct {
 	wg               sync.WaitGroup
 	callbackQ        chan PeerEvent
 	errors           *diam.ServeMux
+	routes           atomic.Pointer[routeTable]
+	endToEnd         endToEndAllocator
 }
 
 func New(cfg Config) (*Manager, error) {
@@ -121,6 +129,10 @@ func New(cfg Config) (*Manager, error) {
 		cfg.Limits.Events = 64
 	}
 	m := &Manager{cfg: cfg, peers: make(map[string]*actor), sessions: make(map[diam.Conn]*session), done: make(chan struct{}), closed: make(chan struct{}), callbackQ: make(chan PeerEvent, cfg.Limits.Events), errors: diam.NewServeMux()}
+	if err := m.endToEnd.init(); err != nil {
+		return nil, err
+	}
+	m.routes.Store(&routeTable{entries: make(map[routeKey][]string)})
 	go m.deliverEvents()
 	return m, nil
 }
