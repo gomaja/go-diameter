@@ -1962,7 +1962,8 @@ var networkaccessserverXML = `<?xml version="1.0" encoding="UTF-8"?>
 				<rule avp="Callback-Number" required="false" max="1"/>
 				<rule avp="Called-Station-Id" required="false" max="1"/>
 				<rule avp="Calling-Station-Id" required="false" max="1"/>
-				<rule avp="Connection-Info" required="false"/>
+				<!-- RFC 7155 Errata 5995: Connect-Info is the defined AVP. -->
+				<rule avp="Connect-Info" required="false"/>
 				<rule avp="Originating-Line-Info" required="false" max="1"/>
 				<rule avp="Authorization-Lifetime" required="false" max="1"/>
 				<rule avp="Session-Timeout" required="false" max="1"/>
@@ -2255,10 +2256,10 @@ var networkaccessserverXML = `<?xml version="1.0" encoding="UTF-8"?>
 			<data type="OctetString"/>
 		</avp>
 
-		<!--avp name="QoS-Filter-Rule" code="407" must="-" may="" must-not="-" may-encrypt="Y"-->
-			<!-- https://www.rfc-editor.org/rfc/rfc7155#section-4.4.9 -->
-			<!--data type="QoSFilterRule"/-->
-		<!--/avp-->
+		<!-- RFC 7155 §§4.1.1, 4.4.9. Errata 6029 remains Reported. -->
+		<avp name="QoS-Filter-Rule" code="407" may="M,P" must-not="V" may-encrypt="Y">
+			<data type="QoSFilterRule"/>
+		</avp>
 
 
 		<avp name="Framed-Protocol" code="7" must="M" may="-" must-not="V" may-encrypt="Y">
@@ -2594,6 +2595,26 @@ var networkaccessserverXML = `<?xml version="1.0" encoding="UTF-8"?>
 		<avp name="Acct-Tunnel-Packets-Lost" code="86" must="M" may="-" must-not="V" may-encrypt="Y">
 			<!-- https://www.rfc-editor.org/rfc/rfc7155#section-4.6.11 -->
 			<data type="Unsigned32"/>
+		</avp>
+		<!-- RFC 7155 §§3.1, 4.2; RFC 2865 §5.4 and the IANA RADIUS Types registry.
+		     RFC 7155 references this translated attribute but omits its Diameter type table. -->
+		<avp name="NAS-IP-Address" code="4" must="M" may="P" must-not="V" may-encrypt="Y"><data type="OctetString"/></avp>
+
+		<!-- RFC 7155 §§3.1, 4.2; RFC 3162 §2.1 and the IANA RADIUS Types registry.
+		     RFC 7155 references this translated attribute but omits its Diameter type table. -->
+		<avp name="NAS-IPv6-Address" code="95" must="M" may="P" must-not="V" may-encrypt="Y"><data type="OctetString"/></avp>
+
+		<!-- RFC 7155 §§3.1, 4.2; RFC 2865 §5.32 and the IANA RADIUS Types registry.
+		     RFC 7155 references this translated attribute but omits its Diameter type table. -->
+		<avp name="NAS-Identifier" code="32" must="M" may="P" must-not="V" may-encrypt="Y"><data type="UTF8String"/></avp>
+
+		<!-- RFC 7155 §§3.1, 4.2; RFC 2865 §5.24 and the IANA RADIUS Types registry.
+		     RFC 7155 references this translated attribute but omits its Diameter type table. -->
+		<avp name="State" code="24" must="M" may="P" must-not="V" may-encrypt="Y"><data type="OctetString"/></avp>
+
+		<!-- RFC 7155 Errata 6119 (Verified), proposed §4.7.1. -->
+		<avp name="Origin-AAA-Protocol" code="408" must="M" may="P" must-not="V" may-encrypt="Y">
+			<data type="Enumerated"><item code="1" name="RADIUS"/></data>
 		</avp>
 		
 	</application>
