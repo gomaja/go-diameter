@@ -575,6 +575,7 @@ const (
 	PoCUserRole                                = 1252
 	PoCUserRoleIDs                             = 1253
 	PoCUserRoleinfoUnits                       = 1254
+	PolicyCounterIdentifier                    = 2901
 	PortLimit                                  = 62
 	PositioningData                            = 1245
 	Precedence                                 = 1010
