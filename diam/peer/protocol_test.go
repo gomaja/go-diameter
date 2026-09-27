@@ -49,13 +49,14 @@ func (c *fakeConn) SetContext(ctx context.Context) { c.ctx = ctx }
 func (c *fakeConn) Connection() net.Conn           { return c.underlying }
 
 type fakeTimer struct {
-	mu     sync.Mutex
-	active bool
-	f      func()
+	mu       sync.Mutex
+	active   bool
+	f        func()
+	duration time.Duration
 }
 
-func (c *fakeClock) AfterFunc(_ time.Duration, f func()) Timer {
-	t := &fakeTimer{active: true, f: f}
+func (c *fakeClock) AfterFunc(d time.Duration, f func()) Timer {
+	t := &fakeTimer{active: true, f: f, duration: d}
 	c.mu.Lock()
 	c.timers = append(c.timers, t)
 	c.mu.Unlock()
@@ -139,7 +140,16 @@ func TestConcurrentDispatchPreservesFirstCER(t *testing.T) {
 		}
 		write(t, c, cer)
 		write(t, c, dwr)
-		cea, dwa := read(t, c), read(t, c)
+		cea := read(t, c)
+		dwa := read(t, c)
+		if dwa.Header.CommandCode == diam.DeviceWatchdog && dwa.Header.CommandFlags&diam.RequestFlag != 0 {
+			answer, err := base.BuildDWA(dwa, cfg)
+			if err != nil {
+				t.Fatal(err)
+			}
+			write(t, c, answer)
+			dwa = read(t, c)
+		}
 		if cea.Header.CommandCode != diam.CapabilitiesExchange || code(t, cea) != diam.Success || dwa.Header.CommandCode != diam.DeviceWatchdog || code(t, dwa) != diam.Success {
 			t.Fatalf("run %d: response order %d/%d", run, cea.Header.CommandCode, dwa.Header.CommandCode)
 		}
@@ -719,6 +729,17 @@ func TestInboundSurvivesOutboundNackWithoutCERTimer(t *testing.T) {
 	if got := m.Peers()[0].State; got != ROpen {
 		t.Fatalf("stale CER timer closed peer: %s", got)
 	}
+	// Firing the fake clock also expires the valid watchdog timer. Answer its
+	// DWR so the following read checks the DPR/DPA exchange alone.
+	probe := read(t, c)
+	if probe.Header.CommandCode != diam.DeviceWatchdog || probe.Header.CommandFlags&diam.RequestFlag == 0 {
+		t.Fatalf("watchdog probe: %+v", probe.Header)
+	}
+	answer, err := base.BuildDWA(probe, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	write(t, c, answer)
 	dpr, err := base.BuildDPR(dict.Default, cfg, 0)
 	if err != nil {
 		t.Fatal(err)
