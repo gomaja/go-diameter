@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/gomaja/go-diameter/diam"
+	"github.com/gomaja/go-diameter/diam/avp"
+	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/dict"
 	"github.com/gomaja/go-diameter/diam/internal/base"
 	"github.com/gomaja/go-diameter/diam/sm"
@@ -46,6 +48,7 @@ type actor struct {
 	meta                *smpeer.Metadata
 	active              *session
 	pendingDPR          uint32
+	pendingDPREnd       uint32
 	closeCause          sm.DisconnectCause
 	snapshotValue       atomic.Value
 }
@@ -340,12 +343,24 @@ func (a *actor) onWire(e event) {
 	}
 	if a.state == Closing {
 		if cmd == diam.DisconnectPeer && !req && msg.Header.ApplicationID == 0 {
-			if msg.Header.HopByHopID != a.pendingDPR {
-				a.m.report(s, msg, errors.New("peer: DPA Hop-by-Hop mismatch"))
+			// RFC 6733 §5.4.2 and §5.6 Closing: only the matching peer's
+			// successful DPA completes this disconnect exchange.
+			if msg.Header.HopByHopID != a.pendingDPR || msg.Header.EndToEndID != a.pendingDPREnd {
+				a.m.report(s, msg, errors.New("peer: DPA identifiers mismatch"))
 				return
 			}
-			if _, err := base.ValidateDPA(msg); err != nil {
+			result, err := base.ValidateDPA(msg)
+			if err != nil {
 				a.m.report(s, msg, err)
+				return
+			}
+			if result != diam.Success {
+				a.m.report(s, msg, fmt.Errorf("peer: DPA Result-Code %d", result))
+				return
+			}
+			host, err := msg.FindAVP(avp.OriginHost, 0)
+			if err != nil || compareIdentity(host.Data.(datatype.DiameterIdentity), a.cfg.Host) != 0 {
+				a.m.report(s, msg, errors.New("peer: DPA Origin-Host mismatch"))
 				return
 			}
 			if isI {
@@ -536,6 +551,7 @@ func (a *actor) step(ev psmEvent, s *session, msg *diam.Message) {
 			return
 		}
 		a.pendingDPR = dpr.Header.HopByHopID
+		a.pendingDPREnd = dpr.Header.EndToEndID
 		a.arm(a.m.cfg.Timers.Closing)
 	case iDPA, rDPA:
 		a.stopTimer()
