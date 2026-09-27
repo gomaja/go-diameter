@@ -220,7 +220,9 @@ func (c *conn) serve() {
 		// Wait for in-flight handler goroutines to finish so they are
 		// not writing to a closed connection when we call rwc.Close().
 		c.hwg.Wait()
-		if err := c.rwc.Close(); err != nil {
+		// A connection that an earlier Close, Disconnect or Shutdown already
+		// closed is not an error worth logging.
+		if err := c.rwc.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
 			log.Printf("diam: close connection: %v", err)
 		}
 		c.notifyClientGone()
@@ -428,7 +430,7 @@ func (w *response) SetWriterStream(stream uint) uint {
 
 // Close closes the connection.
 func (w *response) Close() {
-	if err := w.conn.rwc.Close(); err != nil {
+	if err := w.conn.rwc.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
 		log.Printf("diam: close response connection: %v", err)
 	}
 }
