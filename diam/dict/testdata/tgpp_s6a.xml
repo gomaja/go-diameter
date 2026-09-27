@@ -1158,8 +1158,8 @@
             </data>
         </avp>
 
-        <!-- RFC 5447 Diameter Mobile IPv6: Support for Network Access Server to Diameter Server Interaction -->
-        <avp name="MIP6-Agent-Info" code="486" must="M" may="P" must-not="V" may-encrypt="Y" vendor-id="10415">
+        <!-- TS 29.272 §7.3.45 and Table 7.3.1/2: reused IETF AVP, V bit clear. -->
+        <avp name="MIP6-Agent-Info" code="486" must="M" may="P" must-not="V" may-encrypt="Y">
             <data type="Grouped">
                 <rule avp="MIP-Home-Agent-Address" required="false" max="2"/>
                 <rule avp="MIP-Home-Agent-Host" required="false" max="1"/>
@@ -1168,7 +1168,8 @@
             </data>
         </avp>
 
-        <avp name="Service-Selection" code="493" must="M" may="P" must-not="V" may-encrypt="Y" vendor-id="10415">
+        <!-- TS 29.272 §7.3.36 and Table 7.3.1/2: reused IETF AVP, V bit clear. -->
+        <avp name="Service-Selection" code="493" must="M" may="P" must-not="V" may-encrypt="Y">
             <data type="UTF8String"/>
         </avp>
 
