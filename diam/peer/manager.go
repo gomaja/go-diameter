@@ -394,6 +394,10 @@ func (m *Manager) processDIAM(s *session, msg *diam.Message) {
 	c := s.c
 	if s.inbound {
 		s.firstMu.Lock()
+		if s.rejectingFirst {
+			s.firstMu.Unlock()
+			return
+		}
 		first := !s.first
 		if first {
 			s.first = true
@@ -512,7 +516,39 @@ func (m *Manager) unsupported(s *session, msg *diam.Message) {
 }
 func (m *Manager) HandleMessageError(c diam.Conn, msg *diam.Message, me *diam.MessageError) error {
 	s := m.getSession(c)
-	if s == nil || msg == nil || me == nil || msg.Header == nil {
+	if s == nil {
+		return nil
+	}
+	s.firstMu.Lock()
+	preCER := s.inbound && !s.first
+	if preCER {
+		s.first = true
+		if msg != nil && msg.Header != nil && me != nil && msg.Header.ApplicationID == 0 && msg.Header.CommandCode == diam.CapabilitiesExchange && msg.Header.CommandFlags&diam.RequestFlag != 0 {
+			s.rejectingFirst = true
+		}
+		if s.preTimer != nil {
+			s.preTimer.Stop()
+			s.preTimer = nil
+		}
+	}
+	s.firstMu.Unlock()
+	if preCER { // RFC 6733 §5.6.1: discard malformed pre-CER traffic and close the connection.
+		if msg == nil || msg.Header == nil || me == nil || msg.Header.ApplicationID != 0 || msg.Header.CommandCode != diam.CapabilitiesExchange || msg.Header.CommandFlags&diam.RequestFlag == 0 {
+			s.close()
+			return nil
+		}
+		answer, err := base.BuildErrorAnswer(msg, m.baseSettings(c), me.ResultCode, nil, me.ResultCode >= 3000 && me.ResultCode < 4000)
+		if err != nil {
+			s.close()
+			return err
+		}
+		if !s.send(answer, true) {
+			s.close()
+			return errors.New("peer: write queue full")
+		}
+		return nil
+	}
+	if msg == nil || me == nil || msg.Header == nil {
 		return nil
 	}
 	if msg.Header.CommandFlags&diam.RequestFlag == 0 {
