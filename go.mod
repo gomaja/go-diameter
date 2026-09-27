@@ -5,7 +5,7 @@ go 1.26
 require (
 	github.com/golang/glog v1.2.5
 	github.com/golang/protobuf v1.5.4
-	github.com/gomaja/go-sctp v1.1.1-0.20260926201820-c26dbb255ab2
+	github.com/gomaja/go-sctp v1.1.1-0.20260927070356-42731fdc8a3a
 	google.golang.org/grpc v1.83.2
 )
 
