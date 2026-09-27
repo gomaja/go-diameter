@@ -82,7 +82,7 @@ func TestClient_ServerCarriesTLSConfig(t *testing.T) {
 		TLSConfig: tlsConfig,
 	}
 
-	srv := cli.server("tcp", "example.net:3868", nil)
+	srv := cli.server("tcp", "example.net:3868", nil, nil)
 	if srv.TLSConfig != tlsConfig {
 		t.Fatal("client server template did not carry TLSConfig")
 	}
@@ -283,6 +283,7 @@ func TestClient_Watchdog(t *testing.T) {
 	cli := &Client{
 		EnableWatchdog:   true,
 		WatchdogInterval: 100 * time.Millisecond,
+		watchdogTiming:   &watchdogTiming{floor: time.Millisecond},
 		Handler:          New(clientSettings),
 		AcctApplicationID: []*diam.AVP{
 			diam.NewAVP(avp.AcctApplicationID, avp.Mbit, 0, datatype.Unsigned32(3)),
@@ -313,6 +314,7 @@ func TestClient_WatchdogObserverSuccess(t *testing.T) {
 	cli := &Client{
 		EnableWatchdog:   true,
 		WatchdogInterval: 20 * time.Millisecond,
+		watchdogTiming:   &watchdogTiming{floor: time.Millisecond},
 		Handler:          New(clientSettings),
 		OnWatchdogEvent:  func(event WatchdogEvent) { events <- event },
 		AcctApplicationID: []*diam.AVP{
@@ -347,6 +349,7 @@ func TestClient_WatchdogSlowObserverDoesNotTimeoutSuccessfulAnswer(t *testing.T)
 	cli := &Client{
 		EnableWatchdog:     true,
 		WatchdogInterval:   250 * time.Millisecond,
+		watchdogTiming:     &watchdogTiming{floor: time.Millisecond},
 		RetransmitInterval: 20 * time.Millisecond,
 		Handler:            New(clientSettings),
 		OnWatchdogEvent: func(event WatchdogEvent) {
@@ -399,6 +402,7 @@ func TestClient_Watchdog_Timeout(t *testing.T) {
 		RetransmitInterval: 50 * time.Millisecond,
 		EnableWatchdog:     true,
 		WatchdogInterval:   50 * time.Millisecond,
+		watchdogTiming:     &watchdogTiming{floor: time.Millisecond},
 		Handler:            New(clientSettings),
 		OnWatchdogEvent: func(event WatchdogEvent) {
 			if event == WatchdogInvalidAnswer || event == WatchdogTimedOut {

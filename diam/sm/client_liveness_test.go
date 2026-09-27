@@ -32,6 +32,7 @@ func newLivenessClient() *Client {
 		RetransmitInterval: 50 * time.Millisecond,
 		EnableWatchdog:     true,
 		WatchdogInterval:   50 * time.Millisecond,
+		watchdogTiming:     &watchdogTiming{floor: time.Millisecond},
 		AcctApplicationID: []*diam.AVP{
 			diam.NewAVP(avp.AcctApplicationID, avp.Mbit, 0, datatype.Unsigned32(1001)),
 		},
@@ -234,7 +235,7 @@ func TestWatchdogWriteErrorStopsRetrying(t *testing.T) {
 
 	done := make(chan struct{})
 	go func() {
-		cli.watchdog(c, make(chan struct{}))
+		cli.watchdog(c, make(chan struct{}), newWatchdogActivity())
 		close(done)
 	}()
 
