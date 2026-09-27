@@ -4459,6 +4459,16 @@ var tgpprorfXML = `<?xml version="1.0" encoding="UTF-8"?>
 			</data>
 		</avp>
 
+		<!-- 3GPP TS 29.273 V19.2.0 §8.2.3.24, Table 8.2.3.0/1; reused by TS 29.173 V19.0.0 Table 6.4.1/2. -->
+		<avp name="TGPP-AAA-Server-Name" code="318" must="M,V" must-not="P" may-encrypt="N" vendor-id="10415">
+			<data type="DiameterIdentity"/>
+		</avp>
+
+		<!-- 3GPP TS 29.173 V19.0.0 §6.4.6, Table 6.4.1/1. -->
+		<avp name="LCS-Capabilities-Sets" code="2404" must="M,V" may-encrypt="N" vendor-id="10415">
+			<data type="Unsigned32"/>
+		</avp>
+
 		<avp name="Serving-Node" code="2401" must="V,M" may="-" must-not="-" may-encrypt="N" vendor-id="10415">
 			<data type="Grouped">
 				<rule avp="SGSN-Number" required="false" max="1"/>
@@ -7695,51 +7705,51 @@ var tgpps6cXML = `<?xml version="1.0" encoding="UTF-8"?>
           </answer>
         </command>
         <!-- 3GPP TS 29.338 V19.3.0 §5.3.3.1, Table 5.3.3.1/1. -->
-        <avp name="SM-RP-MTI" code="3308" vendor-id="10415" must="MV" must-not="" may-encrypt="N">
+        <avp name="SM-RP-MTI" code="3308" vendor-id="10415" must="M,V" must-not="" may-encrypt="N">
           <data type="Enumerated">
             <item code="0" name="SM_DELIVER"/>
             <item code="1" name="SM_STATUS_REPORT"/>
           </data>
         </avp>
         <!-- 3GPP TS 29.338 V19.3.0 §5.3.3.1, Table 5.3.3.1/1. -->
-        <avp name="SM-RP-SMEA" code="3309" vendor-id="10415" must="MV" must-not="" may-encrypt="N">
+        <avp name="SM-RP-SMEA" code="3309" vendor-id="10415" must="M,V" must-not="" may-encrypt="N">
           <data type="OctetString">
           </data>
         </avp>
         <!-- 3GPP TS 29.338 V19.3.0 §5.3.3.1, Table 5.3.3.1/1. -->
-        <avp name="SRR-Flags" code="3310" vendor-id="10415" must="MV" must-not="" may-encrypt="N">
+        <avp name="SRR-Flags" code="3310" vendor-id="10415" must="M,V" must-not="" may-encrypt="N">
           <data type="Unsigned32">
           </data>
         </avp>
         <!-- 3GPP TS 29.338 V19.3.0 §5.3.3.1, Table 5.3.3.1/1. -->
-        <avp name="SM-Delivery-Not-Intended" code="3311" vendor-id="10415" must="MV" must-not="" may-encrypt="N">
+        <avp name="SM-Delivery-Not-Intended" code="3311" vendor-id="10415" must="M,V" must-not="" may-encrypt="N">
           <data type="Enumerated">
             <item code="0" name="ONLY_IMSI_REQUESTED"/>
             <item code="1" name="ONLY_MCC_MNC_REQUESTED"/>
           </data>
         </avp>
         <!-- 3GPP TS 29.338 V19.3.0 §5.3.3.1, Table 5.3.3.1/1. -->
-        <avp name="MWD-Status" code="3312" vendor-id="10415" must="MV" must-not="" may-encrypt="N">
+        <avp name="MWD-Status" code="3312" vendor-id="10415" must="M,V" must-not="" may-encrypt="N">
           <data type="Unsigned32">
           </data>
         </avp>
         <!-- 3GPP TS 29.338 V19.3.0 §5.3.3.1, Table 5.3.3.1/1. -->
-        <avp name="MME-Absent-User-Diagnostic-SM" code="3313" vendor-id="10415" must="MV" must-not="" may-encrypt="N">
+        <avp name="MME-Absent-User-Diagnostic-SM" code="3313" vendor-id="10415" must="M,V" must-not="" may-encrypt="N">
           <data type="Unsigned32">
           </data>
         </avp>
         <!-- 3GPP TS 29.338 V19.3.0 §5.3.3.1, Table 5.3.3.1/1. -->
-        <avp name="MSC-Absent-User-Diagnostic-SM" code="3314" vendor-id="10415" must="MV" must-not="" may-encrypt="N">
+        <avp name="MSC-Absent-User-Diagnostic-SM" code="3314" vendor-id="10415" must="M,V" must-not="" may-encrypt="N">
           <data type="Unsigned32">
           </data>
         </avp>
         <!-- 3GPP TS 29.338 V19.3.0 §5.3.3.1, Table 5.3.3.1/1. -->
-        <avp name="SGSN-Absent-User-Diagnostic-SM" code="3315" vendor-id="10415" must="MV" must-not="" may-encrypt="N">
+        <avp name="SGSN-Absent-User-Diagnostic-SM" code="3315" vendor-id="10415" must="M,V" must-not="" may-encrypt="N">
           <data type="Unsigned32">
           </data>
         </avp>
         <!-- 3GPP TS 29.338 V19.3.0 §5.3.3.1, Table 5.3.3.1/1. -->
-        <avp name="SM-Delivery-Outcome" code="3316" vendor-id="10415" must="MV" must-not="" may-encrypt="N">
+        <avp name="SM-Delivery-Outcome" code="3316" vendor-id="10415" must="M,V" must-not="" may-encrypt="N">
           <data type="Grouped">
             <rule avp="MME-SM-Delivery-Outcome" required="false" max="1"/>
             <rule avp="MSC-SM-Delivery-Outcome" required="false" max="1"/>
@@ -7750,35 +7760,35 @@ var tgpps6cXML = `<?xml version="1.0" encoding="UTF-8"?>
           </data>
         </avp>
         <!-- 3GPP TS 29.338 V19.3.0 §5.3.3.1, Table 5.3.3.1/1. -->
-        <avp name="MME-SM-Delivery-Outcome" code="3317" vendor-id="10415" must="MV" must-not="" may-encrypt="N">
+        <avp name="MME-SM-Delivery-Outcome" code="3317" vendor-id="10415" must="M,V" must-not="" may-encrypt="N">
           <data type="Grouped">
             <rule avp="SM-Delivery-Cause" required="false" max="1"/>
             <rule avp="Absent-User-Diagnostic-SM" required="false" max="1"/>
           </data>
         </avp>
         <!-- 3GPP TS 29.338 V19.3.0 §5.3.3.1, Table 5.3.3.1/1. -->
-        <avp name="MSC-SM-Delivery-Outcome" code="3318" vendor-id="10415" must="MV" must-not="" may-encrypt="N">
+        <avp name="MSC-SM-Delivery-Outcome" code="3318" vendor-id="10415" must="M,V" must-not="" may-encrypt="N">
           <data type="Grouped">
             <rule avp="SM-Delivery-Cause" required="false" max="1"/>
             <rule avp="Absent-User-Diagnostic-SM" required="false" max="1"/>
           </data>
         </avp>
         <!-- 3GPP TS 29.338 V19.3.0 §5.3.3.1, Table 5.3.3.1/1. -->
-        <avp name="SGSN-SM-Delivery-Outcome" code="3319" vendor-id="10415" must="MV" must-not="" may-encrypt="N">
+        <avp name="SGSN-SM-Delivery-Outcome" code="3319" vendor-id="10415" must="M,V" must-not="" may-encrypt="N">
           <data type="Grouped">
             <rule avp="SM-Delivery-Cause" required="false" max="1"/>
             <rule avp="Absent-User-Diagnostic-SM" required="false" max="1"/>
           </data>
         </avp>
         <!-- 3GPP TS 29.338 V19.3.0 §5.3.3.1, Table 5.3.3.1/1. -->
-        <avp name="IP-SM-GW-SM-Delivery-Outcome" code="3320" vendor-id="10415" must="MV" must-not="" may-encrypt="N">
+        <avp name="IP-SM-GW-SM-Delivery-Outcome" code="3320" vendor-id="10415" must="M,V" must-not="" may-encrypt="N">
           <data type="Grouped">
             <rule avp="SM-Delivery-Cause" required="false" max="1"/>
             <rule avp="Absent-User-Diagnostic-SM" required="false" max="1"/>
           </data>
         </avp>
         <!-- 3GPP TS 29.338 V19.3.0 §5.3.3.1, Table 5.3.3.1/1. -->
-        <avp name="SM-Delivery-Cause" code="3321" vendor-id="10415" must="MV" must-not="" may-encrypt="N">
+        <avp name="SM-Delivery-Cause" code="3321" vendor-id="10415" must="M,V" must-not="" may-encrypt="N">
           <data type="Enumerated">
             <item code="0" name="UE_MEMORY_CAPACITY_EXCEEDED"/>
             <item code="1" name="ABSENT_USER"/>
@@ -7786,7 +7796,7 @@ var tgpps6cXML = `<?xml version="1.0" encoding="UTF-8"?>
           </data>
         </avp>
         <!-- 3GPP TS 29.338 V19.3.0 §5.3.3.1, Table 5.3.3.1/1. -->
-        <avp name="Absent-User-Diagnostic-SM" code="3322" vendor-id="10415" must="MV" must-not="" may-encrypt="N">
+        <avp name="Absent-User-Diagnostic-SM" code="3322" vendor-id="10415" must="M,V" must-not="" may-encrypt="N">
           <data type="Unsigned32">
           </data>
         </avp>
@@ -7899,29 +7909,29 @@ var tgpps6cXML = `<?xml version="1.0" encoding="UTF-8"?>
           </data>
         </avp>
         <!-- 3GPP TS 29.338 V19.3.0 §6.3.3.1, Table 6.3.3.1/1. -->
-        <avp name="SC-Address" code="3300" vendor-id="10415" must="MV" must-not="" may-encrypt="N">
+        <avp name="SC-Address" code="3300" vendor-id="10415" must="M,V" must-not="" may-encrypt="N">
           <data type="OctetString">
           </data>
         </avp>
         <!-- 3GPP TS 29.338 V19.3.0 §6.3.3.1, Table 6.3.3.1/1. -->
-        <avp name="SM-RP-UI" code="3301" vendor-id="10415" must="MV" must-not="" may-encrypt="N">
+        <avp name="SM-RP-UI" code="3301" vendor-id="10415" must="M,V" must-not="" may-encrypt="N">
           <data type="OctetString">
           </data>
         </avp>
         <!-- 3GPP TS 29.338 V19.3.0 §6.3.3.1, Table 6.3.3.1/1. -->
-        <avp name="TFR-Flags" code="3302" vendor-id="10415" must="MV" must-not="" may-encrypt="N">
+        <avp name="TFR-Flags" code="3302" vendor-id="10415" must="M,V" must-not="" may-encrypt="N">
           <data type="Unsigned32">
           </data>
         </avp>
         <!-- 3GPP TS 29.338 V19.3.0 §6.3.3.1, Table 6.3.3.1/1. -->
-        <avp name="SM-Delivery-Failure-Cause" code="3303" vendor-id="10415" must="MV" must-not="" may-encrypt="N">
+        <avp name="SM-Delivery-Failure-Cause" code="3303" vendor-id="10415" must="M,V" must-not="" may-encrypt="N">
           <data type="Grouped">
             <rule avp="SM-Enumerated-Delivery-Failure-Cause" required="true" max="1"/>
             <rule avp="SM-Diagnostic-Info" required="false" max="1"/>
           </data>
         </avp>
         <!-- 3GPP TS 29.338 V19.3.0 §6.3.3.1, Table 6.3.3.1/1. -->
-        <avp name="SM-Enumerated-Delivery-Failure-Cause" code="3304" vendor-id="10415" must="MV" must-not="" may-encrypt="N">
+        <avp name="SM-Enumerated-Delivery-Failure-Cause" code="3304" vendor-id="10415" must="M,V" must-not="" may-encrypt="N">
           <data type="Enumerated">
             <item code="0" name="MEMORY_CAPACITY_EXCEEDED"/>
             <item code="1" name="EQUIPMENT_PROTOCOL_ERROR"/>
@@ -7933,17 +7943,17 @@ var tgpps6cXML = `<?xml version="1.0" encoding="UTF-8"?>
           </data>
         </avp>
         <!-- 3GPP TS 29.338 V19.3.0 §6.3.3.1, Table 6.3.3.1/1. -->
-        <avp name="SM-Diagnostic-Info" code="3305" vendor-id="10415" must="MV" must-not="" may-encrypt="N">
+        <avp name="SM-Diagnostic-Info" code="3305" vendor-id="10415" must="M,V" must-not="" may-encrypt="N">
           <data type="OctetString">
           </data>
         </avp>
         <!-- 3GPP TS 29.338 V19.3.0 §6.3.3.1, Table 6.3.3.1/1. -->
-        <avp name="SM-Delivery-Timer" code="3306" vendor-id="10415" must="MV" must-not="" may-encrypt="N">
+        <avp name="SM-Delivery-Timer" code="3306" vendor-id="10415" must="M,V" must-not="" may-encrypt="N">
           <data type="Unsigned32">
           </data>
         </avp>
         <!-- 3GPP TS 29.338 V19.3.0 §6.3.3.1, Table 6.3.3.1/1. -->
-        <avp name="SM-Delivery-Start-Time" code="3307" vendor-id="10415" must="MV" must-not="" may-encrypt="N">
+        <avp name="SM-Delivery-Start-Time" code="3307" vendor-id="10415" must="M,V" must-not="" may-encrypt="N">
           <data type="Time">
           </data>
         </avp>
@@ -7991,17 +8001,17 @@ var tgpps6cXML = `<?xml version="1.0" encoding="UTF-8"?>
           </data>
         </avp>
         <!-- 3GPP TS 29.173 V19.0.0 §6.4.2, Table 6.4.1/1; reused by TS 29.338 V19.3.0 Tables 5.3.3.1/2 and 6.3.3.1/2. -->
-        <avp name="LMSI" code="2400" vendor-id="10415" must="VM" must-not="" may-encrypt="N">
+        <avp name="LMSI" code="2400" vendor-id="10415" must="V,M" must-not="" may-encrypt="N">
           <data type="OctetString">
           </data>
         </avp>
         <!-- 3GPP TS 29.173 V19.0.0 §6.4.5, Table 6.4.1/1; reused by TS 29.338 V19.3.0 Tables 5.3.3.1/2 and 6.3.3.1/2. -->
-        <avp name="MSC-Number" code="2403" vendor-id="10415" must="VM" must-not="" may-encrypt="N">
+        <avp name="MSC-Number" code="2403" vendor-id="10415" must="V,M" must-not="" may-encrypt="N">
           <data type="OctetString">
           </data>
         </avp>
         <!-- 3GPP TS 29.173 V19.0.0 §6.4.8, Table 6.4.1/1; reused by TS 29.338 V19.3.0 Tables 5.3.3.1/2 and 6.3.3.1/2. -->
-        <avp name="Additional-Serving-Node" code="2406" vendor-id="10415" must="VM" must-not="" may-encrypt="N">
+        <avp name="Additional-Serving-Node" code="2406" vendor-id="10415" must="V,M" must-not="" may-encrypt="N">
           <data type="Grouped">
             <rule avp="SGSN-Name" required="false" max="1"/>
             <rule avp="SGSN-Realm" required="false" max="1"/>
@@ -8023,17 +8033,17 @@ var tgpps6cXML = `<?xml version="1.0" encoding="UTF-8"?>
           </data>
         </avp>
         <!-- 3GPP TS 29.336 V20.0.0 §6.4.14, Table 6.4.1/1; reused by TS 29.338 V19.3.0 Tables 5.3.3.1/2 and 6.3.3.1/2. -->
-        <avp name="IP-SM-GW-Number" code="3100" vendor-id="10415" must="VM" must-not="" may-encrypt="N">
+        <avp name="IP-SM-GW-Number" code="3100" vendor-id="10415" must="V,M" must-not="" may-encrypt="N">
           <data type="OctetString">
           </data>
         </avp>
         <!-- 3GPP TS 29.336 V20.0.0 §6.4.15, Table 6.4.1/1; reused by TS 29.338 V19.3.0 Tables 5.3.3.1/2 and 6.3.3.1/2. -->
-        <avp name="IP-SM-GW-Name" code="3101" vendor-id="10415" must="VM" must-not="" may-encrypt="N">
+        <avp name="IP-SM-GW-Name" code="3101" vendor-id="10415" must="V,M" must-not="" may-encrypt="N">
           <data type="DiameterIdentity">
           </data>
         </avp>
         <!-- 3GPP TS 29.336 V20.0.0 §6.4.2, Table 6.4.1/1; reused by TS 29.338 V19.3.0 Tables 5.3.3.1/2 and 6.3.3.1/2. -->
-        <avp name="User-Identifier" code="3102" vendor-id="10415" must="VM" must-not="" may-encrypt="N">
+        <avp name="User-Identifier" code="3102" vendor-id="10415" must="V,M" must-not="" may-encrypt="N">
           <data type="Grouped">
             <rule avp="User-Name" required="false" max="1"/>
             <rule avp="MSISDN" required="false" max="1"/>
@@ -8047,7 +8057,7 @@ var tgpps6cXML = `<?xml version="1.0" encoding="UTF-8"?>
           </data>
         </avp>
         <!-- 3GPP TS 29.336 V20.0.0 §6.4.18, Table 6.4.1/1; reused by TS 29.338 V19.3.0 Tables 5.3.3.1/2 and 6.3.3.1/2. -->
-        <avp name="IP-SM-GW-Realm" code="3112" vendor-id="10415" must="VM" must-not="" may-encrypt="N">
+        <avp name="IP-SM-GW-Realm" code="3112" vendor-id="10415" must="V,M" must-not="" may-encrypt="N">
           <data type="DiameterIdentity">
           </data>
         </avp>
