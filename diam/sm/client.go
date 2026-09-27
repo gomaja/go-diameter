@@ -16,9 +16,9 @@ import (
 	"time"
 
 	"github.com/gomaja/go-diameter/diam"
-	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/dict"
+	"github.com/gomaja/go-diameter/diam/internal/base"
 	"github.com/gomaja/go-sctp"
 )
 
@@ -392,59 +392,14 @@ func (cli *Client) handshake(c diam.Conn, activity *watchdogActivity) (diam.Conn
 }
 
 func (cli *Client) makeCER(hostIPAddresses []datatype.Address) (*diam.Message, error) {
-	m := diam.NewRequest(diam.CapabilitiesExchange, 0, cli.Dict)
-	if _, err := m.NewAVP(avp.OriginHost, avp.Mbit, 0, cli.Handler.cfg.OriginHost); err != nil {
-		return nil, err
-	}
-	if _, err := m.NewAVP(avp.OriginRealm, avp.Mbit, 0, cli.Handler.cfg.OriginRealm); err != nil {
-		return nil, err
-	}
-	for _, hostIPAddress := range hostIPAddresses {
-		if _, err := m.NewAVP(avp.HostIPAddress, avp.Mbit, 0, hostIPAddress); err != nil {
-			return nil, err
-		}
-	}
-	if _, err := m.NewAVP(avp.VendorID, avp.Mbit, 0, cli.Handler.cfg.VendorID); err != nil {
-		return nil, err
-	}
-	if _, err := m.NewAVP(avp.ProductName, 0, 0, cli.Handler.cfg.ProductName); err != nil {
-		return nil, err
-	}
-	if cli.Handler.cfg.OriginStateID != 0 {
-		stateid := datatype.Unsigned32(cli.Handler.cfg.OriginStateID)
-		if _, err := m.NewAVP(avp.OriginStateID, avp.Mbit, 0, stateid); err != nil {
-			return nil, err
-		}
-	}
-	if cli.SupportedVendorID != nil {
-		for _, a := range cli.SupportedVendorID {
-			m.AddAVP(a)
-		}
-	}
-	if cli.AuthApplicationID != nil {
-		for _, a := range cli.AuthApplicationID {
-			m.AddAVP(a)
-		}
-	}
-	if _, err := m.NewAVP(avp.InbandSecurityID, avp.Mbit, 0, datatype.Unsigned32(cli.InbandSecurityID)); err != nil {
-		return nil, err
-	}
-	if cli.AcctApplicationID != nil {
-		for _, a := range cli.AcctApplicationID {
-			m.AddAVP(a)
-		}
-	}
-	if cli.VendorSpecificApplicationID != nil {
-		for _, a := range cli.VendorSpecificApplicationID {
-			m.AddAVP(a)
-		}
-	}
-	if cli.Handler.cfg.FirmwareRevision != 0 {
-		if _, err := m.NewAVP(avp.FirmwareRevision, 0, 0, cli.Handler.cfg.FirmwareRevision); err != nil {
-			return nil, err
-		}
-	}
-	return m, nil
+	cfg := baseSettings(cli.Handler.cfg)
+	cfg.HostIPAddresses = hostIPAddresses
+	cfg.SupportedVendorID = cli.SupportedVendorID
+	cfg.AcctApplicationID = cli.AcctApplicationID
+	cfg.AuthApplicationID = cli.AuthApplicationID
+	cfg.VendorSpecificApplicationID = cli.VendorSpecificApplicationID
+	cfg.InbandSecurityID = cli.InbandSecurityID
+	return base.BuildCER(cli.Dict, cfg)
 }
 
 func (cli *Client) watchdogParameters() (floor, jitter time.Duration) {
@@ -557,19 +512,7 @@ func (cli *Client) dwr(c diam.Conn, osid uint32) bool {
 }
 
 func (cli *Client) makeDWR(osid uint32) (*diam.Message, error) {
-	m := diam.NewRequest(diam.DeviceWatchdog, 0, cli.Dict)
-	if _, err := m.NewAVP(avp.OriginHost, avp.Mbit, 0, cli.Handler.cfg.OriginHost); err != nil {
-		return nil, err
-	}
-	if _, err := m.NewAVP(avp.OriginRealm, avp.Mbit, 0, cli.Handler.cfg.OriginRealm); err != nil {
-		return nil, err
-	}
-	if cli.Handler.cfg.OriginStateID != 0 {
-		if _, err := m.NewAVP(avp.OriginStateID, avp.Mbit, 0, datatype.Unsigned32(osid)); err != nil {
-			return nil, err
-		}
-	}
-	return m, nil
+	return base.BuildDWR(cli.Dict, baseSettings(cli.Handler.cfg), osid)
 }
 
 func getHostsWithoutPort(hosts string) (string, error) {

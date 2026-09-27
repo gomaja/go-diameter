@@ -8,8 +8,7 @@ import (
 	"fmt"
 
 	"github.com/gomaja/go-diameter/diam"
-	"github.com/gomaja/go-diameter/diam/avp"
-	"github.com/gomaja/go-diameter/diam/datatype"
+	"github.com/gomaja/go-diameter/diam/internal/base"
 	"github.com/gomaja/go-diameter/diam/sm/smparser"
 	"github.com/gomaja/go-diameter/diam/sm/smpeer"
 )
@@ -61,122 +60,59 @@ func handleCER(sm *StateMachine) diam.HandlerFunc {
 	}
 }
 
-// errorCEA sends an error answer indicating that the CER failed due to
-// an unsupported (acct/auth) application, and includes the AVP that
-// caused the failure in the message.
+// errorCEA sends the legacy capability failure answer (RFC 6733 §5.3.2).
 func errorCEA(sm *StateMachine, c diam.Conn, m *diam.Message, errMessage error) error {
-	var (
-		hostAddresses []datatype.Address
-		err           error
-	)
-	if len(sm.cfg.HostIPAddresses) > 0 {
-		hostAddresses = sm.cfg.HostIPAddresses
-	} else {
+	hostAddresses := sm.cfg.HostIPAddresses
+	if len(hostAddresses) == 0 {
+		var err error
 		hostAddresses, err = getLocalAddresses(c)
 		if err != nil {
 			return fmt.Errorf("error CEA '%s' create failure: %v", errMessage, err)
 		}
 	}
-
-	var a *diam.Message
+	var resultCode uint32
 	switch errMessage {
 	case smparser.ErrNoCommonSecurity:
-		a = m.Answer(diam.NoCommonSecurity)
+		resultCode = diam.NoCommonSecurity
 	case smparser.ErrNoCommonApplication:
-		a = m.Answer(diam.NoCommonApplication)
+		resultCode = diam.NoCommonApplication
 	default:
-		a = m.Answer(diam.UnableToComply)
+		resultCode = diam.UnableToComply
 	}
-	// RFC 6733 §§7.1.5 and 7.2: 5xxx CEA failures use the command answer
-	// grammar without E; only 3xxx protocol errors set E.
-	a.Header.CommandFlags = 0
-	a.Header.ApplicationID = 0
-	addCEAAVP(a, avp.OriginHost, avp.Mbit, 0, sm.cfg.OriginHost)
-	addCEAAVP(a, avp.OriginRealm, avp.Mbit, 0, sm.cfg.OriginRealm)
-	for _, hostAddress := range hostAddresses {
-		addCEAAVP(a, avp.HostIPAddress, avp.Mbit, 0, hostAddress)
-	}
-	addCEAAVP(a, avp.VendorID, avp.Mbit, 0, sm.cfg.VendorID)
-	addCEAAVP(a, avp.ProductName, 0, 0, sm.cfg.ProductName)
-	// RFC 6733 §8.16: Origin-State-Id reflects the entity in Origin-Host.
-	if sm.cfg.OriginStateID != 0 {
-		addCEAAVP(a, avp.OriginStateID, avp.Mbit, 0, sm.cfg.OriginStateID)
-	}
-	if sm.cfg.FirmwareRevision != 0 {
-		addCEAAVP(a, avp.FirmwareRevision, 0, 0, sm.cfg.FirmwareRevision)
-	}
+	cfg := baseSettings(sm.cfg)
+	cfg.HostIPAddresses = hostAddresses
+	a := base.BuildCEA(m, cfg, resultCode)
 	if sm.cfg.OnCEA != nil {
 		sm.cfg.OnCEA(c, a)
 	}
-	_, err = a.WriteTo(c)
+	_, err := a.WriteTo(c)
 	if err != nil {
 		err = fmt.Errorf("error CEA '%s' send failure: %v", errMessage, err)
 	}
 	return err
 }
 
-// successCEA sends a success answer indicating that the CER was successfully
-// parsed and accepted by the server.
+// successCEA sends the legacy capability success answer (RFC 6733 §5.3.2).
 func successCEA(sm *StateMachine, c diam.Conn, m *diam.Message) error {
-	var (
-		hostAddresses []datatype.Address
-		err           error
-	)
-	if len(sm.cfg.HostIPAddresses) > 0 {
-		hostAddresses = sm.cfg.HostIPAddresses
-	} else {
+	hostAddresses := sm.cfg.HostIPAddresses
+	if len(hostAddresses) == 0 {
+		var err error
 		hostAddresses, err = getLocalAddresses(c)
 		if err != nil {
 			return err
 		}
 	}
-
-	a := m.Answer(diam.Success)
-	a.Header.CommandFlags = 0 // RFC 6733 §5.3.2: CEA has no P, E or T bit.
-	a.Header.ApplicationID = 0
-	addCEAAVP(a, avp.OriginHost, avp.Mbit, 0, sm.cfg.OriginHost)
-	addCEAAVP(a, avp.OriginRealm, avp.Mbit, 0, sm.cfg.OriginRealm)
-	for _, hostAddress := range hostAddresses {
-		addCEAAVP(a, avp.HostIPAddress, avp.Mbit, 0, hostAddress)
-	}
-	addCEAAVP(a, avp.VendorID, avp.Mbit, 0, sm.cfg.VendorID)
-	addCEAAVP(a, avp.ProductName, 0, 0, sm.cfg.ProductName)
-	// RFC 6733 §8.16: Origin-State-Id reflects the entity in Origin-Host.
-	if sm.cfg.OriginStateID != 0 {
-		addCEAAVP(a, avp.OriginStateID, avp.Mbit, 0, sm.cfg.OriginStateID)
-	}
+	cfg := baseSettings(sm.cfg)
+	cfg.HostIPAddresses = hostAddresses
 	for _, app := range sm.supportedApps {
-		var typ uint32
-		switch app.AppType {
-		case "auth":
-			typ = avp.AuthApplicationID
-		case "acct":
-			typ = avp.AcctApplicationID
-		}
-		if app.Vendor != 0 {
-			addCEAAVP(a, avp.SupportedVendorID, avp.Mbit, 0, datatype.Unsigned32(app.Vendor))
-			addCEAAVP(a, avp.VendorSpecificApplicationID, avp.Mbit, 0, &diam.GroupedAVP{
-				AVP: []*diam.AVP{
-					diam.NewAVP(avp.VendorID, avp.Mbit, 0, datatype.Unsigned32(app.Vendor)),
-					diam.NewAVP(typ, avp.Mbit, 0, datatype.Unsigned32(app.ID)),
-				},
-			})
-		} else {
-			addCEAAVP(a, typ, avp.Mbit, 0, datatype.Unsigned32(app.ID))
-		}
+		cfg.Applications = append(cfg.Applications, base.LocalApplication{
+			ID: app.ID, AppType: app.AppType, Vendor: app.Vendor,
+		})
 	}
-	if sm.cfg.FirmwareRevision != 0 {
-		addCEAAVP(a, avp.FirmwareRevision, 0, 0, sm.cfg.FirmwareRevision)
-	}
+	a := base.BuildCEA(m, cfg, diam.Success)
 	if sm.cfg.OnCEA != nil {
 		sm.cfg.OnCEA(c, a)
 	}
-	_, err = a.WriteTo(c)
+	_, err := a.WriteTo(c)
 	return err
-}
-
-func addCEAAVP(m *diam.Message, code interface{}, flags uint8, vendor uint32, data datatype.Type) {
-	if _, err := m.NewAVP(code, flags, vendor, data); err != nil {
-		panic(fmt.Sprintf("CEA AVP create failure: %v", err))
-	}
 }
