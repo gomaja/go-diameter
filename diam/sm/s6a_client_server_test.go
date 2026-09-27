@@ -83,18 +83,14 @@ func testS6aClientServer(network string, t *testing.T) {
 	// Print error reports.
 	go testPrintErrors(mux.ErrorReports(), results)
 
-	// Start Server
-	go func() {
-		results <- nil
-		err := diam.ListenAndServeNetwork(network, "127.0.0.1:3868", mux, nil)
-		if err != nil {
-			results <- err
-		}
-	}()
-	if err := <-results; err != nil {
+	// Start Server on an ephemeral port, so concurrent or repeated test runs
+	// on one host cannot collide on the Diameter port.
+	ln, err := diam.MultistreamListen(network, "127.0.0.1:0")
+	if err != nil {
 		t.Fatal(err)
 	}
-	time.Sleep(time.Millisecond * 10)
+	defer func() { _ = ln.Close() }()
+	go func() { _ = diam.Serve(ln, mux) }()
 
 	// Initialize Client
 	cfg := &Settings{
@@ -148,7 +144,7 @@ func testS6aClientServer(network string, t *testing.T) {
 	// Print error reports.
 	go testPrintErrors(cmux.ErrorReports(), results)
 
-	c, err := cli.DialNetwork(network, "127.0.0.1:3868")
+	c, err := cli.DialNetwork(network, ln.Addr().String())
 	if err != nil {
 		t.Fatal(err)
 	}
