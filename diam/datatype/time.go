@@ -14,8 +14,10 @@ import (
 type Time time.Time
 
 const rfc868offset = 2208988800 // Diff. between 1970 and 1900 in seconds.
-// UTC time is reckoned from 6h 28m 16s UTC on 7 February 2036 because overload happens.
-const rfc2030offset = 2085978496 // 0xFFFFFFFF - 2208988800
+// RFC 6733 §4.3.1 requires the Time extension to 2104. The bit-0 rule is
+// described in obsolete RFC 4330 §3; RFC 5905 uses NTP era numbers instead.
+// The post-rollover Unix offset is 2^32 - 2208988800 seconds.
+const postRolloverUnixOffset = 2085978496
 
 // DecodeTime decodes a Time data type from byte array.
 func DecodeTime(b []byte) (Type, error) {
@@ -23,7 +25,7 @@ func DecodeTime(b []byte) (Type, error) {
 		return Time{}, fmt.Errorf("invalid Time data length: %d", len(b))
 	}
 	if (b[0] >> 7) == 0 {
-		return Time(time.Unix(int64(binary.BigEndian.Uint32(b))+rfc2030offset, 0)), nil
+		return Time(time.Unix(int64(binary.BigEndian.Uint32(b))+postRolloverUnixOffset, 0)), nil
 	} else {
 		return Time(time.Unix(int64(binary.BigEndian.Uint32(b))-rfc868offset, 0)), nil
 	}
