@@ -131,6 +131,7 @@ func New(settings *Settings) *StateMachine {
 	sm.mux.Handle("DWR", handshakeOK(dwrHandler))
 	sm.mux.HandleIdx(baseCERIdx, cerHandler)
 	sm.mux.HandleIdx(baseDWRIdx, dwrHandler)
+	sm.mux.Handle("ALL", diam.HandlerFunc(sm.handleUnsupportedCommand))
 	return sm
 }
 
