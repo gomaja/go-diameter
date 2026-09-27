@@ -28,6 +28,7 @@ type sendResult struct {
 type pendingAttempt struct {
 	hop        uint32
 	generation uint64
+	writing    bool
 }
 type pendingRequest struct {
 	msg               *diam.Message
@@ -265,7 +266,7 @@ func (m *Manager) reserveAndSend(p *pendingRequest, a *actor, s *session, retran
 	p.current = s
 	p.attempted[a] = true
 	m.pendingMu.Unlock()
-	if !s.send(&attempt, false) {
+	if !s.sendWrite(writeRequest{msg: &attempt, pending: p}) {
 		// Closing the session transfers ownership to failover. Close may have
 		// raced ahead of this reservation, so check pending again afterwards.
 		s.close()
