@@ -9,6 +9,7 @@ package dict
 import (
 	"encoding/xml"
 	"fmt"
+	"strconv"
 
 	"github.com/gomaja/go-diameter/diam/datatype"
 )
@@ -54,7 +55,9 @@ func (cmd *Command) String() string {
 
 // CommandRule contains rules for a given command.
 type CommandRule struct {
-	Rule []*Rule `xml:"rule"`
+	// Proxiable, when specified, is the P bit required by the command ABNF.
+	Proxiable *bool   `xml:"proxiable,attr"`
+	Rule      []*Rule `xml:"rule"`
 }
 
 // AVP represents a dictionary AVP that is loaded from XML.
@@ -92,4 +95,31 @@ type Rule struct {
 	Required bool   `xml:"required,attr"`
 	Min      int    `xml:"min,attr"`
 	Max      int    `xml:"max,attr"`
+	// MaxSet distinguishes an explicit zero maximum from an unbounded rule.
+	MaxSet bool `xml:"-"`
+	// Fixed marks an AVP that must occur in the command or group prefix.
+	Fixed bool `xml:"fixed,attr"`
+}
+
+func (r *Rule) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
+	type rawRule struct {
+		AVP      string `xml:"avp,attr"`
+		Required bool   `xml:"required,attr"`
+		Min      int    `xml:"min,attr"`
+		Max      string `xml:"max,attr"`
+		Fixed    bool   `xml:"fixed,attr"`
+	}
+	var raw rawRule
+	if err := d.DecodeElement(&raw, &start); err != nil {
+		return err
+	}
+	r.AVP, r.Required, r.Min, r.Fixed = raw.AVP, raw.Required, raw.Min, raw.Fixed
+	if raw.Max != "" {
+		max, err := strconv.Atoi(raw.Max)
+		if err != nil {
+			return fmt.Errorf("invalid maximum for %s: %w", raw.AVP, err)
+		}
+		r.Max, r.MaxSet = max, true
+	}
+	return nil
 }
