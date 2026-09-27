@@ -1,0 +1,455 @@
+package peer
+
+import (
+	"context"
+	"errors"
+	"net"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/gomaja/go-diameter/diam"
+	"github.com/gomaja/go-diameter/diam/avp"
+	"github.com/gomaja/go-diameter/diam/datatype"
+	"github.com/gomaja/go-diameter/diam/dict"
+	"github.com/gomaja/go-diameter/diam/internal/base"
+	"github.com/gomaja/go-diameter/diam/sm"
+)
+
+type fakeClock struct {
+	mu     sync.Mutex
+	timers []*fakeTimer
+}
+type fakeTimer struct {
+	mu     sync.Mutex
+	active bool
+	f      func()
+}
+
+func (c *fakeClock) AfterFunc(_ time.Duration, f func()) Timer {
+	t := &fakeTimer{active: true, f: f}
+	c.mu.Lock()
+	c.timers = append(c.timers, t)
+	c.mu.Unlock()
+	return t
+}
+func (t *fakeTimer) Stop() bool {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	was := t.active
+	t.active = false
+	return was
+}
+func (c *fakeClock) fire() {
+	c.mu.Lock()
+	timers := append([]*fakeTimer(nil), c.timers...)
+	c.mu.Unlock()
+	for _, t := range timers {
+		t.mu.Lock()
+		active := t.active
+		t.active = false
+		t.mu.Unlock()
+		if active {
+			t.f()
+		}
+	}
+}
+func testSettings(host string) sm.Settings {
+	return sm.Settings{OriginHost: datatype.DiameterIdentity(host), OriginRealm: "example.net", VendorID: 1, ProductName: "test"}
+}
+func testBase(host string) base.Settings {
+	cfg := base.Settings{OriginHost: datatype.DiameterIdentity(host), OriginRealm: "example.net", VendorID: 1, ProductName: "test", HostIPAddresses: []datatype.Address{datatype.Address(net.IPv4(127, 0, 0, 1))}}
+	apps := sm.PrepareSupportedApps(dict.Default)
+	for _, a := range apps {
+		if a.AppType == "auth" && a.Vendor == 0 {
+			cfg.AuthApplicationID = []*diam.AVP{diam.NewAVP(avp.AuthApplicationID, avp.Mbit, 0, datatype.Unsigned32(a.ID))}
+			break
+		}
+	}
+	return cfg
+}
+func startReceiver(t *testing.T, m *Manager) (net.Listener, *diam.Server) {
+	t.Helper()
+	l, e := net.Listen("tcp", "127.0.0.1:0")
+	if e != nil {
+		t.Fatal(e)
+	}
+	srv := &diam.Server{}
+	if e = m.BindServer(srv); e != nil {
+		t.Fatal(e)
+	}
+	go func() { _ = srv.Serve(l) }()
+	return l, srv
+}
+func closeManager(t *testing.T, m *Manager, s *diam.Server) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	if err := m.Close(ctx, sm.DisconnectRebooting); err != nil {
+		t.Fatal(err)
+	}
+	if s != nil {
+		_ = s.Close()
+	}
+}
+func read(t *testing.T, c net.Conn) *diam.Message {
+	t.Helper()
+	_ = c.SetReadDeadline(time.Now().Add(time.Second))
+	m, e := diam.ReadMessage(c, dict.Default)
+	if e != nil {
+		t.Fatal(e)
+	}
+	return m
+}
+func write(t *testing.T, c net.Conn, m *diam.Message) {
+	t.Helper()
+	_ = c.SetWriteDeadline(time.Now().Add(time.Second))
+	if _, e := m.WriteTo(c); e != nil {
+		t.Fatal(e)
+	}
+}
+func code(t *testing.T, m *diam.Message) uint32 {
+	t.Helper()
+	var r struct {
+		ResultCode uint32 `avp:"Result-Code"`
+	}
+	if e := m.Unmarshal(&r); e != nil {
+		t.Fatal(e)
+	}
+	return r.ResultCode
+}
+func awaitState(t *testing.T, m *Manager, want PeerState) {
+	t.Helper()
+	end := time.Now().Add(time.Second)
+	for time.Now().Before(end) {
+		if m.Peers()[0].State == want {
+			return
+		}
+		time.Sleep(time.Millisecond)
+	}
+	t.Fatalf("state=%s want %s", m.Peers()[0].State, want)
+}
+
+func TestPreCERGateAndUnknownPeer(t *testing.T) {
+	for _, name := range []string{"non-CER", "timeout", "unknown-peer", "missing-host", "no-common-application"} {
+		t.Run(name, func(t *testing.T) {
+			clock := &fakeClock{}
+			m, e := New(Config{Settings: testSettings("local.example.net"), Clock: clock})
+			if e != nil {
+				t.Fatal(e)
+			}
+			if e = m.AddPeer(PeerConfig{Host: "known.example.net"}); e != nil {
+				t.Fatal(e)
+			}
+			l, srv := startReceiver(t, m)
+			defer closeManager(t, m, srv)
+			c, e := net.Dial("tcp", l.Addr().String())
+			if e != nil {
+				t.Fatal(e)
+			}
+			defer func() { _ = c.Close() }()
+			switch name {
+			case "non-CER":
+				dwr, e := base.BuildDWR(dict.Default, testBase("known.example.net"), 0)
+				if e != nil {
+					t.Fatal(e)
+				}
+				write(t, c, dwr)
+			case "timeout":
+				time.Sleep(10 * time.Millisecond)
+				clock.fire()
+			default:
+				host := "known.example.net"
+				if name == "unknown-peer" {
+					host = "other.example.net"
+				}
+				cer, e := base.BuildCER(dict.Default, testBase(host))
+				if e != nil {
+					t.Fatal(e)
+				}
+				if name == "missing-host" {
+					filtered := cer.AVP[:0]
+					for _, a := range cer.AVP {
+						if a.Code != avp.OriginHost {
+							filtered = append(filtered, a)
+						}
+					}
+					cer.AVP = filtered
+					cer.Header.MessageLength = uint32(cer.Len())
+				}
+				if name == "no-common-application" {
+					filtered := cer.AVP[:0]
+					for _, a := range cer.AVP {
+						if a.Code != avp.AuthApplicationID {
+							filtered = append(filtered, a)
+						}
+					}
+					cer.AVP = filtered
+					cer.Header.MessageLength = uint32(cer.Len())
+				}
+				write(t, c, cer)
+				_ = c.SetReadDeadline(time.Now().Add(time.Second))
+				ans, readErr := diam.ReadMessage(c, dict.Default)
+				if readErr != nil {
+					select {
+					case report := <-m.ErrorReports():
+						t.Fatalf("read: %v; state: %+v; report: %v", readErr, m.Peers(), report.Error)
+					default:
+						t.Fatalf("read: %v; state: %+v", readErr, m.Peers())
+					}
+				}
+				want := uint32(diam.UnableToComply)
+				if name == "unknown-peer" {
+					want = diam.UnknownPeer
+				}
+				if name == "no-common-application" {
+					want = diam.NoCommonApplication
+				}
+				if got := code(t, ans); got != want {
+					t.Fatalf("Result-Code=%d want %d", got, want)
+				}
+			}
+			_ = c.SetReadDeadline(time.Now().Add(time.Second))
+			var b [1]byte
+			_, e = c.Read(b[:])
+			if e == nil {
+				t.Fatal("connection remained open")
+			}
+			if n, ok := e.(net.Error); ok && n.Timeout() {
+				t.Fatal("connection did not close")
+			}
+		})
+	}
+}
+
+func TestManagedControlAndUnsupported(t *testing.T) {
+	m, e := New(Config{Settings: testSettings("local.example.net")})
+	if e != nil {
+		t.Fatal(e)
+	}
+	if e = m.AddPeer(PeerConfig{Host: "known.example.net"}); e != nil {
+		t.Fatal(e)
+	}
+	l, srv := startReceiver(t, m)
+	defer closeManager(t, m, srv)
+	c, e := net.Dial("tcp", l.Addr().String())
+	if e != nil {
+		t.Fatal(e)
+	}
+	defer func() { _ = c.Close() }()
+	cfg := testBase("known.example.net")
+	cer, e := base.BuildCER(dict.Default, cfg)
+	if e != nil {
+		t.Fatal(e)
+	}
+	write(t, c, cer)
+	cea := read(t, c)
+	if code(t, cea) != diam.Success {
+		t.Fatalf("CEA %d", code(t, cea))
+	}
+	awaitState(t, m, ROpen)
+	dwr, e := base.BuildDWR(dict.Default, cfg, 0)
+	if e != nil {
+		t.Fatal(e)
+	}
+	write(t, c, dwr)
+	dwa := read(t, c)
+	if dwa.Header.CommandCode != diam.DeviceWatchdog || code(t, dwa) != diam.Success {
+		t.Fatalf("DWA %+v", dwa.Header)
+	}
+	req := diam.NewRequest(999, 0, dict.Default)
+	write(t, c, req)
+	ans := read(t, c)
+	if ans.Header.CommandFlags&diam.ErrorFlag == 0 || code(t, ans) != diam.CommandUnsupported {
+		t.Fatalf("unsupported answer %+v", ans.Header)
+	}
+	for {
+		select {
+		case <-m.ErrorReports():
+			continue
+		default:
+		}
+		break
+	}
+	write(t, c, req.Answer(diam.Success))
+	select {
+	case report := <-m.ErrorReports():
+		if report.Message == nil || report.Message.Header.CommandFlags&diam.RequestFlag != 0 {
+			t.Fatalf("unexpected report: %+v", report)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("unhandled answer was not reported")
+	}
+	_ = c.SetReadDeadline(time.Now().Add(30 * time.Millisecond))
+	var extra [1]byte
+	if _, err := c.Read(extra[:]); err == nil {
+		t.Fatal("answered an answer")
+	}
+	dpr, e := base.BuildDPR(dict.Default, cfg, 0)
+	if e != nil {
+		t.Fatal(e)
+	}
+	write(t, c, dpr)
+	dpa := read(t, c)
+	if dpa.Header.CommandCode != diam.DisconnectPeer || code(t, dpa) != diam.Success {
+		t.Fatalf("DPA %+v", dpa.Header)
+	}
+	_ = c.Close()
+	awaitState(t, m, Closed)
+}
+
+func TestInboundSurvivesOutboundNackWithoutCERTimer(t *testing.T) {
+	clock := &fakeClock{}
+	release := make(chan struct{})
+	m, err := New(Config{
+		Settings: testSettings("local.example.net"), Clock: clock,
+		Dial: func(context.Context, Endpoint) (net.Conn, error) {
+			<-release
+			return nil, errors.New("dial refused")
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := m.AddPeer(PeerConfig{Host: "known.example.net", Endpoints: []Endpoint{{Network: "tcp", Address: "127.0.0.1:1"}}}); err != nil {
+		t.Fatal(err)
+	}
+	l, srv := startReceiver(t, m)
+	defer closeManager(t, m, srv)
+	if err := m.Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	awaitState(t, m, WaitConnAck)
+	c, err := net.Dial("tcp", l.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = c.Close() }()
+	cfg := testBase("known.example.net")
+	cer, err := base.BuildCER(dict.Default, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	write(t, c, cer)
+	awaitState(t, m, WaitConnAckElect)
+	close(release)
+	if got := code(t, read(t, c)); got != diam.Success {
+		t.Fatalf("CEA Result-Code=%d", got)
+	}
+	awaitState(t, m, ROpen)
+	clock.fire()
+	if got := m.Peers()[0].State; got != ROpen {
+		t.Fatalf("stale CER timer closed peer: %s", got)
+	}
+	dpr, err := base.BuildDPR(dict.Default, cfg, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	write(t, c, dpr)
+	if got := code(t, read(t, c)); got != diam.Success {
+		t.Fatalf("DPA Result-Code=%d", got)
+	}
+	_ = c.Close()
+	awaitState(t, m, Closed)
+}
+
+func TestRejectedCEA(t *testing.T) {
+	for _, name := range []string{"bad-result", "missing-origin-host", "no-common-application"} {
+		t.Run(name, func(t *testing.T) {
+			l, e := net.Listen("tcp", "127.0.0.1:0")
+			if e != nil {
+				t.Fatal(e)
+			}
+			defer func() { _ = l.Close() }()
+			serverDone := make(chan struct{})
+			go func() {
+				defer close(serverDone)
+				c, e := l.Accept()
+				if e != nil {
+					return
+				}
+				defer func() { _ = c.Close() }()
+				cer, e := diam.ReadMessage(c, dict.Default)
+				if e != nil {
+					return
+				}
+				cfg := testBase("remote.example.net")
+				result := uint32(diam.Success)
+				if name == "bad-result" {
+					result = diam.UnableToComply
+				}
+				if name == "no-common-application" {
+					cfg.Applications = nil
+				}
+				if name != "no-common-application" {
+					cfg.Applications = []base.LocalApplication{{ID: uint32(cfg.AuthApplicationID[0].Data.(datatype.Unsigned32)), AppType: "auth"}}
+				}
+				cea := base.BuildCEA(cer, cfg, result)
+				if name == "missing-origin-host" {
+					out := cea.AVP[:0]
+					for _, a := range cea.AVP {
+						if a.Code != avp.OriginHost {
+							out = append(out, a)
+						}
+					}
+					cea.AVP = out
+					cea.Header.MessageLength = uint32(cea.Len())
+				}
+				_, _ = cea.WriteTo(c)
+				var b [1]byte
+				_, _ = c.Read(b[:])
+			}()
+			m, e := New(Config{Settings: testSettings("local.example.net")})
+			if e != nil {
+				t.Fatal(e)
+			}
+			if e = m.AddPeer(PeerConfig{Host: "remote.example.net", Endpoints: []Endpoint{{Network: "tcp", Address: l.Addr().String()}}}); e != nil {
+				t.Fatal(e)
+			}
+			if e = m.Start(context.Background()); e != nil {
+				t.Fatal(e)
+			}
+			end := time.Now().Add(time.Second)
+			for time.Now().Before(end) {
+				p := m.Peers()[0]
+				if p.State == Closed && p.Generation > 0 {
+					break
+				}
+				time.Sleep(time.Millisecond)
+			}
+			if p := m.Peers()[0]; p.State != Closed || p.Generation == 0 {
+				t.Fatalf("state after CEA: %+v", p)
+			}
+			closeManager(t, m, nil)
+			select {
+			case <-serverDone:
+			case <-time.After(time.Second):
+				t.Fatal("server leaked")
+			}
+		})
+	}
+}
+
+func TestBindServerRejectsServingAndHandler(t *testing.T) {
+	m, e := New(Config{Settings: testSettings("local.example.net")})
+	if e != nil {
+		t.Fatal(e)
+	}
+	defer closeManager(t, m, nil)
+	srv := &diam.Server{Handler: diam.NewServeMux()}
+	if e = m.BindServer(srv); e == nil {
+		t.Fatal("accepted existing handler")
+	}
+	l, e := net.Listen("tcp", "127.0.0.1:0")
+	if e != nil {
+		t.Fatal(e)
+	}
+	defer func() { _ = l.Close() }()
+	serving := &diam.Server{}
+	go func() { _ = serving.Serve(l) }()
+	time.Sleep(10 * time.Millisecond)
+	if e = m.BindServer(serving); e == nil {
+		t.Fatal("accepted serving server")
+	}
+	_ = serving.Close()
+}
