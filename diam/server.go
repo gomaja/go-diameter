@@ -92,6 +92,10 @@ type conn struct {
 	tlsState *tls.ConnectionState // or nil when not using TLS
 	writer   *response            // the diam.Conn exposed to handlers
 
+	// handshakeDone is closed after the TLS handshake and its deadline reset.
+	// It is nil for non-TLS connections and is set before trackConn.
+	handshakeDone chan struct{}
+
 	hwg         sync.WaitGroup // tracks in-flight handler goroutines
 	sem         chan struct{}  // bounds concurrent handlers; nil = unbounded/sequential
 	dispatchSeq uint64         // read order assigned before concurrent handler dispatch
@@ -183,6 +187,9 @@ func (srv *Server) newConn(rwc net.Conn) (c *conn, err error) {
 		c.buf = bufio.NewReadWriter(bufio.NewReader(&c.sr), bufio.NewWriter(rwc))
 	}
 	c.writer = &response{conn: c}
+	if _, ok := rwc.(*tls.Conn); ok {
+		c.handshakeDone = make(chan struct{})
+	}
 	c.idle = make(chan struct{}, 1)
 	c.done = make(chan struct{})
 	c.shutdownDone = make(chan struct{})
@@ -231,7 +238,9 @@ func (c *conn) serve() {
 		close(c.done)
 	}()
 	if tlsConn, ok := c.rwc.(*tls.Conn); ok {
-		if err := tlsConn.Handshake(); err != nil {
+		err := c.handshakeTLS(tlsConn)
+		close(c.handshakeDone)
+		if err != nil {
 			return
 		}
 		c.tlsState = &tls.ConnectionState{}
@@ -250,6 +259,43 @@ func (c *conn) serve() {
 		}
 		c.dispatch(m)
 	}
+}
+
+// handshakeTLS bounds only the handshake. RFC 6733 §2.1 and §13 require TLS
+// before Diameter messages, so the normal message read deadline starts later.
+func (c *conn) handshakeTLS(tlsConn *tls.Conn) error {
+	limit := c.server.tlsHandshakeTimeout()
+	if limit > 0 {
+		if err := tlsConn.SetDeadline(time.Now().Add(limit)); err != nil {
+			return err
+		}
+	}
+	err := tlsConn.Handshake()
+	if limit > 0 {
+		if clearErr := tlsConn.SetDeadline(time.Time{}); err == nil {
+			err = clearErr
+		}
+	}
+	return err
+}
+
+// tlsHandshakeTimeout follows net/http.Server.tlsHandshakeTimeout's minimum
+// positive ReadTimeout/WriteTimeout rule (Go net/http/server.go). A negative
+// explicit handshake timeout disables the handshake deadline.
+func (srv *Server) tlsHandshakeTimeout() time.Duration {
+	if srv.TLSHandshakeTimeout < 0 {
+		return 0
+	}
+	limit := srv.TLSHandshakeTimeout
+	if limit == 0 {
+		limit = 10 * time.Second
+	}
+	for _, d := range [...]time.Duration{srv.ReadTimeout, srv.WriteTimeout} {
+		if d > 0 && d < limit {
+			limit = d
+		}
+	}
+	return limit
 }
 
 // handleReadError reports err and gives handlers with Diameter message-error
@@ -780,8 +826,12 @@ type Server struct {
 	Dict         *dict.Parser  // diameter dictionaries for this server
 	ReadTimeout  time.Duration // maximum duration before timing out read of the request
 	WriteTimeout time.Duration // maximum duration before timing out write of the response
-	TLSConfig    *tls.Config   // optional TLS config, used by ListenAndServeTLS
-	LocalAddr    net.Addr      // optional Local Address to bind dailer's (Dail...) socket to
+	// TLSHandshakeTimeout limits a server-side TLS handshake. Zero defaults to
+	// 10 seconds; a negative value disables the handshake deadline. Positive
+	// ReadTimeout or WriteTimeout values can shorten this limit.
+	TLSHandshakeTimeout time.Duration
+	TLSConfig           *tls.Config // optional TLS config, used by ListenAndServeTLS
+	LocalAddr           net.Addr    // optional Local Address to bind dailer's (Dail...) socket to
 
 	// MaxConcurrentHandlers controls per-connection handler dispatch.
 	//   0 (default) - sequential dispatch: each message is handled to
@@ -874,11 +924,11 @@ func (srv *Server) ConfigureHandlerBeforeServe(handler Handler, onNew func(Conn)
 // after a call to Server.Close.
 var ErrServerClosed = fmt.Errorf("diam: Server closed")
 
-// Close immediately closes all listeners registered with the server. It does
-// not affect already-accepted connections or in-flight handlers; those
-// continue to run until their read loop exits naturally or their underlying
-// connection is closed by the peer. After Close, Server.Serve returns
-// ErrServerClosed and no new connections are accepted.
+// Close immediately closes all listeners registered with the server and
+// closes accepted connections still in a TLS handshake. Established
+// connections and in-flight handlers continue until their read loop exits
+// naturally or their underlying connection is closed by the peer. After Close,
+// Server.Serve returns ErrServerClosed and no new connections are accepted.
 func (srv *Server) Close() error {
 	srv.mu.Lock()
 	defer srv.mu.Unlock()
@@ -887,6 +937,17 @@ func (srv *Server) Close() error {
 	for l := range srv.listeners {
 		if err := l.Close(); err != nil && firstErr == nil {
 			firstErr = err
+		}
+	}
+	for c := range srv.conns {
+		if c.handshakeDone != nil {
+			select {
+			case <-c.handshakeDone:
+			default:
+				if err := c.rwc.Close(); err != nil && !errors.Is(err, net.ErrClosed) && firstErr == nil {
+					firstErr = err
+				}
+			}
 		}
 	}
 	srv.listeners = nil
