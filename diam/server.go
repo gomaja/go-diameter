@@ -835,6 +835,38 @@ type Server struct {
 	closed    bool
 }
 
+// ConfigureHandlerBeforeServe atomically installs a handler and chains connection
+// hooks while the server is idle. It is used by opt-in connection owners.
+func (srv *Server) ConfigureHandlerBeforeServe(handler Handler, onNew func(Conn), onShutdown func(context.Context, Conn)) error {
+	srv.mu.Lock()
+	defer srv.mu.Unlock()
+	if srv.closed || len(srv.listeners) != 0 || len(srv.conns) != 0 {
+		return fmt.Errorf("diam: server is already serving or closed")
+	}
+	if srv.Handler != nil {
+		return fmt.Errorf("diam: server already has a handler")
+	}
+	previousNew, previousShutdown := srv.OnNewConnection, srv.OnShutdownConnection
+	srv.Handler = handler
+	srv.OnNewConnection = func(c Conn) {
+		if previousNew != nil {
+			previousNew(c)
+		}
+		if onNew != nil {
+			onNew(c)
+		}
+	}
+	srv.OnShutdownConnection = func(ctx context.Context, c Conn) {
+		if onShutdown != nil {
+			onShutdown(ctx, c)
+		}
+		if previousShutdown != nil {
+			previousShutdown(ctx, c)
+		}
+	}
+	return nil
+}
+
 // ErrServerClosed is returned by Server.Serve and Server.ListenAndServe(TLS)
 // after a call to Server.Close.
 var ErrServerClosed = fmt.Errorf("diam: Server closed")
