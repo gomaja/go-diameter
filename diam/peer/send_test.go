@@ -59,7 +59,7 @@ func outboundTestManager(t *testing.T) (*Manager, []*actor, []*session) {
 	return m, actors, sessions
 }
 
-func outboundRequest(host, realm string) *diam.Message {
+func requestWithoutOrigins(host, realm string) *diam.Message {
 	r := diam.NewRequest(272, 4, nil)
 	if host != "" {
 		_, _ = r.NewAVP(avp.DestinationHost, avp.Mbit, 0, datatype.DiameterIdentity(host))
@@ -67,6 +67,13 @@ func outboundRequest(host, realm string) *diam.Message {
 	if realm != "" {
 		_, _ = r.NewAVP(avp.DestinationRealm, avp.Mbit, 0, datatype.DiameterIdentity(realm))
 	}
+	return r
+}
+
+func outboundRequest(host, realm string) *diam.Message {
+	r := requestWithoutOrigins(host, realm)
+	_, _ = r.NewAVP(avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("local.example.net"))
+	_, _ = r.NewAVP(avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("example.net"))
 	return r
 }
 
@@ -193,6 +200,77 @@ func TestSendCopiesMessageAndMatchesAnswer(t *testing.T) {
 	}
 	if string(before) != string(after) {
 		t.Fatal("Send mutated caller message")
+	}
+}
+
+func TestSendSuppliesAndValidatesLocalOrigin(t *testing.T) {
+	m, _, sessions := outboundTestManager(t)
+	if err := m.SetRoutes([]Route{{Realm: "example.net", ApplicationID: 4, PeerHosts: []datatype.DiameterIdentity{"a.example.net"}}}); err != nil {
+		t.Fatal(err)
+	}
+	missing := requestWithoutOrigins("", "example.net")
+	result := sendAsync(m, context.Background(), missing)
+	sent := nextWrite(t, sessions[0])
+	host, hostErr := destination(sent, avp.OriginHost)
+	realm, realmErr := destination(sent, avp.OriginRealm)
+	if hostErr != nil || realmErr != nil || host != "local.example.net" || realm != "example.net" {
+		t.Fatalf("origin on transmitted copy = %q/%q, %v/%v", host, realm, hostErr, realmErr)
+	}
+	if host, _ := destination(missing, avp.OriginHost); host != "" {
+		t.Fatal("origin was added to caller message")
+	}
+	m.receiveAnswer(sessions[0], sent.Answer(diam.Success))
+	if got := <-result; got.err != nil {
+		t.Fatal(got.err)
+	}
+	matching := requestWithoutOrigins("", "example.net")
+	_, _ = matching.NewAVP(avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("LOCAL.EXAMPLE.NET"))
+	_, _ = matching.NewAVP(avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("EXAMPLE.NET"))
+	caseResult := sendAsync(m, context.Background(), matching)
+	caseSent := nextWrite(t, sessions[0])
+	m.receiveAnswer(sessions[0], caseSent.Answer(diam.Success))
+	if got := <-caseResult; got.err != nil {
+		t.Fatalf("case-insensitive origin rejected: %v", got.err)
+	}
+
+	for _, tc := range []struct {
+		name  string
+		code  uint32
+		value string
+	}{
+		{"wrong-host", avp.OriginHost, "other.example.net"},
+		{"wrong-realm", avp.OriginRealm, "other.net"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			req := requestWithoutOrigins("", "example.net")
+			_, _ = req.NewAVP(avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("local.example.net"))
+			_, _ = req.NewAVP(avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("example.net"))
+			for _, field := range req.AVP {
+				if field.Code == tc.code {
+					field.Data = datatype.DiameterIdentity(tc.value)
+				}
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			defer cancel()
+			got := sendAsync(m, ctx, req)
+			select {
+			case w := <-sessions[0].writes:
+				t.Fatalf("invalid origin was queued: %+v", w.msg.Header)
+			case out := <-got:
+				if !errors.Is(out.err, ErrInvalidRequest) {
+					t.Fatalf("origin error = %v", out.err)
+				}
+			case <-ctx.Done():
+				t.Fatal("origin validation waited for a deadline")
+			}
+		})
+	}
+	badFlags := outboundRequest("", "example.net")
+	badFlags.Header.CommandFlags |= diam.ErrorFlag
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if _, err := m.Send(ctx, badFlags); !errors.Is(err, ErrInvalidRequest) {
+		t.Fatalf("request E-bit error = %v", err)
 	}
 }
 
