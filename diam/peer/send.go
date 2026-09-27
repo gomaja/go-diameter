@@ -214,7 +214,11 @@ func (m *Manager) Send(ctx context.Context, msg *diam.Message) (*diam.Message, e
 		return nil, err
 	}
 	if m.cfg.EndToEnd != nil {
-		copy.Header.EndToEndID = m.cfg.EndToEnd()
+		id, err := m.cfg.EndToEnd()
+		if err != nil {
+			return nil, fmt.Errorf("peer: End-to-End generator: %w", err)
+		}
+		copy.Header.EndToEndID = id
 	} else {
 		copy.Header.EndToEndID = m.endToEnd.allocate()
 	}

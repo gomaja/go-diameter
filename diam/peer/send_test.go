@@ -503,7 +503,7 @@ func TestCompletedQueuedRequestIsNotWritten(t *testing.T) {
 
 func TestCustomEndToEndGeneratorAndHopWrap(t *testing.T) {
 	m, _, sessions := outboundTestManager(t)
-	m.cfg.EndToEnd = func() uint32 { return 0x12345678 }
+	m.cfg.EndToEnd = func() (uint32, error) { return 0x12345678, nil }
 	atomic.StoreUint32(&m.nextHop, ^uint32(0)-1)
 	if err := m.SetRoutes([]Route{{Realm: "example.net", ApplicationID: 4, PeerHosts: []datatype.DiameterIdentity{"a.example.net"}}}); err != nil {
 		t.Fatal(err)
@@ -523,6 +523,23 @@ func TestCustomEndToEndGeneratorAndHopWrap(t *testing.T) {
 	}
 	if r := <-second; r.err != nil {
 		t.Fatal(r.err)
+	}
+}
+
+func TestCustomEndToEndErrorPreventsAdmission(t *testing.T) {
+	m, _, sessions := outboundTestManager(t)
+	if err := m.SetRoutes([]Route{{Realm: "example.net", ApplicationID: 4, PeerHosts: []datatype.DiameterIdentity{"a.example.net"}}}); err != nil {
+		t.Fatal(err)
+	}
+	want := errors.New("durable allocator unavailable")
+	m.cfg.EndToEnd = func() (uint32, error) { return 0, want }
+	if _, err := m.Send(context.Background(), outboundRequest("", "example.net")); !errors.Is(err, want) || err == want {
+		t.Fatalf("custom End-to-End error = %v", err)
+	}
+	select {
+	case w := <-sessions[0].writes:
+		t.Fatalf("request admitted after generator error: %+v", w.msg.Header)
+	default:
 	}
 }
 
