@@ -297,7 +297,7 @@ func TestEqualIdentityRejected(t *testing.T) {
 	}
 }
 
-func TestCloseRespectsContextWithBlockedObserver(t *testing.T) {
+func TestCloseReturnsWithBlockedObserver(t *testing.T) {
 	entered := make(chan struct{}, 1)
 	release := make(chan struct{})
 	m, err := New(Config{Settings: sm.Settings{OriginHost: "local.example.net", OriginRealm: "example.net"}, OnPeerEvent: func(PeerEvent) {
@@ -314,9 +314,9 @@ func TestCloseRespectsContextWithBlockedObserver(t *testing.T) {
 		t.Fatal(err)
 	}
 	<-entered
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	if err := m.Close(ctx, sm.DisconnectRebooting); err != context.DeadlineExceeded {
+	if err := m.Close(ctx, sm.DisconnectRebooting); err != nil {
 		t.Fatalf("Close error=%v", err)
 	}
 	close(release)
@@ -324,5 +324,39 @@ func TestCloseRespectsContextWithBlockedObserver(t *testing.T) {
 	defer cancel2()
 	if err := m.Close(ctx2, sm.DisconnectRebooting); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestOnPeerEventCanCloseManager(t *testing.T) {
+	before := runtime.NumGoroutine()
+	ready := make(chan struct{})
+	returned := make(chan error, 1)
+	var m *Manager
+	var err error
+	m, err = New(Config{Settings: testSettings("local.example.net"), OnPeerEvent: func(PeerEvent) {
+		<-ready
+		returned <- m.Close(context.Background(), sm.DisconnectRebooting)
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := m.AddPeer(PeerConfig{Host: "known.example.net"}); err != nil {
+		t.Fatal(err)
+	}
+	close(ready)
+	select {
+	case err := <-returned:
+		if err != nil {
+			t.Fatalf("Close from OnPeerEvent: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Close from OnPeerEvent deadlocked")
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	for runtime.NumGoroutine() > before && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+	if got := runtime.NumGoroutine(); got > before {
+		t.Fatalf("callback shutdown leaked goroutines: before=%d after=%d", before, got)
 	}
 }
