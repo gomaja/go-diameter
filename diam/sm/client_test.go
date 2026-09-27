@@ -272,6 +272,14 @@ func TestClient_Handshake_RetransmitTimeout(t *testing.T) {
 	if err != ErrHandshakeTimeout {
 		t.Fatal(err)
 	}
+	// Dial returns once its last retransmission interval ends, which can be
+	// before the server has read and dispatched the final CER. Wait for the
+	// server to count all of them, then make sure no further CER arrives.
+	deadline := time.Now().Add(time.Second)
+	for atomic.LoadUint32(&retransmits) < 4 && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+	time.Sleep(50 * time.Millisecond)
 	if n := atomic.LoadUint32(&retransmits); n != 4 {
 		t.Fatalf("Unexpected # of retransmits. Want 4, have %d", n)
 	}
