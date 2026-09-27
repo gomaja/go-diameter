@@ -407,6 +407,8 @@ const (
 	MandatoryCapability                        = 604
 	MaximumRetransmissionTime                  = 3330
 	MaximumUEAvailabilityTime                  = 3329
+	MaxPLRDL                                   = 2852
+	MaxPLRUL                                   = 2853
 	MaxRequestedBandwidthDL                    = 515
 	MaxRequestedBandwidthUL                    = 516
 	MaxSupportedBandwidthDL                    = 543

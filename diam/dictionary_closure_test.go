@@ -10,6 +10,47 @@ import (
 	"github.com/gomaja/go-diameter/diam/dict"
 )
 
+// 3GPP TS 29.214 V20.0.0 §5.4 and TS 29.212 V20.0.0 §§5.3.138-139.
+func TestRxDictionaryClosureWire(t *testing.T) {
+	const appID = 16777236
+	for _, tc := range []struct {
+		name     string
+		code     uint32
+		vendor   uint32
+		typeName string
+	}{
+		{"Max-PLR-DL", 2852, 10415, "Unsigned32"},
+		{"Max-PLR-UL", 2853, 10415, "Unsigned32"},
+		{"TGPP-MS-TimeZone", 23, 10415, "OctetString"},
+		{"TGPP-SGSN-MCC-MNC", 18, 10415, "UTF8String"},
+		{"TGPP-User-Location-Info", 22, 10415, "OctetString"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			d, err := dict.Default.FindAVP(appID, tc.name)
+			if err != nil || d.Code != tc.code || d.VendorID != tc.vendor || d.Data.TypeName != tc.typeName {
+				t.Fatalf("definition: %v, %v", d, err)
+			}
+			msg := NewRequest(265, appID, dict.Default)
+			msg.AddAVP(smsAVP(t, appID, tc.name))
+			left, right := net.Pipe()
+			done := make(chan error, 1)
+			go func() { _, e := msg.WriteTo(left); done <- e }()
+			got, err := ReadMessage(right, dict.Default)
+			_ = left.Close()
+			_ = right.Close()
+			if writeErr := <-done; writeErr != nil {
+				t.Fatal(writeErr)
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got.DecodeErr != nil || len(got.AVP) != 1 || got.AVP[0].Data.Type() != msg.AVP[0].Data.Type() {
+				t.Fatalf("connection decode: %v", got.DecodeErr)
+			}
+		})
+	}
+}
+
 // 3GPP TS 32.299 V19.0.0 §§7.2, 7.3, 7.4 and the defining documents
 // cited beside the XML definitions.
 func TestChargingDictionaryClosureWire(t *testing.T) {
