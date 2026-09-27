@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -271,6 +272,28 @@ func TestSendSuppliesAndValidatesLocalOrigin(t *testing.T) {
 	defer cancel()
 	if _, err := m.Send(ctx, badFlags); !errors.Is(err, ErrInvalidRequest) {
 		t.Fatalf("request E-bit error = %v", err)
+	}
+}
+
+func TestLocalDestinationIsNotRouted(t *testing.T) {
+	m, _, sessions := outboundTestManager(t)
+	if err := m.SetRoutes([]Route{{Realm: "example.net", ApplicationID: 4, PeerHosts: []datatype.DiameterIdentity{"a.example.net"}}}); err != nil {
+		t.Fatal(err)
+	}
+	for _, realm := range []string{"example.net", ""} {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		result := sendAsync(m, ctx, outboundRequest("LOCAL.EXAMPLE.NET", realm))
+		select {
+		case sent := <-sessions[0].writes:
+			t.Fatalf("local destination routed to peer: %+v", sent.msg.Header)
+		case got := <-result:
+			if !errors.Is(got.err, ErrInvalidRequest) || !strings.Contains(got.err.Error(), "local Destination-Host") {
+				t.Fatalf("local destination error = %v", got.err)
+			}
+		case <-ctx.Done():
+			t.Fatal("local destination waited for deadline")
+		}
+		cancel()
 	}
 }
 
