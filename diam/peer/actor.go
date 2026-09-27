@@ -228,6 +228,10 @@ func (m *Manager) dialEndpoint(ctx context.Context, e Endpoint, a *actor, gen ui
 	}
 	select {
 	case s := <-ready:
+		if s == nil {
+			c.Close()
+			return nil, errors.New("peer: manager closing")
+		}
 		return s, nil
 	case <-ctx.Done():
 		c.Close()

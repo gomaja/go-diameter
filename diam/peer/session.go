@@ -36,14 +36,19 @@ type session struct {
 
 func (m *Manager) newSession(c diam.Conn, a *actor, gen uint64, inbound bool) *session {
 	s := &session{m: m, c: c, actor: a, gen: gen, inbound: inbound, writes: make(chan writeRequest, m.cfg.Limits.Events), ingress: make(chan incoming, m.cfg.Limits.Events), closed: make(chan struct{})}
-	m.register(s)
+	// Close sets closing under this lock before it waits for session workers.
+	m.mu.Lock()
+	if m.closing {
+		m.mu.Unlock()
+		c.Close()
+		return nil
+	}
+	m.sessions[c] = s
 	m.wg.Add(3)
+	m.mu.Unlock()
 	go s.writer()
 	go s.watch()
 	go s.dispatch()
-	if m.isClosing() {
-		s.close()
-	}
 	return s
 }
 func (s *session) enqueue(msg *diam.Message) bool {
