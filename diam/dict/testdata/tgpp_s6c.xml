@@ -1,0 +1,519 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<diameter>
+    <!-- 3GPP TS 29.338 V19.3.0 §4.1, §5.3.2.2, Table 5.3.2.2/1. -->
+    <application id="16777312" type="auth" name="TGPP S6c">
+        <vendor id="10415" name="TGPP"/>
+        <!-- 3GPP TS 29.338 V19.3.0 §§5.3.2.3-5.3.2.4, Table 5.3.2.2/1. -->
+        <command code="8388647" short="SR" name="Send-Routing-Info-for-SM">
+          <request>
+            <rule avp="Session-Id" required="true" max="1"/>
+            <rule avp="DRMP" required="false" max="1"/>
+            <rule avp="Vendor-Specific-Application-Id" required="false" max="1"/>
+            <rule avp="Auth-Session-State" required="true" max="1"/>
+            <rule avp="Origin-Host" required="true" max="1"/>
+            <rule avp="Origin-Realm" required="true" max="1"/>
+            <rule avp="Destination-Host" required="false" max="1"/>
+            <rule avp="Destination-Realm" required="true" max="1"/>
+            <rule avp="MSISDN" required="false" max="1"/>
+            <rule avp="User-Name" required="false" max="1"/>
+            <rule avp="SMSMI-Correlation-ID" required="false" max="1"/>
+            <rule avp="Supported-Features" required="false"/>
+            <rule avp="SC-Address" required="false" max="1"/>
+            <rule avp="SM-RP-MTI" required="false" max="1"/>
+            <rule avp="SM-RP-SMEA" required="false" max="1"/>
+            <rule avp="SRR-Flags" required="false" max="1"/>
+            <rule avp="SM-Delivery-Not-Intended" required="false" max="1"/>
+            <rule avp="AVP" required="false"/>
+            <rule avp="Proxy-Info" required="false"/>
+            <rule avp="Route-Record" required="false"/>
+          </request>
+          <answer>
+            <rule avp="Session-Id" required="true" max="1"/>
+            <rule avp="DRMP" required="false" max="1"/>
+            <rule avp="Vendor-Specific-Application-Id" required="false" max="1"/>
+            <rule avp="Result-Code" required="false" max="1"/>
+            <rule avp="Experimental-Result" required="false" max="1"/>
+            <rule avp="Auth-Session-State" required="true" max="1"/>
+            <rule avp="Origin-Host" required="true" max="1"/>
+            <rule avp="Origin-Realm" required="true" max="1"/>
+            <rule avp="User-Name" required="false" max="1"/>
+            <rule avp="Supported-Features" required="false"/>
+            <rule avp="Serving-Node" required="false" max="1"/>
+            <rule avp="Additional-Serving-Node" required="false" max="1"/>
+            <rule avp="SMSF-3GPP-Address" required="false" max="1"/>
+            <rule avp="SMSF-Non-3GPP-Address" required="false" max="1"/>
+            <rule avp="LMSI" required="false" max="1"/>
+            <rule avp="User-Identifier" required="false" max="1"/>
+            <rule avp="MWD-Status" required="false" max="1"/>
+            <rule avp="MME-Absent-User-Diagnostic-SM" required="false" max="1"/>
+            <rule avp="MSC-Absent-User-Diagnostic-SM" required="false" max="1"/>
+            <rule avp="SGSN-Absent-User-Diagnostic-SM" required="false" max="1"/>
+            <rule avp="SMSF-3GPP-Absent-User-Diagnostic-SM" required="false" max="1"/>
+            <rule avp="SMSF-Non-3GPP-Absent-User-Diagnostic-SM" required="false" max="1"/>
+            <rule avp="AVP" required="false"/>
+            <rule avp="Failed-AVP" required="false" max="1"/>
+            <rule avp="Proxy-Info" required="false"/>
+            <rule avp="Route-Record" required="false"/>
+            <rule avp="MPS-Priority" required="false" max="1"/>
+          </answer>
+        </command>
+        <!-- 3GPP TS 29.338 V19.3.0 §§5.3.2.5-5.3.2.6, Table 5.3.2.2/1. -->
+        <command code="8388648" short="AL" name="Alert-Service-Centre">
+          <request>
+            <rule avp="Session-Id" required="true" max="1"/>
+            <rule avp="DRMP" required="false" max="1"/>
+            <rule avp="Vendor-Specific-Application-Id" required="false" max="1"/>
+            <rule avp="Auth-Session-State" required="true" max="1"/>
+            <rule avp="Origin-Host" required="true" max="1"/>
+            <rule avp="Origin-Realm" required="true" max="1"/>
+            <rule avp="Destination-Host" required="false" max="1"/>
+            <rule avp="Destination-Realm" required="true" max="1"/>
+            <rule avp="SC-Address" required="true" max="1"/>
+            <rule avp="User-Identifier" required="true" max="1"/>
+            <rule avp="SMSMI-Correlation-ID" required="false" max="1"/>
+            <rule avp="Maximum-UE-Availability-Time" required="false" max="1"/>
+            <rule avp="SMS-GMSC-Alert-Event" required="false" max="1"/>
+            <rule avp="Serving-Node" required="false" max="1"/>
+            <rule avp="Supported-Features" required="false"/>
+            <rule avp="AVP" required="false"/>
+            <rule avp="Proxy-Info" required="false"/>
+            <rule avp="Route-Record" required="false"/>
+          </request>
+          <answer>
+            <rule avp="Session-Id" required="true" max="1"/>
+            <rule avp="DRMP" required="false" max="1"/>
+            <rule avp="Vendor-Specific-Application-Id" required="false" max="1"/>
+            <rule avp="Result-Code" required="false" max="1"/>
+            <rule avp="Experimental-Result" required="false" max="1"/>
+            <rule avp="Auth-Session-State" required="true" max="1"/>
+            <rule avp="Origin-Host" required="true" max="1"/>
+            <rule avp="Origin-Realm" required="true" max="1"/>
+            <rule avp="Supported-Features" required="false"/>
+            <rule avp="AVP" required="false"/>
+            <rule avp="Failed-AVP" required="false" max="1"/>
+            <rule avp="Proxy-Info" required="false"/>
+            <rule avp="Route-Record" required="false"/>
+          </answer>
+        </command>
+        <!-- 3GPP TS 29.338 V19.3.0 §§5.3.2.7-5.3.2.8, Table 5.3.2.2/1. -->
+        <command code="8388649" short="RD" name="Report-SM-Delivery-Status">
+          <request>
+            <rule avp="Session-Id" required="true" max="1"/>
+            <rule avp="DRMP" required="false" max="1"/>
+            <rule avp="Vendor-Specific-Application-Id" required="false" max="1"/>
+            <rule avp="Auth-Session-State" required="true" max="1"/>
+            <rule avp="Origin-Host" required="true" max="1"/>
+            <rule avp="Origin-Realm" required="true" max="1"/>
+            <rule avp="Destination-Host" required="false" max="1"/>
+            <rule avp="Destination-Realm" required="true" max="1"/>
+            <rule avp="Supported-Features" required="false"/>
+            <rule avp="User-Identifier" required="true" max="1"/>
+            <rule avp="SMSMI-Correlation-ID" required="false" max="1"/>
+            <rule avp="SC-Address" required="true" max="1"/>
+            <rule avp="SM-Delivery-Outcome" required="true" max="1"/>
+            <rule avp="RDR-Flags" required="false" max="1"/>
+            <rule avp="Serving-Node" required="false" max="1"/>
+            <rule avp="Additional-Serving-Node" required="false" max="1"/>
+            <rule avp="SMSF-3GPP-Address" required="false" max="1"/>
+            <rule avp="SMSF-Non-3GPP-Address" required="false" max="1"/>
+            <rule avp="AVP" required="false"/>
+            <rule avp="Proxy-Info" required="false"/>
+            <rule avp="Route-Record" required="false"/>
+          </request>
+          <answer>
+            <rule avp="Session-Id" required="true" max="1"/>
+            <rule avp="DRMP" required="false" max="1"/>
+            <rule avp="Vendor-Specific-Application-Id" required="false" max="1"/>
+            <rule avp="Result-Code" required="false" max="1"/>
+            <rule avp="Experimental-Result" required="false" max="1"/>
+            <rule avp="Auth-Session-State" required="true" max="1"/>
+            <rule avp="Origin-Host" required="true" max="1"/>
+            <rule avp="Origin-Realm" required="true" max="1"/>
+            <rule avp="Supported-Features" required="false"/>
+            <rule avp="User-Identifier" required="false" max="1"/>
+            <rule avp="Serving-Node" required="false" max="1"/>
+            <rule avp="Additional-Serving-Node" required="false" max="1"/>
+            <rule avp="SMSF-3GPP-Address" required="false" max="1"/>
+            <rule avp="SMSF-Non-3GPP-Address" required="false" max="1"/>
+            <rule avp="AVP" required="false"/>
+            <rule avp="Failed-AVP" required="false" max="1"/>
+            <rule avp="Proxy-Info" required="false"/>
+            <rule avp="Route-Record" required="false"/>
+          </answer>
+        </command>
+        <!-- 3GPP TS 29.338 V19.3.0 §5.3.3.1, Table 5.3.3.1/1. -->
+        <avp name="SM-RP-MTI" code="3308" vendor-id="10415" must="MV" must-not="" may-encrypt="N">
+          <data type="Enumerated">
+            <item code="0" name="SM_DELIVER"/>
+            <item code="1" name="SM_STATUS_REPORT"/>
+          </data>
+        </avp>
+        <!-- 3GPP TS 29.338 V19.3.0 §5.3.3.1, Table 5.3.3.1/1. -->
+        <avp name="SM-RP-SMEA" code="3309" vendor-id="10415" must="MV" must-not="" may-encrypt="N">
+          <data type="OctetString">
+          </data>
+        </avp>
+        <!-- 3GPP TS 29.338 V19.3.0 §5.3.3.1, Table 5.3.3.1/1. -->
+        <avp name="SRR-Flags" code="3310" vendor-id="10415" must="MV" must-not="" may-encrypt="N">
+          <data type="Unsigned32">
+          </data>
+        </avp>
+        <!-- 3GPP TS 29.338 V19.3.0 §5.3.3.1, Table 5.3.3.1/1. -->
+        <avp name="SM-Delivery-Not-Intended" code="3311" vendor-id="10415" must="MV" must-not="" may-encrypt="N">
+          <data type="Enumerated">
+            <item code="0" name="ONLY_IMSI_REQUESTED"/>
+            <item code="1" name="ONLY_MCC_MNC_REQUESTED"/>
+          </data>
+        </avp>
+        <!-- 3GPP TS 29.338 V19.3.0 §5.3.3.1, Table 5.3.3.1/1. -->
+        <avp name="MWD-Status" code="3312" vendor-id="10415" must="MV" must-not="" may-encrypt="N">
+          <data type="Unsigned32">
+          </data>
+        </avp>
+        <!-- 3GPP TS 29.338 V19.3.0 §5.3.3.1, Table 5.3.3.1/1. -->
+        <avp name="MME-Absent-User-Diagnostic-SM" code="3313" vendor-id="10415" must="MV" must-not="" may-encrypt="N">
+          <data type="Unsigned32">
+          </data>
+        </avp>
+        <!-- 3GPP TS 29.338 V19.3.0 §5.3.3.1, Table 5.3.3.1/1. -->
+        <avp name="MSC-Absent-User-Diagnostic-SM" code="3314" vendor-id="10415" must="MV" must-not="" may-encrypt="N">
+          <data type="Unsigned32">
+          </data>
+        </avp>
+        <!-- 3GPP TS 29.338 V19.3.0 §5.3.3.1, Table 5.3.3.1/1. -->
+        <avp name="SGSN-Absent-User-Diagnostic-SM" code="3315" vendor-id="10415" must="MV" must-not="" may-encrypt="N">
+          <data type="Unsigned32">
+          </data>
+        </avp>
+        <!-- 3GPP TS 29.338 V19.3.0 §5.3.3.1, Table 5.3.3.1/1. -->
+        <avp name="SM-Delivery-Outcome" code="3316" vendor-id="10415" must="MV" must-not="" may-encrypt="N">
+          <data type="Grouped">
+            <rule avp="MME-SM-Delivery-Outcome" required="false" max="1"/>
+            <rule avp="MSC-SM-Delivery-Outcome" required="false" max="1"/>
+            <rule avp="SGSN-SM-Delivery-Outcome" required="false" max="1"/>
+            <rule avp="IP-SM-GW-SM-Delivery-Outcome" required="false" max="1"/>
+            <rule avp="SMSF-3GPP-SM-Delivery-Outcome" required="false" max="1"/>
+            <rule avp="SMSF-Non-3GPP-SM-Delivery-Outcome" required="false" max="1"/>
+          </data>
+        </avp>
+        <!-- 3GPP TS 29.338 V19.3.0 §5.3.3.1, Table 5.3.3.1/1. -->
+        <avp name="MME-SM-Delivery-Outcome" code="3317" vendor-id="10415" must="MV" must-not="" may-encrypt="N">
+          <data type="Grouped">
+            <rule avp="SM-Delivery-Cause" required="false" max="1"/>
+            <rule avp="Absent-User-Diagnostic-SM" required="false" max="1"/>
+          </data>
+        </avp>
+        <!-- 3GPP TS 29.338 V19.3.0 §5.3.3.1, Table 5.3.3.1/1. -->
+        <avp name="MSC-SM-Delivery-Outcome" code="3318" vendor-id="10415" must="MV" must-not="" may-encrypt="N">
+          <data type="Grouped">
+            <rule avp="SM-Delivery-Cause" required="false" max="1"/>
+            <rule avp="Absent-User-Diagnostic-SM" required="false" max="1"/>
+          </data>
+        </avp>
+        <!-- 3GPP TS 29.338 V19.3.0 §5.3.3.1, Table 5.3.3.1/1. -->
+        <avp name="SGSN-SM-Delivery-Outcome" code="3319" vendor-id="10415" must="MV" must-not="" may-encrypt="N">
+          <data type="Grouped">
+            <rule avp="SM-Delivery-Cause" required="false" max="1"/>
+            <rule avp="Absent-User-Diagnostic-SM" required="false" max="1"/>
+          </data>
+        </avp>
+        <!-- 3GPP TS 29.338 V19.3.0 §5.3.3.1, Table 5.3.3.1/1. -->
+        <avp name="IP-SM-GW-SM-Delivery-Outcome" code="3320" vendor-id="10415" must="MV" must-not="" may-encrypt="N">
+          <data type="Grouped">
+            <rule avp="SM-Delivery-Cause" required="false" max="1"/>
+            <rule avp="Absent-User-Diagnostic-SM" required="false" max="1"/>
+          </data>
+        </avp>
+        <!-- 3GPP TS 29.338 V19.3.0 §5.3.3.1, Table 5.3.3.1/1. -->
+        <avp name="SM-Delivery-Cause" code="3321" vendor-id="10415" must="MV" must-not="" may-encrypt="N">
+          <data type="Enumerated">
+            <item code="0" name="UE_MEMORY_CAPACITY_EXCEEDED"/>
+            <item code="1" name="ABSENT_USER"/>
+            <item code="2" name="SUCCESSFUL_TRANSFER"/>
+          </data>
+        </avp>
+        <!-- 3GPP TS 29.338 V19.3.0 §5.3.3.1, Table 5.3.3.1/1. -->
+        <avp name="Absent-User-Diagnostic-SM" code="3322" vendor-id="10415" must="MV" must-not="" may-encrypt="N">
+          <data type="Unsigned32">
+          </data>
+        </avp>
+        <!-- 3GPP TS 29.338 V19.3.0 §5.3.3.1, Table 5.3.3.1/1. -->
+        <avp name="RDR-Flags" code="3323" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+          <data type="Unsigned32">
+          </data>
+        </avp>
+        <!-- 3GPP TS 29.338 V19.3.0 §5.3.3.1, Table 5.3.3.1/1. -->
+        <avp name="Maximum-UE-Availability-Time" code="3329" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+          <data type="Time">
+          </data>
+        </avp>
+        <!-- 3GPP TS 29.338 V19.3.0 §5.3.3.1, Table 5.3.3.1/1. -->
+        <avp name="SMS-GMSC-Alert-Event" code="3333" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+          <data type="Unsigned32">
+          </data>
+        </avp>
+        <!-- 3GPP TS 29.338 V19.3.0 §5.3.3.1, Table 5.3.3.1/1. -->
+        <avp name="SMSF-3GPP-Absent-User-Diagnostic-SM" code="3334" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+          <data type="Unsigned32">
+          </data>
+        </avp>
+        <!-- 3GPP TS 29.338 V19.3.0 §5.3.3.1, Table 5.3.3.1/1. -->
+        <avp name="SMSF-Non-3GPP-Absent-User-Diagnostic-SM" code="3335" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+          <data type="Unsigned32">
+          </data>
+        </avp>
+        <!-- 3GPP TS 29.338 V19.3.0 §5.3.3.1, Table 5.3.3.1/1. -->
+        <avp name="SMSF-3GPP-SM-Delivery-Outcome" code="3336" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+          <data type="Grouped">
+            <rule avp="SM-Delivery-Cause" required="false" max="1"/>
+            <rule avp="Absent-User-Diagnostic-SM" required="false" max="1"/>
+          </data>
+        </avp>
+        <!-- 3GPP TS 29.338 V19.3.0 §5.3.3.1, Table 5.3.3.1/1. -->
+        <avp name="SMSF-Non-3GPP-SM-Delivery-Outcome" code="3337" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+          <data type="Grouped">
+            <rule avp="SM-Delivery-Cause" required="false" max="1"/>
+            <rule avp="Absent-User-Diagnostic-SM" required="false" max="1"/>
+          </data>
+        </avp>
+        <!-- 3GPP TS 29.338 V19.3.0 §5.3.3.1, Table 5.3.3.1/1. -->
+        <avp name="SMSF-3GPP-Number" code="3338" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+          <data type="OctetString">
+          </data>
+        </avp>
+        <!-- 3GPP TS 29.338 V19.3.0 §5.3.3.1, Table 5.3.3.1/1. -->
+        <avp name="SMSF-Non-3GPP-Number" code="3339" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+          <data type="OctetString">
+          </data>
+        </avp>
+        <!-- 3GPP TS 29.338 V19.3.0 §5.3.3.1, Table 5.3.3.1/1. -->
+        <avp name="SMSF-3GPP-Name" code="3340" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+          <data type="DiameterIdentity">
+          </data>
+        </avp>
+        <!-- 3GPP TS 29.338 V19.3.0 §5.3.3.1, Table 5.3.3.1/1. -->
+        <avp name="SMSF-Non-3GPP-Name" code="3341" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+          <data type="DiameterIdentity">
+          </data>
+        </avp>
+        <!-- 3GPP TS 29.338 V19.3.0 §5.3.3.1, Table 5.3.3.1/1. -->
+        <avp name="SMSF-3GPP-Realm" code="3342" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+          <data type="DiameterIdentity">
+          </data>
+        </avp>
+        <!-- 3GPP TS 29.338 V19.3.0 §5.3.3.1, Table 5.3.3.1/1. -->
+        <avp name="SMSF-Non-3GPP-Realm" code="3343" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+          <data type="DiameterIdentity">
+          </data>
+        </avp>
+        <!-- 3GPP TS 29.338 V19.3.0 §5.3.3.1, Table 5.3.3.1/1. -->
+        <avp name="SMSF-3GPP-Address" code="3344" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+          <data type="Grouped">
+            <rule avp="SMSF-3GPP-Number" required="false" max="1"/>
+            <rule avp="SMSF-3GPP-Name" required="false" max="1"/>
+            <rule avp="SMSF-3GPP-Realm" required="false" max="1"/>
+            <rule avp="SMSF-3GPP-SBI-Support-Indicator" required="false" max="1"/>
+          </data>
+        </avp>
+        <!-- 3GPP TS 29.338 V19.3.0 §5.3.3.1, Table 5.3.3.1/1. -->
+        <avp name="SMSF-Non-3GPP-Address" code="3345" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+          <data type="Grouped">
+            <rule avp="SMSF-Non-3GPP-Number" required="false" max="1"/>
+            <rule avp="SMSF-Non-3GPP-Name" required="false" max="1"/>
+            <rule avp="SMSF-Non-3GPP-Realm" required="false" max="1"/>
+            <rule avp="SMSF-Non-3GPP-SBI-Support-Indicator" required="false" max="1"/>
+          </data>
+        </avp>
+        <!-- 3GPP TS 29.338 V19.3.0 §5.3.3.1, Table 5.3.3.1/1. -->
+        <avp name="SMSF-3GPP-SBI-Support-Indicator" code="3346" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+          <data type="Enumerated">
+            <item code="0" name="NOT_SUPPORT_SBI"/>
+            <item code="1" name="SUPPORT_SBI"/>
+          </data>
+        </avp>
+        <!-- 3GPP TS 29.338 V19.3.0 §5.3.3.1, Table 5.3.3.1/1. -->
+        <avp name="SMSF-Non-3GPP-SBI-Support-Indicator" code="3347" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+          <data type="Enumerated">
+            <item code="0" name="NOT_SUPPORT_SBI"/>
+            <item code="1" name="SUPPORT_SBI"/>
+          </data>
+        </avp>
+        <!-- 3GPP TS 29.338 V19.3.0 §5.3.3.1, Table 5.3.3.1/1. -->
+        <avp name="IP-SM-GW-SBI-Support-Indicator" code="3348" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+          <data type="Enumerated">
+            <item code="0" name="NOT_SUPPORT_SBI"/>
+            <item code="1" name="SUPPORT_SBI"/>
+          </data>
+        </avp>
+        <!-- 3GPP TS 29.338 V19.3.0 §6.3.3.1, Table 6.3.3.1/1. -->
+        <avp name="SC-Address" code="3300" vendor-id="10415" must="MV" must-not="" may-encrypt="N">
+          <data type="OctetString">
+          </data>
+        </avp>
+        <!-- 3GPP TS 29.338 V19.3.0 §6.3.3.1, Table 6.3.3.1/1. -->
+        <avp name="SM-RP-UI" code="3301" vendor-id="10415" must="MV" must-not="" may-encrypt="N">
+          <data type="OctetString">
+          </data>
+        </avp>
+        <!-- 3GPP TS 29.338 V19.3.0 §6.3.3.1, Table 6.3.3.1/1. -->
+        <avp name="TFR-Flags" code="3302" vendor-id="10415" must="MV" must-not="" may-encrypt="N">
+          <data type="Unsigned32">
+          </data>
+        </avp>
+        <!-- 3GPP TS 29.338 V19.3.0 §6.3.3.1, Table 6.3.3.1/1. -->
+        <avp name="SM-Delivery-Failure-Cause" code="3303" vendor-id="10415" must="MV" must-not="" may-encrypt="N">
+          <data type="Grouped">
+            <rule avp="SM-Enumerated-Delivery-Failure-Cause" required="true" max="1"/>
+            <rule avp="SM-Diagnostic-Info" required="false" max="1"/>
+          </data>
+        </avp>
+        <!-- 3GPP TS 29.338 V19.3.0 §6.3.3.1, Table 6.3.3.1/1. -->
+        <avp name="SM-Enumerated-Delivery-Failure-Cause" code="3304" vendor-id="10415" must="MV" must-not="" may-encrypt="N">
+          <data type="Enumerated">
+            <item code="0" name="MEMORY_CAPACITY_EXCEEDED"/>
+            <item code="1" name="EQUIPMENT_PROTOCOL_ERROR"/>
+            <item code="2" name="EQUIPMENT_NOT_SM_EQUIPPED"/>
+            <item code="3" name="UNKNOWN_SERVICE_CENTRE"/>
+            <item code="4" name="SC_CONGESTION"/>
+            <item code="5" name="INVALID_SME_ADDRESS"/>
+            <item code="6" name="USER_NOT_SC_USER"/>
+          </data>
+        </avp>
+        <!-- 3GPP TS 29.338 V19.3.0 §6.3.3.1, Table 6.3.3.1/1. -->
+        <avp name="SM-Diagnostic-Info" code="3305" vendor-id="10415" must="MV" must-not="" may-encrypt="N">
+          <data type="OctetString">
+          </data>
+        </avp>
+        <!-- 3GPP TS 29.338 V19.3.0 §6.3.3.1, Table 6.3.3.1/1. -->
+        <avp name="SM-Delivery-Timer" code="3306" vendor-id="10415" must="MV" must-not="" may-encrypt="N">
+          <data type="Unsigned32">
+          </data>
+        </avp>
+        <!-- 3GPP TS 29.338 V19.3.0 §6.3.3.1, Table 6.3.3.1/1. -->
+        <avp name="SM-Delivery-Start-Time" code="3307" vendor-id="10415" must="MV" must-not="" may-encrypt="N">
+          <data type="Time">
+          </data>
+        </avp>
+        <!-- 3GPP TS 29.338 V19.3.0 §6.3.3.1, Table 6.3.3.1/1. -->
+        <avp name="SMSMI-Correlation-ID" code="3324" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+          <data type="Grouped">
+            <rule avp="HSS-ID" required="false" max="1"/>
+            <rule avp="Originating-SIP-URI" required="false" max="1"/>
+            <rule avp="Destination-SIP-URI" required="false" max="1"/>
+          </data>
+        </avp>
+        <!-- 3GPP TS 29.338 V19.3.0 §6.3.3.1, Table 6.3.3.1/1. -->
+        <avp name="HSS-ID" code="3325" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+          <data type="UTF8String">
+          </data>
+        </avp>
+        <!-- 3GPP TS 29.338 V19.3.0 §6.3.3.1, Table 6.3.3.1/1. -->
+        <avp name="Originating-SIP-URI" code="3326" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+          <data type="UTF8String">
+          </data>
+        </avp>
+        <!-- 3GPP TS 29.338 V19.3.0 §6.3.3.1, Table 6.3.3.1/1. -->
+        <avp name="Destination-SIP-URI" code="3327" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+          <data type="UTF8String">
+          </data>
+        </avp>
+        <!-- 3GPP TS 29.338 V19.3.0 §6.3.3.1, Table 6.3.3.1/1. -->
+        <avp name="OFR-Flags" code="3328" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+          <data type="Unsigned32">
+          </data>
+        </avp>
+        <!-- 3GPP TS 29.338 V19.3.0 §6.3.3.1, Table 6.3.3.1/1. -->
+        <avp name="Maximum-Retransmission-Time" code="3330" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+          <data type="Time">
+          </data>
+        </avp>
+        <!-- 3GPP TS 29.338 V19.3.0 §6.3.3.1, Table 6.3.3.1/1. -->
+        <avp name="Requested-Retransmission-Time" code="3331" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+          <data type="Time">
+          </data>
+        </avp>
+        <!-- 3GPP TS 29.338 V19.3.0 §6.3.3.1, Table 6.3.3.1/1. -->
+        <avp name="SMS-GMSC-Address" code="3332" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+          <data type="OctetString">
+          </data>
+        </avp>
+        <!-- 3GPP TS 29.173 V19.0.0 §6.4.2, Table 6.4.1/1; reused by TS 29.338 V19.3.0 Tables 5.3.3.1/2 and 6.3.3.1/2. -->
+        <avp name="LMSI" code="2400" vendor-id="10415" must="VM" must-not="" may-encrypt="N">
+          <data type="OctetString">
+          </data>
+        </avp>
+        <!-- 3GPP TS 29.173 V19.0.0 §6.4.5, Table 6.4.1/1; reused by TS 29.338 V19.3.0 Tables 5.3.3.1/2 and 6.3.3.1/2. -->
+        <avp name="MSC-Number" code="2403" vendor-id="10415" must="VM" must-not="" may-encrypt="N">
+          <data type="OctetString">
+          </data>
+        </avp>
+        <!-- 3GPP TS 29.173 V19.0.0 §6.4.8, Table 6.4.1/1; reused by TS 29.338 V19.3.0 Tables 5.3.3.1/2 and 6.3.3.1/2. -->
+        <avp name="Additional-Serving-Node" code="2406" vendor-id="10415" must="VM" must-not="" may-encrypt="N">
+          <data type="Grouped">
+            <rule avp="SGSN-Name" required="false" max="1"/>
+            <rule avp="SGSN-Realm" required="false" max="1"/>
+            <rule avp="SGSN-Number" required="false" max="1"/>
+            <rule avp="MME-Name" required="false" max="1"/>
+            <rule avp="MME-Realm" required="false" max="1"/>
+            <rule avp="MME-Number-for-MT-SMS" required="false" max="1"/>
+            <rule avp="MSC-Number" required="false" max="1"/>
+          </data>
+        </avp>
+        <!-- 3GPP TS 29.173 V19.0.0 §6.4.13, Table 6.4.1/1; reused by TS 29.338 V19.3.0 Tables 5.3.3.1/2 and 6.3.3.1/2. -->
+        <avp name="SGSN-Name" code="2409" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+          <data type="DiameterIdentity">
+          </data>
+        </avp>
+        <!-- 3GPP TS 29.173 V19.0.0 §6.4.14, Table 6.4.1/1; reused by TS 29.338 V19.3.0 Tables 5.3.3.1/2 and 6.3.3.1/2. -->
+        <avp name="SGSN-Realm" code="2410" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+          <data type="DiameterIdentity">
+          </data>
+        </avp>
+        <!-- 3GPP TS 29.336 V20.0.0 §6.4.14, Table 6.4.1/1; reused by TS 29.338 V19.3.0 Tables 5.3.3.1/2 and 6.3.3.1/2. -->
+        <avp name="IP-SM-GW-Number" code="3100" vendor-id="10415" must="VM" must-not="" may-encrypt="N">
+          <data type="OctetString">
+          </data>
+        </avp>
+        <!-- 3GPP TS 29.336 V20.0.0 §6.4.15, Table 6.4.1/1; reused by TS 29.338 V19.3.0 Tables 5.3.3.1/2 and 6.3.3.1/2. -->
+        <avp name="IP-SM-GW-Name" code="3101" vendor-id="10415" must="VM" must-not="" may-encrypt="N">
+          <data type="DiameterIdentity">
+          </data>
+        </avp>
+        <!-- 3GPP TS 29.336 V20.0.0 §6.4.2, Table 6.4.1/1; reused by TS 29.338 V19.3.0 Tables 5.3.3.1/2 and 6.3.3.1/2. -->
+        <avp name="User-Identifier" code="3102" vendor-id="10415" must="VM" must-not="" may-encrypt="N">
+          <data type="Grouped">
+            <rule avp="User-Name" required="false" max="1"/>
+            <rule avp="MSISDN" required="false" max="1"/>
+            <rule avp="External-Identifier" required="false" max="1"/>
+            <rule avp="LMSI" required="false" max="1"/>
+          </data>
+        </avp>
+        <!-- 3GPP TS 29.336 V20.0.0 §6.4.11, Table 6.4.1/1; reused by TS 29.338 V19.3.0 Tables 5.3.3.1/2 and 6.3.3.1/2. -->
+        <avp name="External-Identifier" code="3111" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+          <data type="UTF8String">
+          </data>
+        </avp>
+        <!-- 3GPP TS 29.336 V20.0.0 §6.4.18, Table 6.4.1/1; reused by TS 29.338 V19.3.0 Tables 5.3.3.1/2 and 6.3.3.1/2. -->
+        <avp name="IP-SM-GW-Realm" code="3112" vendor-id="10415" must="VM" must-not="" may-encrypt="N">
+          <data type="DiameterIdentity">
+          </data>
+        </avp>
+        <!-- 3GPP TS 29.272 V19.5.0 §7.3.111, Table 7.3.1/1; reused by TS 29.338 V19.3.0 Tables 5.3.3.1/2 and 6.3.3.1/2. -->
+        <avp name="EPS-Location-Information" code="1496" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+          <data type="Grouped">
+            <rule avp="MME-Location-Information" required="false" max="1"/>
+            <rule avp="SGSN-Location-Information" required="false" max="1"/>
+          </data>
+        </avp>
+        <!-- 3GPP TS 29.272 V19.5.0 §7.3.251, Table 7.3.1/1; reused by TS 29.338 V19.3.0 Tables 5.3.3.1/2 and 6.3.3.1/2. -->
+        <avp name="NR-Cell-Global-Identity" code="1726" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+          <data type="OctetString">
+          </data>
+        </avp>
+        <!-- 3GPP TS 29.272 V19.5.0 Table 7.3.1/1; reused by TS 29.338 V19.3.0 Tables 5.3.3.1/2 and 6.3.3.1/2. -->
+        <avp name="MPS-Priority" code="1616" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+          <data type="Unsigned32">
+          </data>
+        </avp>
+    </application>
+</diameter>
