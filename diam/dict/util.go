@@ -28,6 +28,8 @@ var parentAppIds map[uint32]uint32 = map[uint32]uint32{
 	16777236: 4,
 	// 3GPP TS 29.219 V19.0.0 §5.2 reuses charging AVPs on Sy.
 	16777302: 4,
+	// 3GPP TS 29.273 V19.2.0 §9.2 reuses S6a and charging AVPs on SWx.
+	16777265: 16777251,
 	4:        1,
 }
 

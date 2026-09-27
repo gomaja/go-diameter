@@ -6,15 +6,6 @@ import (
 	"testing"
 )
 
-// These references already occur in the older dictionaries. Their definitions
-// need separate source and compatibility review before they can be added to the
-// shared application scopes. Keep each name explicit so new omissions fail.
-var knownRuleExceptions = map[uint32][]string{
-	16777265: {"3GPP-Charging-Characteristics", "Feature-List", "Feature-List-ID", "IMEI",
-		"MIP-Home-Agent-Address", "MIP-Home-Agent-Host", "MIP6-Home-Link-Prefix",
-		"Software-Version", "TGPP2-MEID"},
-}
-
 // TestDefaultRuleClosure keeps command and grouped AVP grammars usable through
 // each application's actual lookup scope, including inherited AVPs.
 func TestDefaultRuleClosure(t *testing.T) {
@@ -61,17 +52,8 @@ func TestDefaultRuleClosure(t *testing.T) {
 				names = append(names, name)
 			}
 			sort.Strings(names)
-			expected := make(map[string]bool)
-			for _, name := range knownRuleExceptions[app.ID] {
-				expected[name] = true
-				if _, ok := missing[name]; !ok {
-					t.Errorf("stale exception for resolved AVP %q", name)
-				}
-			}
 			for _, name := range names {
-				if !expected[name] {
-					t.Errorf("unresolved AVP %q (via %s)", name, missing[name])
-				}
+				t.Errorf("unresolved AVP %q (via %s)", name, missing[name])
 			}
 		})
 	}

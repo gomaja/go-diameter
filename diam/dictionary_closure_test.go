@@ -10,6 +10,55 @@ import (
 	"github.com/gomaja/go-diameter/diam/dict"
 )
 
+// 3GPP TS 29.273 V19.2.0 §9.2 and TS 29.061 V20.1.0 §16.4.7.
+func TestSWxDictionaryClosureWire(t *testing.T) {
+	const appID = 16777265
+	for _, tc := range []struct {
+		name     string
+		code     uint32
+		vendor   uint32
+		typeName string
+	}{
+		{"TGPP-Charging-Characteristics", 13, 10415, "UTF8String"},
+		{"Feature-List", 630, 10415, "Unsigned32"},
+		{"Feature-List-ID", 629, 10415, "Unsigned32"},
+		{"IMEI", 1402, 10415, "UTF8String"},
+		{"MIP-Home-Agent-Address", 334, 0, "Address"},
+		{"MIP-Home-Agent-Host", 348, 0, "Grouped"},
+		{"MIP6-Home-Link-Prefix", 125, 0, "OctetString"},
+		{"Software-Version", 1403, 10415, "UTF8String"},
+		{"3GPP2-MEID", 1471, 10415, "OctetString"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			d, err := dict.Default.FindAVP(appID, tc.name)
+			if err != nil || d.Code != tc.code || d.VendorID != tc.vendor || d.Data.TypeName != tc.typeName {
+				t.Fatalf("definition: %v, %v", d, err)
+			}
+			msg := NewRequest(265, appID, dict.Default)
+			if tc.name == "MIP-Home-Agent-Address" {
+				msg.AddAVP(NewAVP(d.Code, avp.Mbit, 0, datatype.Address(net.ParseIP("192.0.2.1"))))
+			} else {
+				msg.AddAVP(smsAVP(t, appID, tc.name))
+			}
+			left, right := net.Pipe()
+			done := make(chan error, 1)
+			go func() { _, e := msg.WriteTo(left); done <- e }()
+			got, err := ReadMessage(right, dict.Default)
+			_ = left.Close()
+			_ = right.Close()
+			if writeErr := <-done; writeErr != nil {
+				t.Fatal(writeErr)
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got.DecodeErr != nil || len(got.AVP) != 1 || got.AVP[0].Data.Type() != msg.AVP[0].Data.Type() {
+				t.Fatalf("connection decode: %v", got.DecodeErr)
+			}
+		})
+	}
+}
+
 // 3GPP TS 29.219 V19.0.0 §5.3.1 and RFC 8506 §8.
 func TestSyDictionaryClosureWire(t *testing.T) {
 	const appID = 16777302
