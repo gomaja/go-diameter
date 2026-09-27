@@ -1,0 +1,119 @@
+package base_test
+
+import (
+	"net"
+	"testing"
+
+	"github.com/gomaja/go-diameter/diam"
+	"github.com/gomaja/go-diameter/diam/avp"
+	"github.com/gomaja/go-diameter/diam/datatype"
+	"github.com/gomaja/go-diameter/diam/dict"
+	"github.com/gomaja/go-diameter/diam/internal/base"
+)
+
+func fixtureSettings() base.Settings {
+	return base.Settings{
+		OriginHost: "local.example.net", OriginRealm: "example.net",
+		VendorID: 42, ProductName: "base-test", OriginStateID: 123456,
+		HostIPAddresses:   []datatype.Address{datatype.Address(net.ParseIP("127.0.0.1"))},
+		AcctApplicationID: []*diam.AVP{diam.NewAVP(avp.AcctApplicationID, avp.Mbit, 0, datatype.Unsigned32(0xffffffff))},
+		Applications:      []base.LocalApplication{{ID: 0xffffffff, AppType: "acct"}},
+	}
+}
+
+func TestBuildBaseRequests(t *testing.T) {
+	cfg := fixtureSettings()
+	cer, err := base.BuildCER(dict.Default, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cer.Header.CommandCode != diam.CapabilitiesExchange {
+		t.Fatalf("CER code = %d", cer.Header.CommandCode)
+	}
+	parsed := new(base.CER)
+	if _, err := parsed.Parse(cer, base.Server); err != nil {
+		t.Fatal(err)
+	}
+	dwr, err := base.BuildDWR(dict.Default, cfg, 333)
+	if err != nil {
+		t.Fatal(err)
+	}
+	state, err := dwr.FindAVP(avp.OriginStateID, 0)
+	if err != nil || state.Data != datatype.Unsigned32(333) {
+		t.Fatalf("DWR state = %v, error = %v", state, err)
+	}
+	dpr, err := base.BuildDPR(dict.Default, cfg, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cause, err := base.ValidateDPR(dpr); err != nil || cause != 1 {
+		t.Fatalf("DPR cause = %d, error = %v", cause, err)
+	}
+}
+
+func TestBuildBaseAnswersPreservesRequestIDs(t *testing.T) {
+	cfg := fixtureSettings()
+	for _, command := range []uint32{diam.CapabilitiesExchange, diam.DeviceWatchdog, diam.DisconnectPeer} {
+		request := diam.NewMessage(command, diam.RequestFlag|diam.RetransmittedFlag, 0, 0x11223344, 0x55667788, dict.Default)
+		var answer *diam.Message
+		var err error
+		switch command {
+		case diam.CapabilitiesExchange:
+			answer = base.BuildCEA(request, cfg, diam.Success)
+		case diam.DeviceWatchdog:
+			answer, err = base.BuildDWA(request, cfg)
+		case diam.DisconnectPeer:
+			answer, err = base.BuildDPA(request, cfg)
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		if answer.Header.HopByHopID != request.Header.HopByHopID || answer.Header.EndToEndID != request.Header.EndToEndID || answer.Header.CommandFlags != 0 {
+			t.Fatalf("command %d answer header = %+v", command, answer.Header)
+		}
+	}
+}
+
+func TestBuildProtocolAndPermanentErrorAnswers(t *testing.T) {
+	cfg := fixtureSettings()
+	request := diam.NewMessage(diam.DeviceWatchdog, diam.RequestFlag|diam.RetransmittedFlag, 0, 1, 2, dict.Default)
+	protocol, err := base.BuildErrorAnswer(request, cfg, diam.CommandUnsupported, nil, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if protocol.Header.CommandFlags != diam.ErrorFlag {
+		t.Fatalf("protocol flags = %#x", protocol.Header.CommandFlags)
+	}
+	permanent, err := base.BuildErrorAnswer(request, cfg, diam.AVPUnsupported, []*diam.AVP{diam.NewAVP(9999, avp.Mbit, 0, datatype.OctetString("bad"))}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if permanent.Header.CommandFlags != 0 {
+		t.Fatalf("permanent flags = %#x", permanent.Header.CommandFlags)
+	}
+	if _, err := permanent.FindAVP(avp.FailedAVP, 0); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestBuildErrorCEAResolvesAddressesAtBuildTime(t *testing.T) {
+	cfg := fixtureSettings()
+	cfg.HostIPAddresses = nil
+	called := false
+	cfg.ResolveHostIPAddresses = func() ([]datatype.Address, error) {
+		called = true
+		return []datatype.Address{datatype.Address(net.ParseIP("127.0.0.3"))}, nil
+	}
+	request := diam.NewMessage(diam.CapabilitiesExchange, diam.RequestFlag, 0, 5, 6, dict.Default)
+	answer, err := base.BuildErrorAnswer(request, cfg, diam.AVPUnsupported, nil, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !called {
+		t.Fatal("local address resolver was not called")
+	}
+	addresses, err := answer.FindAVPs(avp.HostIPAddress, 0)
+	if err != nil || len(addresses) != 1 {
+		t.Fatalf("CEA addresses = %v, error = %v", addresses, err)
+	}
+}
