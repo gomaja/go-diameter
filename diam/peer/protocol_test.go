@@ -651,13 +651,15 @@ func TestManagedControlAndUnsupported(t *testing.T) {
 	if ans.Header.CommandFlags&diam.ErrorFlag == 0 || code(t, ans) != diam.CommandUnsupported {
 		t.Fatalf("unsupported answer %+v", ans.Header)
 	}
-	for {
-		select {
-		case <-m.ErrorReports():
-			continue
-		default:
+	// The error answer can reach the socket before the actor queues its
+	// observational report. Wait for that report before sending the next message.
+	select {
+	case report := <-m.ErrorReports():
+		if report.Message == nil || report.Message.Header.CommandFlags&diam.RequestFlag == 0 {
+			t.Fatalf("unexpected request report: %+v", report)
 		}
-		break
+	case <-time.After(time.Second):
+		t.Fatal("unhandled request was not reported")
 	}
 	write(t, c, req.Answer(diam.Success))
 	select {
