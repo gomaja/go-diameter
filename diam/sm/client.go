@@ -97,15 +97,17 @@ type watchdogTiming struct {
 type watchdogActivity struct {
 	signal chan struct{}
 	last   atomic.Int64
+	dwac   chan struct{}
 }
 
 func newWatchdogActivity() *watchdogActivity {
-	return &watchdogActivity{signal: make(chan struct{}, 1)}
+	return &watchdogActivity{signal: make(chan struct{}, 1), dwac: make(chan struct{}, 1)}
 }
 
 type activityHandler struct {
 	*StateMachine
 	activity *watchdogActivity
+	dwa      diam.Handler
 }
 
 func (h activityHandler) ServeDIAM(c diam.Conn, m *diam.Message) {
@@ -114,6 +116,14 @@ func (h activityHandler) ServeDIAM(c diam.Conn, m *diam.Message) {
 	select {
 	case h.activity.signal <- struct{}{}:
 	default:
+	}
+	// RFC 6733 §5.5.2: DWA belongs to the connection that received it.
+	// Keep its handler with that connection instead of replacing a handler on
+	// the shared state-machine mux on every Dial.
+	if h.dwa != nil && m.Header.ApplicationID == 0 && m.Header.CommandCode == diam.DeviceWatchdog &&
+		m.Header.CommandFlags&diam.RequestFlag == 0 {
+		h.dwa.ServeDIAM(c, m)
+		return
 	}
 	h.StateMachine.ServeDIAM(c, m)
 }
@@ -213,7 +223,11 @@ func (cli *Client) NewConn(rw net.Conn, addr string) (diam.Conn, error) {
 func (cli *Client) server(network, addr string, laddr net.Addr, activity *watchdogActivity) *diam.Server {
 	var handler diam.Handler = cli.Handler
 	if activity != nil {
-		handler = activityHandler{StateMachine: cli.Handler, activity: activity}
+		h := activityHandler{StateMachine: cli.Handler, activity: activity}
+		if cli.EnableWatchdog {
+			h.dwa = handshakeOK(handleDWA(cli.Handler, activity.dwac, cli.observeWatchdog))
+		}
+		handler = h
 	}
 	return &diam.Server{
 		Network:      network,
@@ -322,15 +336,9 @@ func (cli *Client) handshake(c diam.Conn, activity *watchdogActivity) (diam.Conn
 	// See sm.go for Base Diam Idx declarations
 	cli.Handler.mux.HandleIdx(baseCERIdx, diam.HandlerFunc(cerClientHandler))
 	cli.Handler.mux.HandleFunc("CER", cerClientHandler)
-	// Handle CEA and DWA.
+	// Handle CEA. DWA is dispatched by the per-connection activityHandler.
 	errc := make(chan error)
 	cli.Handler.mux.Handle("CEA", handleCEA(cli.Handler, errc))
-
-	var dwac chan struct{}
-	if cli.EnableWatchdog {
-		dwac = make(chan struct{}, 1)
-		cli.Handler.mux.Handle("DWA", handshakeOK(handleDWA(cli.Handler, dwac, cli.observeWatchdog)))
-	}
 	for i := 0; i < (int(cli.MaxRetransmits) + 1); i++ {
 		_, err := m.WriteTo(c)
 		if err != nil {
@@ -345,7 +353,7 @@ func (cli *Client) handshake(c diam.Conn, activity *watchdogActivity) (diam.Conn
 				return nil, err
 			}
 			if cli.EnableWatchdog {
-				go cli.watchdog(c, dwac, activity)
+				go cli.watchdog(c, activity.dwac, activity)
 			}
 			return c, nil
 		case <-time.After(cli.RetransmitInterval):
