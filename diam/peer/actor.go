@@ -1,0 +1,569 @@
+package peer
+
+import (
+	"context"
+	"crypto/tls"
+	"errors"
+	"fmt"
+	"net"
+	"sync/atomic"
+	"time"
+
+	"github.com/gomaja/go-diameter/diam"
+	"github.com/gomaja/go-diameter/diam/dict"
+	"github.com/gomaja/go-diameter/diam/internal/base"
+	"github.com/gomaja/go-diameter/diam/sm"
+	"github.com/gomaja/go-diameter/diam/sm/smparser"
+	"github.com/gomaja/go-diameter/diam/sm/smpeer"
+)
+
+type event struct {
+	kind       psmEvent
+	s          *session
+	msg        *diam.Message
+	meta       *smpeer.Metadata
+	gen, token uint64
+	err        error
+	cause      sm.DisconnectCause
+}
+
+const (
+	wireEvent psmEvent = "wire"
+	dialDone  psmEvent = "dial-done"
+	connGone  psmEvent = "conn-gone"
+)
+
+type actor struct {
+	m                   *Manager
+	cfg                 PeerConfig
+	events              chan event
+	done                chan struct{}
+	state               PeerState
+	i, r                *session
+	pendingGen, nextGen uint64
+	token               uint64
+	timer               Timer
+	meta                *smpeer.Metadata
+	active              *session
+	pendingDPR          uint32
+	closeCause          sm.DisconnectCause
+	snapshotValue       atomic.Value
+}
+
+func (a *actor) snapshot() PeerSnapshot {
+	v := a.snapshotValue.Load().(PeerSnapshot)
+	v.Applications = append([]uint32(nil), v.Applications...)
+	return v
+}
+func (a *actor) publish(err error) {
+	p := PeerSnapshot{Host: a.cfg.Host, State: a.state, Generation: a.nextGen}
+	if a.meta != nil && (a.state == IOpen || a.state == ROpen || a.state == Closing) {
+		p.Realm = a.meta.OriginRealm
+		p.Applications = append([]uint32(nil), a.meta.Applications...)
+	}
+	if a.active != nil {
+		p.Generation = a.active.gen
+	}
+	a.snapshotValue.Store(p)
+	if err != nil || a.state == IOpen || a.state == ROpen || a.state == Closed {
+		a.m.notify(PeerEvent{Peer: p, Reason: err})
+	}
+}
+func (a *actor) notify(err error) { a.m.notify(PeerEvent{Peer: a.snapshot(), Reason: err}) }
+func (a *actor) post(e event) {
+	select {
+	case a.events <- e:
+	case <-a.done:
+	}
+}
+func (a *actor) run() {
+	defer a.m.wg.Done()
+	defer close(a.done)
+	for {
+		e := <-a.events
+		a.handle(e)
+		if a.m.isClosing() && a.state == Closed {
+			a.stopTimer()
+			if a.i != nil {
+				a.i.close()
+			}
+			if a.r != nil {
+				a.r.close()
+			}
+			return
+		}
+	}
+}
+func (m *Manager) isClosing() bool { m.mu.RLock(); v := m.closing; m.mu.RUnlock(); return v }
+func (a *actor) stopTimer() {
+	a.token++
+	if a.timer != nil {
+		a.timer.Stop()
+		a.timer = nil
+	}
+}
+func (a *actor) arm(d time.Duration) {
+	a.stopTimer()
+	token := a.token
+	a.timer = a.m.cfg.Clock.AfterFunc(d, func() { a.post(event{kind: timeout, token: token}) })
+}
+func (a *actor) setState(s PeerState, err error) { a.state = s; a.publish(err) }
+func (a *actor) fail(err error) {
+	a.stopTimer()
+	if a.i != nil {
+		a.i.close()
+		a.i = nil
+	}
+	if a.r != nil {
+		a.r.close()
+		a.r = nil
+	}
+	a.active = nil
+	a.meta = nil
+	a.setState(Closed, err)
+}
+func (a *actor) handle(e event) {
+	if e.kind == timeout {
+		if e.token != a.token && e.token != 0 {
+			return
+		}
+		if a.state == Closed {
+			return
+		}
+		a.step(timeout, nil, nil)
+		return
+	}
+	if e.kind == start {
+		if a.state == Closed && !a.m.isClosing() {
+			a.setState(WaitConnAck, nil)
+			a.arm(a.m.cfg.Timers.Connect)
+			a.dial()
+		}
+		return
+	}
+	if e.kind == stop {
+		a.stop(e.cause)
+		return
+	}
+	if e.kind == dialDone {
+		a.onDial(e)
+		return
+	}
+	if e.kind == connGone {
+		a.onGone(e.s)
+		return
+	}
+	if e.kind == rConnCER {
+		a.onCER(e)
+		return
+	}
+	if e.kind == wireEvent {
+		a.onWire(e)
+		return
+	}
+}
+func (a *actor) dial() {
+	a.nextGen++
+	gen := a.nextGen
+	a.pendingGen = gen
+	endpoints := a.cfg.Endpoints
+	m := a.m
+	m.wg.Add(1)
+	go func() {
+		defer m.wg.Done()
+		ctx, cancel := context.WithTimeout(m.startContext(), m.cfg.Timers.Connect)
+		defer cancel()
+		var lastErr error
+		for _, e := range endpoints {
+			if err := ctx.Err(); err != nil {
+				lastErr = err
+				break
+			}
+			if s, err := m.dialEndpoint(ctx, e, a, gen); err == nil {
+				a.post(event{kind: dialDone, s: s, gen: gen})
+				return
+			} else {
+				lastErr = errors.Join(lastErr, err)
+			}
+		}
+		a.post(event{kind: dialDone, gen: gen, err: lastErr})
+	}()
+}
+func (m *Manager) dialEndpoint(ctx context.Context, e Endpoint, a *actor, gen uint64) (*session, error) {
+	network := e.Network
+	if network == "" {
+		network = "tcp"
+	}
+	ready := make(chan *session, 1)
+	srv := &diam.Server{Network: network, Addr: e.Address, Handler: m, Dict: m.cfg.Settings.Dict, WriteTimeout: m.cfg.Timers.Closing, OnNewConnection: func(c diam.Conn) { ready <- m.newSession(c, a, gen, false) }}
+	var c diam.Conn
+	var err error
+	if m.cfg.Dial != nil {
+		var raw net.Conn
+		raw, err = m.cfg.Dial(ctx, e)
+		if err == nil {
+			if e.TLSConfig != nil {
+				cfg := e.TLSConfig.Clone()
+				if cfg.ServerName == "" {
+					cfg.ServerName, _, _ = net.SplitHostPort(e.Address)
+				}
+				raw = tls.Client(raw, cfg)
+			}
+			c, err = srv.NewConn(raw)
+			if err != nil {
+				_ = raw.Close()
+			}
+		}
+	} else if e.TLSConfig != nil {
+		srv.TLSConfig = e.TLSConfig.Clone()
+		c, err = srv.DialTLS("", "", time.Until(deadline(ctx)))
+	} else {
+		c, err = srv.Dial(time.Until(deadline(ctx)))
+	}
+	if err != nil {
+		return nil, err
+	}
+	select {
+	case s := <-ready:
+		return s, nil
+	case <-ctx.Done():
+		c.Close()
+		return nil, ctx.Err()
+	}
+}
+func deadline(ctx context.Context) time.Time { d, _ := ctx.Deadline(); return d }
+func (a *actor) onDial(e event) {
+	if e.gen != a.pendingGen || (a.state != WaitConnAck && a.state != WaitConnAckElect) {
+		if e.s != nil {
+			e.s.close()
+		}
+		return
+	}
+	if e.err != nil {
+		a.step(iNack, nil, nil)
+		a.notify(e.err)
+		return
+	}
+	a.i = e.s
+	a.step(iAck, e.s, nil)
+	if a.state == WaitReturns {
+		a.elect()
+	}
+}
+func (a *actor) onCER(e event) {
+	if e.s == nil || e.meta == nil {
+		return
+	}
+	if a.state == Closing || a.m.isClosing() {
+		e.s.close()
+		return
+	}
+	if compareIdentity(e.meta.OriginHost, a.cfg.Host) != 0 {
+		e.s.close()
+		a.notify(errors.New("peer: configured Origin-Host mismatch"))
+		return
+	}
+	if a.state != Closed && a.state != WaitConnAck && a.state != WaitICEA && a.state != WaitConnAckElect && a.state != WaitReturns && a.state != IOpen && a.state != ROpen {
+		e.s.close()
+		return
+	}
+	if a.state == WaitConnAckElect || a.state == WaitReturns || a.state == IOpen || a.state == ROpen {
+		a.step(rConnCER, e.s, e.msg)
+		return
+	}
+	a.nextGen++
+	e.s.bind(a, a.nextGen)
+	a.r = e.s
+	e.s.cerRequest = e.msg
+	a.meta = e.meta.Clone()
+	a.step(rConnCER, e.s, e.msg)
+	if a.state == WaitReturns {
+		a.elect()
+	}
+}
+func (a *actor) elect() {
+	// RFC 6733 §5.6.4: compare ASCII case-folded octets; the winner discards I.
+	switch compareIdentity(a.m.cfg.Settings.OriginHost, a.cfg.Host) {
+	case 0:
+		a.fail(errors.New("peer: Origin-Host identity collision"))
+	case 1:
+		if a.state == WaitReturns {
+			a.step(winElection, a.r, nil)
+		}
+	}
+}
+func (a *actor) onWire(e event) {
+	s := e.s
+	msg := e.msg
+	if s == nil || msg == nil || msg.Header == nil {
+		return
+	}
+	if (s != a.i && s != a.r) || s.gen == 0 {
+		return
+	} // RFC 6733 §5.6: ignore retired candidate generations.
+	isI := s == a.i
+	cmd := msg.Header.CommandCode
+	req := msg.Header.CommandFlags&diam.RequestFlag != 0
+	if a.state == WaitICEA || a.state == WaitReturns {
+		if isI && cmd == diam.CapabilitiesExchange && !req && msg.Header.ApplicationID == 0 {
+			if s.cerHop != msg.Header.HopByHopID || s.cerEnd != msg.Header.EndToEndID {
+				a.fail(errors.New("peer: CEA identifiers mismatch"))
+				return
+			}
+			cea := new(smparser.CEA)
+			if err := cea.Parse(msg, smparser.Client); err != nil {
+				a.fail(fmt.Errorf("peer: invalid CEA: %w", err))
+				return
+			}
+			if compareIdentity(cea.OriginHost, a.cfg.Host) != 0 {
+				a.fail(errors.New("peer: CEA Origin-Host mismatch"))
+				return
+			}
+			a.meta = smpeer.FromCEA(cea).Clone()
+			a.step(iCEA, s, msg)
+			return
+		}
+		if isI {
+			a.step(iNonCEA, s, msg)
+		} else {
+			a.m.unsupported(s, msg)
+		}
+		return
+	}
+	if a.state != IOpen && a.state != ROpen && a.state != Closing {
+		a.m.report(s, msg, errors.New("peer: message before handshake"))
+		s.close()
+		return
+	}
+	if s != a.active {
+		return
+	}
+	if a.state == Closing {
+		if cmd == diam.DisconnectPeer && !req && msg.Header.ApplicationID == 0 {
+			if msg.Header.HopByHopID != a.pendingDPR {
+				a.m.report(s, msg, errors.New("peer: DPA Hop-by-Hop mismatch"))
+				return
+			}
+			if _, err := base.ValidateDPA(msg); err != nil {
+				a.m.report(s, msg, err)
+				return
+			}
+			if isI {
+				a.step(iDPA, s, msg)
+			} else {
+				a.step(rDPA, s, msg)
+			}
+		} else if cmd == diam.DisconnectPeer && req {
+			a.answerDPR(s, msg)
+		}
+		return
+	}
+	switch {
+	case cmd == diam.DeviceWatchdog && req && msg.Header.ApplicationID == 0:
+		var dwr base.DWR
+		if err := dwr.Parse(msg); err != nil {
+			a.m.report(s, msg, err)
+			return
+		}
+		if compareIdentity(dwr.OriginHost, a.cfg.Host) != 0 {
+			a.m.report(s, msg, errors.New("peer: DWR Origin-Host mismatch"))
+			return
+		}
+		if isI {
+			a.step(iDWR, s, msg)
+		} else {
+			a.step(rDWR, s, msg)
+		}
+	case cmd == diam.DeviceWatchdog && !req && msg.Header.ApplicationID == 0:
+		// No originated DWR before PR 3. Report unsolicited answers.
+		a.m.report(s, msg, errors.New("peer: unsolicited DWA"))
+		if isI {
+			a.step(iDWA, s, msg)
+		} else {
+			a.step(rDWA, s, msg)
+		}
+	case cmd == diam.DisconnectPeer && req && msg.Header.ApplicationID == 0:
+		if _, err := base.ValidateDPR(msg); err != nil {
+			a.m.report(s, msg, err)
+			return
+		}
+		if isI {
+			a.step(iDPR, s, msg)
+		} else {
+			a.step(rDPR, s, msg)
+		}
+	case cmd == diam.CapabilitiesExchange && req && msg.Header.ApplicationID == 0:
+		// RFC 6733 §5.6 Open/R-Conn-CER rejects a duplicate candidate.
+		s.close()
+		a.notify(errors.New("peer: duplicate CER on open connection"))
+	default:
+		if isI {
+			a.step(iMessage, s, msg)
+		} else {
+			a.step(rMessage, s, msg)
+		}
+	}
+}
+func (a *actor) answerDPR(s *session, msg *diam.Message) {
+	if _, err := base.ValidateDPR(msg); err != nil {
+		a.m.report(s, msg, err)
+		return
+	}
+	dpa, err := base.BuildDPA(msg, a.m.baseSettings(s.c))
+	if err != nil || !s.send(dpa, false) {
+		s.close()
+	}
+}
+func (a *actor) onGone(s *session) {
+	if s == nil {
+		return
+	}
+	if s == a.i {
+		a.i = nil
+		a.step(iDisc, s, nil)
+		return
+	}
+	if s == a.r {
+		a.r = nil
+		a.step(rDisc, s, nil)
+		return
+	}
+}
+func (a *actor) stop(cause sm.DisconnectCause) {
+	if a.state == Closed {
+		return
+	}
+	if a.state == IOpen || a.state == ROpen {
+		a.closeCause = cause
+		a.step(stop, a.active, nil)
+		return
+	}
+	if a.state == Closing {
+		return
+	}
+	a.fail(errors.New("peer: shutdown during handshake"))
+}
+func (a *actor) step(ev psmEvent, s *session, msg *diam.Message) {
+	row, ok := transition(a.state, ev)
+	if !ok {
+		return
+	}
+	old := a.state
+	a.state = row.next
+	switch ev {
+	case iAck:
+		a.stopTimer()
+		a.arm(a.m.cfg.Timers.CER)
+		if a.i != nil {
+			m, err := base.BuildCER(a.m.dictionary(), a.m.baseSettings(a.i.c))
+			if err != nil || !a.i.send(m, false) {
+				a.fail(fmt.Errorf("peer: send CER: %v", err))
+				return
+			}
+			a.i.cerHop = m.Header.HopByHopID
+			a.i.cerEnd = m.Header.EndToEndID
+		}
+	case iNack:
+		if old == WaitConnAckElect {
+			a.active = a.r
+			a.stopTimer()
+			a.sendCEA(a.r)
+		} else {
+			a.fail(errors.New("peer: dial failed"))
+			return
+		}
+	case rConnCER:
+		switch old {
+		case Closed:
+			a.active = a.r
+			a.stopTimer()
+			a.sendCEA(a.r)
+		case WaitConnAckElect, WaitReturns, IOpen, ROpen:
+			s.close()
+		}
+	case winElection, iDisc:
+		switch old {
+		case WaitReturns:
+			if a.i != nil {
+				a.i.close()
+				a.i = nil
+			}
+			a.active = a.r
+			a.stopTimer()
+			a.sendCEA(a.r)
+		case IOpen, Closing:
+			a.stopTimer()
+			a.active = nil
+			a.meta = nil
+		}
+	case iCEA:
+		a.stopTimer()
+		if old == WaitReturns && a.r != nil {
+			a.r.close()
+			a.r = nil
+		}
+		a.active = a.i
+	case rDisc:
+		switch old {
+		case ROpen, Closing:
+			a.stopTimer()
+			a.active = nil
+			a.meta = nil
+		case WaitReturns:
+			a.arm(a.m.cfg.Timers.CER)
+		}
+	case iNonCEA:
+		a.fail(errors.New("peer: non-CEA before handshake"))
+		return
+	case timeout:
+		a.fail(errors.New("peer: state timeout"))
+		return
+	case iDWR, rDWR:
+		dwa, err := base.BuildDWA(msg, a.m.baseSettings(s.c))
+		if err != nil || !s.send(dwa, false) {
+			a.fail(fmt.Errorf("peer: send DWA: %v", err))
+			return
+		}
+	case iDPR, rDPR:
+		a.stopTimer()
+		a.answerDPR(s, msg)
+		a.arm(a.m.cfg.Timers.Closing)
+	case stop:
+		a.stopTimer()
+		dpr, err := base.BuildDPR(a.m.dictionary(), a.m.baseSettings(s.c), uint32(a.closeCause))
+		if err != nil || !s.send(dpr, false) {
+			a.fail(fmt.Errorf("peer: send DPR: %v", err))
+			return
+		}
+		a.pendingDPR = dpr.Header.HopByHopID
+		a.arm(a.m.cfg.Timers.Closing)
+	case iDPA, rDPA:
+		a.stopTimer()
+		s.close()
+		a.active = nil
+		a.meta = nil
+	case iMessage, rMessage:
+		a.m.unsupported(s, msg)
+	}
+	a.publish(nil)
+}
+func (a *actor) sendCEA(s *session) {
+	if s == nil {
+		a.fail(errors.New("peer: missing responder"))
+		return
+	} // RFC 6733 §§5.3.2, 5.6.
+	msg := s.cerRequest
+	if msg == nil {
+		a.fail(errors.New("peer: missing CER"))
+		return
+	}
+	if !s.send(base.BuildCEA(msg, a.m.baseSettings(s.c), diam.Success), false) {
+		a.fail(errors.New("peer: send CEA queue full"))
+	}
+}
+func (m *Manager) dictionary() *dict.Parser {
+	if m.cfg.Settings.Dict != nil {
+		return m.cfg.Settings.Dict
+	}
+	return dict.Default
+}
