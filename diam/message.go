@@ -40,10 +40,45 @@ type Message struct {
 	Header *Header
 	AVP    []*AVP // AVPs in this message.
 
-	DecodeErr  error        // Possible decoding error on one or more AVPs (does not halt parsing)
-	dictionary *dict.Parser // dictionary parser object used to encode and decode AVPs.
-	stream     uint         // the stream this message was received on (if any)
-	ctx        context.Context
+	DecodeErr            error // Possible decoding error on one or more AVPs (does not halt parsing)
+	unknownMandatoryAVPs []*AVP
+	dictionary           *dict.Parser // dictionary parser object used to encode and decode AVPs.
+	stream               uint         // the stream this message was received on (if any)
+	ctx                  context.Context
+}
+
+// UnknownMandatoryAVPs returns the unknown mandatory AVPs found during decode.
+// For nested AVPs, each returned root retains only the Grouped hierarchy
+// leading to offending AVPs. The returned slice is independent; AVPs are shared.
+func (m *Message) UnknownMandatoryAVPs() []*AVP {
+	return append([]*AVP(nil), m.unknownMandatoryAVPs...)
+}
+
+func unknownMandatoryHierarchy(a *AVP, appID uint32, dictionary *dict.Parser) *AVP {
+	// RFC 6733 §4.1: an AVP is unsupported only on a dictionary miss.
+	// Raw data from a known but undecodable AVP is not an unknown AVP.
+	if a.Flags&avp.Mbit != 0 {
+		if _, raw := a.Data.(datatype.Unknown); raw {
+			if _, err := dictionary.FindAVPByCode(appID, a.Code, a.VendorID); err != nil {
+				return a
+			}
+		}
+	}
+	group, ok := a.Data.(*GroupedAVP)
+	if !ok {
+		return nil
+	}
+	var children []*AVP
+	for _, child := range group.AVP {
+		if failed := unknownMandatoryHierarchy(child, appID, dictionary); failed != nil {
+			children = append(children, failed)
+		}
+	}
+	if len(children) == 0 {
+		return nil
+	}
+	// RFC 6733 §7.5 permits the Failed-AVP to retain the Grouped hierarchy.
+	return NewAVP(a.Code, a.Flags, a.VendorID, &GroupedAVP{AVP: children})
 }
 
 var readerBufferPool sync.Pool
@@ -202,6 +237,9 @@ func (m *Message) decodeAVPs(b []byte) error {
 			}
 		}
 		m.AVP = append(m.AVP, a)
+		if failed := unknownMandatoryHierarchy(a, m.Header.ApplicationID, m.Dictionary()); failed != nil {
+			m.unknownMandatoryAVPs = append(m.unknownMandatoryAVPs, failed)
+		}
 		n += advance
 	}
 	if len(decodeErrs) > 0 {
