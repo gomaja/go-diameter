@@ -2,14 +2,13 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-package smparser
+package base
 
 import (
 	"fmt"
 
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/datatype"
-	"github.com/gomaja/go-diameter/diam/internal/base"
 )
 
 // CEA is a Capabilities-Exchange-Answer message.
@@ -42,60 +41,43 @@ func (e ErrFailedResultCode) Error() string {
 }
 
 // Parse parses and validates the given message.
-func (cea *CEA) Parse(m *diam.Message, localRole Role) error {
-	parsed := &base.CEA{
-		ResultCode:                  cea.ResultCode,
-		OriginHost:                  cea.OriginHost,
-		OriginRealm:                 cea.OriginRealm,
-		OriginStateID:               cea.OriginStateID,
-		VendorID:                    cea.VendorID,
-		ProductName:                 cea.ProductName,
-		SupportedVendorID:           cea.SupportedVendorID,
+func (cea *CEA) Parse(m *diam.Message, localRole Role) (err error) {
+	if err = m.Unmarshal(cea); err != nil {
+		return err
+	}
+	if err = cea.sanityCheck(); err != nil {
+		return err
+	}
+	if cea.ResultCode != diam.Success {
+		return &ErrFailedResultCode{CEA: cea}
+	}
+	app := &Application{
 		AcctApplicationID:           cea.AcctApplicationID,
 		AuthApplicationID:           cea.AuthApplicationID,
 		VendorSpecificApplicationID: cea.VendorSpecificApplicationID,
-		FailedAVP:                   cea.FailedAVP,
-		ErrorMessage:                cea.ErrorMessage,
 	}
-	err := parsed.Parse(m, base.Role(localRole))
-	cea.ResultCode = parsed.ResultCode
-	cea.OriginHost = parsed.OriginHost
-	cea.OriginRealm = parsed.OriginRealm
-	cea.OriginStateID = parsed.OriginStateID
-	cea.VendorID = parsed.VendorID
-	cea.ProductName = parsed.ProductName
-	cea.SupportedVendorID = parsed.SupportedVendorID
-	cea.AcctApplicationID = parsed.AcctApplicationID
-	cea.AuthApplicationID = parsed.AuthApplicationID
-	cea.VendorSpecificApplicationID = parsed.VendorSpecificApplicationID
-	cea.FailedAVP = parsed.FailedAVP
-	cea.ErrorMessage = parsed.ErrorMessage
-	if err == nil {
-		cea.appID = parsed.Applications()
+	if _, err := app.Parse(m.Dictionary(), localRole); err != nil {
+		return err
 	}
-	if _, ok := err.(*base.ErrFailedResultCode); ok {
-		return &ErrFailedResultCode{CEA: cea}
+	cea.appID = app.ID()
+	return nil
+}
+
+// sanityCheck ensures mandatory AVPs are present.
+func (cea *CEA) sanityCheck() error {
+	if cea.ResultCode == 0 {
+		return ErrMissingResultCode
 	}
-	return adaptError(err)
+	if len(cea.OriginHost) == 0 {
+		return ErrMissingOriginHost
+	}
+	if len(cea.OriginRealm) == 0 {
+		return ErrMissingOriginRealm
+	}
+	return nil
 }
 
 // Applications return a list of supported Application IDs.
 func (cea *CEA) Applications() []uint32 {
 	return cea.appID
-}
-
-// Clone returns an independent copy of the parsed CEA, including AVPs and
-// the application list used by peer metadata.
-func (cea *CEA) Clone() *CEA {
-	if cea == nil {
-		return nil
-	}
-	copy := *cea
-	copy.appID = append([]uint32(nil), cea.appID...)
-	copy.SupportedVendorID = base.CloneAVPs(cea.SupportedVendorID)
-	copy.AcctApplicationID = base.CloneAVPs(cea.AcctApplicationID)
-	copy.AuthApplicationID = base.CloneAVPs(cea.AuthApplicationID)
-	copy.VendorSpecificApplicationID = base.CloneAVPs(cea.VendorSpecificApplicationID)
-	copy.FailedAVP = base.CloneAVPs(cea.FailedAVP)
-	return &copy
 }
