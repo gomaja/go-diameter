@@ -33,7 +33,7 @@ import (
 	"flag"
 	"log"
 	"math/rand"
-	"net"
+	"net/netip"
 	"strconv"
 	"time"
 
@@ -77,12 +77,15 @@ func main() {
 		OriginStateID:    datatype.Unsigned32(time.Now().Unix()),
 		FirmwareRevision: 1,
 		HostIPAddresses: []datatype.Address{
-			datatype.Address(net.ParseIP("127.0.0.1")),
+			datatype.AddressFromIP(netip.MustParseAddr("127.0.0.1")),
 		},
 	}
 
 	// Create the state machine (it's a diam.ServeMux) and client.
-	mux := sm.New(cfg)
+	mux, err := sm.New(cfg)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	cli := &sm.Client{
 		Dict:               dict.Default,

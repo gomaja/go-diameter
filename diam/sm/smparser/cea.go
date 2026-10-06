@@ -15,6 +15,7 @@ import (
 // CEA is a Capabilities-Exchange-Answer message.
 // See RFC 6733 section 5.3.2 for details.
 type CEA struct {
+	HostIPAddresses             []datatype.Address        `avp:"Host-IP-Address"`
 	ResultCode                  uint32                    `avp:"Result-Code"`
 	OriginHost                  datatype.DiameterIdentity `avp:"Origin-Host"`
 	OriginRealm                 datatype.DiameterIdentity `avp:"Origin-Realm"`
@@ -44,6 +45,7 @@ func (e ErrFailedResultCode) Error() string {
 // Parse parses and validates the given message.
 func (cea *CEA) Parse(m *diam.Message, localRole Role) error {
 	parsed := &base.CEA{
+		HostIPAddresses:             cea.HostIPAddresses,
 		ResultCode:                  cea.ResultCode,
 		OriginHost:                  cea.OriginHost,
 		OriginRealm:                 cea.OriginRealm,
@@ -59,6 +61,7 @@ func (cea *CEA) Parse(m *diam.Message, localRole Role) error {
 	}
 	err := parsed.Parse(m, base.Role(localRole))
 	cea.ResultCode = parsed.ResultCode
+	cea.HostIPAddresses = parsed.HostIPAddresses
 	cea.OriginHost = parsed.OriginHost
 	cea.OriginRealm = parsed.OriginRealm
 	cea.OriginStateID = parsed.OriginStateID
@@ -91,6 +94,7 @@ func (cea *CEA) Clone() *CEA {
 		return nil
 	}
 	copy := *cea
+	copy.HostIPAddresses = base.CloneAddresses(cea.HostIPAddresses)
 	copy.appID = append([]uint32(nil), cea.appID...)
 	copy.SupportedVendorID = base.CloneAVPs(cea.SupportedVendorID)
 	copy.AcctApplicationID = base.CloneAVPs(cea.AcctApplicationID)

@@ -14,6 +14,7 @@ import (
 // CER is a Capabilities-Exchange-Request message.
 // See RFC 6733 section 5.3.1 for details.
 type CER struct {
+	HostIPAddresses             []datatype.Address        `avp:"Host-IP-Address"`
 	OriginHost                  datatype.DiameterIdentity `avp:"Origin-Host"`
 	OriginRealm                 datatype.DiameterIdentity `avp:"Origin-Realm"`
 	OriginStateID               *diam.AVP                 `avp:"Origin-State-Id"`
@@ -49,6 +50,7 @@ func (cer *CER) ParseWithSecurity(m *diam.Message, localRole Role, tlsActive boo
 // the message dictionary.
 func (cer *CER) ParseWithSecurityAndDictionary(m *diam.Message, localRole Role, tlsActive bool, dictionary *dict.Parser) (failedAVP *diam.AVP, err error) {
 	parsed := &base.CER{
+		HostIPAddresses:             cer.HostIPAddresses,
 		OriginHost:                  cer.OriginHost,
 		OriginRealm:                 cer.OriginRealm,
 		OriginStateID:               cer.OriginStateID,
@@ -58,6 +60,7 @@ func (cer *CER) ParseWithSecurityAndDictionary(m *diam.Message, localRole Role, 
 		VendorSpecificApplicationID: cer.VendorSpecificApplicationID,
 	}
 	failedAVP, err = parsed.ParseWithSecurityAndDictionary(m, base.Role(localRole), tlsActive, dictionary)
+	cer.HostIPAddresses = parsed.HostIPAddresses
 	cer.OriginHost = parsed.OriginHost
 	cer.OriginRealm = parsed.OriginRealm
 	cer.OriginStateID = parsed.OriginStateID
@@ -83,6 +86,7 @@ func (cer *CER) Clone() *CER {
 		return nil
 	}
 	copy := *cer
+	copy.HostIPAddresses = base.CloneAddresses(cer.HostIPAddresses)
 	copy.appID = append([]uint32(nil), cer.appID...)
 	copy.OriginStateID = base.CloneAVP(cer.OriginStateID)
 	copy.InbandSecurityID = base.CloneAVP(cer.InbandSecurityID)

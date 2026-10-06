@@ -14,7 +14,7 @@ import (
 
 func TestDefaultHandshakeTimeout(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		sm := New(&Settings{})
+		sm := mustNewStateMachine(t, &Settings{})
 		c := newErrWriteConn()
 		cleanup := sm.HandleAccept(c)
 		defer cleanup()
@@ -31,7 +31,7 @@ func TestHandshakeTimerStopsOnSuccessAndClose(t *testing.T) {
 		t.Run(map[bool]string{false: "close", true: "success"}[success], func(t *testing.T) {
 			settings := *serverSettings2
 			settings.HandshakeTimeout = time.Hour
-			sm := New(&settings)
+			sm := mustNewStateMachine(t, &settings)
 			c := &messageErrorCaptureConn{ctx: context.Background()}
 			cleanup := sm.HandleAccept(c)
 			defer cleanup()
@@ -53,7 +53,7 @@ func TestHandshakeTimerStopsOnSuccessAndClose(t *testing.T) {
 }
 
 func TestAcceptedConnectionCleanupReleasesTimer(t *testing.T) {
-	sm := New(serverSettings)
+	sm := mustNewStateMachine(t, serverSettings)
 	opened := make(chan diam.Conn, 1)
 	srv := diamtest.NewUnstartedServer(sm, dict.Default)
 	srv.Config.OnNewConnection = func(c diam.Conn) { opened <- c }
@@ -94,7 +94,7 @@ func TestAcceptedConnectionCleanupReleasesTimer(t *testing.T) {
 func TestNegativeHandshakeTimeoutCreatesNoTimer(t *testing.T) {
 	settings := *serverSettings
 	settings.HandshakeTimeout = -1
-	sm := New(&settings)
+	sm := mustNewStateMachine(t, &settings)
 	c := newErrWriteConn()
 	cleanup := sm.HandleAccept(c)
 	defer cleanup()

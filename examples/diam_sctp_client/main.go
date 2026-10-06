@@ -9,7 +9,6 @@ import (
 	"flag"
 	"io"
 	"log"
-	"net"
 	"time"
 
 	"github.com/gomaja/go-diameter/diam"
@@ -100,7 +99,7 @@ func sendCER(w io.Writer) (n int64, err error) {
 		avp.HostIPAddress,
 		avp.Mbit,
 		0,
-		datatype.Address(net.IP(sctpLAdds.IPs[len(sctpLAdds.IPs)-1].AsSlice()))); err != nil {
+		datatype.AddressFromIP(sctpLAdds.IPs[len(sctpLAdds.IPs)-1])); err != nil {
 		return 0, err
 	}
 	if _, err := m.NewAVP(avp.VendorID, avp.Mbit, 0, datatype.Unsigned32(99)); err != nil {

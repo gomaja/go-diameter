@@ -14,6 +14,17 @@ func CloneAVP(a *diam.AVP) *diam.AVP {
 	if a.Data == nil {
 		return &copy
 	}
+	switch data := a.Data.(type) {
+	case datatype.Address:
+		copy.Data = data.Clone()
+		return &copy
+	case *datatype.Address:
+		if data != nil {
+			cloned := data.Clone()
+			copy.Data = &cloned
+		}
+		return &copy
+	}
 	if grouped, ok := a.Data.(*diam.GroupedAVP); ok {
 		if grouped == nil {
 			copy.Data = (*diam.GroupedAVP)(nil)
@@ -44,4 +55,16 @@ func CloneAVPs(avps []*diam.AVP) []*diam.AVP {
 		copy[i] = CloneAVP(a)
 	}
 	return copy
+}
+
+// CloneAddresses copies a slice and each address value.
+func CloneAddresses(addresses []datatype.Address) []datatype.Address {
+	if addresses == nil {
+		return nil
+	}
+	cloned := make([]datatype.Address, len(addresses))
+	for i, address := range addresses {
+		cloned[i] = address.Clone()
+	}
+	return cloned
 }

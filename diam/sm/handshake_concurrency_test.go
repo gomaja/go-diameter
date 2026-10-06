@@ -67,7 +67,7 @@ func regressionDWR(t *testing.T) *diam.Message {
 
 func TestAcceptedHandshakePublishedBeforeCEA(t *testing.T) {
 	t.Run("blocked-write", func(t *testing.T) {
-		sm := New(testMessageErrorSettings())
+		sm := mustNewStateMachine(t, testMessageErrorSettings())
 		c := newHandshakeConn()
 		release := make(chan struct{})
 		c.afterWrite = func(seq int32) {
@@ -101,7 +101,7 @@ func TestAcceptedHandshakePublishedBeforeCEA(t *testing.T) {
 		}
 	})
 	t.Run("concurrent-loopback", func(t *testing.T) {
-		srv := diamtest.NewUnstartedServer(New(testMessageErrorSettings()), dict.Default)
+		srv := diamtest.NewUnstartedServer(mustNewStateMachine(t, testMessageErrorSettings()), dict.Default)
 		srv.Config.MaxConcurrentHandlers = -1
 		srv.Start()
 		defer srv.Close()
@@ -132,7 +132,7 @@ func TestAcceptedHandshakePublishedBeforeCEA(t *testing.T) {
 }
 
 func TestCERWriteFailureClosesConnection(t *testing.T) {
-	sm := New(testMessageErrorSettings())
+	sm := mustNewStateMachine(t, testMessageErrorSettings())
 	c := newHandshakeConn()
 	c.writeErr = errors.New("CEA write failed")
 	cleanup := sm.HandleAccept(c)
@@ -148,7 +148,7 @@ func TestExpiredHandshakeCannotSendSuccessCEA(t *testing.T) {
 	settings.HandshakeTimeout = 100 * time.Millisecond
 	var onCEACalls int
 	settings.OnCEA = func(diam.Conn, *diam.Message) { onCEACalls++ }
-	sm := New(settings)
+	sm := mustNewStateMachine(t, settings)
 	c := newHandshakeConn()
 	closing, release, done := make(chan struct{}), make(chan struct{}), make(chan struct{})
 	c.afterClose = func() { close(closing); <-release; close(done) }
@@ -181,7 +181,7 @@ func TestCERNilSettingsDictionaryUsesMessageDictionary(t *testing.T) {
 	}
 	settings := testMessageErrorSettings()
 	settings.Dict = nil
-	srv := diamtest.NewServer(New(settings), dictionary)
+	srv := diamtest.NewServer(mustNewStateMachine(t, settings), dictionary)
 	defer srv.Close()
 	request := regressionCER(t, dictionary, 1001)
 	for _, a := range request.AVP {

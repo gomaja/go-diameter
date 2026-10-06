@@ -57,7 +57,7 @@ type Settings struct {
 	// FirmwareRevision is optional, and not added if unset.
 	FirmwareRevision datatype.Unsigned32
 
-	// HostIPAddress is optional for both clients and servers, when not set local
+	// HostIPAddresses is optional for both clients and servers, when not set local
 	// host IP address is used.
 	//
 	// This property may be set when the IP address of the host sending/receiving
@@ -65,9 +65,6 @@ type Settings struct {
 	// for example when using a VPN or a gateway.
 	//
 	HostIPAddresses []datatype.Address
-	//
-	// Deprecated: HostIPAddress is depreciated, use HostIPAddresses instead
-	HostIPAddress datatype.Address
 
 	// Dict governs advertised applications and CER application validation
 	// (RFC 6733 §5.3). If nil, advertising uses dict.Default and validation
@@ -124,6 +121,20 @@ type Settings struct {
 // RFC 6733 §5.6.1 permits an implementation-defined pre-CER timeout.
 const DefaultHandshakeTimeout = 30 * time.Second
 
+// Validate checks settings that would make a capability exchange invalid.
+// RFC 6733 §4.3.1 defines the family and payload of each Address AVP.
+func (settings *Settings) Validate() error {
+	if settings == nil {
+		return fmt.Errorf("nil settings")
+	}
+	for i, address := range settings.HostIPAddresses {
+		if err := address.Valid(); err != nil {
+			return fmt.Errorf("HostIPAddresses[%d]: %w", i, err)
+		}
+	}
+	return nil
+}
+
 var (
 	baseCERIdx = diam.CommandIndex{AppID: 0, Code: diam.CapabilitiesExchange, Request: true}
 	baseCEAIdx = diam.CommandIndex{AppID: 0, Code: diam.CapabilitiesExchange, Request: false}
@@ -156,9 +167,9 @@ type acceptedHandshake struct {
 
 // New creates and initializes a new StateMachine for clients or servers.
 // See Settings.Dict for the advertising and validation dictionaries.
-func New(settings *Settings) *StateMachine {
-	if len(settings.HostIPAddresses) == 0 && len(settings.HostIPAddress) > 0 {
-		settings.HostIPAddresses = []datatype.Address{settings.HostIPAddress}
+func New(settings *Settings) (*StateMachine, error) {
+	if err := settings.Validate(); err != nil {
+		return nil, err
 	}
 	dp := settings.Dict
 	if dp == nil {
@@ -182,7 +193,7 @@ func New(settings *Settings) *StateMachine {
 	sm.mux.Handle("ALL", diam.HandlerFunc(sm.handleUnsupportedCommand))
 	sm.mux.HandleIdx(baseDPRIdx, handshakeOK(handleDPR(sm)))
 	sm.mux.HandleIdx(baseDPAIdx, handshakeOK(handleDPA(sm)))
-	return sm
+	return sm, nil
 }
 
 // chainPreHook returns a HandlerFunc that invokes pre (if non-nil) before

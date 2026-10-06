@@ -6,12 +6,22 @@ package sm
 
 import (
 	"bytes"
-	"net"
+	"net/netip"
+	"testing"
 	"time"
 
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/dict"
 )
+
+func mustNewStateMachine(t testing.TB, settings *Settings) *StateMachine {
+	t.Helper()
+	machine, err := New(settings)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return machine
+}
 
 func init() {
 	if err := dict.Default.Load(bytes.NewReader([]byte(acctDictionary))); err != nil {
@@ -37,7 +47,7 @@ var authDictionary = `<?xml version="1.0" encoding="UTF-8"?>
 `
 
 var (
-	localhostAddress = datatype.Address(net.ParseIP("127.0.0.1"))
+	localhostAddress = datatype.AddressFromIP(netip.MustParseAddr("127.0.0.1"))
 
 	serverSettings = &Settings{
 		OriginHost:       "srv",

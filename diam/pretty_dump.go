@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"reflect"
 	"strings"
 	"time"
 
@@ -50,12 +51,20 @@ func prettyDumpMessage(w io.Writer, m *Message, depth int) {
 }
 
 func prettyDumpGroupedAVP(w io.Writer, m *Message, a *AVP, depth int) {
-	for _, ga := range a.Data.(*GroupedAVP).AVP {
+	group, ok := a.Data.(*GroupedAVP)
+	if !ok || group == nil {
+		return
+	}
+	for _, ga := range group.AVP {
 		prettyDumpAVP(w, m, ga, depth)
 	}
 }
 
 func prettyDumpAVP(w io.Writer, m *Message, a *AVP, depth int) {
+	if a == nil {
+		prettyFprintf(w, "  <nil AVP>\n")
+		return
+	}
 	indent := strings.Repeat("  ", max(0, depth))
 
 	avpName, avpType, avpData, isGrouped := avpToString(m, a)
@@ -161,14 +170,17 @@ func avpToString(m *Message, a *AVP) (string, string, string, bool) {
 	); err != nil {
 		avpName = "Unknown"
 		avpType = "Unknown"
-		avpData = a.Data.String()
+		avpData = fmt.Sprint(a.Data)
 		isGrouped = false
-	} else if a.Data.Type() == GroupedAVPType {
+	} else if group, ok := a.Data.(*GroupedAVP); ok && group != nil {
 		avpName = dictAVP.Name
 		avpType = "Grouped"
 		avpData = ""
 		isGrouped = true
 	} else {
+		if a.Data == nil || (reflect.ValueOf(a.Data).Kind() == reflect.Pointer && reflect.ValueOf(a.Data).IsNil()) {
+			return dictAVP.Name, "Unknown", "<nil>", false
+		}
 		for k, v := range datatype.Available {
 			if v == a.Data.Type() {
 				avpType = k
@@ -185,62 +197,41 @@ func avpToString(m *Message, a *AVP) (string, string, string, bool) {
 
 func dataValueToString(data datatype.Type) string {
 
-	switch data.Type() {
-	case datatype.Integer32Type,
-		datatype.Integer64Type,
-		datatype.Unsigned32Type,
-		datatype.Unsigned64Type,
-		datatype.EnumeratedType:
+	switch data := data.(type) {
+	case datatype.Integer32, datatype.Integer64, datatype.Unsigned32, datatype.Unsigned64, datatype.Enumerated:
 		return fmt.Sprintf("%d", data)
-
-	case datatype.Float32Type,
-		datatype.Float64Type:
+	case datatype.Float32, datatype.Float64:
 		return fmt.Sprintf("%0.4f", data)
-
-	case datatype.OctetStringType:
-		return string(data.(datatype.OctetString))
-
-	case datatype.UTF8StringType:
-		return string(data.(datatype.UTF8String))
-
-	case datatype.DiameterIdentityType:
-		return string(data.(datatype.DiameterIdentity))
-
-	case datatype.DiameterURIType:
-		return string(data.(datatype.DiameterURI))
-
-	case datatype.IPFilterRuleType:
-		return string(data.(datatype.IPFilterRule))
-
-	case datatype.QoSFilterRuleType:
-		return string(data.(datatype.QoSFilterRule))
-
-	case datatype.TimeType:
-		return time.Time(data.(datatype.Time)).String()
-
-	case datatype.AddressType:
-		addr := string(data.(datatype.Address))
-		if ip4 := net.IP(addr).To4(); ip4 != nil {
-			return net.IP(addr).String()
+	case datatype.OctetString:
+		return string(data)
+	case datatype.UTF8String:
+		return string(data)
+	case datatype.DiameterIdentity:
+		return string(data)
+	case datatype.DiameterURI:
+		return string(data)
+	case datatype.IPFilterRule:
+		return string(data)
+	case datatype.QoSFilterRule:
+		return string(data)
+	case datatype.Time:
+		return time.Time(data).String()
+	case datatype.Address:
+		if ip, ok := data.IP(); ok {
+			return ip.String()
 		}
-		if ip6 := net.IP(addr).To16(); ip6 != nil {
-			return net.IP(addr).String()
+		return data.String()
+	case *datatype.Address:
+		if data != nil {
+			return dataValueToString(*data)
 		}
-		if len(addr) < 2 {
-			return fmt.Sprintf("%#v", []byte(addr))
-		}
-		return fmt.Sprintf("%s (family: %#v)", addr[2:], []byte(addr[:2]))
-
-	case datatype.IPv4Type:
-		addr := string(data.(datatype.IPv4))
-		return net.IP(addr).String()
-
-	case datatype.IPv6Type:
-		addr := string(data.(datatype.IPv6))
-		return net.IP(addr).String()
+	case datatype.IPv4:
+		return net.IP(data).String()
+	case datatype.IPv6:
+		return net.IP(data).String()
 	}
 
-	return data.String()
+	return fmt.Sprint(data)
 }
 
 func boolToSymbol(flag bool) string {

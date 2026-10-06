@@ -6,7 +6,7 @@ package diam
 
 import (
 	"errors"
-	"net"
+	"net/netip"
 	"testing"
 
 	"github.com/gomaja/go-diameter/diam/avp"
@@ -55,7 +55,7 @@ func benchmarkDiamTransport(b *testing.B, network string) {
 	msg := NewRequest(257, 0, dict.Default)
 	mustBenchmarkAVP(b, msg, avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("bench.host"))
 	mustBenchmarkAVP(b, msg, avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("bench.realm"))
-	mustBenchmarkAVP(b, msg, avp.HostIPAddress, avp.Mbit, 0, datatype.Address(net.ParseIP("127.0.0.1")))
+	mustBenchmarkAVP(b, msg, avp.HostIPAddress, avp.Mbit, 0, datatype.AddressFromIP(netip.MustParseAddr("127.0.0.1")))
 	mustBenchmarkAVP(b, msg, avp.VendorID, avp.Mbit, 0, datatype.Unsigned32(0))
 	mustBenchmarkAVP(b, msg, avp.ProductName, 0, 0, datatype.UTF8String("bench"))
 	payload, err := msg.Serialize()

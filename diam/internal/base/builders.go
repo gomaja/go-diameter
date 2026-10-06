@@ -1,8 +1,6 @@
 package base
 
 import (
-	"fmt"
-
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
@@ -88,20 +86,26 @@ func BuildCER(dictionary *dict.Parser, cfg Settings) (*diam.Message, error) {
 
 // BuildCEA constructs the RFC 6733 §5.3.2 answer. A failed capability
 // exchange retains the mandatory local fields but omits supported apps.
-func BuildCEA(request *diam.Message, cfg Settings, resultCode uint32) *diam.Message {
+func BuildCEA(request *diam.Message, cfg Settings, resultCode uint32) (*diam.Message, error) {
 	a := request.Answer(resultCode)
+	var buildErr error
+	add := func(code uint32, flags uint8, vendor uint32, data datatype.Type) {
+		if buildErr == nil {
+			_, buildErr = a.NewAVP(code, flags, vendor, data)
+		}
+	}
 	a.Header.CommandFlags = 0
 	a.Header.ApplicationID = 0
-	addCEAAVP(a, avp.OriginHost, avp.Mbit, 0, cfg.OriginHost)
-	addCEAAVP(a, avp.OriginRealm, avp.Mbit, 0, cfg.OriginRealm)
+	add(avp.OriginHost, avp.Mbit, 0, cfg.OriginHost)
+	add(avp.OriginRealm, avp.Mbit, 0, cfg.OriginRealm)
 	for _, address := range cfg.HostIPAddresses {
-		addCEAAVP(a, avp.HostIPAddress, avp.Mbit, 0, address)
+		add(avp.HostIPAddress, avp.Mbit, 0, address)
 	}
-	addCEAAVP(a, avp.VendorID, avp.Mbit, 0, cfg.VendorID)
-	addCEAAVP(a, avp.ProductName, 0, 0, cfg.ProductName)
+	add(avp.VendorID, avp.Mbit, 0, cfg.VendorID)
+	add(avp.ProductName, 0, 0, cfg.ProductName)
 	// RFC 6733 §8.16: Origin-State-Id reflects the local Origin-Host.
 	if cfg.OriginStateID != 0 {
-		addCEAAVP(a, avp.OriginStateID, avp.Mbit, 0, cfg.OriginStateID)
+		add(avp.OriginStateID, avp.Mbit, 0, cfg.OriginStateID)
 	}
 	if resultCode == diam.Success {
 		for _, app := range cfg.Applications {
@@ -113,28 +117,25 @@ func BuildCEA(request *diam.Message, cfg Settings, resultCode uint32) *diam.Mess
 				typ = avp.AcctApplicationID
 			}
 			if app.Vendor != 0 {
-				addCEAAVP(a, avp.SupportedVendorID, avp.Mbit, 0, datatype.Unsigned32(app.Vendor))
-				addCEAAVP(a, avp.VendorSpecificApplicationID, avp.Mbit, 0, &diam.GroupedAVP{
+				add(avp.SupportedVendorID, avp.Mbit, 0, datatype.Unsigned32(app.Vendor))
+				add(avp.VendorSpecificApplicationID, avp.Mbit, 0, &diam.GroupedAVP{
 					AVP: []*diam.AVP{
 						diam.NewAVP(avp.VendorID, avp.Mbit, 0, datatype.Unsigned32(app.Vendor)),
 						diam.NewAVP(typ, avp.Mbit, 0, datatype.Unsigned32(app.ID)),
 					},
 				})
 			} else {
-				addCEAAVP(a, typ, avp.Mbit, 0, datatype.Unsigned32(app.ID))
+				add(typ, avp.Mbit, 0, datatype.Unsigned32(app.ID))
 			}
 		}
 	}
 	if cfg.FirmwareRevision != 0 {
-		addCEAAVP(a, avp.FirmwareRevision, 0, 0, cfg.FirmwareRevision)
+		add(avp.FirmwareRevision, 0, 0, cfg.FirmwareRevision)
 	}
-	return a
-}
-
-func addCEAAVP(m *diam.Message, code interface{}, flags uint8, vendor uint32, data datatype.Type) {
-	if _, err := m.NewAVP(code, flags, vendor, data); err != nil {
-		panic(fmt.Sprintf("CEA AVP create failure: %v", err))
+	if buildErr != nil {
+		return nil, buildErr
 	}
+	return a, nil
 }
 
 // BuildDWR constructs the RFC 6733 §5.5.1 request.

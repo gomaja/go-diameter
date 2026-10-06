@@ -318,6 +318,21 @@ func (m *Message) Dictionary() *dict.Parser {
 // NewAVP creates and initializes a new AVP and adds it to the Message.
 // It is not safe for concurrent calls.
 func (m *Message) NewAVP(code interface{}, flags uint8, vendor uint32, data datatype.Type) (*AVP, error) {
+	// RFC 6733 §4.3.1: locally supplied addresses must have a valid family and length.
+	switch address := data.(type) {
+	case datatype.Address:
+		if err := address.Valid(); err != nil {
+			return nil, err
+		}
+	case *datatype.Address:
+		if address == nil {
+			return nil, errors.New("nil Address")
+		}
+		if err := address.Valid(); err != nil {
+			return nil, err
+		}
+		data = *address
+	}
 	var a *AVP
 	switch code := code.(type) {
 	case int:
@@ -421,7 +436,7 @@ func (m *Message) WriteToStreamWithRetry(writer io.Writer, stream, retries uint)
 	buf := newWriterBuffer(l)
 	defer putWriterBuffer(buf)
 	b := buf.Bytes()[0:l]
-	if err := m.SerializeTo(b); err != nil {
+	if err := m.serializeTo(b, l); err != nil {
 		return 0, err
 	}
 	switch w := writer.(type) {
@@ -475,7 +490,7 @@ func (m *Message) Serialize() ([]byte, error) {
 		return nil, err
 	}
 	b := make([]byte, l)
-	if err := m.SerializeTo(b); err != nil {
+	if err := m.serializeTo(b, l); err != nil {
 		return nil, err
 	}
 	return b, nil
@@ -483,10 +498,22 @@ func (m *Message) Serialize() ([]byte, error) {
 
 // SerializeTo writes the serialized bytes of the Message into b.
 func (m *Message) SerializeTo(b []byte) (err error) {
-	if _, err := m.serializedLength(); err != nil {
+	l, err := m.serializedLength()
+	if err != nil {
 		return err
 	}
+	return m.serializeTo(b, l)
+}
+
+// serializeTo is shared by all message writers after the length check.
+// It writes l, the computed length, rather than Header.MessageLength, which
+// goes stale when an AVP is changed through a pointer (FindAVP, Unmarshal into
+// *AVP fields). Serializing never writes to m, so one message can be
+// serialized and read by several goroutines at once.
+func (m *Message) serializeTo(b []byte, l int) (err error) {
 	m.Header.SerializeTo(b[0:HeaderLength])
+	// RFC 6733 §3: Message Length covers the header and the padded AVPs.
+	putUint24(b[1:4], uint32(l))
 	offset := HeaderLength
 	for _, avp := range m.AVP {
 		if err = avp.SerializeTo(b[offset:]); err != nil {

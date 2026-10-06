@@ -28,7 +28,7 @@ func TestLibraryBuiltMessagesValidate(t *testing.T) {
 	settings.HostIPAddresses = []datatype.Address{localhostAddress}
 	settings.VendorID = datatype.Unsigned32(1)
 	settings.ProductName = datatype.UTF8String("test")
-	sm := New(settings)
+	sm := mustNewStateMachine(t, settings)
 	cli := &Client{Dict: dict.Default, Handler: sm}
 	for _, build := range []struct {
 		name string

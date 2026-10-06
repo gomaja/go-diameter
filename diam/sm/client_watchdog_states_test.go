@@ -34,7 +34,7 @@ func (c *watchdogProbeConn) Close()                       { c.once.Do(func() { c
 func (c *watchdogProbeConn) CloseNotify() <-chan struct{} { return c.closed }
 
 func TestWatchdogOneOutstandingRequestAndStateOrder(t *testing.T) {
-	cli := newLivenessClient()
+	cli := newLivenessClient(t)
 	cli.WatchdogInterval = 30 * time.Millisecond
 	cli.MaxRetransmits = 4
 	cli.RetransmitInterval = time.Millisecond
@@ -69,7 +69,7 @@ func TestWatchdogOneOutstandingRequestAndStateOrder(t *testing.T) {
 }
 
 func TestWatchdogRecoversFromSuspectOnNonDWATraffic(t *testing.T) {
-	cli := newLivenessClient()
+	cli := newLivenessClient(t)
 	cli.WatchdogInterval = 40 * time.Millisecond
 	events := make(chan WatchdogEvent, 8)
 	cli.OnWatchdogEvent = func(event WatchdogEvent) { events <- event }
@@ -114,14 +114,14 @@ func TestWatchdogRecoversFromSuspectOnAnswer(t *testing.T) {
 		m *diam.Message
 	}
 	requests := make(chan request, 4)
-	serverSM := New(serverSettings)
+	serverSM := mustNewStateMachine(t, serverSettings)
 	serverSM.mux.HandleIdx(baseDWRIdx, handshakeOK(func(c diam.Conn, m *diam.Message) {
 		requests <- request{c, m}
 	}))
 	srv := diamtest.NewServer(serverSM, dict.Default)
 	defer srv.Close()
 	events := make(chan WatchdogEvent, 12)
-	cli := newLivenessClient()
+	cli := newLivenessClient(t)
 	cli.WatchdogInterval = 50 * time.Millisecond
 	cli.MaxRetransmits = 4
 	cli.RetransmitInterval = time.Millisecond

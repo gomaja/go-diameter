@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net"
+	"net/netip"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -55,6 +56,9 @@ var (
 //
 // A custom message handler for Device-Watchdog-Answer (DWA) can be registered.
 // With watchdog enabled, Client handles DWA on its connections first.
+// For custom connections whose LocalAddr is neither a TCP nor SCTP address,
+// LocalAddr.String must contain literal IP addresses. An unparseable host
+// causes the capability exchange handshake to fail.
 type Client struct {
 	Dict                        *dict.Parser  // Dictionary parser (uses dict.Default if unset)
 	Handler                     *StateMachine // Message handler
@@ -529,62 +533,71 @@ func (cli *Client) makeDWR(osid uint32) (*diam.Message, error) {
 }
 
 func getHostsWithoutPort(hosts string) (string, error) {
-	i := len(hosts) - 1
-	for ; i >= 0 && hosts[i] != ':'; i-- {
-		if hosts[i] < '0' || hosts[i] > '9' {
-			return "", fmt.Errorf("found non numerical character in port at position %d", i+1)
+	i := strings.LastIndexByte(hosts, ':')
+	if i < 0 {
+		return "", errors.New("missing local address port")
+	}
+	for j := i + 1; j < len(hosts); j++ {
+		if hosts[j] < '0' || hosts[j] > '9' {
+			return "", fmt.Errorf("found non numerical character in port at position %d", j+1)
 		}
 	}
 	return hosts[:i], nil
 }
 
+// getLocalAddresses resolves the local endpoint advertised in CER or CEA.
+// Custom non-TCP/SCTP LocalAddr values must contain literal IP hosts; names
+// cannot be encoded as RFC 6733 §4.3.1 Address values and fail the handshake.
 func getLocalAddresses(c diam.Conn) ([]datatype.Address, error) {
-	var ips []net.IP
+	var ips []netip.Addr
 	switch addr := c.LocalAddr().(type) {
 	case *sctp.Addr:
 		if addr != nil {
-			for _, ip := range addr.IPs {
-				ips = append(ips, net.IP(ip.AsSlice()))
-			}
+			ips = append(ips, addr.IPs...)
 		}
 	case *net.TCPAddr:
 		if addr != nil {
-			ips = append(ips, addr.IP)
+			ips = append(ips, addr.AddrPort().Addr())
 		}
 	case nil:
 		return nil, nil
 	default:
 		addrStr := addr.String()
-		if addrStr != "" {
-			hosts, err := getHostsWithoutPort(addrStr)
+		if addrStr == "" {
+			return nil, errors.New("empty local address")
+		}
+		hosts, err := getHostsWithoutPort(addrStr)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse local ip %s [%q]: %w", addrStr, addr, err)
+		}
+		for _, host := range strings.Split(hosts, "/") {
+			host = strings.TrimPrefix(strings.TrimSuffix(host, "]"), "[")
+			if zone := strings.LastIndex(host, "%"); zone >= 0 {
+				host = host[:zone]
+			}
+			ip, err := netip.ParseAddr(host)
 			if err != nil {
-				return nil, fmt.Errorf("failed to parse local ip %s [%q]: %w", addrStr, addr, err)
+				return nil, fmt.Errorf("failed to parse local IP %q: %w", host, err)
 			}
-			for _, host := range strings.Split(hosts, "/") {
-				host = strings.TrimPrefix(strings.TrimSuffix(host, "]"), "[")
-				if zone := strings.LastIndex(host, "%"); zone >= 0 {
-					host = host[:zone]
-				}
-				ips = append(ips, net.ParseIP(host))
-			}
+			ips = append(ips, ip)
 		}
 	}
 	// RFC 6733 §5.3.5 requires the host's addresses in Host-IP-Address.
 	// Preserve the existing loopback preference when other addresses exist.
 	addresses := make([]datatype.Address, 0, len(ips))
-	var loopback net.IP
+	var loopback netip.Addr
 	for _, ip := range ips {
-		if ip == nil {
+		if !ip.IsValid() {
 			continue
 		}
 		if ip.IsLoopback() {
 			loopback = ip
 		} else {
-			addresses = append(addresses, datatype.Address(ip))
+			addresses = append(addresses, datatype.AddressFromIP(ip))
 		}
 	}
-	if len(addresses) == 0 && loopback != nil {
-		addresses = append(addresses, datatype.Address(loopback))
+	if len(addresses) == 0 && loopback.IsValid() {
+		addresses = append(addresses, datatype.AddressFromIP(loopback))
 	}
 	return addresses, nil
 }

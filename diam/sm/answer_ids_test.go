@@ -19,7 +19,7 @@ func TestCERAndDWRAnswersCopyIdentifiers(t *testing.T) {
 		{"zero", 0, 0}, {"nonzero", 71, 72},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			sm := New(serverSettings)
+			sm := mustNewStateMachine(t, serverSettings)
 			srv := diamtest.NewServer(sm, dict.Default)
 			defer srv.Close()
 			answers := make(chan *diam.Message, 2)

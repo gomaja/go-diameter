@@ -47,8 +47,14 @@ func TestServerShutdownActionCanCompleteDPR(t *testing.T) {
 			t.Errorf("shutdown logged closing an already closed connection:\n%s", out)
 		}
 	})
-	serverSM := sm.New(&sm.Settings{OriginHost: "srv", OriginRealm: "test", VendorID: 13, ProductName: "go-diameter"})
-	clientSM := sm.New(&sm.Settings{OriginHost: "cli", OriginRealm: "test", VendorID: 13, ProductName: "go-diameter"})
+	serverSM, err := sm.New(&sm.Settings{OriginHost: "srv", OriginRealm: "test", VendorID: 13, ProductName: "go-diameter"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	clientSM, err := sm.New(&sm.Settings{OriginHost: "cli", OriginRealm: "test", VendorID: 13, ProductName: "go-diameter"})
+	if err != nil {
+		t.Fatal(err)
+	}
 	srv := &diam.Server{Handler: serverSM}
 	actions := make(chan error, 1)
 	srv.OnShutdownConnection = func(ctx context.Context, c diam.Conn) {

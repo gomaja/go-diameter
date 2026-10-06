@@ -11,6 +11,7 @@ import (
 	"errors"
 	"io"
 	"net"
+	"net/netip"
 	"testing"
 	"time"
 
@@ -58,7 +59,7 @@ func TestStateMachineWritesMessageErrorAnswers(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			settings := testMessageErrorSettings()
-			stateMachine := New(settings)
+			stateMachine := mustNewStateMachine(t, settings)
 			server := diamtest.NewServer(stateMachine, dict.Default)
 			defer server.Close()
 
@@ -80,7 +81,7 @@ func TestStateMachineWritesMessageErrorAnswers(t *testing.T) {
 
 func TestStateMachineWritesMessageErrorAnswerThroughServeMux(t *testing.T) {
 	settings := testMessageErrorSettings()
-	stateMachine := New(settings)
+	stateMachine := mustNewStateMachine(t, settings)
 	mux := diam.NewServeMux()
 	mux.Handle("CER", stateMachine)
 	server := diamtest.NewServer(mux, dict.Default)
@@ -106,7 +107,7 @@ func TestStateMachineWritesMessageErrorAnswerThroughServeMux(t *testing.T) {
 
 func TestStateMachineContinuesAfterInvalidAVPLength(t *testing.T) {
 	settings := testMessageErrorSettings()
-	stateMachine := New(settings)
+	stateMachine := mustNewStateMachine(t, settings)
 	server := diamtest.NewServer(stateMachine, dict.Default)
 	defer server.Close()
 
@@ -148,7 +149,7 @@ func TestStateMachineContinuesAfterInvalidAVPLength(t *testing.T) {
 // CER answered with an error admits no peer, and the connection closes.
 func TestStateMachineClosesAfterRejectedCER(t *testing.T) {
 	settings := testMessageErrorSettings()
-	stateMachine := New(settings)
+	stateMachine := mustNewStateMachine(t, settings)
 	server := diamtest.NewServer(stateMachine, dict.Default)
 	defer server.Close()
 
@@ -179,7 +180,7 @@ func TestStateMachineClosesAfterRejectedCER(t *testing.T) {
 
 func TestStateMachineMessageErrorAnswerCopiesSessionID(t *testing.T) {
 	settings := testMessageErrorSettings()
-	stateMachine := New(settings)
+	stateMachine := mustNewStateMachine(t, settings)
 	server := diamtest.NewServer(stateMachine, dict.Default)
 	defer server.Close()
 
@@ -229,7 +230,7 @@ func TestStateMachineOmitsSessionIDThatWouldOverflowErrorAnswer(t *testing.T) {
 	const maxAlignedMessageLength = diam.MaxMessageLength &^ 3
 	settings := testMessageErrorSettings()
 	settings.HostIPAddresses = []datatype.Address{localhostAddress}
-	stateMachine := New(settings)
+	stateMachine := mustNewStateMachine(t, settings)
 	request := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
 	request.Header.HopByHopID = 0x01020304
 	request.Header.EndToEndID = 0x05060708
@@ -260,7 +261,7 @@ func TestStateMachineOmitsSessionIDThatWouldOverflowErrorAnswer(t *testing.T) {
 
 func TestStateMachineDoesNotAnswerMalformedAnswer(t *testing.T) {
 	settings := testMessageErrorSettings()
-	stateMachine := New(settings)
+	stateMachine := mustNewStateMachine(t, settings)
 	server := diamtest.NewServer(stateMachine, dict.Default)
 	defer server.Close()
 
@@ -426,7 +427,7 @@ func writeValidSMErrorCER(t *testing.T, conn net.Conn) {
 	m := diam.NewRequest(diam.CapabilitiesExchange, 1001, dict.Default)
 	mustSMClientAVP(t, m, avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("peer.example"))
 	mustSMClientAVP(t, m, avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("example"))
-	mustSMClientAVP(t, m, avp.HostIPAddress, avp.Mbit, 0, datatype.Address(net.ParseIP("127.0.0.1")))
+	mustSMClientAVP(t, m, avp.HostIPAddress, avp.Mbit, 0, datatype.AddressFromIP(netip.MustParseAddr("127.0.0.1")))
 	mustSMClientAVP(t, m, avp.VendorID, avp.Mbit, 0, datatype.Unsigned32(13))
 	mustSMClientAVP(t, m, avp.ProductName, 0, 0, datatype.UTF8String("peer"))
 	mustSMClientAVP(t, m, avp.OriginStateID, avp.Mbit, 0, datatype.Unsigned32(1))

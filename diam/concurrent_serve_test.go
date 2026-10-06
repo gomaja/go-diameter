@@ -7,6 +7,7 @@ package diam
 import (
 	"errors"
 	"net"
+	"net/netip"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -22,7 +23,7 @@ func cerPayload(tb testing.TB) []byte {
 	msg := NewRequest(257, 0, dict.Default)
 	mustPayloadAVP(tb, msg, avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("test"))
 	mustPayloadAVP(tb, msg, avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("test"))
-	mustPayloadAVP(tb, msg, avp.HostIPAddress, avp.Mbit, 0, datatype.Address(net.ParseIP("127.0.0.1")))
+	mustPayloadAVP(tb, msg, avp.HostIPAddress, avp.Mbit, 0, datatype.AddressFromIP(netip.MustParseAddr("127.0.0.1")))
 	mustPayloadAVP(tb, msg, avp.VendorID, avp.Mbit, 0, datatype.Unsigned32(0))
 	mustPayloadAVP(tb, msg, avp.ProductName, 0, 0, datatype.UTF8String("test"))
 	b, err := msg.Serialize()

@@ -5,6 +5,7 @@
 package sm
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"net"
@@ -48,7 +49,7 @@ func TestClient_Dial_MissingStateMachine(t *testing.T) {
 
 func TestClient_Dial_InvalidAddress(t *testing.T) {
 	cli := &Client{
-		Handler: New(clientSettings),
+		Handler: mustNewStateMachine(t, clientSettings),
 		AcctApplicationID: []*diam.AVP{
 			diam.NewAVP(avp.AcctApplicationID, avp.Mbit, 0,
 				datatype.Unsigned32(0)),
@@ -63,7 +64,7 @@ func TestClient_Dial_InvalidAddress(t *testing.T) {
 
 func TestClient_DialTLS_InvalidAddress(t *testing.T) {
 	cli := &Client{
-		Handler: New(clientSettings),
+		Handler: mustNewStateMachine(t, clientSettings),
 		AcctApplicationID: []*diam.AVP{
 			diam.NewAVP(avp.AcctApplicationID, avp.Mbit, 0, datatype.Unsigned32(0)),
 		},
@@ -78,7 +79,7 @@ func TestClient_DialTLS_InvalidAddress(t *testing.T) {
 func TestClient_ServerCarriesTLSConfig(t *testing.T) {
 	tlsConfig := &tls.Config{MinVersion: tls.VersionTLS13}
 	cli := &Client{
-		Handler:   New(clientSettings),
+		Handler:   mustNewStateMachine(t, clientSettings),
 		TLSConfig: tlsConfig,
 	}
 
@@ -89,10 +90,10 @@ func TestClient_ServerCarriesTLSConfig(t *testing.T) {
 }
 
 func TestClient_Handshake(t *testing.T) {
-	srv := diamtest.NewServer(New(serverSettings), dict.Default)
+	srv := diamtest.NewServer(mustNewStateMachine(t, serverSettings), dict.Default)
 	defer srv.Close()
 	cli := &Client{
-		Handler: New(clientSettings),
+		Handler: mustNewStateMachine(t, clientSettings),
 		SupportedVendorID: []*diam.AVP{
 			diam.NewAVP(avp.SupportedVendorID, avp.Mbit, 0, clientSettings.VendorID),
 		},
@@ -122,11 +123,11 @@ func TestClient_Handshake_CustomIP_TCP(t *testing.T) {
 }
 
 func testClient_Handshake_CustomIP(t *testing.T, network string) {
-	srv := diamtest.NewServerNetwork(network, New(serverSettings), dict.Default)
+	srv := diamtest.NewServerNetwork(network, mustNewStateMachine(t, serverSettings), dict.Default)
 	defer srv.Close()
 	cli := &Client{
 		RetransmitInterval: time.Second * 3,
-		Handler:            New(clientSettings2),
+		Handler:            mustNewStateMachine(t, clientSettings2),
 		SupportedVendorID: []*diam.AVP{
 			diam.NewAVP(avp.SupportedVendorID, avp.Mbit, 0, clientSettings.VendorID),
 		},
@@ -152,10 +153,10 @@ func testClient_Handshake_CustomIP(t *testing.T, network string) {
 }
 
 func TestClient_Handshake_Notify(t *testing.T) {
-	srv := diamtest.NewServer(New(serverSettings), dict.Default)
+	srv := diamtest.NewServer(mustNewStateMachine(t, serverSettings), dict.Default)
 	defer srv.Close()
 	cli := &Client{
-		Handler: New(clientSettings),
+		Handler: mustNewStateMachine(t, clientSettings),
 		SupportedVendorID: []*diam.AVP{
 			diam.NewAVP(avp.SupportedVendorID, avp.Mbit, 0, clientSettings.VendorID),
 		},
@@ -200,7 +201,7 @@ func TestClient_Handshake_FailParseCEA(t *testing.T) {
 	srv := diamtest.NewServer(mux, dict.Default)
 	defer srv.Close()
 	cli := &Client{
-		Handler: New(clientSettings),
+		Handler: mustNewStateMachine(t, clientSettings),
 		AcctApplicationID: []*diam.AVP{
 			diam.NewAVP(avp.AcctApplicationID, avp.Mbit, 0, datatype.Unsigned32(3)),
 		},
@@ -230,7 +231,7 @@ func TestClient_Handshake_FailedResultCode(t *testing.T) {
 	srv := diamtest.NewServer(mux, dict.Default)
 	defer srv.Close()
 	cli := &Client{
-		Handler: New(clientSettings),
+		Handler: mustNewStateMachine(t, clientSettings),
 		AcctApplicationID: []*diam.AVP{
 			diam.NewAVP(avp.AcctApplicationID, avp.Mbit, 0, datatype.Unsigned32(3)),
 		},
@@ -258,7 +259,7 @@ func TestClient_Handshake_RetransmitTimeout(t *testing.T) {
 	srv := diamtest.NewServer(mux, dict.Default)
 	defer srv.Close()
 	cli := &Client{
-		Handler:            New(clientSettings),
+		Handler:            mustNewStateMachine(t, clientSettings),
 		MaxRetransmits:     3,
 		RetransmitInterval: time.Millisecond,
 		AcctApplicationID: []*diam.AVP{
@@ -286,14 +287,14 @@ func TestClient_Handshake_RetransmitTimeout(t *testing.T) {
 }
 
 func TestClient_Watchdog(t *testing.T) {
-	srv := diamtest.NewServer(New(serverSettings), dict.Default)
+	srv := diamtest.NewServer(mustNewStateMachine(t, serverSettings), dict.Default)
 	defer srv.Close()
 	resp := make(chan struct{}, 1)
 	cli := &Client{
 		EnableWatchdog:   true,
 		WatchdogInterval: 100 * time.Millisecond,
 		watchdogTiming:   &watchdogTiming{floor: time.Millisecond},
-		Handler:          New(clientSettings),
+		Handler:          mustNewStateMachine(t, clientSettings),
 		OnWatchdogEvent: func(event WatchdogEvent) {
 			if event == WatchdogAnswerReceived {
 				resp <- struct{}{}
@@ -318,7 +319,7 @@ func TestClient_Watchdog(t *testing.T) {
 }
 
 func TestClient_WatchdogObserverSuccess(t *testing.T) {
-	srv := diamtest.NewServer(New(serverSettings), dict.Default)
+	srv := diamtest.NewServer(mustNewStateMachine(t, serverSettings), dict.Default)
 	defer srv.Close()
 
 	events := make(chan WatchdogEvent, 4)
@@ -326,7 +327,7 @@ func TestClient_WatchdogObserverSuccess(t *testing.T) {
 		EnableWatchdog:   true,
 		WatchdogInterval: 20 * time.Millisecond,
 		watchdogTiming:   &watchdogTiming{floor: time.Millisecond},
-		Handler:          New(clientSettings),
+		Handler:          mustNewStateMachine(t, clientSettings),
 		OnWatchdogEvent:  func(event WatchdogEvent) { events <- event },
 		AcctApplicationID: []*diam.AVP{
 			diam.NewAVP(avp.AcctApplicationID, avp.Mbit, 0, datatype.Unsigned32(3)),
@@ -351,7 +352,7 @@ func TestClient_WatchdogObserverSuccess(t *testing.T) {
 }
 
 func TestClient_WatchdogSlowObserverDoesNotTimeoutSuccessfulAnswer(t *testing.T) {
-	srv := diamtest.NewServer(New(serverSettings), dict.Default)
+	srv := diamtest.NewServer(mustNewStateMachine(t, serverSettings), dict.Default)
 	defer srv.Close()
 
 	answerStarted := make(chan struct{})
@@ -362,7 +363,7 @@ func TestClient_WatchdogSlowObserverDoesNotTimeoutSuccessfulAnswer(t *testing.T)
 		WatchdogInterval:   250 * time.Millisecond,
 		watchdogTiming:     &watchdogTiming{floor: time.Millisecond},
 		RetransmitInterval: 20 * time.Millisecond,
-		Handler:            New(clientSettings),
+		Handler:            mustNewStateMachine(t, clientSettings),
 		OnWatchdogEvent: func(event WatchdogEvent) {
 			if event != WatchdogAnswerReceived {
 				return
@@ -400,7 +401,7 @@ func TestClient_WatchdogSlowObserverDoesNotTimeoutSuccessfulAnswer(t *testing.T)
 }
 
 func TestClient_Watchdog_Timeout(t *testing.T) {
-	sm := New(serverSettings)
+	sm := mustNewStateMachine(t, serverSettings)
 	var once sync.Once
 	sm.mux.HandleIdx(baseDWRIdx, handshakeOK(func(c diam.Conn, m *diam.Message) {
 		once.Do(func() { mustWriteSMClientMessage(t, m.Answer(diam.UnableToComply), c) })
@@ -414,7 +415,7 @@ func TestClient_Watchdog_Timeout(t *testing.T) {
 		EnableWatchdog:     true,
 		WatchdogInterval:   50 * time.Millisecond,
 		watchdogTiming:     &watchdogTiming{floor: time.Millisecond},
-		Handler:            New(clientSettings),
+		Handler:            mustNewStateMachine(t, clientSettings),
 		OnWatchdogEvent: func(event WatchdogEvent) {
 			if event == WatchdogInvalidAnswer || event == WatchdogTimedOut {
 				events <- event
@@ -478,6 +479,19 @@ func newTestLocalAddrDiamConn(localAddrValue string) diam.Conn {
 	}
 }
 
+func requireLocalAddress(t *testing.T, got datatype.Address, want netip.Addr) {
+	t.Helper()
+	family := datatype.AddressFamilyIPv6
+	if want.Is4() {
+		family = datatype.AddressFamilyIPv4
+	}
+	expected := datatype.Address{Family: family, Value: want.AsSlice()}
+	if got.Family != expected.Family || !bytes.Equal(got.Value, expected.Value) {
+		t.Fatalf("address = {family: %d, value: %x}, want {family: %d, value: %x}",
+			got.Family, got.Value, expected.Family, expected.Value)
+	}
+}
+
 func TestClient_Conn_LocalAddresses_Loopback(t *testing.T) {
 	c := newTestLocalAddrDiamConn("127.0.0.1:3868")
 
@@ -488,6 +502,7 @@ func TestClient_Conn_LocalAddresses_Loopback(t *testing.T) {
 	if len(addrList) != 1 {
 		t.Fatal("The only available loopback address was skipped")
 	}
+	requireLocalAddress(t, addrList[0], netip.MustParseAddr("127.0.0.1"))
 }
 
 func TestClient_Conn_LocalAddresses_Complex(t *testing.T) {
@@ -501,14 +516,8 @@ func TestClient_Conn_LocalAddresses_Complex(t *testing.T) {
 		t.Fatal("Failed to parse valid IP address or failed to skip loopback")
 	}
 
-	actual := net.IP(addrList[0]).String()
-	expected := "10.0.0.3"
-	if actual != expected {
-		t.Fatalf("Wrong IP address found in list of local addresses, expected: %s, actual: %s", expected, actual)
-	}
-	if got := net.IP(addrList[1]).String(); got != "fe80::78ef:efb:a57b:15b9" {
-		t.Fatalf("IPv6 fallback address = %s", got)
-	}
+	requireLocalAddress(t, addrList[0], netip.MustParseAddr("10.0.0.3"))
+	requireLocalAddress(t, addrList[1], netip.MustParseAddr("fe80::78ef:efb:a57b:15b9"))
 }
 
 func TestClient_Conn_LocalAddresses_IPv6(t *testing.T) {
@@ -524,9 +533,10 @@ func TestClient_Conn_LocalAddresses_IPv6(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if len(got) != 1 || !net.IP(got[0]).Equal(net.ParseIP("2001:db8::1")) {
+			if len(got) != 1 {
 				t.Fatalf("addresses = %v, want 2001:db8::1", got)
 			}
+			requireLocalAddress(t, got[0], netip.MustParseAddr("2001:db8::1"))
 		})
 	}
 }
@@ -541,13 +551,33 @@ func TestClient_Conn_LocalAddresses_SCTPMultihomed(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 2 || !net.IP(got[0]).Equal(net.ParseIP("10.0.0.3")) || !net.IP(got[1]).Equal(net.ParseIP("2001:db8::1")) {
+	if len(got) != 2 {
 		t.Fatalf("multihomed addresses = %v", got)
 	}
+	requireLocalAddress(t, got[0], netip.MustParseAddr("10.0.0.3"))
+	requireLocalAddress(t, got[1], netip.MustParseAddr("2001:db8::1"))
 	addr.IPs = []netip.Addr{netip.MustParseAddr("::1")}
 	got, err = getLocalAddresses(testLocalAddrDiamConn{localAddr: addr})
-	if err != nil || len(got) != 1 || !net.IP(got[0]).IsLoopback() {
+	if err != nil || len(got) != 1 {
 		t.Fatalf("loopback-only addresses = %v, %v", got, err)
+	}
+	requireLocalAddress(t, got[0], netip.MustParseAddr("::1"))
+}
+
+func TestClientCustomLocalAddrRequiresIPLiteral(t *testing.T) {
+	for _, tc := range []struct{ local, wantErr string }{
+		{"diameter.example.net:3868", "failed to parse local IP"},
+		{"", "empty local address"},
+		{"192.0.2.1", "missing local address port"},
+	} {
+		t.Run(tc.local, func(t *testing.T) {
+			cli := &Client{Handler: mustNewStateMachine(t, clientSettings)}
+			conn := newTestLocalAddrDiamConn(tc.local)
+			got, err := cli.handshake(conn, newWatchdogActivity())
+			if got != nil || err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+				t.Fatalf("handshake = (%v, %v), want %q", got, err, tc.wantErr)
+			}
+		})
 	}
 }
 
@@ -562,7 +592,7 @@ func TestClient_InbandSecurityID_Default(t *testing.T) {
 		cea := m.Answer(diam.Success)
 		mustSMClientAVP(t, cea, avp.OriginHost, avp.Mbit, 0, serverSettings.OriginHost)
 		mustSMClientAVP(t, cea, avp.OriginRealm, avp.Mbit, 0, serverSettings.OriginRealm)
-		mustSMClientAVP(t, cea, avp.HostIPAddress, avp.Mbit, 0, datatype.Address(net.ParseIP("127.0.0.1")))
+		mustSMClientAVP(t, cea, avp.HostIPAddress, avp.Mbit, 0, datatype.AddressFromIP(netip.MustParseAddr("127.0.0.1")))
 		mustSMClientAVP(t, cea, avp.VendorID, avp.Mbit, 0, serverSettings.VendorID)
 		mustSMClientAVP(t, cea, avp.ProductName, 0, 0, serverSettings.ProductName)
 		mustSMClientAVP(t, cea, avp.AcctApplicationID, avp.Mbit, 0, datatype.Unsigned32(3))
@@ -571,7 +601,7 @@ func TestClient_InbandSecurityID_Default(t *testing.T) {
 	srv := diamtest.NewServer(mux, dict.Default)
 	defer srv.Close()
 	cli := &Client{
-		Handler: New(clientSettings),
+		Handler: mustNewStateMachine(t, clientSettings),
 		AcctApplicationID: []*diam.AVP{
 			diam.NewAVP(avp.AcctApplicationID, avp.Mbit, 0, datatype.Unsigned32(3)),
 		},
@@ -601,7 +631,7 @@ func TestClient_InbandSecurityID_TLS(t *testing.T) {
 		cea := m.Answer(diam.Success)
 		mustSMClientAVP(t, cea, avp.OriginHost, avp.Mbit, 0, serverSettings.OriginHost)
 		mustSMClientAVP(t, cea, avp.OriginRealm, avp.Mbit, 0, serverSettings.OriginRealm)
-		mustSMClientAVP(t, cea, avp.HostIPAddress, avp.Mbit, 0, datatype.Address(net.ParseIP("127.0.0.1")))
+		mustSMClientAVP(t, cea, avp.HostIPAddress, avp.Mbit, 0, datatype.AddressFromIP(netip.MustParseAddr("127.0.0.1")))
 		mustSMClientAVP(t, cea, avp.VendorID, avp.Mbit, 0, serverSettings.VendorID)
 		mustSMClientAVP(t, cea, avp.ProductName, 0, 0, serverSettings.ProductName)
 		mustSMClientAVP(t, cea, avp.AcctApplicationID, avp.Mbit, 0, datatype.Unsigned32(3))
@@ -611,7 +641,7 @@ func TestClient_InbandSecurityID_TLS(t *testing.T) {
 	srv.StartTLS()
 	defer srv.Close()
 	cli := &Client{
-		Handler: New(clientSettings),
+		Handler: mustNewStateMachine(t, clientSettings),
 		AcctApplicationID: []*diam.AVP{
 			diam.NewAVP(avp.AcctApplicationID, avp.Mbit, 0, datatype.Unsigned32(3)),
 		},

@@ -9,7 +9,7 @@ import (
 	"crypto/x509"
 	"fmt"
 	"io"
-	"net"
+	"net/netip"
 	"os"
 	"testing"
 	"time"
@@ -145,7 +145,7 @@ func sendCER(w io.Writer) (n int64, err error) {
 	if _, err := m.NewAVP(avp.OriginRealm, avp.Mbit, 0, datatype.OctetString("localhost")); err != nil {
 		return 0, err
 	}
-	if _, err := m.NewAVP(avp.HostIPAddress, avp.Mbit, 0, datatype.Address(net.ParseIP("127.0.0.1"))); err != nil {
+	if _, err := m.NewAVP(avp.HostIPAddress, avp.Mbit, 0, datatype.AddressFromIP(netip.MustParseAddr("127.0.0.1"))); err != nil {
 		return 0, err
 	}
 	if _, err := m.NewAVP(avp.VendorID, avp.Mbit, 0, datatype.Unsigned32(99)); err != nil {
@@ -228,7 +228,7 @@ func sendCEA(w io.Writer, m *diam.Message, OriginStateID, AcctApplicationID *dia
 	if _, err := m.NewAVP(avp.OriginRealm, avp.Mbit, 0, datatype.OctetString("localhost")); err != nil {
 		return 0, err
 	}
-	if _, err := m.NewAVP(avp.HostIPAddress, avp.Mbit, 0, datatype.Address(net.ParseIP("127.0.0.1"))); err != nil {
+	if _, err := m.NewAVP(avp.HostIPAddress, avp.Mbit, 0, datatype.AddressFromIP(netip.MustParseAddr("127.0.0.1"))); err != nil {
 		return 0, err
 	}
 	if _, err := m.NewAVP(avp.VendorID, avp.Mbit, 0, datatype.Unsigned32(99)); err != nil {

@@ -6,7 +6,7 @@ package diam
 
 import (
 	"bytes"
-	"net"
+	"net/netip"
 	"strings"
 	"testing"
 	"time"
@@ -29,7 +29,7 @@ func TestPrettyDump(t *testing.T) {
 	msg := NewMessage(CreditControl, RequestFlag, CHARGING_CONTROL_APP_ID, 0xa8cc407d, 0xa8c1b2b4, dict.Default)
 	mustPrettyAVP(t, msg, avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("test"))
 	mustPrettyAVP(t, msg, avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("localhost"))
-	mustPrettyAVP(t, msg, avp.HostIPAddress, avp.Mbit, 0, datatype.Address(net.ParseIP("10.1.0.1")))
+	mustPrettyAVP(t, msg, avp.HostIPAddress, avp.Mbit, 0, datatype.AddressFromIP(netip.MustParseAddr("10.1.0.1")))
 	mustPrettyAVP(t, msg, avp.VendorID, avp.Mbit, 0, datatype.Unsigned32(13))
 	mustPrettyAVP(t, msg, avp.SessionID, avp.Mbit, 0, datatype.UTF8String("sess;123456789"))
 	mustPrettyAVP(t, msg, avp.OriginStateID, avp.Mbit, 0, datatype.Unsigned32(1397760650))
@@ -77,12 +77,12 @@ func TestPrettyDumpAVP(t *testing.T) {
 		},
 		{
 			name:     "Address",
-			avp:      NewAVP(avp.HostIPAddress, avp.Mbit, 0, datatype.Address(net.ParseIP("10.1.0.1"))),
+			avp:      NewAVP(avp.HostIPAddress, avp.Mbit, 0, datatype.AddressFromIP(netip.MustParseAddr("10.1.0.1"))),
 			expected: "  Host-IP-Address                                 0   257  ✗ ✓ ✗  Address             10.1.0.1",
 		},
 		{
 			name:     "AddressIPv6",
-			avp:      NewAVP(avp.GGSNAddress, avp.Mbit, 10415, datatype.Address(net.ParseIP("2001:0db8::ff00:0042:8329"))),
+			avp:      NewAVP(avp.GGSNAddress, avp.Mbit, 10415, datatype.AddressFromIP(netip.MustParseAddr("2001:0db8::ff00:0042:8329"))),
 			expected: "  GGSN-Address                                10415   847  ✓ ✓ ✗  Address             2001:db8::ff00:42:8329",
 		},
 		{
@@ -144,5 +144,19 @@ func TestPrettyDumpAVP(t *testing.T) {
 				t.Errorf("\nActual:\n%v\nExpected:\n%v\n", actual, tc.expected)
 			}
 		})
+	}
+}
+
+func TestPrettyAddressFamilies(t *testing.T) {
+	for _, tt := range []struct {
+		address datatype.Address
+		want    string
+	}{
+		{datatype.Address{Family: datatype.AddressFamilyE164, Value: []byte("12")}, "Address{12},Family:E.164,Padding:0"},
+		{datatype.Address{Family: 1234, Value: []byte{0, 1}}, "Address{0001},Family:1234,Padding:0"},
+	} {
+		if got := dataValueToString(tt.address); got != tt.want {
+			t.Fatalf("dataValueToString = %q, want %q", got, tt.want)
+		}
 	}
 }

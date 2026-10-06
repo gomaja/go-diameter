@@ -3,6 +3,7 @@ package diam
 import (
 	"bytes"
 	"net"
+	"net/netip"
 	"testing"
 
 	"github.com/gomaja/go-diameter/diam/avp"
@@ -36,7 +37,7 @@ func TestSWxDictionaryClosureWire(t *testing.T) {
 			}
 			msg := NewRequest(265, appID, dict.Default)
 			if tc.name == "MIP-Home-Agent-Address" {
-				msg.AddAVP(NewAVP(d.Code, avp.Mbit, 0, datatype.Address(net.ParseIP("192.0.2.1"))))
+				msg.AddAVP(NewAVP(d.Code, avp.Mbit, 0, datatype.AddressFromIP(netip.MustParseAddr("192.0.2.1"))))
 			} else {
 				msg.AddAVP(smsAVP(t, appID, tc.name))
 			}

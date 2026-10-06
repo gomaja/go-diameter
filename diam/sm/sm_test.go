@@ -37,7 +37,7 @@ func TestStateMachineTCP(t *testing.T) {
 // sends a Re-Auth-Request message to ensure the handshake was
 // completed and that the RAR handler has context from the peer.
 func testStateMachine(t *testing.T, network string) {
-	sm := New(serverSettings)
+	sm := mustNewStateMachine(t, serverSettings)
 	if sm.Settings() != serverSettings {
 		t.Fatal("Invalid settings")
 	}

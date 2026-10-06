@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"net"
+	"net/netip"
 	"strings"
 	"sync"
 	"testing"
@@ -87,7 +88,7 @@ func testSettings(host string) sm.Settings {
 	return sm.Settings{OriginHost: datatype.DiameterIdentity(host), OriginRealm: "example.net", VendorID: 1, ProductName: "test"}
 }
 func testBase(host string) base.Settings {
-	cfg := base.Settings{OriginHost: datatype.DiameterIdentity(host), OriginRealm: "example.net", VendorID: 1, ProductName: "test", HostIPAddresses: []datatype.Address{datatype.Address(net.IPv4(127, 0, 0, 1))}}
+	cfg := base.Settings{OriginHost: datatype.DiameterIdentity(host), OriginRealm: "example.net", VendorID: 1, ProductName: "test", HostIPAddresses: []datatype.Address{datatype.AddressFromIP(netip.MustParseAddr("127.0.0.1"))}}
 	apps := sm.PrepareSupportedApps(dict.Default)
 	for _, a := range apps {
 		if a.AppType == "auth" && a.Vendor == 0 {
@@ -844,7 +845,11 @@ func TestRejectedCEA(t *testing.T) {
 				if name != "no-common-application" {
 					cfg.Applications = []base.LocalApplication{{ID: uint32(cfg.AuthApplicationID[0].Data.(datatype.Unsigned32)), AppType: "auth"}}
 				}
-				cea := base.BuildCEA(cer, cfg, result)
+				cea, err := base.BuildCEA(cer, cfg, result)
+				if err != nil {
+					t.Error(err)
+					return
+				}
 				if name == "missing-origin-host" {
 					out := cea.AVP[:0]
 					for _, a := range cea.AVP {

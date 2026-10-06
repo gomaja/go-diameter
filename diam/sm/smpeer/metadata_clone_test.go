@@ -11,7 +11,7 @@ import (
 )
 
 func TestMetadataCloneOwnsCapabilitiesAndNestedAVPs(t *testing.T) {
-	address := datatype.Address{1, 2, 3, 4}
+	address := datatype.Address{Family: datatype.AddressFamilyIPv4, Value: []byte{1, 2, 3, 4}}
 	inner := diam.NewAVP(avp.VendorID, avp.Mbit, 0, datatype.Unsigned32(42))
 	group := diam.NewAVP(avp.VendorSpecificApplicationID, avp.Mbit, 0, &diam.GroupedAVP{AVP: []*diam.AVP{inner}})
 	metadata := &Metadata{
@@ -19,7 +19,7 @@ func TestMetadataCloneOwnsCapabilitiesAndNestedAVPs(t *testing.T) {
 		CER: &smparser.CER{
 			OriginHost: "peer.example.net", OriginRealm: "example.net",
 			OriginStateID:               diam.NewAVP(avp.OriginStateID, avp.Mbit, 0, datatype.Unsigned32(7)),
-			InbandSecurityID:            diam.NewAVP(avp.InbandSecurityID, avp.Mbit, 0, datatype.Address(address)),
+			InbandSecurityID:            diam.NewAVP(avp.InbandSecurityID, avp.Mbit, 0, address),
 			VendorSpecificApplicationID: []*diam.AVP{group},
 		},
 	}
@@ -29,9 +29,9 @@ func TestMetadataCloneOwnsCapabilitiesAndNestedAVPs(t *testing.T) {
 	}
 	copy.Applications[0] = 99
 	copy.CER.OriginStateID.Data = datatype.Unsigned32(88)
-	copy.CER.InbandSecurityID.Data.(datatype.Address)[0] = 99
+	copy.CER.InbandSecurityID.Data.(datatype.Address).Value[0] = 99
 	copy.CER.VendorSpecificApplicationID[0].Data.(*diam.GroupedAVP).AVP[0].Data = datatype.Unsigned32(99)
-	if metadata.Applications[0] != 4 || metadata.CER.OriginStateID.Data != datatype.Unsigned32(7) || address[0] != 1 || inner.Data != datatype.Unsigned32(42) {
+	if metadata.Applications[0] != 4 || metadata.CER.OriginStateID.Data != datatype.Unsigned32(7) || address.Value[0] != 1 || inner.Data != datatype.Unsigned32(42) {
 		t.Fatal("clone shares mutable capability data")
 	}
 	if (*Metadata)(nil).Clone() != nil {

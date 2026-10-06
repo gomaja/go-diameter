@@ -54,7 +54,10 @@ func main() {
 	}
 
 	// Create the state machine (mux) and set .CollectGarbage(context.Background(), &protos.Void{})its message handlers.
-	mux := sm.New(settings)
+	mux, err := sm.New(settings)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	mux.Handle("ULR", handleULR(*settings))
 	mux.Handle("AIR", handleAIR(*settings))
@@ -67,7 +70,7 @@ func main() {
 		go func() { log.Fatal(http.ListenAndServe(*ppaddr, nil)) }()
 	}
 
-	err := listen(*networkType, *addr, *certFile, *keyFile, mux)
+	err = listen(*networkType, *addr, *certFile, *keyFile, mux)
 	if err != nil {
 		log.Fatal(err)
 	}
