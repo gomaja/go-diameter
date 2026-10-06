@@ -17,7 +17,7 @@ func validatedCapture(t *testing.T, c *messageErrorCaptureConn) *diam.Message {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if validationErr := m.Validate(); validationErr != nil {
+	if validationErr := m.ValidateOutgoing(); validationErr != nil {
 		t.Fatalf("library-built %d message: %v (Failed-AVP: %v)", m.Header.CommandCode, validationErr, validationErr.FailedAVP)
 	}
 	return m
@@ -42,7 +42,7 @@ func TestLibraryBuiltMessagesValidate(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if validationErr := m.Validate(); validationErr != nil {
+			if validationErr := m.ValidateOutgoing(); validationErr != nil {
 				t.Fatal(validationErr)
 			}
 		})
@@ -82,7 +82,7 @@ func TestLibraryBuiltMessagesValidate(t *testing.T) {
 	dpr.AddAVP(diam.NewAVP(avp.OriginHost, avp.Mbit, 0, settings.OriginHost))
 	dpr.AddAVP(diam.NewAVP(avp.OriginRealm, avp.Mbit, 0, settings.OriginRealm))
 	dpr.AddAVP(diam.NewAVP(avp.DisconnectCause, avp.Mbit, 0, datatype.Enumerated(0)))
-	if validationErr := dpr.Validate(); validationErr != nil {
+	if validationErr := dpr.ValidateOutgoing(); validationErr != nil {
 		t.Fatalf("DPR: %v", validationErr)
 	}
 	dpr.Header.CommandFlags |= diam.ProxiableFlag | diam.RetransmittedFlag

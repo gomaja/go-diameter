@@ -28,6 +28,7 @@ func TestBuildBaseRequests(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	validateBuiltMessage(t, cer)
 	if cer.Header.CommandCode != diam.CapabilitiesExchange {
 		t.Fatalf("CER code = %d", cer.Header.CommandCode)
 	}
@@ -39,6 +40,7 @@ func TestBuildBaseRequests(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	validateBuiltMessage(t, dwr)
 	state, err := dwr.FindAVP(avp.OriginStateID, 0)
 	if err != nil || state.Data != datatype.Unsigned32(333) {
 		t.Fatalf("DWR state = %v, error = %v", state, err)
@@ -47,6 +49,7 @@ func TestBuildBaseRequests(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	validateBuiltMessage(t, dpr)
 	if cause, err := base.ValidateDPR(dpr); err != nil || cause != 1 {
 		t.Fatalf("DPR cause = %d, error = %v", cause, err)
 	}
@@ -69,8 +72,52 @@ func TestBuildBaseAnswersPreservesRequestIDs(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		validateBuiltMessage(t, answer)
 		if answer.Header.HopByHopID != request.Header.HopByHopID || answer.Header.EndToEndID != request.Header.EndToEndID || answer.Header.CommandFlags != 0 {
 			t.Fatalf("command %d answer header = %+v", command, answer.Header)
+		}
+	}
+}
+
+func TestCapabilityBuilderOutgoingFlags(t *testing.T) {
+	cfg := fixtureSettings()
+	cfg.FirmwareRevision = 1
+	// A vendor-specific application makes the builders emit a
+	// Vendor-Specific-Application-Id derived from the dictionary.
+	cfg.AcctApplicationID = nil
+	cfg.Applications = []base.LocalApplication{{ID: diam.TGPP_S6A_APP_ID, AppType: "auth", Vendor: 10415}}
+	cer, err := base.BuildCER(dict.Default, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cea, err := base.BuildCEA(cer, cfg, diam.Success)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, m := range []*diam.Message{cer, cea} {
+		validateBuiltMessage(t, m)
+		if _, err := m.FindAVP(avp.VendorSpecificApplicationID, 0); err != nil {
+			t.Fatalf("command %d carries no Vendor-Specific-Application-Id: %v", m.Header.CommandCode, err)
+		}
+		for _, tc := range []struct {
+			code  uint32
+			flags uint8
+		}{
+			{avp.OriginHost, avp.Mbit}, {avp.OriginRealm, avp.Mbit},
+			{avp.HostIPAddress, avp.Mbit}, {avp.VendorID, avp.Mbit},
+			{avp.ProductName, 0}, {avp.FirmwareRevision, 0},
+		} {
+			a, err := m.FindAVP(tc.code, 0)
+			if err != nil {
+				t.Fatal(err)
+			}
+			wire, err := a.Serialize()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if wire[4] != tc.flags {
+				t.Errorf("command flags %#x AVP %d: flags %#x, want %#x", m.Header.CommandFlags, tc.code, wire[4], tc.flags)
+			}
 		}
 	}
 }
@@ -82,6 +129,7 @@ func TestBuildProtocolAndPermanentErrorAnswers(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	validateBuiltMessage(t, protocol)
 	if protocol.Header.CommandFlags != diam.ErrorFlag {
 		t.Fatalf("protocol flags = %#x", protocol.Header.CommandFlags)
 	}
@@ -89,6 +137,7 @@ func TestBuildProtocolAndPermanentErrorAnswers(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	validateBuiltMessage(t, permanent)
 	if permanent.Header.CommandFlags != 0 {
 		t.Fatalf("permanent flags = %#x", permanent.Header.CommandFlags)
 	}
@@ -170,5 +219,23 @@ func TestCapabilityBuildersPreserveMappedFamily(t *testing.T) {
 		if !ok || got.Family != address.Family || !bytes.Equal(got.Value, address.Value) {
 			t.Fatalf("builder changed mapped wire family: %v", a.Data)
 		}
+	}
+}
+
+func validateBuiltMessage(t *testing.T, m *diam.Message) {
+	t.Helper()
+	if err := m.ValidateOutgoing(); err != nil {
+		t.Fatalf("outgoing %d: %v", m.Header.CommandCode, err)
+	}
+	wire, err := m.Serialize()
+	if err != nil {
+		t.Fatal(err)
+	}
+	decoded, err := diam.ReadMessage(bytes.NewReader(wire), m.Dictionary())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := decoded.ValidateOutgoing(); err != nil {
+		t.Fatalf("serialized outgoing %d: %v", m.Header.CommandCode, err)
 	}
 }

@@ -1,6 +1,7 @@
 package dict
 
 import (
+	"encoding/xml"
 	"fmt"
 	"go/ast"
 	"go/parser"
@@ -348,4 +349,27 @@ func TestNewPanicsOnUnknownDictionary(t *testing.T) {
 		}
 	}()
 	New(Base, Bundled("missing.xml"))
+}
+
+// RFC 6733 §§4.1 and 4.5 reserve P; the base AVP table has no P column.
+func TestBundledBaseAVPFlagRules(t *testing.T) {
+	base := New(Base)
+	for _, b := range AllBundled() {
+		data, err := bundledFS.ReadFile("bundled/" + string(b))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var f File
+		if err := xml.Unmarshal(data, &f); err != nil {
+			t.Fatal(err)
+		}
+		for _, app := range f.App {
+			for _, a := range app.AVP {
+				_, baseErr := base.FindAVPWithVendor(0, a.Code, a.VendorID)
+				if baseErr == nil && (strings.Contains(a.Must, "P") || strings.Contains(a.MustNot, "P")) {
+					t.Errorf("%s: %s has obsolete P constraint", b, a.Name)
+				}
+			}
+		}
+	}
 }

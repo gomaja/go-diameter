@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <diameter>
+	<!-- RFC 6733 section 4.5: base AVP flag rules have no P column. -->
 <application id="16777236" type="auth" name="Rx">
         <!-- proxiable: each request CCF is "REQ, PXY", each answer "PXY" (3GPP TS 29.214 V20.0.0 §§5.6.1-5.6.8). -->
         <vendor id="10415" name="TGPP"/>
@@ -979,20 +980,20 @@
             		<data type="Unsigned32"/>
         	</avp>		
 		
-		<avp name="Proxy-Info" code="284" must="M" may="-" must-not="P,V" may-encrypt="-">
+		<avp name="Proxy-Info" code="284" must="M" may="-" must-not="V" may-encrypt="-">
             		<data type="Grouped">
                 		<rule avp="Proxy-Host" required="true" max="1"/>
                 		<rule avp="Proxy-State" required="true" max="1"/>
             		</data>
         	</avp>
 		
-		<avp name="Proxy-Host" code="280" must="M" may="-" must-not="P,V" may-encrypt="-">
+		<avp name="Proxy-Host" code="280" must="M" may="-" must-not="V" may-encrypt="-">
             		<data type="DiameterIdentity"/>
         	</avp>
-        	<avp name="Proxy-State" code="33" must="M" may="-" must-not="P,V" may-encrypt="-">
+		<avp name="Proxy-State" code="33" must="M" may="-" must-not="V" may-encrypt="-">
             		<data type="OctetString"/>
         	</avp>
-		 <avp name="Route-Record" code="282" must="M" may="-" must-not="P,V" may-encrypt="-">
+		<avp name="Route-Record" code="282" must="M" may="-" must-not="V" may-encrypt="-">
             		<data type="DiameterIdentity"/>
         	</avp>
 		 <avp name="Result-Code" code="268" must="M" may="P" must-not="V" may-encrypt="-">

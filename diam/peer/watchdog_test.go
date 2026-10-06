@@ -75,6 +75,33 @@ func testDWA(t *testing.T, a *actor) *diam.Message {
 	return answer
 }
 
+func TestValidateDWACommandFlags(t *testing.T) {
+	a, _, _ := newWatchdogTestActor(t, WatchdogOkay)
+	answer := testDWA(t, a)
+	for flags := 0; flags <= 255; flags++ {
+		answer.Header.CommandFlags = uint8(flags)
+		err := a.validateDWA(answer)
+		// RFC 6733 §§3 and 5.5.2: ignore the reserved low bits, but
+		// a successful DWA still cannot carry any defined command flag.
+		wantError := flags&0xf0 != 0
+		if (err != nil) != wantError {
+			t.Errorf("DWA flags %#02x: error = %v, want error %t", flags, err, wantError)
+		}
+	}
+}
+
+func TestWatchdogReceiveReservedDWAFlags(t *testing.T) {
+	a, _, _ := newWatchdogTestActor(t, WatchdogReopen)
+	for reserved := uint8(0); reserved <= 0x0f; reserved++ {
+		a.numDWA = 0
+		answer := testDWA(t, a)
+		answer.Header.CommandFlags = reserved
+		if !a.watchdogReceive(answer) || a.pendingWatchdog || a.numDWA != 1 {
+			t.Fatalf("reserved DWA flags %#02x: pending=%t recovery count=%d", reserved, a.pendingWatchdog, a.numDWA)
+		}
+	}
+}
+
 // Every row is named after the RFC 3539 Appendix A state/event/guard.
 func TestRFC3539WatchdogTable(t *testing.T) {
 	type row struct {

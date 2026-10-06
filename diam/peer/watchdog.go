@@ -240,7 +240,9 @@ func (a *actor) watchdogReceive(msg *diam.Message) bool {
 
 func (a *actor) validateDWA(msg *diam.Message) error {
 	// RFC 6733 §5.5.2: one success Result-Code and one identity pair.
-	if msg.Header.CommandFlags != 0 {
+	// RFC 6733 §3: receivers ignore reserved bits; the defined command
+	// flags must still be clear in a successful DWA.
+	if msg.Header.CommandFlags&(diam.RequestFlag|diam.ProxiableFlag|diam.ErrorFlag|diam.RetransmittedFlag) != 0 {
 		return errors.New("peer: invalid DWA flags")
 	}
 	var hosts, realms, results int

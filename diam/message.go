@@ -736,8 +736,9 @@ func (m *Message) Answer(resultCode uint32) *Message {
 		m.Header.CommandCode,
 		// RFC 6733 §3: an answer clears R, and T "MUST NOT be set in answer
 		// messages"; E marks error answers only, so a fresh answer starts
-		// without it. P keeps the request's value (§6.2).
-		m.Header.CommandFlags&^(RequestFlag|RetransmittedFlag|ErrorFlag),
+		// without it. Reserved bits must be zero when sent (§3).
+		// Only P keeps the request's value (§6.2).
+		m.Header.CommandFlags&ProxiableFlag,
 		m.Header.ApplicationID,
 		m.Header.HopByHopID,
 		m.Header.EndToEndID,

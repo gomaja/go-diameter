@@ -29,7 +29,7 @@ func TestDictionaryValidationTCP(t *testing.T) {
 			m.AddAVP(diam.NewAVP(avp.SessionID, avp.Mbit, 0, datatype.UTF8String("duplicate")))
 		}, diam.AVPOccursTooManyTimes, diam.ProxiableFlag, avp.SessionID},
 		{"invalid-header", true, func(m *diam.Message) { m.Header.CommandFlags |= diam.ErrorFlag }, diam.InvalidHDRBits, diam.ProxiableFlag | diam.ErrorFlag, 0},
-		{"invalid-avp-bits", true, func(m *diam.Message) { m.AVP[0].Flags = 0 }, diam.InvalidAVPBits, diam.ProxiableFlag | diam.ErrorFlag, avp.SessionID},
+		{"invalid-avp-bits", true, func(m *diam.Message) { m.AVP[0].Flags |= avp.Vbit }, diam.InvalidAVPBits, diam.ProxiableFlag | diam.ErrorFlag, avp.SessionID},
 		{"missing", true, func(m *diam.Message) { m.AVP = m.AVP[:len(m.AVP)-1] }, diam.MissingAVP, diam.ProxiableFlag, avp.ReAuthRequestType},
 		{"missing-session", true, func(m *diam.Message) { m.AVP = m.AVP[1:] }, diam.MissingAVP, diam.ProxiableFlag, avp.SessionID},
 	} {
@@ -140,6 +140,68 @@ func TestDictionaryValidationKeepsUnknownMandatoryResult(t *testing.T) {
 	}
 	if validationErr := answer.Validate(); validationErr != nil {
 		t.Fatalf("5001 answer: %v", validationErr)
+	}
+}
+
+func TestDictionaryValidationUnderstoodFlagsTCP(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		change func(*diam.Message)
+		code   uint32
+	}{
+		{"must-not M set", func(m *diam.Message) {
+			m.AddAVP(diam.NewAVP(avp.FirmwareRevision, avp.Mbit, 0, datatype.Unsigned32(1)))
+		}, diam.Success},
+		{"must M clear", func(m *diam.Message) { m.AVP[0].Flags = 0 }, diam.Success},
+		{"reserved P set", func(m *diam.Message) {
+			m.AddAVP(diam.NewAVP(avp.FirmwareRevision, avp.Pbit, 0, datatype.Unsigned32(1)))
+		}, diam.Success},
+		{"reserved R set", func(m *diam.Message) { m.AVP[0].Flags |= 0x1f }, diam.Success},
+		{"reserved command bits", func(m *diam.Message) { m.Header.CommandFlags |= 0x0f }, diam.Success},
+		{"V mismatch", func(m *diam.Message) { m.AVP[0].Flags |= avp.Vbit }, diam.InvalidAVPBits},
+		{"unknown mandatory", func(m *diam.Message) {
+			m.AddAVP(diam.NewAVP(0xfedc, avp.Mbit, 0, datatype.OctetString("unknown")))
+		}, diam.AVPUnsupported},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			settings := testMessageErrorSettings()
+			settings.ValidateRequests = true
+			settings.RejectUnknownMandatoryAVPs = true
+			sm := mustNewStateMachine(t, settings)
+			sm.HandleFunc("RAR", func(c diam.Conn, m *diam.Message) {
+				answer := m.Answer(0)
+				answer.AddAVP(diam.NewAVP(avp.SessionID, avp.Mbit, 0, m.AVP[0].Data))
+				answer.AddAVP(diam.NewAVP(avp.ResultCode, avp.Mbit, 0, datatype.Unsigned32(diam.Success)))
+				answer.AddAVP(diam.NewAVP(avp.OriginHost, avp.Mbit, 0, settings.OriginHost))
+				answer.AddAVP(diam.NewAVP(avp.OriginRealm, avp.Mbit, 0, settings.OriginRealm))
+				if _, err := answer.WriteTo(c); err != nil {
+					t.Error(err)
+				}
+			})
+			srv := diamtest.NewServer(sm, dict.Default)
+			defer srv.Close()
+			conn := dialHandshakeUnknownTest(t, srv.Addr)
+			defer func() { _ = conn.Close() }()
+			request := unknownRequest(false, 0)
+			request.AVP = request.AVP[:len(request.AVP)-1]
+			tc.change(request)
+			if _, err := request.WriteTo(conn); err != nil {
+				t.Fatal(err)
+			}
+			if err := conn.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
+				t.Fatal(err)
+			}
+			answer, err := diam.ReadMessage(conn, dict.Default)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !testResultCode(answer, tc.code) {
+				t.Fatalf("want result %d, got %v", tc.code, answer)
+			}
+			if err := answer.ValidateOutgoing(); err != nil {
+				t.Fatalf("outgoing answer: %v", err)
+			}
+		})
 	}
 }
 
