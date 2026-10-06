@@ -47,14 +47,14 @@ EOF
 cat $dict | "$SED" \
 	-e 's/-//g' \
 	-ne 's/.*command code="\(.*\)" .* name="\(.*\)".*/\2 = \1/p' \
-	| sort -u >> $src
+	| "$SED" -e 's/^[[:lower:]]/\u&/' | sort -u >> $src
 
 printf ')\n// Short Command Names\nconst (\n' >> $src
 
 cat $dict | "$SED" \
 	-e 's/-//g' \
 	-ne 's/.*command code="[0-9]*".*\s.*short="\([^"]*\).*/\1R = "\1R"\n\1A = "\1A"/p' \
-	| sort -u >> $src
+	| "$SED" -e 's/^[[:lower:]]/\u&/' | sort -u >> $src
 
 echo ')' >> $src
 cat << EOF >> $src
@@ -111,7 +111,7 @@ cat $dict | "$SED" \
 	-e 's/-Id\([-"s]\)/-ID\1/g' \
 	-e 's/-//g' \
 	-ne 's/.*avp name="\(.*\)" code="\([0-9]*\)".*/\1 = \2/p' \
-	| "$SED" -e 's/^[0-9]/X&/' \
+	| "$SED" -e 's/^[0-9]/X&/' -e 's/^[[:lower:]]/\u&/' \
 	| sort -fu >> $src
 
 printf ')\n' >> $src

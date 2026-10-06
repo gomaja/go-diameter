@@ -1,0 +1,3223 @@
+[
+  {
+    "name": "Subscription-Data",
+    "section": "7.3.2",
+    "rules": [
+      {
+        "name": "Subscriber-Status",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "MSISDN",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "A-MSISDN",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "STN-SR",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "ICS-Indicator",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Network-Access-Mode",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Operator-Determined-Barring",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "HPLMN-ODB",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Regional-Subscription-Zone-Code",
+        "min": 0,
+        "max": 10,
+        "fixed": false
+      },
+      {
+        "name": "Access-Restriction-Data",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "APN-OI-Replacement",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "LCS-Info",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Teleservice-List",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Call-Barring-Info",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      },
+      {
+        "name": "3GPP-Charging-Characteristics",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "AMBR",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "APN-Configuration-Profile",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "RAT-Frequency-Selection-Priority-ID",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Trace-Data",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "GPRS-Subscription-Data",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "CSG-Subscription-Data",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      },
+      {
+        "name": "Roaming-Restricted-Due-To-Unsupported-Feature",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Subscribed-Periodic-RAU-TAU-Timer",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "MPS-Priority",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "VPLMN-LIPA-Allowed",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Relay-Node-Indicator",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "MDT-User-Consent",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Subscribed-VSRVCC",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "ProSe-Subscription-Data",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Subscription-Data-Flags",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Adjacent-Access-Restriction-Data",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      },
+      {
+        "name": "DL-Buffering-Suggested-Packet-Count",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "IMSI-Group-Id",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      },
+      {
+        "name": "UE-Usage-Type",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "AESE-Communication-Pattern",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      },
+      {
+        "name": "Monitoring-Event-Configuration",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      },
+      {
+        "name": "Emergency-Info",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "V2X-Subscription-Data",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "V2X-Subscription-Data-Nr",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "eDRX-Cycle-Length",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      },
+      {
+        "name": "External-Identifier",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Active-Time",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Service-Gap-Time",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Broadcast-Location-Assistance-Data-Types",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Aerial-UE-Subscription-Information",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Core-Network-Restrictions",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Paging-Time-Window",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      },
+      {
+        "name": "Subscribed-ARPI",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "IAB-Operation-Permission",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "PLMN-RAT-Usage-Control",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "AVP",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      }
+    ],
+    "raw": [
+      "[ Subscriber-Status ]",
+      "[ MSISDN ]",
+      "[ A-MSISDN ]",
+      "[ STN-SR ]",
+      "[ ICS-Indicator ]",
+      "[ Network-Access-Mode ]",
+      "[ Operator-Determined-Barring ]",
+      "[ HPLMN-ODB ]",
+      "*10[ Regional-Subscription-Zone-Code ]",
+      "[ Access-Restriction-Data ]",
+      "[ APN-OI-Replacement ]",
+      "[ LCS-Info ]",
+      "[ Teleservice-List ]",
+      "*[ Call-Barring-Info ]",
+      "[ 3GPP-Charging-Characteristics ]",
+      "[ AMBR ]",
+      "[ APN-Configuration-Profile ]",
+      "[ RAT-Frequency-Selection-Priority-ID ]",
+      "[ Trace-Data]",
+      "[ GPRS-Subscription-Data ]",
+      "*[ CSG-Subscription-Data ]",
+      "[ Roaming-Restricted-Due-To-Unsupported-Feature ]",
+      "[ Subscribed-Periodic-RAU-TAU-Timer ]",
+      "[ MPS-Priority ]",
+      "[ VPLMN-LIPA-Allowed ]",
+      "[ Relay-Node-Indicator ]",
+      "[ MDT-User-Consent ]",
+      "[ Subscribed-VSRVCC ]",
+      "[ ProSe-Subscription-Data ]",
+      "[ Subscription-Data-Flags ]",
+      "*[ Adjacent-Access-Restriction-Data ]",
+      "[ DL-Buffering-Suggested-Packet-Count ]",
+      "*[ IMSI-Group-Id ]",
+      "[ UE-Usage-Type ]",
+      "*[ AESE-Communication-Pattern ]",
+      "*[ Monitoring-Event-Configuration ]",
+      "[ Emergency-Info ]",
+      "[ V2X-Subscription-Data ]",
+      "[ V2X-Subscription-Data-Nr ]",
+      "*[ eDRX-Cycle-Length ]",
+      "[ External-Identifier ]",
+      "[ Active-Time ]",
+      "[ Service-Gap-Time ]",
+      "[ Broadcast-Location-Assistance-Data-Types ]",
+      "[ Aerial-UE-Subscription-Information ]",
+      "[ Core-Network-Restrictions ]",
+      "*[ Paging-Time-Window ]",
+      "[ Subscribed-ARPI ]",
+      "[ IAB-Operation-Permission ]",
+      "[ PLMN-RAT-Usage-Control ]",
+      "*[ AVP ]"
+    ]
+  },
+  {
+    "name": "Terminal-Information",
+    "section": "7.3.3",
+    "rules": [
+      {
+        "name": "IMEI",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "3GPP2-MEID",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Software-Version",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "AVP",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      }
+    ],
+    "raw": [
+      "[ IMEI ]",
+      "[ 3GPP2-MEID ]",
+      "[ Software-Version ]",
+      "*[ AVP ]"
+    ]
+  },
+  {
+    "name": "Requested-EUTRAN-Authentication-Info",
+    "section": "7.3.11",
+    "rules": [
+      {
+        "name": "Number-Of-Requested-Vectors",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Immediate-Response-Preferred",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Re-synchronization-Info",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "AVP",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      }
+    ],
+    "raw": [
+      "[ Number-Of-Requested-Vectors ]",
+      "[ Immediate-Response-Preferred ]",
+      "[ Re-synchronization-Info ]",
+      "*[AVP]"
+    ]
+  },
+  {
+    "name": "Requested-UTRAN-GERAN-Authentication-Info",
+    "section": "7.3.12",
+    "rules": [
+      {
+        "name": "Number-Of-Requested-Vectors",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Immediate-Response-Preferred",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Re-synchronization-Info",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "AVP",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      }
+    ],
+    "raw": [
+      "[ Number-Of-Requested-Vectors]",
+      "[ Immediate-Response-Preferred ]",
+      "[ Re-synchronization-Info ]",
+      "*[AVP]"
+    ]
+  },
+  {
+    "name": "Authentication-Info",
+    "section": "7.3.17",
+    "rules": [
+      {
+        "name": "E-UTRAN-Vector",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      },
+      {
+        "name": "UTRAN-Vector",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      },
+      {
+        "name": "GERAN-Vector",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      },
+      {
+        "name": "AVP",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      }
+    ],
+    "raw": [
+      "*[ E-UTRAN-Vector ]",
+      "*[UTRAN-Vector]",
+      "*[GERAN-Vector]",
+      "*[AVP]"
+    ]
+  },
+  {
+    "name": "E-UTRAN-Vector",
+    "section": "7.3.18",
+    "rules": [
+      {
+        "name": "Item-Number",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "RAND",
+        "min": 1,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "XRES",
+        "min": 1,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "AUTN",
+        "min": 1,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "KASME",
+        "min": 1,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "AVP",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      }
+    ],
+    "raw": [
+      "[ Item-Number ]",
+      "{ RAND }",
+      "{ XRES }",
+      "{ AUTN }",
+      "{ KASME }",
+      "*[AVP]"
+    ]
+  },
+  {
+    "name": "UTRAN-Vector",
+    "section": "7.3.19",
+    "rules": [
+      {
+        "name": "Item-Number",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "RAND",
+        "min": 1,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "XRES",
+        "min": 1,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "AUTN",
+        "min": 1,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Confidentiality-Key",
+        "min": 1,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Integrity-Key",
+        "min": 1,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "AVP",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      }
+    ],
+    "raw": [
+      "[ Item-Number ]",
+      "{ RAND }",
+      "{ XRES }",
+      "{ AUTN }",
+      "{ Confidentiality-Key }",
+      "{ Integrity-Key }",
+      "*[AVP]"
+    ]
+  },
+  {
+    "name": "GERAN-Vector",
+    "section": "7.3.20",
+    "rules": [
+      {
+        "name": "Item-Number",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "RAND",
+        "min": 1,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "SRES",
+        "min": 1,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Kc",
+        "min": 1,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "AVP",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      }
+    ],
+    "raw": [
+      "[ Item-Number ]",
+      "{ RAND }",
+      "{ SRES }",
+      "{ Kc }",
+      "*[AVP]"
+    ]
+  },
+  {
+    "name": "APN-Configuration-Profile",
+    "section": "7.3.34",
+    "rules": [
+      {
+        "name": "Context-Identifier",
+        "min": 1,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Additional-Context-Identifier",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Third-Context-Identifier",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "All-APN-Configurations-Included-Indicator",
+        "min": 1,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "APN-Configuration",
+        "min": 1,
+        "max": null,
+        "fixed": false
+      },
+      {
+        "name": "AVP",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      }
+    ],
+    "raw": [
+      "{ Context-Identifier }",
+      "[ Additional-Context-Identifier ]",
+      "[ Third-Context-Identifier ]",
+      "{ All-APN-Configurations-Included-Indicator }",
+      "1*{APN-Configuration}",
+      "*[AVP]"
+    ],
+    "notes": "§7.3.34 uses Additional-Context-Identifier in ABNF; Table 7.3.1/1 uses Additional-Context-ID for code 1683. ABNF member spelling retained."
+  },
+  {
+    "name": "APN-Configuration",
+    "section": "7.3.35",
+    "rules": [
+      {
+        "name": "Context-Identifier",
+        "min": 1,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Served-Party-IP-Address",
+        "min": 0,
+        "max": 2,
+        "fixed": false
+      },
+      {
+        "name": "PDN-Type",
+        "min": 1,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Service-Selection",
+        "min": 1,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "EPS-Subscribed-QoS-Profile",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "VPLMN-Dynamic-Address-Allowed",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "MIP6-Agent-Info",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Visited-Network-Identifier",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "PDN-GW-Allocation-Type",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "3GPP-Charging-Characteristics",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "AMBR",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Specific-APN-Info",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      },
+      {
+        "name": "APN-OI-Replacement",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "SIPTO-Permission",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "LIPA-Permission",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Restoration-Priority",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "SIPTO-Local-Network-Permission",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "WLAN-offloadability",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Non-IP-PDN-Type-Indicator",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Non-IP-Data-Delivery-Mechanism",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "SCEF-ID",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "SCEF-Realm",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Preferred-Data-Mode",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "PDN-Connection-Continuity",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "RDS-Indicator",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Interworking-5GS-Indicator",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Ethernet-PDN-Type-Indicator",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "AVP",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      }
+    ],
+    "raw": [
+      "{ Context-Identifier }",
+      "* 2 [ Served-Party-IP-Address ]",
+      "{ PDN-Type }",
+      "{ Service-Selection}",
+      "[ EPS-Subscribed-QoS-Profile ]",
+      "[ VPLMN-Dynamic-Address-Allowed ]",
+      "[MIP6-Agent-Info ]",
+      "[ Visited-Network-Identifier ]",
+      "[ PDN-GW-Allocation-Type ]",
+      "[ 3GPP-Charging-Characteristics ]",
+      "[ AMBR ]",
+      "*[ Specific-APN-Info ]",
+      "[ APN-OI-Replacement ]",
+      "[ SIPTO-Permission ]",
+      "[ LIPA-Permission ]",
+      "[ Restoration-Priority ]",
+      "[ SIPTO-Local-Network-Permission ]",
+      "[ WLAN-offloadability ]",
+      "[ Non-IP-PDN-Type-Indicator ]",
+      "[ Non-IP-Data-Delivery-Mechanism ]",
+      "[ SCEF-ID ]",
+      "[ SCEF-Realm ]",
+      "[ Preferred-Data-Mode ]",
+      "[ PDN-Connection-Continuity ]",
+      "[ RDS-Indicator ]",
+      "[ Interworking-5GS-Indicator ]",
+      "[ Ethernet-PDN-Type-Indicator ]",
+      "*[ AVP ]"
+    ]
+  },
+  {
+    "name": "EPS-Subscribed-QoS-Profile",
+    "section": "7.3.37",
+    "rules": [
+      {
+        "name": "QoS-Class-Identifier",
+        "min": 1,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Allocation-Retention-Priority",
+        "min": 1,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "AVP",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      }
+    ],
+    "raw": [
+      "{ QoS-Class-Identifier }",
+      "{ Allocation-Retention-Priority }",
+      "*[AVP]"
+    ]
+  },
+  {
+    "name": "Allocation-Retention-Priority",
+    "section": "7.3.40",
+    "rules": [
+      {
+        "name": "Priority-Level",
+        "min": 1,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Pre-emption-Capability",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Pre-emption-Vulnerability",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      }
+    ],
+    "raw": [
+      "{ Priority-Level }",
+      "[ Pre-emption-Capability ]",
+      "[ Pre-emption-Vulnerability ]"
+    ]
+  },
+  {
+    "name": "AMBR",
+    "section": "7.3.41",
+    "rules": [
+      {
+        "name": "Max-Requested-Bandwidth-UL",
+        "min": 1,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Max-Requested-Bandwidth-DL",
+        "min": 1,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Extended-Max-Requested-BW-UL",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Extended-Max-Requested-BW-DL",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "AVP",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      }
+    ],
+    "raw": [
+      "{ Max-Requested-Bandwidth-UL }",
+      "{ Max-Requested-Bandwidth-DL }",
+      "[ Extended-Max-Requested-BW-UL ]",
+      "[ Extended-Max-Requested-BW-DL ]",
+      "*[AVP]"
+    ]
+  },
+  {
+    "name": "MIP6-Agent-Info",
+    "section": "7.3.45",
+    "rules": [
+      {
+        "name": "MIP-Home-Agent-Address",
+        "min": 0,
+        "max": 2,
+        "fixed": false
+      },
+      {
+        "name": "MIP-Home-Agent-Host",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "MIP6-Home-Link-Prefix",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "AVP",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      }
+    ],
+    "raw": [
+      "*2[ MIP-Home-Agent-Address ]",
+      "[ MIP-Home-Agent-Host ]",
+      "[ MIP6-Home-Link-Prefix ]",
+      "*[ AVP ]"
+    ]
+  },
+  {
+    "name": "Trace-Data",
+    "section": "7.3.63",
+    "rules": [
+      {
+        "name": "Trace-Reference",
+        "min": 1,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Trace-Depth",
+        "min": 1,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Trace-NE-Type-List",
+        "min": 1,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Trace-Interface-List",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Trace-Event-List",
+        "min": 1,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "OMC-Id",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Trace-Collection-Entity",
+        "min": 1,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "MDT-Configuration",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "MDT-Configuration-NR",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Trace-Reporting-Consumer-Uri",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "AVP",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      }
+    ],
+    "raw": [
+      "{Trace-Reference}",
+      "{Trace-Depth}",
+      "{Trace-NE-Type-List}",
+      "[Trace-Interface-List]",
+      "{Trace-Event-List}",
+      "[OMC-Id]",
+      "{Trace-Collection-Entity}",
+      "[MDT-Configuration]",
+      "[MDT-Configuration-NR]",
+      "[Trace-Reporting-Consumer-Uri]",
+      "*[AVP]"
+    ]
+  },
+  {
+    "name": "GPRS-Subscription-Data",
+    "section": "7.3.72",
+    "rules": [
+      {
+        "name": "Complete-Data-List-Included-Indicator",
+        "min": 1,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "PDP-Context",
+        "min": 1,
+        "max": 50,
+        "fixed": false
+      },
+      {
+        "name": "AVP",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      }
+    ],
+    "raw": [
+      "{ Complete-Data-List-Included-Indicator }",
+      "1*50{PDP-Context}",
+      "*[AVP]"
+    ]
+  },
+  {
+    "name": "PDP-Context",
+    "section": "7.3.74",
+    "rules": [
+      {
+        "name": "Context-Identifier",
+        "min": 1,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "PDP-Type",
+        "min": 1,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "PDP-Address",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "QoS-Subscribed",
+        "min": 1,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "VPLMN-Dynamic-Address-Allowed",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Service-Selection",
+        "min": 1,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "3GPP-Charging-Characteristics",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Ext-PDP-Type",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Ext-PDP-Address",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "AMBR",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "APN-OI-Replacement",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "SIPTO-Permission",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "LIPA-Permission",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Restoration-Priority",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "SIPTO-Local-Network-Permission",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Non-IP-Data-Delivery-Mechanism",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "SCEF-ID",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "AVP",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      }
+    ],
+    "raw": [
+      "{ Context-Identifier }",
+      "{ PDP-Type }",
+      "[ PDP-Address ]",
+      "{ QoS-Subscribed }",
+      "[ VPLMN-Dynamic-Address-Allowed ]",
+      "{ Service-Selection }",
+      "[3GPP-Charging-Characteristics]",
+      "[ Ext-PDP-Type ]",
+      "[ Ext-PDP-Address ]",
+      "[ AMBR ]",
+      "[ APN-OI-Replacement ]",
+      "[ SIPTO-Permission ]",
+      "[ LIPA-Permission ]",
+      "[ Restoration-Priority ]",
+      "[ SIPTO-Local-Network-Permission ]",
+      "[ Non-IP-Data-Delivery-Mechanism ]",
+      "[ SCEF-ID ]",
+      "*[AVP]"
+    ]
+  },
+  {
+    "name": "CSG-Subscription-Data",
+    "section": "7.3.78",
+    "rules": [
+      {
+        "name": "CSG-Id",
+        "min": 1,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Expiration-Date",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Service-Selection",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      },
+      {
+        "name": "Visited-PLMN-Id",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "AVP",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      }
+    ],
+    "raw": [
+      "{ CSG-Id }",
+      "[ Expiration-Date ]",
+      "*[ Service-Selection ]",
+      "[ Visited-PLMN-Id ]",
+      "*[AVP]"
+    ]
+  },
+  {
+    "name": "Specific-APN-Info",
+    "section": "7.3.82",
+    "rules": [
+      {
+        "name": "Service-Selection",
+        "min": 1,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "MIP6-Agent-Info",
+        "min": 1,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Visited-Network-Identifier",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "AVP",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      }
+    ],
+    "raw": [
+      "{ Service-Selection }",
+      "{ MIP6-Agent-Info }",
+      "[ Visited-Network-Identifier ]",
+      "*[ AVP ]"
+    ]
+  },
+  {
+    "name": "LCS-Info",
+    "section": "7.3.84",
+    "rules": [
+      {
+        "name": "GMLC-Number",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      },
+      {
+        "name": "LCS-PrivacyException",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      },
+      {
+        "name": "MO-LR",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      },
+      {
+        "name": "AVP",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      }
+    ],
+    "raw": [
+      "*[ GMLC-Number]",
+      "*[ LCS-PrivacyException ]",
+      "*[ MO-LR ]",
+      "*[AVP]"
+    ]
+  },
+  {
+    "name": "LCS-PrivacyException",
+    "section": "7.3.86",
+    "rules": [
+      {
+        "name": "SS-Code",
+        "min": 1,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "SS-Status",
+        "min": 1,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Notification-To-UE-User",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "External-Client",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      },
+      {
+        "name": "PLMN-Client",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      },
+      {
+        "name": "Service-Type",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      },
+      {
+        "name": "AVP",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      }
+    ],
+    "raw": [
+      "{ SS-Code }",
+      "{ SS-Status }",
+      "[ Notification-To-UE-User ]",
+      "*[ External-Client ]",
+      "*[ PLMN-Client ]",
+      "*[ Service-Type ]",
+      "*[AVP]"
+    ]
+  },
+  {
+    "name": "External-Client",
+    "section": "7.3.90",
+    "rules": [
+      {
+        "name": "Client-Identity",
+        "min": 1,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "GMLC-Restriction",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Notification-To-UE-User",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "AVP",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      }
+    ],
+    "raw": [
+      "{ Client-Identity }",
+      "[ GMLC-Restriction ]",
+      "[ Notification-To-UE-User ]",
+      "*[AVP]"
+    ]
+  },
+  {
+    "name": "Service-Type",
+    "section": "7.3.94",
+    "rules": [
+      {
+        "name": "ServiceTypeIdentity",
+        "min": 1,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "GMLC-Restriction",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Notification-To-UE-User",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "AVP",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      }
+    ],
+    "raw": [
+      "{ ServiceTypeIdentity }",
+      "[ GMLC-Restriction ]",
+      "[ Notification-To-UE-User ]",
+      "*[AVP]"
+    ]
+  },
+  {
+    "name": "MO-LR",
+    "section": "7.3.96",
+    "rules": [
+      {
+        "name": "SS-Code",
+        "min": 1,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "SS-Status",
+        "min": 1,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "AVP",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      }
+    ],
+    "raw": [
+      "{ SS-Code }",
+      "{ SS-Status }",
+      "*[AVP]"
+    ]
+  },
+  {
+    "name": "Teleservice-List",
+    "section": "7.3.99",
+    "rules": [
+      {
+        "name": "TS-Code",
+        "min": 1,
+        "max": null,
+        "fixed": false
+      },
+      {
+        "name": "AVP",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      }
+    ],
+    "raw": [
+      "1 * { TS-Code }* [ AVP ]"
+    ],
+    "notes": "§7.3.99 prints two adjacent rules on one line; split into TS-Code and AVP."
+  },
+  {
+    "name": "Call-Barring-Info",
+    "section": "7.3.101",
+    "rules": [
+      {
+        "name": "SS-Code",
+        "min": 1,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "SS-Status",
+        "min": 1,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "AVP",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      }
+    ],
+    "raw": [
+      "{ SS-Code }",
+      "{ SS-Status }",
+      "*[ AVP ]"
+    ]
+  },
+  {
+    "name": "EPS-User-State",
+    "section": "7.3.110",
+    "rules": [
+      {
+        "name": "MME-User-State",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "SGSN-User-State",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "AVP",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      }
+    ],
+    "raw": [
+      "[MME-User-State]",
+      "[SGSN-User-State]",
+      "*[AVP]"
+    ]
+  },
+  {
+    "name": "EPS-Location-Information",
+    "section": "7.3.111",
+    "rules": [
+      {
+        "name": "MME-Location-Information",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "SGSN-Location-Information",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "AVP",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      }
+    ],
+    "raw": [
+      "[MME-Location-Information]",
+      "[SGSN-Location-Information]",
+      "*[AVP]"
+    ]
+  },
+  {
+    "name": "MME-User-State",
+    "section": "7.3.112",
+    "rules": [
+      {
+        "name": "User-State",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "AVP",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      }
+    ],
+    "raw": [
+      "[User-State]",
+      "*[AVP]"
+    ]
+  },
+  {
+    "name": "SGSN-User-State",
+    "section": "7.3.113",
+    "rules": [
+      {
+        "name": "User-State",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "AVP",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      }
+    ],
+    "raw": [
+      "[User-State]",
+      "*[AVP]"
+    ]
+  },
+  {
+    "name": "MME-Location-Information",
+    "section": "7.3.115",
+    "rules": [
+      {
+        "name": "E-UTRAN-Cell-Global-Identity",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Tracking-Area-Identity",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Geographical-Information",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Geodetic-Information",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Current-Location-Retrieved",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Age-Of-Location-Information",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "User-CSG-Information",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "eNodeB-ID",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Extended-eNodeB-ID",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "AVP",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      }
+    ],
+    "raw": [
+      "[E-UTRAN-Cell-Global-Identity]",
+      "[Tracking-Area-Identity]",
+      "[Geographical-Information]",
+      "[Geodetic-Information]",
+      "[Current-Location-Retrieved]",
+      "[Age-Of-Location-Information]",
+      "[User-CSG-Information]",
+      "[ eNodeB-ID ]",
+      "[ Extended-eNodeB-ID ]",
+      "*[AVP]"
+    ]
+  },
+  {
+    "name": "SGSN-Location-Information",
+    "section": "7.3.116",
+    "rules": [
+      {
+        "name": "Cell-Global-Identity",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Location-Area-Identity",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Service-Area-Identity",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Routing-Area-Identity",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Geographical-Information",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Geodetic-Information",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Current-Location-Retrieved",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Age-Of-Location-Information",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "User-CSG-Information",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "AVP",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      }
+    ],
+    "raw": [
+      "[Cell-Global-Identity]",
+      "[Location-Area-Identity]",
+      "[Service-Area-Identity]",
+      "[Routing-Area-Identity]",
+      "[Geographical-Information]",
+      "[Geodetic-Information]",
+      "[Current-Location-Retrieved]",
+      "[Age-Of-Location-Information]",
+      "[ User-CSG-Information]",
+      "*[AVP]"
+    ]
+  },
+  {
+    "name": "Active-APN",
+    "section": "7.3.127",
+    "rules": [
+      {
+        "name": "Context-Identifier",
+        "min": 1,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Service-Selection",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "MIP6-Agent-Info",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Visited-Network-Identifier",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Specific-APN-Info",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      },
+      {
+        "name": "AVP",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      }
+    ],
+    "raw": [
+      "{ Context-Identifier }",
+      "[ Service-Selection ]",
+      "[ MIP6-Agent-Info ]",
+      "[ Visited-Network-Identifier ]",
+      "*[ Specific-APN-Info ]",
+      "*[ AVP ]"
+    ]
+  },
+  {
+    "name": "MDT-Configuration",
+    "section": "7.3.136",
+    "rules": [
+      {
+        "name": "Job-Type",
+        "min": 1,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Area-Scope",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "List-Of-Measurements",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Reporting-Trigger",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Report-Interval",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Report-Amount",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Event-Threshold-RSRP",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Event-Threshold-RSRQ",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Logging-Interval",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Logging-Duration",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Measurement-Period-LTE",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Measurement-Period-UMTS",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Collection-Period-RRM-LTE",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Collection-Period-RRM-UMTS",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Positioning-Method",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Measurement-Quantity",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Event-Threshold-Event-1F",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Event-Threshold-Event-1I",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "MDT-Allowed-PLMN-Id",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      },
+      {
+        "name": "MBSFN-Area",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      },
+      {
+        "name": "AVP",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      }
+    ],
+    "raw": [
+      "{ Job-Type }",
+      "[ Area-Scope ]",
+      "[ List-Of-Measurements ]",
+      "[ Reporting-Trigger ]",
+      "[ Report-Interval ]",
+      "[ Report-Amount ]",
+      "[ Event-Threshold-RSRP ]",
+      "[ Event-Threshold-RSRQ ]",
+      "[ Logging-Interval ]",
+      "[ Logging-Duration ]",
+      "[ Measurement-Period-LTE ]",
+      "[ Measurement-Period-UMTS ]",
+      "[ Collection-Period- RRM-LTE ]",
+      "[ Collection-Period-RRM-UMTS ]",
+      "[ Positioning-Method ]",
+      "[ Measurement-Quantity]",
+      "[ Event-Threshold-Event-1F ]",
+      "[ Event-Threshold-Event-1I ]",
+      "*[ MDT-Allowed-PLMN-Id ]",
+      "*[ MBSFN-Area ]",
+      "*[ AVP ]"
+    ]
+  },
+  {
+    "name": "Area-Scope",
+    "section": "7.3.138",
+    "rules": [
+      {
+        "name": "Cell-Global-Identity",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      },
+      {
+        "name": "E-UTRAN-Cell-Global-Identity",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      },
+      {
+        "name": "Routing-Area-Identity",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      },
+      {
+        "name": "Location-Area-Identity",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      },
+      {
+        "name": "Tracking-Area-Identity",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      },
+      {
+        "name": "NR-Cell-Global-Identity",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      },
+      {
+        "name": "AVP",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      }
+    ],
+    "raw": [
+      "*[ Cell-Global-Identity ]",
+      "*[ E-UTRAN-Cell-Global-Identity ]",
+      "*[ Routing-Area-Identity ]",
+      "*[ Location-Area-Identity ]",
+      "*[ Tracking-Area-Identity ]",
+      "*[ NR-Cell-Global-Identity ]",
+      "*[ AVP ]"
+    ],
+    "notes": "§7.3.138 ABNF header prints 1623; Table 7.3.1/1 assigns AVP code 1624. Grammar only is asserted here."
+  },
+  {
+    "name": "Equivalent-PLMN-List",
+    "section": "7.3.151",
+    "rules": [
+      {
+        "name": "Visited-PLMN-Id",
+        "min": 1,
+        "max": null,
+        "fixed": false
+      },
+      {
+        "name": "AVP",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      }
+    ],
+    "raw": [
+      "1*{ Visited-PLMN-Id }",
+      "*[AVP]"
+    ]
+  },
+  {
+    "name": "VPLMN-CSG-Subscription-Data",
+    "section": "7.3.155",
+    "rules": [
+      {
+        "name": "CSG-Id",
+        "min": 1,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Expiration-Date",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "AVP",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      }
+    ],
+    "raw": [
+      "{ CSG-Id }",
+      "[ Expiration-Date ]",
+      "*[AVP]"
+    ]
+  },
+  {
+    "name": "Local-Time-Zone",
+    "section": "7.3.156",
+    "rules": [
+      {
+        "name": "Time-Zone",
+        "min": 1,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Daylight-Saving-Time",
+        "min": 1,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "AVP",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      }
+    ],
+    "raw": [
+      "{ Time-Zone }",
+      "{ Daylight-Saving-Time }",
+      "* [ AVP ]"
+    ]
+  },
+  {
+    "name": "ProSe-Subscription-Data",
+    "section": "7.3.180",
+    "rules": [
+      {
+        "name": "ProSe-Permission",
+        "min": 1,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "AVP",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      }
+    ],
+    "raw": [
+      "{ ProSe-Permission }",
+      "*[AVP]"
+    ]
+  },
+  {
+    "name": "WLAN-offloadability",
+    "section": "7.3.181",
+    "rules": [
+      {
+        "name": "WLAN-offloadability-EUTRAN",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "WLAN-offloadability-UTRAN",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "AVP",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      }
+    ],
+    "raw": [
+      "[ WLAN-offloadability-EUTRAN ]",
+      "[ WLAN-offloadability-UTRAN ]",
+      "*[ AVP ]"
+    ]
+  },
+  {
+    "name": "Adjacent-PLMNs",
+    "section": "7.3.186",
+    "rules": [
+      {
+        "name": "Visited-PLMN-Id",
+        "min": 1,
+        "max": null,
+        "fixed": false
+      },
+      {
+        "name": "AVP",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      }
+    ],
+    "raw": [
+      "1*{ Visited-PLMN-Id }",
+      "*[AVP]"
+    ]
+  },
+  {
+    "name": "Adjacent-Access-Restriction-Data",
+    "section": "7.3.187",
+    "rules": [
+      {
+        "name": "Visited-PLMN-Id",
+        "min": 1,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Access-Restriction-Data",
+        "min": 1,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "AVP",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      }
+    ],
+    "raw": [
+      "{ Visited-PLMN-Id }",
+      "{ Access-Restriction-Data }",
+      "*[AVP]"
+    ]
+  },
+  {
+    "name": "IMSI-Group-Id",
+    "section": "7.3.189",
+    "rules": [
+      {
+        "name": "Group-Service-Id",
+        "min": 1,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Group-PLMN-Id",
+        "min": 1,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Local-Group-Id",
+        "min": 1,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "AVP",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      }
+    ],
+    "raw": [
+      "{ Group-Service-Id }",
+      "{ Group-PLMN-Id }",
+      "{ Local-Group-Id }",
+      "*[AVP]"
+    ]
+  },
+  {
+    "name": "AESE-Communication-Pattern",
+    "section": "7.3.193",
+    "rules": [
+      {
+        "name": "SCEF-Reference-ID",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "SCEF-Reference-ID-Ext",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "SCEF-ID",
+        "min": 1,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "SCEF-Reference-ID-for-Deletion",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      },
+      {
+        "name": "SCEF-Reference-ID-for-Deletion-Ext",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      },
+      {
+        "name": "Communication-Pattern-Set",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      },
+      {
+        "name": "MTC-Provider-Info",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "AVP",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      }
+    ],
+    "raw": [
+      "[ SCEF-Reference-ID ]",
+      "[ SCEF-Reference-ID-Ext ]",
+      "{ SCEF-ID }",
+      "*[ SCEF-Reference-ID-for-Deletion ]",
+      "*[ SCEF-Reference-ID-for-Deletion-Ext ]",
+      "*[ Communication-Pattern-Set ]",
+      "[ MTC-Provider-Info ]",
+      "*[AVP]"
+    ]
+  },
+  {
+    "name": "Communication-Pattern-Set",
+    "section": "7.3.194",
+    "rules": [
+      {
+        "name": "Periodic-Communication-Indicator",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Communication-Duration-Time",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Periodic-Time",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Scheduled-Communication-Time",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      },
+      {
+        "name": "Stationary-Indication",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Reference-ID-Validity-Time",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Traffic-Profile",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Battery-Indicator",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "AVP",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      }
+    ],
+    "raw": [
+      "[ Periodic-Communication-Indicator ]",
+      "[ Communication-Duration-Time ]",
+      "[ Periodic-Time ]",
+      "*[ Scheduled-Communication-Time ]",
+      "[ Stationary-Indication ]",
+      "[ Reference-ID-Validity-Time ]",
+      "[ Traffic-Profile ]",
+      "[ Battery-Indicator ]",
+      "*[AVP]"
+    ]
+  },
+  {
+    "name": "Monitoring-Event-Configuration",
+    "section": "7.3.195",
+    "rules": [
+      {
+        "name": "SCEF-Reference-ID",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "SCEF-Reference-ID-Ext",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "SCEF-ID",
+        "min": 1,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Monitoring-Type",
+        "min": 1,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "SCEF-Reference-ID-for-Deletion",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      },
+      {
+        "name": "SCEF-Reference-ID-for-Deletion-Ext",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      },
+      {
+        "name": "Maximum-Number-of-Reports",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Monitoring-Duration",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Charged-Party",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "UE-Reachability-Configuration",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Location-Information-Configuration",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "SCEF-Realm",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "External-Identifier",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "MTC-Provider-Info",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "PDN-Connectivity-Status-Configuration",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "AVP",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      }
+    ],
+    "raw": [
+      "[ SCEF-Reference-ID ]",
+      "[ SCEF-Reference-ID-Ext ]",
+      "{ SCEF-ID }",
+      "{ Monitoring-Type }",
+      "*[ SCEF-Reference-ID-for-Deletion ]",
+      "*[ SCEF-Reference-ID-for-Deletion-Ext ]",
+      "[ Maximum-Number-of-Reports ]",
+      "[ Monitoring-Duration ]",
+      "[ Charged-Party ]",
+      "[ UE-Reachability-Configuration ]",
+      "[ Location-Information-Configuration ]",
+      "[ SCEF-Realm ]",
+      "[ External-Identifier ]",
+      "[ MTC-Provider-Info ]",
+      "[ PDN-Connectivity-Status-Configuration ]",
+      "*[ AVP ]"
+    ]
+  },
+  {
+    "name": "Monitoring Event Report",
+    "section": "7.3.196",
+    "rules": [
+      {
+        "name": "SCEF-Reference-ID",
+        "min": 1,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "SCEF-Reference-ID-Ext",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "SCEF-ID",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Reachability-Information",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Reachability-Cause",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "EPS-Location-Information",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Monitoring-Type",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Loss-Of-Connectivity-Reason",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Idle-Status-Indication",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Maximum-UE-Availability-Time",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "PDN-Connectivity-Status-Report",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      },
+      {
+        "name": "AVP",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      }
+    ],
+    "raw": [
+      "{ SCEF-Reference-ID }",
+      "[ SCEF-Reference-ID-Ext ]",
+      "[ SCEF-ID ]",
+      "[ Reachability-Information ]",
+      "[ Reachability-Cause ]",
+      "[ EPS-Location-Information ]",
+      "[ Monitoring-Type ]",
+      "[ Loss-Of-Connectivity-Reason ]",
+      "[ Idle-Status-Indication ]",
+      "[ Maximum-UE-Availability-Time ]",
+      "*[ PDN-Connectivity-Status-Report ]",
+      "*[ AVP ]"
+    ],
+    "notes": "§7.3.196 uses spaces in the ABNF left-hand name; registered AVP is Monitoring-Event-Report."
+  },
+  {
+    "name": "UE-Reachability-Configuration",
+    "section": "7.3.197",
+    "rules": [
+      {
+        "name": "Reachability-Type",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Maximum-Response-Time",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "AVP",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      }
+    ],
+    "raw": [
+      "[ Reachability-Type ]",
+      "[ Maximum-Response-Time ]",
+      "*[ AVP ]"
+    ]
+  },
+  {
+    "name": "Supported-Services",
+    "section": "7.3.199",
+    "rules": [
+      {
+        "name": "Supported-Monitoring-Events",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "AVP",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      }
+    ],
+    "raw": [
+      "[ Supported-Monitoring-Events ]",
+      "*[AVP]"
+    ]
+  },
+  {
+    "name": "Subscription-Data-Deletion",
+    "section": "7.3.208",
+    "rules": [
+      {
+        "name": "DSR-Flags",
+        "min": 1,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "SCEF-ID",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Context-Identifier",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      },
+      {
+        "name": "Trace-Reference",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "TS-Code",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      },
+      {
+        "name": "SS-Code",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      },
+      {
+        "name": "AVP",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      }
+    ],
+    "raw": [
+      "{ DSR-Flags }",
+      "[ SCEF-ID ]",
+      "*[ Context-Identifier ]",
+      "[ Trace-Reference ]",
+      "*[ TS-Code ]",
+      "*[ SS-Code ]",
+      "*[ AVP ]"
+    ]
+  },
+  {
+    "name": "Emergency-Info",
+    "section": "7.3.210",
+    "rules": [
+      {
+        "name": "MIP6-Agent-Info",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "AVP",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      }
+    ],
+    "raw": [
+      "[ MIP6-Agent-Info ]",
+      "*[ AVP ]"
+    ]
+  },
+  {
+    "name": "V2X-Subscription-Data",
+    "section": "7.3.212",
+    "rules": [
+      {
+        "name": "V2X-Permission",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "UE-PC5-AMBR",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "AVP",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      }
+    ],
+    "raw": [
+      "[ V2X-Permission ]",
+      "[ UE-PC5-AMBR ]",
+      "*[AVP]"
+    ]
+  },
+  {
+    "name": "eDRX-Cycle-Length",
+    "section": "7.3.215",
+    "rules": [
+      {
+        "name": "RAT-Type",
+        "min": 1,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "eDRX-Cycle-Length-Value",
+        "min": 1,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "AVP",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      }
+    ],
+    "raw": [
+      "{ RAT-Type }",
+      "{ eDRX-Cycle-Length-Value }",
+      "*[ AVP ]"
+    ]
+  },
+  {
+    "name": "MBSFN-Area",
+    "section": "7.3.219",
+    "rules": [
+      {
+        "name": "MBSFN-Area-ID",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Carrier-Frequency",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "AVP",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      }
+    ],
+    "raw": [
+      "[ MBSFN-Area-ID ]",
+      "[ Carrier-Frequency ]",
+      "*[ AVP ]"
+    ]
+  },
+  {
+    "name": "Paging-Time-Window",
+    "section": "7.3.226",
+    "rules": [
+      {
+        "name": "Operation-Mode",
+        "min": 1,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Paging-Time-Window-Length",
+        "min": 1,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "AVP",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      }
+    ],
+    "raw": [
+      "{ Operation-Mode }",
+      "{ Paging-Time-Window-Length }",
+      "*[ AVP ]"
+    ]
+  },
+  {
+    "name": "eDRX-Related-RAT",
+    "section": "7.3.229",
+    "rules": [
+      {
+        "name": "RAT-Type",
+        "min": 1,
+        "max": null,
+        "fixed": false
+      },
+      {
+        "name": "AVP",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      }
+    ],
+    "raw": [
+      "1 * { RAT-Type }",
+      "*[AVP]"
+    ]
+  },
+  {
+    "name": "V2X-Subscription-Data-Nr",
+    "section": "7.3.235",
+    "rules": [
+      {
+        "name": "V2X-Permission",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "UE-PC5-AMBR",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "UE-PC5-QoS",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "AVP",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      }
+    ],
+    "raw": [
+      "[ V2X-Permission ]",
+      "[ UE-PC5-AMBR ]",
+      "[ UE-PC5-QoS ]",
+      "*[AVP]"
+    ]
+  },
+  {
+    "name": "UE-PC5-QoS",
+    "section": "7.3.236",
+    "rules": [
+      {
+        "name": "PC5-QoS-Flow",
+        "min": 1,
+        "max": null,
+        "fixed": false
+      },
+      {
+        "name": "PC5-Link-AMBR",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "AVP",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      }
+    ],
+    "raw": [
+      "1*{ PC5-QoS-Flow }",
+      "[ PC5-Link-AMBR ]",
+      "*[AVP]"
+    ]
+  },
+  {
+    "name": "PC5-QoS-Flow",
+    "section": "7.3.237",
+    "rules": [
+      {
+        "name": "5QI",
+        "min": 1,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "PC5-Flow-Bitrates",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "PC5-Range",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "AVP",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      }
+    ],
+    "raw": [
+      "{ 5QI }",
+      "[ PC5-Flow-Bitrates ]",
+      "[ PC5-Range ]",
+      "*[AVP]"
+    ]
+  },
+  {
+    "name": "PC5-Flow-Bitrates",
+    "section": "7.3.239",
+    "rules": [
+      {
+        "name": "Guaranteed-Flow-Bitrates",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Maximum-Flow-Bitrates",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      }
+    ],
+    "raw": [
+      "[ Guaranteed-Flow-Bitrates ]",
+      "[ Maximum-Flow-Bitrates ]"
+    ]
+  },
+  {
+    "name": "MDT-Configuration-NR",
+    "section": "7.3.245",
+    "rules": [
+      {
+        "name": "Job-Type",
+        "min": 1,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Area-Scope",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "List-Of-Measurements",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Reporting-Trigger",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Report-Interval",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Report-Amount",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Event-Threshold-RSRP",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Event-Threshold-RSRQ",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Event-Threshold-SINR",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Collection-Period-RRM-NR",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Collection-Period-M6-NR",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Collection-Period-M7-NR",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Positioning-Method",
+        "min": 0,
+        "max": 1,
+        "fixed": false
+      },
+      {
+        "name": "Sensor-Measurement",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      },
+      {
+        "name": "MDT-Allowed-PLMN-Id",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      },
+      {
+        "name": "AVP",
+        "min": 0,
+        "max": null,
+        "fixed": false
+      }
+    ],
+    "raw": [
+      "{ Job-Type }",
+      "[ Area-Scope ]",
+      "[ List-Of-Measurements ]",
+      "[ Reporting-Trigger ]",
+      "[ Report-Interval ]",
+      "[ Report-Amount ]",
+      "[ Event-Threshold-RSRP ]",
+      "[ Event-Threshold-RSRQ ]",
+      "[ Event-Threshold-SINR ]",
+      "[ Collection-Period-RRM-NR ]",
+      "[ Collection-Period-M6-NR ]",
+      "[ Collection-Period-M7-NR ]",
+      "[ Positioning-Method ]",
+      "*[ Sensor-Measurement ]",
+      "*[ MDT-Allowed-PLMN-Id ]",
+      "*[ AVP ]"
+    ]
+  }
+]

@@ -258,7 +258,7 @@ func TestNASDictionaryClosureWire(t *testing.T) {
 	}
 }
 
-// 3GPP TS 29.272 V19.5.0 §§7.3.47, 7.3.83, 7.3.106-116, 7.3.156,
+// 3GPP TS 29.272 V19.6.0 §§7.3.47, 7.3.83, 7.3.106-116, 7.3.156,
 // 7.3.184, 7.3.196, 7.3.199, with reused AVPs from TS 29.273 and 29.336.
 func TestS6aDictionaryClosureWire(t *testing.T) {
 	const appID = 16777251

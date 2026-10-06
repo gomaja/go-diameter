@@ -176,7 +176,7 @@ func TestExpiredHandshakeCannotSendSuccessCEA(t *testing.T) {
 
 func TestCERNilSettingsDictionaryUsesDefaultCapabilities(t *testing.T) {
 	dictionary := dict.New(dict.Base)
-	if err := dictionary.Load(bytes.NewBufferString(`<diameter><application id="16777999" name="Private"><auth/></application></diameter>`)); err != nil {
+	if err := dictionary.Load(bytes.NewBufferString(`<diameter><application id="16777999" name="Private" type="auth"/></diameter>`)); err != nil {
 		t.Fatal(err)
 	}
 	settings := testMessageErrorSettings()

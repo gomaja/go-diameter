@@ -1,0 +1,751 @@
+{
+  "Network-Access-Mode": {
+    "items": {
+      "0": "PACKET_AND_CIRCUIT",
+      "1": "Reserved",
+      "2": "ONLY_PACKET"
+    },
+    "source": "TS 29.272 V19.6.0 §7.3.21",
+    "code": 1417,
+    "type": "Enumerated"
+  },
+  "Cancellation-Type": {
+    "items": {
+      "0": "MME_UPDATE_PROCEDURE",
+      "1": "SGSN_UPDATE_PROCEDURE",
+      "2": "SUBSCRIPTION_WITHDRAWAL",
+      "3": "UPDATE_PROCEDURE_IWF",
+      "4": "INITIAL_ATTACH_PROCEDURE",
+      "5": "DISASTER_CONDITION_TERMINATED"
+    },
+    "source": "TS 29.272 V19.6.0 §7.3.24",
+    "code": 1420,
+    "type": "Enumerated"
+  },
+  "Subscriber-Status": {
+    "items": {
+      "0": "SERVICE_GRANTED",
+      "1": "OPERATOR_DETERMINED_BARRING"
+    },
+    "source": "TS 29.272 V19.6.0 §7.3.29",
+    "code": 1424,
+    "type": "Enumerated"
+  },
+  "All-APN-Configurations-Included-Indicator": {
+    "items": {
+      "0": "All_APN_CONFIGURATIONS_INCLUDED",
+      "1": "MODIFIED_ADDED_APN_CONFIGURATIONS_INCLUDED"
+    },
+    "source": "TS 29.272 V19.6.0 §7.3.33",
+    "code": 1428,
+    "type": "Enumerated"
+  },
+  "VPLMN-Dynamic-Address-Allowed": {
+    "items": {
+      "0": "NOTALLOWED",
+      "1": "ALLOWED"
+    },
+    "source": "TS 29.272 V19.6.0 §7.3.38",
+    "code": 1432,
+    "type": "Enumerated"
+  },
+  "Alert-Reason": {
+    "items": {
+      "0": "UE_PRESENT",
+      "1": "UE_MEMORY_AVAILABLE"
+    },
+    "source": "TS 29.272 V19.6.0 §7.3.83",
+    "notes": "Table 7.3.1/1 prints Enumerate; §7.3.83 normatively defines Enumerated.",
+    "code": 1434,
+    "type": "Enumerated"
+  },
+  "PDN-GW-Allocation-Type": {
+    "items": {
+      "0": "STATIC",
+      "1": "DYNAMIC"
+    },
+    "source": "TS 29.272 V19.6.0 §7.3.44",
+    "code": 1438,
+    "type": "Enumerated"
+  },
+  "Equipment-Status": {
+    "items": {
+      "0": "PERMITTEDLISTED",
+      "1": "PROHIBITEDLISTED",
+      "2": "TRACKINGLISTED"
+    },
+    "source": "TS 29.272 V19.6.0 §7.3.51",
+    "code": 1445,
+    "type": "Enumerated"
+  },
+  "PDN-Type": {
+    "items": {
+      "0": "IPv4",
+      "1": "IPv6",
+      "2": "IPv4v6",
+      "3": "IPv4_OR_IPv6"
+    },
+    "source": "TS 29.272 V19.6.0 §7.3.62",
+    "code": 1456,
+    "type": "Enumerated"
+  },
+  "Roaming-Restricted-Due-To-Unsupported-Feature": {
+    "items": {
+      "0": "Roaming-Restricted-Due-To-Unsupported-Feature"
+    },
+    "source": "TS 29.272 V19.6.0 §7.3.81",
+    "code": 1457,
+    "type": "Enumerated"
+  },
+  "Trace-Depth": {
+    "items": {
+      "0": "Minimum",
+      "1": "Medium",
+      "2": "Maximum",
+      "3": "MinimumWithoutVendorSpecificExtension",
+      "4": "MediumWithoutVendorSpecificExtension",
+      "5": "MaximumWithoutVendorSpecificExtension",
+      "6": "MinimumOnlyVendorSpecificTraceRecord",
+      "7": "MediumOnlyVendorSpecificTraceRecord",
+      "8": "MaximumOnlyVendorSpecificTraceRecord"
+    },
+    "source": "TS 29.272 V19.6.0 §7.3.67; TS 32.422 V20.3.0 §5.3",
+    "notes": "",
+    "code": 1462,
+    "type": "Enumerated"
+  },
+  "Complete-Data-List-Included-Indicator": {
+    "items": {
+      "0": "All_PDP_CONTEXTS_INCLUDED",
+      "1": "MODIFIED_ADDED_PDP CONTEXTS_INCLUDED"
+    },
+    "source": "TS 29.272 V19.6.0 §7.3.73",
+    "code": 1468,
+    "type": "Enumerated"
+  },
+  "Notification-To-UE-User": {
+    "items": {
+      "0": "NOTIFY_LOCATION_ALLOWED",
+      "1": "NOTIFYANDVERIFY_LOCATION_ALLOWED_IF_NO_RESPONSE",
+      "2": "NOTIFYANDVERIFY_LOCATION_NOT_ALLOWED_IF_NO_RESPONSE",
+      "3": "LOCATION_NOT_ALLOWED"
+    },
+    "source": "TS 29.272 V19.6.0 §7.3.89",
+    "code": 1478,
+    "type": "Enumerated"
+  },
+  "GMLC-Restriction": {
+    "items": {
+      "0": "GMLC_LIST",
+      "1": "HOME_COUNTRY"
+    },
+    "source": "TS 29.272 V19.6.0 §7.3.92",
+    "code": 1481,
+    "type": "Enumerated"
+  },
+  "PLMN-Client": {
+    "items": {
+      "0": "BROADCAST_SERVICE",
+      "1": "O_AND_M_HPLMN",
+      "2": "O_AND_M_VPLMN",
+      "3": "ANONYMOUS_LOCATION",
+      "4": "TARGET_UE_SUBSCRIBED_SERVICE"
+    },
+    "source": "TS 29.272 V19.6.0 §7.3.93",
+    "code": 1482,
+    "type": "Enumerated"
+  },
+  "ICS-Indicator": {
+    "items": {
+      "0": "FALSE",
+      "1": "TRUE"
+    },
+    "source": "TS 29.272 V19.6.0 §7.3.104",
+    "code": 1491,
+    "type": "Enumerated"
+  },
+  "IMS-Voice-Over-PS-Sessions-Supported": {
+    "items": {
+      "0": "NOT_SUPPORTED",
+      "1": "SUPPORTED"
+    },
+    "source": "TS 29.272 V19.6.0 §7.3.106",
+    "code": 1492,
+    "type": "Enumerated"
+  },
+  "Homogeneous-Support-of-IMS-Voice-Over-PS-Sessions": {
+    "items": {
+      "0": "NOT_SUPPORTED",
+      "1": "SUPPORTED"
+    },
+    "source": "TS 29.272 V19.6.0 §7.3.107",
+    "code": 1493,
+    "type": "Enumerated"
+  },
+  "User-State": {
+    "items": {
+      "0": "DETACHED",
+      "1": "ATTACHED_NOT_REACHABLE_FOR_PAGING",
+      "2": "ATTACHED_REACHABLE_FOR_PAGING",
+      "3": "CONNECTED_NOT_REACHABLE_FOR_PAGING",
+      "4": "CONNECTED_REACHABLE_FOR_PAGING",
+      "5": "RESERVED"
+    },
+    "source": "TS 29.272 V19.6.0 §7.3.114",
+    "code": 1499,
+    "type": "Enumerated"
+  },
+  "Current-Location-Retrieved": {
+    "items": {
+      "0": "ACTIVE-LOCATION-RETRIEVAL"
+    },
+    "source": "TS 29.272 V19.6.0 §7.3.125",
+    "code": 1610,
+    "type": "Enumerated"
+  },
+  "Error-Diagnostic": {
+    "items": {
+      "0": "GPRS_DATA_SUBSCRIBED",
+      "1": "NO_GPRS_DATA_SUBSCRIBED",
+      "2": "ODB_ALL_APN",
+      "3": "ODB_HPLMN_APN",
+      "4": "ODB_VPLMN_APN"
+    },
+    "source": "TS 29.272 V19.6.0 §7.3.128",
+    "code": 1614,
+    "type": "Enumerated"
+  },
+  "UE-SRVCC-Capability": {
+    "items": {
+      "0": "UE-SRVCC-NOT-SUPPORTED",
+      "1": "UE-SRVCC-SUPPORTED"
+    },
+    "source": "TS 29.272 V19.6.0 §7.3.130",
+    "code": 1615,
+    "type": "Enumerated"
+  },
+  "VPLMN-LIPA-Allowed": {
+    "items": {
+      "0": "LIPA_NOTALLOWED",
+      "1": "LIPA_ALLOWED"
+    },
+    "source": "TS 29.272 V19.6.0 §7.3.132",
+    "code": 1617,
+    "type": "Enumerated"
+  },
+  "LIPA-Permission": {
+    "items": {
+      "0": "LIPA_PROHIBITED",
+      "1": "LIPA_ONLY",
+      "2": "LIPA_CONDITIONAL"
+    },
+    "source": "TS 29.272 V19.6.0 §7.3.133",
+    "code": 1618,
+    "type": "Enumerated"
+  },
+  "SIPTO-Permission": {
+    "items": {
+      "0": "SIPTO_above_RAN _ALLOWED",
+      "1": "SIPTO_above_RAN _NOTALLOWED"
+    },
+    "source": "TS 29.272 V19.6.0 §7.3.135",
+    "code": 1613,
+    "type": "Enumerated"
+  },
+  "Job-Type": {
+    "items": {
+      "0": "IMMEDIATE_MDT_ONLY",
+      "1": "LOGGED_MDT_ONLY",
+      "2": "TRACE_ONLY",
+      "3": "IMMEDIATE_MDT_AND_TRACE",
+      "4": "RLF_REPORT_ONLY",
+      "5": "RCEF_REPORT_ONLY",
+      "6": "LOGGED_MBSFN_MDT",
+      "7": "5GC_UE_LEVEL_MEASUREMENTS_ONLY",
+      "8": "TRACE_AND_5GC_UE_LEVEL_MEASUREMENTS",
+      "9": "IMMEDIATE_MDT_AND_5GC_UE_LEVEL_MEASUREMENTS",
+      "10": "TRACE_AND_IMMEDIATE_MDT_AND_5GC_UE_LEVEL_MEASUREMENTS",
+      "11": "RRC_REPORT",
+      "12": "IMMEDIATE_MDT_AND_ LOGGED_MDT"
+    },
+    "source": "TS 29.272 V19.6.0 §7.3.137; TS 32.422 V20.3.0 §5.9a",
+    "notes": "Code 12 has a space after the underscore in TS 32.422; normalized dictionary spelling may remove it.",
+    "code": 1623,
+    "type": "Enumerated"
+  },
+  "Report-Interval": {
+    "items": {
+      "0": "250 ms",
+      "1": "500 ms",
+      "2": "1000 ms",
+      "3": "2000 ms",
+      "4": "3000 ms",
+      "5": "4000 ms",
+      "6": "6000 ms",
+      "7": "8000 ms",
+      "8": "12000 ms",
+      "9": "16000 ms",
+      "10": "20000 ms",
+      "11": "24000 ms",
+      "12": "28000 ms",
+      "13": "32000 ms",
+      "14": "64000 ms"
+    },
+    "source": "TS 29.272 V19.6.0 §7.3.141; TS 32.422 V20.3.0 §5.10.5",
+    "notes": "The code mapping varies by RAT: items show UMTS (codes 0–14); LTE has codes 0–11, NR codes 0–13. A single enum code has different duration by RAT. See TS 32.422 §5.10.5 for LTE/NR duration mapping.",
+    "ratItems": {
+      "UMTS": {
+        "0": "250 ms",
+        "1": "500 ms",
+        "2": "1000 ms",
+        "3": "2000 ms",
+        "4": "3000 ms",
+        "5": "4000 ms",
+        "6": "6000 ms",
+        "7": "8000 ms",
+        "8": "12000 ms",
+        "9": "16000 ms",
+        "10": "20000 ms",
+        "11": "24000 ms",
+        "12": "28000 ms",
+        "13": "32000 ms",
+        "14": "64000 ms"
+      },
+      "LTE": {
+        "0": "120 ms",
+        "1": "240 ms",
+        "2": "480 ms",
+        "3": "640 ms",
+        "4": "1024 ms",
+        "5": "2048 ms",
+        "6": "5120 ms",
+        "7": "10240 ms",
+        "8": "1 min",
+        "9": "6 min",
+        "10": "12 min",
+        "11": "30 min"
+      },
+      "NR": {
+        "0": "120 ms",
+        "1": "240 ms",
+        "2": "480 ms",
+        "3": "640 ms",
+        "4": "1024 ms",
+        "5": "2048 ms",
+        "6": "5120 ms",
+        "7": "10240 ms",
+        "8": "20480 ms",
+        "9": "40960 ms",
+        "10": "1 min",
+        "11": "6 min",
+        "12": "12 min",
+        "13": "30 min"
+      }
+    },
+    "code": 1627,
+    "type": "Enumerated"
+  },
+  "Report-Amount": {
+    "items": {
+      "0": "1",
+      "1": "2",
+      "2": "4",
+      "3": "8",
+      "4": "16",
+      "5": "32",
+      "6": "64",
+      "7": "infinity"
+    },
+    "source": "TS 29.272 V19.6.0 §7.3.142; TS 32.422 V20.3.0 §5.10.6.2–5.10.6.12",
+    "notes": "",
+    "code": 1628,
+    "type": "Enumerated"
+  },
+  "Logging-Interval": {
+    "items": {
+      "0": "1280 ms",
+      "1": "2560 ms",
+      "2": "5120 ms",
+      "3": "10240 ms",
+      "4": "20480 ms",
+      "5": "30720 ms",
+      "6": "40960 ms",
+      "7": "61440 ms",
+      "8": "320 ms",
+      "9": "640 ms",
+      "10": "Infinity"
+    },
+    "source": "TS 29.272 V19.6.0 §7.3.145; TS 32.422 V20.3.0 §5.10.8",
+    "notes": "Codes 8–10 apply to NR only.",
+    "ratItems": {
+      "UMTS/LTE": {
+        "0": "1280 ms",
+        "1": "2560 ms",
+        "2": "5120 ms",
+        "3": "10240 ms",
+        "4": "20480 ms",
+        "5": "30720 ms",
+        "6": "40960 ms",
+        "7": "61440 ms"
+      },
+      "NR": {
+        "0": "1280 ms",
+        "1": "2560 ms",
+        "2": "5120 ms",
+        "3": "10240 ms",
+        "4": "20480 ms",
+        "5": "30720 ms",
+        "6": "40960 ms",
+        "7": "61440 ms",
+        "8": "320 ms",
+        "9": "640 ms",
+        "10": "Infinity"
+      }
+    },
+    "code": 1631,
+    "type": "Enumerated"
+  },
+  "Logging-Duration": {
+    "items": {
+      "0": "600 sec",
+      "1": "1200 sec",
+      "2": "2400 sec",
+      "3": "3600 sec",
+      "4": "5400 sec",
+      "5": "7200 sec"
+    },
+    "source": "TS 29.272 V19.6.0 §7.3.146; TS 32.422 V20.3.0 §5.10.9",
+    "notes": "",
+    "code": 1632,
+    "type": "Enumerated"
+  },
+  "Relay-Node-Indicator": {
+    "items": {
+      "0": "NOT_RELAY_NODE",
+      "1": "RELAY_NODE"
+    },
+    "source": "TS 29.272 V19.6.0 §7.3.147",
+    "code": 1633,
+    "type": "Enumerated"
+  },
+  "MDT-User-Consent": {
+    "items": {
+      "0": "CONSENT_NOT_GIVEN",
+      "1": "CONSENT_GIVEN"
+    },
+    "source": "TS 29.272 V19.6.0 §7.3.148",
+    "code": 1634,
+    "type": "Enumerated"
+  },
+  "Subscribed-VSRVCC": {
+    "items": {
+      "0": "VSRVCC_SUBSCRIBED"
+    },
+    "source": "TS 29.272 V19.6.0 §7.3.150",
+    "code": 1636,
+    "type": "Enumerated"
+  },
+  "SMS-Register-Request": {
+    "items": {
+      "0": "SMS_REGISTRATION_REQUIRED",
+      "1": "SMS_REGISTRATION_NOT_PREFERRED",
+      "2": "NO_PREFERENCE"
+    },
+    "source": "TS 29.272 V19.6.0 §7.3.162",
+    "code": 1648,
+    "type": "Enumerated"
+  },
+  "Daylight-Saving-Time": {
+    "items": {
+      "0": "NO_ADJUSTMENT",
+      "1": "PLUS_ONE_HOUR_ADJUSTMENT",
+      "2": "PLUS_TWO_HOURS_ADJUSTMENT"
+    },
+    "source": "TS 29.272 V19.6.0 §7.3.164",
+    "code": 1650,
+    "type": "Enumerated"
+  },
+  "Measurement-Period-LTE": {
+    "items": {
+      "0": "1024 ms",
+      "2": "2048 ms",
+      "4": "5120 ms",
+      "5": "10240 ms",
+      "6": "1 min"
+    },
+    "source": "TS 29.272 V19.6.0 §7.3.166; TS 32.422 V20.3.0 §5.10.23",
+    "notes": "Noncontiguous code values are explicit in TS 32.422.",
+    "code": 1655,
+    "type": "Enumerated"
+  },
+  "Measurement-Period-UMTS": {
+    "items": {
+      "0": "1000 ms",
+      "1": "2000 ms",
+      "2": "3000 ms",
+      "3": "4000 ms",
+      "4": "6000 ms",
+      "5": "8000 ms",
+      "6": "12000 ms",
+      "7": "16000 ms",
+      "8": "20000 ms",
+      "9": "24000 ms",
+      "10": "28000 ms",
+      "11": "32000 ms",
+      "12": "64000 ms"
+    },
+    "source": "TS 29.272 V19.6.0 §7.3.167; TS 32.422 V20.3.0 §5.10.22",
+    "notes": "",
+    "code": 1656,
+    "type": "Enumerated"
+  },
+  "Collection-Period-RRM-LTE": {
+    "items": {
+      "0": "100 ms",
+      "1": "1000 ms",
+      "2": "1024 ms",
+      "3": "1280 ms",
+      "4": "2048 ms",
+      "5": "2560 ms",
+      "6": "5120 ms",
+      "7": "10000 ms",
+      "8": "10240 ms",
+      "9": "1 min"
+    },
+    "source": "TS 29.272 V19.6.0 §7.3.168; TS 32.422 V20.3.0 §5.10.20",
+    "notes": "",
+    "code": 1657,
+    "type": "Enumerated"
+  },
+  "Collection-Period-RRM-UMTS": {
+    "items": {
+      "0": "100 ms",
+      "1": "250 ms",
+      "2": "500 ms",
+      "3": "1000 ms",
+      "4": "2000 ms",
+      "5": "3000 ms",
+      "6": "4000 ms",
+      "7": "6000 ms"
+    },
+    "source": "TS 29.272 V19.6.0 §7.3.169; TS 32.422 V20.3.0 §5.10.21",
+    "notes": "",
+    "code": 1658,
+    "type": "Enumerated"
+  },
+  "Non-IP-PDN-Type-Indicator": {
+    "items": {
+      "0": "FALSE",
+      "1": "TRUE"
+    },
+    "source": "TS 29.272 V19.6.0 §7.3.204",
+    "code": 1681,
+    "type": "Enumerated"
+  },
+  "RDS-Indicator": {
+    "items": {
+      "0": "DISABLED",
+      "1": "ENABLED"
+    },
+    "source": "TS 29.272 V19.6.0 §7.3.222",
+    "code": 1697,
+    "type": "Enumerated"
+  },
+  "Interworking-5GS-Indicator": {
+    "items": {
+      "0": "NOT-SUBSCRIBED",
+      "1": "SUBSCRIBED"
+    },
+    "source": "TS 29.272 V19.6.0 §7.3.231",
+    "code": 1706,
+    "type": "Enumerated"
+  },
+  "Ethernet-PDN-Type-Indicator": {
+    "items": {
+      "0": "FALSE",
+      "1": "TRUE"
+    },
+    "source": "TS 29.272 V19.6.0 §7.3.232",
+    "code": 1707,
+    "type": "Enumerated"
+  },
+  "IAB-Operation-Permission": {
+    "items": {
+      "0": "IAB_OPERATION_ALLOWED",
+      "1": "IAB_OPERATION_NOTALLOWED"
+    },
+    "source": "TS 29.272 V19.6.0 §7.3.234",
+    "code": 1709,
+    "type": "Enumerated"
+  },
+  "Collection-Period-RRM-NR": {
+    "items": {
+      "0": "1024 ms",
+      "1": "2048 ms",
+      "2": "5120 ms",
+      "3": "10240 ms",
+      "4": "60000 ms"
+    },
+    "source": "TS 29.272 V19.6.0 §7.3.247; TS 32.422 V20.3.0 §5.10.30",
+    "notes": "",
+    "code": 1722,
+    "type": "Enumerated"
+  },
+  "Collection-Period-M6-NR": {
+    "items": {
+      "0": "120 ms",
+      "1": "240 ms",
+      "2": "480 ms",
+      "3": "640 ms",
+      "4": "1024 ms",
+      "5": "2048 ms",
+      "6": "5120 ms",
+      "7": "10240 ms",
+      "8": "20480 ms",
+      "9": "40960 ms",
+      "10": "1 min",
+      "11": "6 min",
+      "12": "12 min",
+      "13": "30 min"
+    },
+    "source": "TS 29.272 V19.6.0 §7.3.248; TS 32.422 V20.3.0 §5.10.34",
+    "notes": "",
+    "code": 1723,
+    "type": "Enumerated"
+  },
+  "Sensor-Measurement": {
+    "items": {
+      "0": "BAROMETRIC_PRESSURE",
+      "1": "UE_SPEED",
+      "2": "UE_ORIENTATION"
+    },
+    "source": "TS 29.272 V19.6.0 §7.3.250; TS 32.422 V20.3.0 §5.10.29",
+    "code": 1725,
+    "type": "Enumerated"
+  },
+  "SF-Provisional-Indication": {
+    "items": {
+      "0": "PROVISIONAL_ULR"
+    },
+    "source": "TS 29.272 V19.6.0 §7.3.255",
+    "code": 1730,
+    "type": "Enumerated"
+  },
+  "QoS-Class-Identifier": {
+    "items": {
+      "1": "QCI_1",
+      "2": "QCI_2",
+      "3": "QCI_3",
+      "4": "QCI_4",
+      "5": "QCI_5",
+      "6": "QCI_6",
+      "7": "QCI_7",
+      "8": "QCI_8",
+      "9": "QCI_9",
+      "65": "QCI_65",
+      "66": "QCI_66",
+      "67": "QCI_67",
+      "69": "QCI_69",
+      "70": "QCI_70",
+      "71": "QCI_71",
+      "72": "QCI_72",
+      "73": "QCI_73",
+      "74": "QCI_74",
+      "75": "QCI_75",
+      "76": "QCI_76",
+      "79": "QCI_79",
+      "80": "QCI_80",
+      "82": "QCI_82",
+      "83": "QCI_83",
+      "84": "QCI_84",
+      "85": "QCI_85"
+    },
+    "source": "TS 29.212 V20.0.0 §5.3.17; reused in TS 29.272 V19.6.0 Table 7.3.1/2",
+    "notes": "Underlying AVP type is Enumerated.",
+    "code": 1028,
+    "type": "Enumerated"
+  },
+  "RAT-Type": {
+    "items": {
+      "0": "WLAN",
+      "1": "VIRTUAL",
+      "2": "TRUSTED- N3GA",
+      "3": "WIRELINE",
+      "4": "WIRELINE-CABLE",
+      "5": "WIRELINE-BBF",
+      "1000": "UTRAN",
+      "1001": "GERAN",
+      "1002": "GAN",
+      "1003": "HSPA_EVOLUTION",
+      "1004": "EUTRAN",
+      "1005": "EUTRAN-NB-IoT",
+      "1006": "NR",
+      "1007": "LTE-M",
+      "1008": "NR-U",
+      "1011": "EUTRAN(LEO)",
+      "1012": "EUTRAN(MEO)",
+      "1013": "EUTRAN(GEO)",
+      "1014": "EUTRAN(OTHERSAT)",
+      "1021": "EUTRAN-NB-IoT(LEO)",
+      "1022": "EUTRAN-NB-IoT(MEO)",
+      "1023": "EUTRAN-NB-IoT(GEO)",
+      "1024": "EUTRAN-NB-IoT(OTHERSAT)",
+      "1031": "LTE-M(LEO)",
+      "1032": "LTE-M(MEO)",
+      "1033": "LTE-M(GEO)",
+      "1034": "LTE-M(OTHERSAT)",
+      "1035": "NR(LEO)",
+      "1036": "NR(MEO)",
+      "1037": "NR(GEO)",
+      "1038": "NR(OTHERSAT)",
+      "1039": "NR-REDCAP",
+      "1040": "NR-EREDCAP",
+      "2000": "CDMA2000_1X",
+      "2001": "HRPD",
+      "2002": "UMB",
+      "2003": "EHRPD"
+    },
+    "source": "TS 29.212 V20.0.0 §5.3.31; reused in TS 29.272 V19.6.0 Table 7.3.1/2",
+    "notes": "Underlying AVP type is Enumerated.",
+    "code": 1032,
+    "type": "Enumerated"
+  },
+  "Pre-emption-Capability": {
+    "items": {
+      "0": "PRE-EMPTION_CAPABILITY_ENABLED",
+      "1": "PRE-EMPTION_CAPABILITY_DISABLED"
+    },
+    "source": "TS 29.212 V20.0.0 §5.3.46; reused in TS 29.272 V19.6.0 Table 7.3.1/2",
+    "notes": "Underlying AVP type is Enumerated.",
+    "code": 1047,
+    "type": "Enumerated"
+  },
+  "Pre-emption-Vulnerability": {
+    "items": {
+      "0": "PRE-EMPTION_VULNERABILITY_ENABLED",
+      "1": "PRE-EMPTION_VULNERABILITY_DISABLED"
+    },
+    "source": "TS 29.212 V20.0.0 §5.3.47; reused in TS 29.272 V19.6.0 Table 7.3.1/2",
+    "notes": "Underlying AVP type is Enumerated.",
+    "code": 1048,
+    "type": "Enumerated"
+  },
+  "CSG-Access-Mode": {
+    "items": {
+      "0": "Closed mode",
+      "1": "Hybrid Mode"
+    },
+    "source": "TS 32.299 V19.0.0 §7.2.46A; transitive via User-CSG-Information reused in TS 29.272 V19.6.0 Table 7.3.1/2",
+    "code": 2317,
+    "type": "Enumerated"
+  },
+  "CSG-Membership-Indication": {
+    "items": {
+      "0": "Not CSG member",
+      "1": "CSG Member"
+    },
+    "source": "TS 32.299 V19.0.0 §7.2.46B; transitive via User-CSG-Information reused in TS 29.272 V19.6.0 Table 7.3.1/2",
+    "code": 2318,
+    "type": "Enumerated"
+  }
+}
