@@ -9,6 +9,8 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/gomaja/go-diameter/diam/avp"
+
 	"github.com/gomaja/go-diameter/diam/dict"
 )
 
@@ -128,6 +130,10 @@ func TestDecodeAVPsRejectsMissingPadding(t *testing.T) {
 }
 
 func FuzzReadMessage(f *testing.F) {
+	for _, payload := range payloadFailureSeeds() {
+		f.Add(append(testMessageHeader(1, uint32(HeaderLength+len(payload)), RequestFlag), payload...))
+		f.Add(append(testMessageHeader(1, uint32(HeaderLength+len(payload)), 0), payload...))
+	}
 	f.Add(testMessage)
 	f.Add(testMessageWithVendorID)
 	f.Add(testMismatchMessage)
@@ -155,6 +161,9 @@ func FuzzReadMessage(f *testing.F) {
 }
 
 func FuzzDecodeGroupedFromBytes(f *testing.F) {
+	for _, payload := range payloadFailureSeeds() {
+		f.Add(payload)
+	}
 	f.Add(testGroupedAVP[8:])
 	f.Add([]byte{
 		0x00, 0x00, 0x01, 0x08,
@@ -166,4 +175,15 @@ func FuzzDecodeGroupedFromBytes(f *testing.F) {
 	f.Fuzz(func(t *testing.T, payload []byte) {
 		_, _ = DecodeGroupedFromBytes(payload, 0, dict.Default)
 	})
+}
+
+func payloadFailureSeeds() [][]byte {
+	length := rawAVP(avp.InbandSecurityID, []byte{1, 2})
+	value := rawAVP(avp.HostIPAddress, []byte{255, 255, 1})
+	nested := rawAVP(avp.VendorSpecificApplicationID, append(append([]byte(nil), value...), length...))
+	deep := rawAVP(avp.OriginHost, []byte("peer.example"))
+	for range dict.DefaultMaxGroupedDepth + 1 {
+		deep = rawAVP(avp.VendorSpecificApplicationID, deep)
+	}
+	return [][]byte{length, value, nested, deep, rawAVP(avp.FailedAVP, length), rawAVP(avp.FailedAVP, value), rawAVP(avp.FailedAVP, nested), rawAVP(avp.FailedAVP, deep)}
 }

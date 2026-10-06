@@ -171,11 +171,16 @@ func TestCERMalformedInbandSecurityReturnsFailedAVP(t *testing.T) {
 	if err != nil {
 		t.Fatalf("missing Failed-AVP: %v", err)
 	}
-	// The non-Strict dictionary preserves the malformed child as raw wire
-	// bytes; the single Failed-AVP must contain exactly that child.
-	data, ok := failed.Data.(datatype.Unknown)
-	if !ok || !bytes.Equal(data, raw) {
-		t.Fatalf("Failed-AVP = %v", failed)
+	// The single Failed-AVP must contain exactly the malformed child as it
+	// was received. Failed-AVP members decode leniently (RFC 6733 §7.5), so
+	// the child keeps its 2-byte payload as datatype.Unknown.
+	group, ok := failed.Data.(*diam.GroupedAVP)
+	if !ok || len(group.AVP) != 1 {
+		t.Fatalf("Failed-AVP = %v, want one member", failed)
+	}
+	child, err := group.AVP[0].Serialize()
+	if err != nil || !bytes.Equal(child, raw) {
+		t.Fatalf("Failed-AVP member = % x (%v), want % x", child, err, raw)
 	}
 	count := 0
 	for _, a := range answer.AVP {

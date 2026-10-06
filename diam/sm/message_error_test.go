@@ -115,6 +115,13 @@ func TestStateMachineContinuesAfterInvalidAVPLength(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _ = conn.Close() }()
+	if err := conn.SetDeadline(time.Now().Add(3 * time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	writeValidSMErrorCER(t, conn)
+	if cea, err := diam.ReadMessage(conn, dict.Default); err != nil || !testResultCode(cea, diam.Success) {
+		t.Fatalf("initial CEA = %v, %v", cea, err)
+	}
 
 	malformed := testSMErrorMessage(t, diam.RequestFlag, []byte{
 		0x00, 0x00, 0x01, 0x02,
@@ -127,13 +134,46 @@ func TestStateMachineContinuesAfterInvalidAVPLength(t *testing.T) {
 	}
 	assertMessageErrorAnswer(t, answer, settings, diam.InvalidAVPLength, 0, true)
 
-	writeValidSMErrorCER(t, conn)
-	cea, err := diam.ReadMessage(conn, dict.Default)
-	if err != nil {
-		t.Fatalf("read CEA after handled message error: %v", err)
+	// An admitted peer keeps its connection after a handled message error.
+	if _, err := regressionDWR(t).WriteTo(conn); err != nil {
+		t.Fatal(err)
 	}
-	if !testResultCode(cea, diam.Success) {
-		t.Fatalf("CEA after handled message error has wrong result:\n%s", cea)
+	dwa, err := diam.ReadMessage(conn, dict.Default)
+	if err != nil || dwa.Header.CommandCode != diam.DeviceWatchdog || !testResultCode(dwa, diam.Success) {
+		t.Fatalf("DWA after handled message error = %v, %v", dwa, err)
+	}
+}
+
+// TestStateMachineClosesAfterRejectedCER checks RFC 6733 §§5.3 and 5.6.1: a
+// CER answered with an error admits no peer, and the connection closes.
+func TestStateMachineClosesAfterRejectedCER(t *testing.T) {
+	settings := testMessageErrorSettings()
+	stateMachine := New(settings)
+	server := diamtest.NewServer(stateMachine, dict.Default)
+	defer server.Close()
+
+	conn, err := net.DialTimeout("tcp", server.Addr, time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = conn.Close() }()
+	if err := conn.SetDeadline(time.Now().Add(3 * time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	malformed := testSMErrorMessage(t, diam.RequestFlag, []byte{
+		0x00, 0x00, 0x01, 0x02,
+		avp.Mbit, 0xff, 0xff, 0xff,
+	})
+	writeSMErrorWire(t, conn, malformed)
+	answer, err := diam.ReadMessage(conn, dict.Default)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertMessageErrorAnswer(t, answer, settings, diam.InvalidAVPLength, 0, true)
+	if extra, err := diam.ReadMessage(conn, dict.Default); err == nil {
+		t.Fatalf("connection stayed open after the rejected CER: %v", extra)
+	} else if !errors.Is(err, io.EOF) {
+		t.Fatalf("read after the rejected CER: %v, want EOF", err)
 	}
 }
 

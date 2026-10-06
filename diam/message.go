@@ -12,7 +12,6 @@ import (
 	"io"
 	"math/rand"
 	"net"
-	"strings"
 	"sync"
 
 	"github.com/gomaja/go-diameter/diam/avp"
@@ -116,7 +115,11 @@ func readerBufferSlice(buf *bytes.Buffer, l int) []byte {
 }
 
 // ReadMessage reads a binary stream from the reader and uses the given
-// dictionary to parse it.
+// dictionary to parse it. With a strict dictionary, recoverable AVP payload
+// failures in requests return the decoded message and a non-fatal MessageError (5014 for
+// invalid lengths, 5004 for invalid values; RFC 6733 §7.1.5). A non-strict
+// dictionary leaves the failure in Message.DecodeErr and returns no error.
+// Strict answers with payload failures outside Failed-AVP return Message.DecodeErr.
 func ReadMessage(reader io.Reader, dictionary *dict.Parser) (*Message, error) {
 	buf := newReaderBuffer()
 	// Safe to pool: the built-in datatype decoders copy their bytes, and an
@@ -135,7 +138,15 @@ func ReadMessage(reader io.Reader, dictionary *dict.Parser) (*Message, error) {
 	if err = m.readBody(reader, buf, cmd, stream); err != nil {
 		return m, err
 	}
-	if dictionary.Strict {
+	if dictionary.Strict && m.DecodeErr != nil {
+		var decodeErr *avpDecodeError
+		if m.Header.CommandFlags&RequestFlag != 0 && errors.As(m.DecodeErr, &decodeErr) {
+			return m, &MessageError{
+				ResultCode: decodeErr.resultCode,
+				FailedAVP:  decodeErr.failedAVP,
+				Err:        m.DecodeErr,
+			}
+		}
 		return m, m.DecodeErr
 	}
 	return m, nil
@@ -214,7 +225,7 @@ func (m *Message) maxAVPsFor(cmd *dict.Command) int {
 
 func (m *Message) decodeAVPs(b []byte) error {
 	var a *AVP
-	var decodeErrs []string
+	var decodeErrs *decodeErrors
 	var err error
 	for n := 0; n < len(b); {
 		a, err = DecodeAVP(b[n:], m.Header.ApplicationID, m.Dictionary())
@@ -232,7 +243,7 @@ func (m *Message) decodeAVPs(b []byte) error {
 			if a.Data == nil {
 				return err
 			}
-			decodeErrs = append(decodeErrs, err.Error())
+			decodeErrs = decodeErrs.add(err)
 		}
 		advance := a.Len()
 		// RFC 6733 section 4.1 requires the next AVP to begin on a 32-bit
@@ -253,9 +264,9 @@ func (m *Message) decodeAVPs(b []byte) error {
 		}
 		n += advance
 	}
-	if len(decodeErrs) > 0 {
+	if decodeErrs != nil {
 		// Depending on the settings, this will be thrown by the state machine or passed to the best handler
-		m.DecodeErr = fmt.Errorf("failed to decode one or more AVPs: {%s}", strings.Join(decodeErrs, "; "))
+		m.DecodeErr = fmt.Errorf("failed to decode one or more AVPs: {%w}", decodeErrs)
 	}
 	return nil
 }

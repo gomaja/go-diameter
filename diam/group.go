@@ -8,7 +8,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/dict"
@@ -32,7 +31,7 @@ func DecodeGrouped(data datatype.Grouped, application uint32, dictionary *dict.P
 // avoiding the intermediate datatype.Grouped copy. b is the payload of a
 // Grouped AVP at level 1; nesting is limited as described for DecodeAVP.
 func DecodeGroupedFromBytes(b []byte, application uint32, dictionary *dict.Parser) (*GroupedAVP, error) {
-	g, err := decodeGroupedFromBytes(b, application, dictionary, 1)
+	g, err := decodeGroupedFromBytes(b, application, dictionary, 1, false)
 	if err != nil {
 		// The members are returned to the caller, so the fallback bytes of
 		// the ones that failed must not alias b.
@@ -45,17 +44,25 @@ func DecodeGroupedFromBytes(b []byte, application uint32, dictionary *dict.Parse
 
 // decodeGroupedFromBytes decodes the payload of a Grouped AVP whose members
 // are enclosed by depth Grouped AVPs.
-func decodeGroupedFromBytes(b []byte, application uint32, dictionary *dict.Parser, depth int) (*GroupedAVP, error) {
+func decodeGroupedFromBytes(b []byte, application uint32, dictionary *dict.Parser, depth int, failedAVP bool) (*GroupedAVP, error) {
 	g := &GroupedAVP{}
-	var errs []string
+	var errs *decodeErrors
 	for n := 0; n < len(b); {
-		a, err := decodeAVP(b[n:], application, dictionary, depth)
+		a, err := decodeAVP(b[n:], application, dictionary, depth, failedAVP)
 		if err != nil {
 			var lengthErr *avpLengthError
 			if errors.As(err, &lengthErr) {
 				return g, lengthErr
 			}
-			errs = append(errs, err.Error())
+			var decodeErr *avpDecodeError
+			if failedAVP && errors.As(err, &decodeErr) && !errors.Is(err, errGroupedTooDeep) {
+				// RFC 6733 §7.5: this member is evidence of a failed AVP,
+				// not a failure of the containing message. It now escapes
+				// the decoder, so its fallback must own the payload.
+				ownAVPData(a)
+			} else {
+				errs = errs.add(err)
+			}
 			if a.Data == nil {
 				// Fatal decode error (e.g., truncated sub-AVP header): remaining
 				// bytes cannot form a valid sub-AVP. Break so the caller detects
@@ -75,8 +82,8 @@ func decodeGroupedFromBytes(b []byte, application uint32, dictionary *dict.Parse
 		g.AVP = append(g.AVP, a)
 		n += advance
 	}
-	if len(errs) > 0 {
-		return g, fmt.Errorf("%s", strings.Join(errs, "; "))
+	if errs != nil {
+		return g, errs
 	}
 	return g, nil
 }
