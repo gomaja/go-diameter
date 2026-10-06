@@ -474,10 +474,12 @@
 			</data>
 		</avp>
 
-		<!-- IETF RFC 7683 - https://www.rfc-editor.org/rfc/rfc7683 -->
+		<!-- RFC 7683 §7.1 as updated by RFC 8581 §7.1. -->
 		<avp name="OC-Supported-Features" code="621" must-not="V">
 			<data type="Grouped">
-				<rule avp="OC-Feature-Vector" required="false"/>
+				<rule avp="OC-Feature-Vector" required="false" max="1"/>
+				<rule avp="SourceID" required="false" max="1"/>
+				<rule avp="OC-Peer-Algo" required="false" max="1"/>
 				<rule avp="AVP" required="false"/>
 			</data>
 		</avp>
@@ -486,12 +488,14 @@
 			<data type="Unsigned64"/>
 		</avp>
 
+		<!-- RFC 7683 §7.3 as updated by RFC 8581 §7.2. -->
 		<avp name="OC-OLR" code="623" must-not="V">
 			<data type="Grouped">
-				<rule avp="OC-Sequence-Number" required="true" max="1"/>
-				<rule avp="OC-Report-Type" required="true" max="1"/>
+				<rule avp="OC-Sequence-Number" required="true" max="1" fixed="true"/>
+				<rule avp="OC-Report-Type" required="true" max="1" fixed="true"/>
 				<rule avp="OC-Reduction-Percentage" required="false" max="1"/>
 				<rule avp="OC-Validity-Duration" required="false" max="1"/>
+				<rule avp="SourceID" required="false" max="1"/>
 				<rule avp="AVP" required="false"/>
 			</data>
 		</avp>
@@ -504,10 +508,12 @@
 			<data type="Unsigned32"/>
 		</avp>
 
+		<!-- RFC 7683 §7.6 and RFC 8581 §7.2.1. -->
 		<avp name="OC-Report-Type" code="626" must-not="V">
 			<data type="Enumerated">
 				<item code="0" name="HOST_REPORT"/>
 				<item code="1" name="REALM_REPORT"/>
+				<item code="2" name="PEER_REPORT"/>
 			</data>
 		</avp>
 
@@ -537,6 +543,31 @@
 			</data>
 		</avp>
 
+
+		<!-- RFC 8583 §§7.1-7.5 and RFC 8581 §§7.1.2, 7.4. -->
+		<avp name="Load" code="650" vendor-id="0" must="" may="" must-not="V" may-encrypt="N">
+			<data type="Grouped">
+				<rule avp="Load-Type" required="false" max="1"/>
+				<rule avp="Load-Value" required="false" max="1"/>
+				<rule avp="SourceID" required="false" max="1"/>
+				<rule avp="AVP" required="false"/>
+			</data>
+		</avp>
+		<avp name="Load-Type" code="651" vendor-id="0" must="" may="" must-not="V" may-encrypt="N">
+			<data type="Enumerated">
+				<item code="0" name="HOST"/>
+				<item code="1" name="PEER"/>
+			</data>
+		</avp>
+		<avp name="Load-Value" code="652" vendor-id="0" must="" may="" must-not="V" may-encrypt="N">
+			<data type="Unsigned64"/>
+		</avp>
+		<avp name="SourceID" code="649" vendor-id="0" must="" may="" must-not="V" may-encrypt="N">
+			<data type="DiameterIdentity"/>
+		</avp>
+		<avp name="OC-Peer-Algo" code="648" vendor-id="0" must="" may="" must-not="V" may-encrypt="N">
+			<data type="Unsigned64"/>
+		</avp>
 
 	</application>
 	<application id="3" type="acct" name="Base Accounting"> <!-- Diameter Base Accounting Messages -->

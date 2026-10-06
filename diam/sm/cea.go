@@ -5,27 +5,34 @@
 package sm
 
 import (
+	"context"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/sm/smparser"
 	"github.com/gomaja/go-diameter/diam/sm/smpeer"
 )
 
 // handleCEA handles Capabilities-Exchange-Answer messages.
-func handleCEA(sm *StateMachine, errc chan error) diam.HandlerFunc {
+func handleCEA(sm *StateMachine, activity *watchdogActivity) diam.HandlerFunc {
 	return func(c diam.Conn, m *diam.Message) {
 		cea := new(smparser.CEA)
-		if err := cea.Parse(m, smparser.Client); err != nil {
-			errc <- err
+		if err := cea.ParseWithApplicationIDs(m, smparser.Client, activity.advertised); err != nil {
+			activity.ceac <- err
 			return
 		}
 		meta := smpeer.FromCEA(cea)
-		c.SetContext(smpeer.NewContext(c.Context(), meta))
+		ctx := c.Context()
+		if ctx == nil {
+			ctx = context.Background()
+		}
+		ctx = context.WithValue(ctx, advertisedAppsKey{}, activity.advertised)
+		c.SetContext(smpeer.NewContext(ctx, meta))
 		// Notify about peer passing the handshake.
 		select {
 		case sm.hsNotifyc <- c:
 		default:
 		}
 		// Done receiving and validating this CEA.
-		close(errc)
+		close(activity.ceac)
 	}
 }

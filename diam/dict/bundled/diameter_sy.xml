@@ -2,6 +2,8 @@
 <diameter>
 
 	<application id="16777302" type="auth" name="Diameter Sy">
+		<!-- 3GPP TS 29.219 V19.0.0 §5.1.5: Sy application author. -->
+		<vendor id="10415" name="TGPP"/>
 		<!-- Diameter Credit Control Application -->
 		<!-- https://www.rfc-editor.org/rfc/rfc8506 -->
 

@@ -60,7 +60,10 @@ const (
 	AlertReason                                = 1434
 	AllAPNConfigurationsIncludedIndicator      = 1428
 	AllocationRetentionPriority                = 1034
+	AllowedWAFWWSFIdentities                   = 656
 	AlternateChargedPartyAddress               = 1280
+	AlternateDigestAlgorithm                   = 662
+	AlternateDigestHA1                         = 663
 	AMBR                                       = 1435
 	ANGWAddress                                = 1050
 	ANID                                       = 1504
@@ -93,7 +96,10 @@ const (
 	ARAPSecurity                               = 73
 	ARAPSecurityData                           = 74
 	ARAPZoneAccess                             = 72
+	ASNumber                                   = 722
+	AssociatedIdentities                       = 632
 	AssociatedPartyAddress                     = 2035
+	AssociatedRegisteredIdentities             = 647
 	AssociatedURI                              = 856
 	AuthApplicationID                          = 258
 	AuthenticationInfo                         = 1413
@@ -118,8 +124,11 @@ const (
 	CalledPartyAddress                         = 832
 	CalledStationID                            = 30
 	CalleeInformation                          = 565
+	CallIDSIPHeader                            = 643
 	CallingPartyAddress                        = 831
 	CallingStationID                           = 31
+	CallReferenceInfo                          = 720
+	CallReferenceNumber                        = 721
 	CancellationType                           = 1420
 	CarrierSelectRoutingInformation            = 2023
 	CauseCode                                  = 861
@@ -147,6 +156,7 @@ const (
 	ChargedParty                               = 857
 	ChargeReasonCode                           = 2118
 	ChargingCharacteristicsSelectionMode       = 2066
+	ChargingInformation                        = 618
 	ChargingRuleBaseName                       = 1004
 	ChargingRuleDefinition                     = 1003
 	ChargingRuleInstall                        = 1001
@@ -166,6 +176,7 @@ const (
 	ConfidentialityKey                         = 625
 	ConfigurationToken                         = 78
 	ConnectInfo                                = 77
+	Contact                                    = 641
 	ContentClass                               = 1220
 	ContentDisposition                         = 828
 	ContentID                                  = 2116
@@ -185,9 +196,11 @@ const (
 	CSGSubscriptionData                        = 1436
 	CUGInformation                             = 2304
 	CurrencyCode                               = 425
+	CurrentLocation                            = 707
 	CurrentLocationRetrieved                   = 1610
 	CurrentTariff                              = 2056
 	DataCodingScheme                           = 2001
+	DataReference                              = 703
 	DaylightSavingTime                         = 1650
 	DCDInformation                             = 2115
 	DefaultEPSBearerQoS                        = 1049
@@ -202,6 +215,10 @@ const (
 	DestinationRealm                           = 283
 	DestinationSIPURI                          = 3327
 	Diagnostics                                = 2039
+	DigestAlgorithm                            = 111
+	DigestHA1                                  = 121
+	DigestQop                                  = 110
+	DigestRealm                                = 104
 	DirectDebitingFailureHandling              = 428
 	DisconnectCause                            = 273
 	DLBufferingSuggestedPacketCount            = 1674
@@ -209,6 +226,7 @@ const (
 	DRMContent                                 = 1221
 	DRMP                                       = 301
 	DSAFlags                                   = 1422
+	DSAITag                                    = 711
 	DSRFlags                                   = 1421
 	DynamicAddressFlag                         = 2051
 	DynamicAddressFlagExtension                = 2068
@@ -240,6 +258,7 @@ const (
 	ExperimentalResultCode                     = 298
 	ExpirationDate                             = 1439
 	Expires                                    = 888
+	ExpiryTime                                 = 709
 	Exponent                                   = 429
 	ExtendedAPNAMBRDL                          = 2848
 	ExtendedAPNAMBRUL                          = 2849
@@ -259,6 +278,7 @@ const (
 	ExtPDPAddress                              = 1621
 	ExtPDPType                                 = 1620
 	FailedAVP                                  = 279
+	FailedPCSCF                                = 664
 	FeatureList                                = 630
 	FeatureListID                              = 629
 	FileRepairSupported                        = 1224
@@ -295,6 +315,7 @@ const (
 	FramedRoute                                = 22
 	FramedRouting                              = 10
 	FromAddress                                = 2708
+	FromSIPHeader                              = 644
 	GCSIdentifier                              = 538
 	GeodeticInformation                        = 1609
 	GeographicalInformation                    = 1608
@@ -317,6 +338,8 @@ const (
 	HSSID                                      = 3325
 	ICSIndicator                               = 1491
 	IDAFlags                                   = 1441
+	IdentitySet                                = 708
+	IdentitywithEmergencyRegistration          = 651
 	IdleStatusIndication                       = 4322
 	IdleStatusTimestamp                        = 4323
 	IdleTimeout                                = 28
@@ -337,6 +360,7 @@ const (
 	InbandSecurityID                           = 299
 	IncomingTrunkGroupID                       = 852
 	IncrementalCost                            = 2062
+	InitialCSeqSequenceNumber                  = 654
 	InitialIMSChargingIdentifier               = 2321
 	InstanceID                                 = 3402
 	IntegrityKey                               = 626
@@ -377,6 +401,8 @@ const (
 	LCSPrivacyException                        = 1475
 	LCSRequestorID                             = 1239
 	LCSRequestorIDString                       = 1240
+	LIAFlags                                   = 653
+	LineIdentifier                             = 500
 	LineType                                   = 581
 	LIPAPermission                             = 1618
 	LMSI                                       = 2400
@@ -386,6 +412,7 @@ const (
 	LocalGWInsertedIndication                  = 2604
 	LocalSequenceNumber                        = 2063
 	LocalTimeZone                              = 1649
+	LocalTimeZoneIndication                    = 718
 	LocationAreaIdentity                       = 1606
 	LocationEstimate                           = 1242
 	LocationEstimateType                       = 1243
@@ -399,6 +426,7 @@ const (
 	LoginLATService                            = 34
 	LoginService                               = 15
 	LoginTCPPort                               = 16
+	LooseRouteIndication                       = 638
 	LossOfConnectivityReason                   = 3162
 	LowBalanceIndication                       = 2020
 	LowPriorityIndicator                       = 2602
@@ -471,6 +499,7 @@ const (
 	MSCSMDeliveryOutcome                       = 3318
 	MSISDN                                     = 701
 	MTCIWFAddress                              = 3406
+	MultipleRegistrationIndication             = 648
 	MultipleServicesCreditControl              = 456
 	MultipleServicesIndicator                  = 455
 	MultiRoundTimeOut                          = 272
@@ -516,7 +545,9 @@ const (
 	NumberPortabilityRoutingInformation        = 2024
 	OCFeatureVector                            = 622
 	OCOLR                                      = 623
+	OCPeerAlgo                                 = 648
 	OCReductionPercentage                      = 627
+	OCRegTimerExt                              = 667
 	OCReportType                               = 626
 	OCSequenceNumber                           = 624
 	OCSupportedFeatures                        = 621
@@ -525,6 +556,7 @@ const (
 	OfflineCharging                            = 1278
 	OFRFlags                                   = 3328
 	OMCID                                      = 1466
+	OneTimeNotification                        = 712
 	Online                                     = 1009
 	OnlineChargingFlag                         = 2303
 	OperatorDeterminedBarring                  = 1425
@@ -532,6 +564,7 @@ const (
 	OriginAAAProtocol                          = 408
 	OriginatingIOI                             = 839
 	OriginatingLineInfo                        = 94
+	OriginatingRequest                         = 633
 	OriginatingSIPURI                          = 3326
 	Originator                                 = 864
 	OriginatorAddress                          = 886
@@ -550,6 +583,10 @@ const (
 	ParticipantGroup                           = 1260
 	ParticipantsInvolved                       = 887
 	PasswordRetry                              = 75
+	Path                                       = 640
+	PCSCFFQDN                                  = 665
+	PCSCFIPAddress                             = 666
+	PCSCFSubscriptionInfo                      = 660
 	PDNConnectionChargingID                    = 2050
 	PDNConnectivityStatusReport                = 3181
 	PDNConnectivityStatusType                  = 3182
@@ -583,14 +620,18 @@ const (
 	PreemptionControlInfo                      = 553
 	PreemptionVulnerability                    = 1048
 	PreferredAoCCurrency                       = 2315
+	PrepagingSupported                         = 717
 	PresenceReportingAreaElementsList          = 2820
 	PresenceReportingAreaIdentifier            = 2821
 	PresenceReportingAreaInformation           = 2822
 	PresenceReportingAreaStatus                = 2823
+	PrimaryChargingCollectionFunctionName      = 621
+	PrimaryEventChargingFunctionName           = 619
 	Priority                                   = 1209
 	PriorityIndication                         = 3006
 	PriorityLevel                              = 1046
 	PrioritySharingIndicator                   = 550
+	PriviledgedSenderIndication                = 652
 	ProductName                                = 269
 	Prompt                                     = 76
 	ProxyHost                                  = 280
@@ -601,6 +642,7 @@ const (
 	PSFurnishChargingInformation               = 865
 	PSInformation                              = 874
 	PUAFlags                                   = 1442
+	PublicIdentity                             = 601
 	PURFlags                                   = 1635
 	QoSClassIdentifier                         = 1028
 	QoSFilterRule                              = 407
@@ -631,6 +673,7 @@ const (
 	RecipientInfo                              = 2026
 	RecipientReceivedAddress                   = 2028
 	RecipientSCCPAddress                       = 2010
+	RecordRoute                                = 646
 	RedirectAddressIPAddress                   = 666
 	RedirectAddressSIPURI                      = 668
 	RedirectAddressType                        = 433
@@ -647,6 +690,7 @@ const (
 	ReferenceNumber                            = 3007
 	RefundInformation                          = 2022
 	RegionalSubscriptionZoneCode               = 1446
+	RegistrationTimeOut                        = 661
 	RelatedIMSChargingIdentifier               = 2711
 	RelatedIMSChargingIdentifierNode           = 2712
 	RelationshipMode                           = 2706
@@ -656,8 +700,11 @@ const (
 	ReplyMessage                               = 18
 	ReplyPathRequested                         = 2011
 	ReportingReason                            = 872
+	RepositoryDataID                           = 715
 	RequestedAction                            = 436
+	RequestedDomain                            = 706
 	RequestedEUTRANAuthenticationInfo          = 1408
+	RequestedNodes                             = 713
 	RequestedPartyAddress                      = 1251
 	RequestedRetransmissionTime                = 3331
 	RequestedServiceUnit                       = 437
@@ -666,6 +713,7 @@ const (
 	RequiredMBMSBearerCapabilities             = 901
 	ReservationPriority                        = 458
 	ResetID                                    = 1670
+	RestorationInfo                            = 649
 	RestrictionFilterRule                      = 438
 	ResultCode                                 = 268
 	ResynchronizationInfo                      = 1411
@@ -679,14 +727,17 @@ const (
 	RoutingAreaIdentity                        = 1605
 	RRBandwidth                                = 521
 	RSBandwidth                                = 522
+	RTRFlags                                   = 659
 	RuleActivationTime                         = 1043
 	RuleDeactivationTime                       = 1044
 	RxRequestType                              = 533
+	SARFlags                                   = 655
 	SCAddress                                  = 3300
 	ScaleFactor                                = 2059
 	SCEFID                                     = 3125
 	SCEFReferenceID                            = 3124
 	SCEFReferenceIDExt                         = 3186
+	SCSCFRestorationInfo                       = 639
 	SDPAnswerTimestamp                         = 1275
 	SDPMediaComponent                          = 843
 	SDPMediaDescription                        = 845
@@ -695,7 +746,11 @@ const (
 	SDPSessionDescription                      = 842
 	SDPTimeStamps                              = 1273
 	SDPType                                    = 2036
+	SecondaryChargingCollectionFunctionName    = 622
+	SecondaryEventChargingFunctionName         = 620
 	SecurityParameterIndex                     = 1056
+	SendDataIndication                         = 710
+	SequenceNumber                             = 716
 	ServedPartyIPAddress                       = 848
 	ServerAssignmentType                       = 614
 	ServerCapabilities                         = 603
@@ -707,6 +762,7 @@ const (
 	ServiceGenericInformation                  = 1256
 	ServiceID                                  = 855
 	ServiceIdentifier                          = 439
+	ServiceIndication                          = 704
 	ServiceInformation                         = 873
 	ServiceInfoStatus                          = 527
 	ServiceMode                                = 2032
@@ -724,6 +780,7 @@ const (
 	ServiceTypeIdentity                        = 1484
 	ServiceURN                                 = 525
 	ServingNode                                = 2401
+	ServingNodeIndication                      = 714
 	ServingNodeType                            = 2047
 	SessionBinding                             = 270
 	SessionDirection                           = 2707
@@ -743,10 +800,13 @@ const (
 	SGWChange                                  = 2065
 	SharingKeyDL                               = 539
 	SharingKeyUL                               = 540
+	ShUserData                                 = 702
 	SIPAuthDataItem                            = 612
 	SIPAuthenticate                            = 609
+	SIPAuthenticationContext                   = 611
 	SIPAuthenticationScheme                    = 608
 	SIPAuthorization                           = 610
+	SIPDigestAuthenticate                      = 635
 	SIPForkingIndication                       = 523
 	SIPItemNumber                              = 613
 	SIPMethod                                  = 824
@@ -830,7 +890,10 @@ const (
 	SubscriptionIDPrivate                      = 664
 	SubscriptionIDSIPURI                       = 662
 	SubscriptionIDType                         = 450
+	SubscriptionInfo                           = 642
+	SubsReqType                                = 705
 	SupplementaryService                       = 2048
+	SupportedApplications                      = 631
 	SupportedFeatures                          = 628
 	SupportedMonitoringEvents                  = 3144
 	SupportedServices                          = 3143
@@ -881,6 +944,7 @@ const (
 	TimeZone                                   = 1642
 	TMGI                                       = 900
 	TokenText                                  = 1215
+	ToSIPHeader                                = 645
 	ToSTrafficClass                            = 1014
 	TotalNumberOfMessagesExploded              = 2113
 	TotalNumberOfMessagesSent                  = 2114
@@ -914,7 +978,9 @@ const (
 	TWANIdentifier                             = 29
 	TWANUserLocationInfo                       = 2714
 	TypeNumber                                 = 1204
+	UARFlags                                   = 637
 	UDPSourcePort                              = 2806
+	UDRFlags                                   = 719
 	UELocalIPAddress                           = 2805
 	UESRVCCCapability                          = 1615
 	ULAFlags                                   = 1406
@@ -927,8 +993,10 @@ const (
 	UsageMonitoringReport                      = 1069
 	UsageMonitoringSupport                     = 1070
 	UsedServiceUnit                            = 446
+	UserAuthorizationType                      = 623
 	UserCSGInformation                         = 2319
 	UserData                                   = 606
+	UserDataAlreadyAvailable                   = 624
 	UserEquipmentInfo                          = 458
 	UserEquipmentInfoEUI64                     = 656
 	UserEquipmentInfoExtension                 = 653
@@ -940,6 +1008,7 @@ const (
 	UserEquipmentInfoValue                     = 460
 	UserID                                     = 1444
 	UserIdentifier                             = 3102
+	UserIdentity                               = 700
 	UserLocationInfoTime                       = 2812
 	UserName                                   = 1
 	UserParticipatingType                      = 1279
@@ -960,6 +1029,10 @@ const (
 	VolumeQuotaThreshold                       = 869
 	VPLMNDynamicAddressAllowed                 = 1432
 	VPLMNLIPAAllowed                           = 1617
+	WebRTCAuthenticationFunctionName           = 657
+	WebRTCWebServerFunctionName                = 658
+	WildcardedIMPU                             = 636
+	WildcardedPublicIdentity                   = 634
 	WirelineUserLocationInfo                   = 578
 	X3GPP2BSID                                 = 9010
 	X3GPP2MEID                                 = 1471

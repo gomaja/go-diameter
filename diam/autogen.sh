@@ -22,11 +22,9 @@ if [ -z "$SED" ]; then
 	fi
 fi
 
-if [ -z "$SORT_FLAG_IGNORE_CASE" ]; then
-	if [ "$os" = "Darwin" ]; then
-		SORT_FLAG_IGNORE_CASE="-f"
-	fi
-fi
+# Fix collation for every sort, independently of the host locale.
+LC_ALL=C
+export LC_ALL
 
 dict=dict/bundled/*.xml
 
@@ -106,12 +104,15 @@ package avp
 const (
 EOF
 
+# TS 29.229 and TS 29.329 use the same AVP name for different codes.
+# Keep the established UserData (606), and qualify ShUserData (702).
 cat $dict | "$SED" \
+	-e 's/avp name="User-Data" code="702"/avp name="Sh-User-Data" code="702"/' \
 	-e 's/-Id\([-"s]\)/-ID\1/g' \
 	-e 's/-//g' \
 	-ne 's/.*avp name="\(.*\)" code="\([0-9]*\)".*/\1 = \2/p' \
 	| "$SED" -e 's/^[0-9]/X&/' \
-	| LC_COLLATE=C sort -u $SORT_FLAG_IGNORE_CASE >> $src
+	| sort -fu >> $src
 
 printf ')\n' >> $src
 

@@ -14,6 +14,15 @@ import (
 	"github.com/gomaja/go-diameter/diam/sm"
 )
 
+func mustSMNew(t *testing.T, settings *sm.Settings) *sm.StateMachine {
+	t.Helper()
+	stateMachine, err := sm.New(settings)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return stateMachine
+}
+
 func TestManagedSendPeerClosesAfterRequestTCP(t *testing.T) {
 	for _, answerFirst := range []bool{true, false} {
 		name := "without-answer"
@@ -22,10 +31,7 @@ func TestManagedSendPeerClosesAfterRequestTCP(t *testing.T) {
 		}
 		t.Run(name, func(t *testing.T) {
 			settings := testSettings("server.example.net")
-			serverSM, err := sm.New(&settings)
-			if err != nil {
-				t.Fatal(err)
-			}
+			serverSM := mustSMNew(t, &settings)
 			serverSM.HandleIdx(diam.CommandIndex{AppID: 4, Code: 272, Request: true}, diam.HandlerFunc(func(c diam.Conn, request *diam.Message) {
 				if answerFirst {
 					answer := request.Answer(diam.Success)
@@ -79,10 +85,7 @@ func TestManagedSendPeerClosesAfterRequestTCP(t *testing.T) {
 
 func TestManagedSendTCPToSMServer(t *testing.T) {
 	settings := testSettings("server.example.net")
-	serverSM, err := sm.New(&settings)
-	if err != nil {
-		t.Fatal(err)
-	}
+	serverSM := mustSMNew(t, &settings)
 	serverSM.HandleIdx(diam.CommandIndex{AppID: 4, Code: 272, Request: true}, diam.HandlerFunc(func(c diam.Conn, request *diam.Message) {
 		answer := request.Answer(diam.Success)
 		_, _ = answer.NewAVP(avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("server.example.net"))

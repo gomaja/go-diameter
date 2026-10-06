@@ -841,13 +841,16 @@ func TestRejectedCEA(t *testing.T) {
 				}
 				if name == "no-common-application" {
 					cfg.Applications = nil
+					cfg.AuthApplicationID = []*diam.AVP{}
+					cfg.AcctApplicationID = []*diam.AVP{}
+					cfg.VendorSpecificApplicationID = []*diam.AVP{}
 				}
 				if name != "no-common-application" {
 					cfg.Applications = []base.LocalApplication{{ID: uint32(cfg.AuthApplicationID[0].Data.(datatype.Unsigned32)), AppType: "auth"}}
 				}
-				cea, err := base.BuildCEA(cer, cfg, result)
-				if err != nil {
-					t.Error(err)
+				cea, e := base.BuildCEA(cer, cfg, result)
+				if e != nil {
+					t.Errorf("build CEA: %v", e)
 					return
 				}
 				if name == "missing-origin-host" {

@@ -41,6 +41,83 @@ func TestUnsupportedApplicationAnswerTCP(t *testing.T) {
 	}
 }
 
+// RFC 6733 §§5.3, 5.6: application support on a connection follows the
+// local CER offer, including an explicit ID absent from the dictionary.
+func TestClientOverrideControlsConnectionApplications(t *testing.T) {
+	for _, validateRequests := range []bool{false, true} {
+		t.Run(fmt.Sprintf("ValidateRequests=%t", validateRequests), func(t *testing.T) {
+			testClientOverrideControlsConnectionApplications(t, validateRequests)
+		})
+	}
+}
+
+func testClientOverrideControlsConnectionApplications(t *testing.T, validateRequests bool) {
+	t.Helper()
+	const customApp = 16777999
+	application := diam.NewAVP(avp.AuthApplicationID, avp.Mbit, 0, datatype.Unsigned32(customApp))
+	serverCfg := *serverSettings
+	serverCfg.AuthApplicationID = []*diam.AVP{application}
+	serverCfg.ValidateRequests = validateRequests
+	serverSM := mustNew(&serverCfg)
+	server := diamtest.NewServer(serverSM, dict.Default)
+	defer server.Close()
+	clientCfg := *clientSettings
+	clientCfg.ValidateRequests = validateRequests
+	clientSM := mustNew(&clientCfg)
+	client := &Client{Handler: clientSM, AuthApplicationID: []*diam.AVP{application}}
+	conn, err := client.Dial(server.Addr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	if !clientSM.supportsApplicationOn(conn, customApp) || clientSM.supportsApplicationOn(conn, 4) {
+		t.Fatal("client connection applications differ from the explicit CER offer")
+	}
+	var serverConn diam.Conn
+	select {
+	case serverConn = <-serverSM.HandshakeNotify():
+	case <-time.After(time.Second):
+		t.Fatal("server handshake notification timed out")
+	}
+	for _, tc := range []struct {
+		app, result uint32
+	}{{customApp, diam.CommandUnsupported}, {4, diam.ApplicationUnsupported}} {
+		request := diam.NewMessage(0xfedc, diam.RequestFlag, tc.app, 3, 4, dict.Default)
+		if _, err := request.WriteTo(serverConn); err != nil {
+			t.Fatal(err)
+		}
+		awaitCapabilityAnswerReport(t, serverSM.ErrorReports(), tc.app, tc.result)
+	}
+	for _, tc := range []struct {
+		app, result uint32
+	}{{customApp, diam.CommandUnsupported}, {4, diam.ApplicationUnsupported}} {
+		request := diam.NewMessage(0xfedc, diam.RequestFlag, tc.app, 1, 2, dict.Default)
+		if _, err := request.WriteTo(conn); err != nil {
+			t.Fatal(err)
+		}
+		awaitCapabilityAnswerReport(t, clientSM.ErrorReports(), tc.app, tc.result)
+	}
+}
+
+func awaitCapabilityAnswerReport(t *testing.T, reports <-chan *diam.ErrorReport, app, result uint32) {
+	t.Helper()
+	deadline := time.After(time.Second)
+	for {
+		select {
+		case report := <-reports:
+			if report.Message == nil || report.Message.Header.CommandFlags&diam.RequestFlag != 0 {
+				continue
+			}
+			if report.Message.Header.ApplicationID != app || !testResultCode(report.Message, result) {
+				t.Fatalf("application %d answer report = %v; want %d", app, report, result)
+			}
+			return
+		case <-deadline:
+			t.Fatalf("application %d answer timed out", app)
+		}
+	}
+}
+
 func testUnsupportedCommandAnswerTCP(t *testing.T, command, appID, want uint32) {
 	sm := mustNewStateMachine(t, testMessageErrorSettings())
 	srv := diamtest.NewServer(sm, dict.Default)

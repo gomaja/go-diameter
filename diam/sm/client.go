@@ -60,19 +60,25 @@ var (
 // LocalAddr.String must contain literal IP addresses. An unparseable host
 // causes the capability exchange handshake to fail.
 type Client struct {
-	Dict                        *dict.Parser  // Dictionary parser (uses dict.Default if unset)
-	Handler                     *StateMachine // Message handler
-	MaxRetransmits              uint          // Maximum CER handshake retransmissions before aborting
-	RetransmitInterval          time.Duration // Interval between CER handshake retransmissions (default 1s)
-	EnableWatchdog              bool          // Enable automatic DWR
-	WatchdogInterval            time.Duration // RFC 3539 §3.4.1 Twinit; default 30s, minimum 6s, with ±2s jitter
-	WatchdogStream              uint          // Stream to send DWR on (for multistreaming protocols), default is 0
-	SupportedVendorID           []*diam.AVP   // Supported vendor ID
-	AcctApplicationID           []*diam.AVP   // Acct applications
-	AuthApplicationID           []*diam.AVP   // Auth applications
-	VendorSpecificApplicationID []*diam.AVP   // Vendor specific applications
-	InbandSecurityID            uint32        // Inband-Security-Id for CER: 0=omitted default, 1=TLS on an already secured connection (RFC 6733 §§5.3.1, 6.10)
-	TLSConfig                   *tls.Config   // Optional TLS config used by DialTLS methods.
+	Dict               *dict.Parser  // Dictionary parser (uses dict.Default if unset)
+	Handler            *StateMachine // Message handler
+	MaxRetransmits     uint          // Maximum CER handshake retransmissions before aborting
+	RetransmitInterval time.Duration // Interval between CER handshake retransmissions (default 1s)
+	EnableWatchdog     bool          // Enable automatic DWR
+	WatchdogInterval   time.Duration // RFC 3539 §3.4.1 Twinit; default 30s, minimum 6s, with ±2s jitter
+	WatchdogStream     uint          // Stream to send DWR on (for multistreaming protocols), default is 0
+	// SupportedVendorID overrides Settings.SupportedVendorID when non-nil.
+	// Configured AVPs are sent exactly as supplied, including order and repetitions.
+	SupportedVendorID []*diam.AVP
+	// If any application slice is non-nil, these three slices replace the
+	// Settings application slices for CER. Values are sent exactly as supplied;
+	// a non-nil empty slice is explicit. Dial rejects malformed VSAI groups
+	// before opening the connection (RFC 6733 §6.11, Verified Erratum 4808).
+	AcctApplicationID           []*diam.AVP
+	AuthApplicationID           []*diam.AVP
+	VendorSpecificApplicationID []*diam.AVP
+	InbandSecurityID            uint32      // Inband-Security-Id for CER: 0=omitted default, 1=TLS on an already secured connection (RFC 6733 §§5.3.1, 6.10)
+	TLSConfig                   *tls.Config // Optional TLS config used by DialTLS methods.
 
 	// ReadTimeout is the maximum duration for reading a message from the
 	// peer. Zero means no read deadline.
@@ -109,11 +115,13 @@ type watchdogTiming struct {
 }
 
 type watchdogActivity struct {
-	signal  chan struct{}
-	last    atomic.Int64
-	dwac    chan struct{}
-	ceac    chan error
-	ceaOnce sync.Once
+	signal       chan struct{}
+	last         atomic.Int64
+	dwac         chan struct{}
+	ceac         chan error
+	ceaOnce      sync.Once
+	advertised   []uint32
+	capabilities base.Settings
 }
 
 func newWatchdogActivity() *watchdogActivity {
@@ -253,7 +261,7 @@ func (cli *Client) server(network, addr string, laddr net.Addr, activity *watchd
 	var handler diam.Handler = cli.Handler
 	if activity != nil {
 		h := activityHandler{StateMachine: cli.Handler, activity: activity,
-			cea: handleCEA(cli.Handler, activity.ceac)}
+			cea: handleCEA(cli.Handler, activity)}
 		if cli.EnableWatchdog {
 			h.dwa = handshakeOK(handleDWA(cli.Handler, activity.dwac, cli.observeWatchdog))
 		}
@@ -278,6 +286,8 @@ func (cli *Client) dial(f dialFunc) (diam.Conn, error) {
 		return nil, err
 	}
 	activity := newWatchdogActivity()
+	activity.capabilities = cli.capabilitySettings(nil)
+	activity.advertised = base.AdvertisedApplicationIDs(activity.capabilities)
 	c, err := f(activity)
 	if err != nil {
 		return c, err
@@ -310,36 +320,8 @@ func (cli *Client) validate() error {
 			return fmt.Errorf("watchdog interval %s is below RFC 3539 §3.4.1 minimum %s", cli.WatchdogInterval, floor)
 		}
 	}
-	// Make sure the applications supplied to Client are supported locally
-	for _, submittedAcctApp := range cli.AcctApplicationID {
-		acctAppID := uint32(submittedAcctApp.Data.(datatype.Unsigned32))
-		isSupported := false
-		for _, localApp := range cli.Handler.supportedApps {
-			if localApp.AppType == "acct" && localApp.ID == acctAppID {
-				isSupported = true
-				break
-			}
-		}
-		if !isSupported {
-			err := fmt.Errorf("client attempts to advertise unsupported application - type: acct, id: %d", acctAppID)
-			return err
-		}
-
-	}
-	for _, submittedAuthApp := range cli.AuthApplicationID {
-		authAppID := uint32(submittedAuthApp.Data.(datatype.Unsigned32))
-		isSupported := false
-		for _, localApp := range cli.Handler.supportedApps {
-			if localApp.AppType == "auth" && localApp.ID == authAppID {
-				isSupported = true
-				break
-			}
-		}
-		if !isSupported {
-			err := fmt.Errorf("client attempts to advertise unsupported application - type: auth, id: %d", authAppID)
-			return err
-		}
-
+	if err := base.ValidateCapabilities(cli.capabilitySettings(nil)); err != nil {
+		return fmt.Errorf("client: invalid capabilities configuration: %w", err)
 	}
 	return nil
 }
@@ -372,7 +354,9 @@ func (cli *Client) handshake(c diam.Conn, activity *watchdogActivity) (diam.Conn
 		}
 	}
 
-	m, err := cli.makeCER(hostAddresses)
+	cfg := activity.capabilities
+	cfg.HostIPAddresses = hostAddresses
+	m, err := base.BuildCER(cli.Dict, cfg)
 	if err != nil {
 		c.Close()
 		return nil, err
@@ -409,14 +393,37 @@ func (cli *Client) handshake(c diam.Conn, activity *watchdogActivity) (diam.Conn
 }
 
 func (cli *Client) makeCER(hostIPAddresses []datatype.Address) (*diam.Message, error) {
+	cfg := cli.capabilitySettings(hostIPAddresses)
+	dictionary := cli.Dict
+	if dictionary == nil {
+		dictionary = dict.Default
+	}
+	return base.BuildCER(dictionary, cfg)
+}
+
+func (cli *Client) capabilitySettings(hostIPAddresses []datatype.Address) base.Settings {
 	cfg := baseSettings(cli.Handler.cfg)
 	cfg.HostIPAddresses = hostIPAddresses
-	cfg.SupportedVendorID = cli.SupportedVendorID
-	cfg.AcctApplicationID = cli.AcctApplicationID
-	cfg.AuthApplicationID = cli.AuthApplicationID
-	cfg.VendorSpecificApplicationID = cli.VendorSpecificApplicationID
+	if cli.SupportedVendorID != nil {
+		cfg.SupportedVendorID = cli.SupportedVendorID
+	}
+	dictionary := cli.Dict
+	if dictionary == nil {
+		dictionary = dict.Default
+	}
+	// Dictionary metadata supplies derived capabilities and AVP vendors.
+	for _, app := range PrepareSupportedApps(dictionary) {
+		cfg.Applications = append(cfg.Applications, base.LocalApplication{
+			ID: app.ID, AppType: app.AppType, Vendor: app.Vendor, SupportedVendors: app.SupportedVendors,
+		})
+	}
+	if cli.AcctApplicationID != nil || cli.AuthApplicationID != nil || cli.VendorSpecificApplicationID != nil {
+		cfg.AcctApplicationID = cli.AcctApplicationID
+		cfg.AuthApplicationID = cli.AuthApplicationID
+		cfg.VendorSpecificApplicationID = cli.VendorSpecificApplicationID
+	}
 	cfg.InbandSecurityID = cli.InbandSecurityID
-	return base.BuildCER(cli.Dict, cfg)
+	return cfg
 }
 
 func (cli *Client) watchdogParameters() (floor, jitter time.Duration) {

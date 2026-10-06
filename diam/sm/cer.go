@@ -28,7 +28,7 @@ func handleCER(sm *StateMachine) diam.HandlerFunc {
 			return
 		}
 		cer := new(smparser.CER)
-		_, err := cer.ParseWithSecurityAndDictionary(m, smparser.Server, c.TLS() != nil, sm.dictionary)
+		_, err := cer.ParseWithSecurityAndApplications(m, smparser.Server, c.TLS() != nil, sm.dictionary, sm.advertised)
 		if err != nil {
 			err = errorCEA(sm, c, m, err)
 			if err != nil {
@@ -96,25 +96,24 @@ func errorCEA(sm *StateMachine, c diam.Conn, m *diam.Message, errMessage error) 
 	cfg := baseSettings(sm.cfg)
 	cfg.HostIPAddresses = hostAddresses
 	var a *diam.Message
+	var err error
 	var messageErr *diam.MessageError
 	if errors.As(errMessage, &messageErr) {
 		// RFC 6733 §7.1.5, Verified Erratum 4615: one Failed-AVP.
-		var err error
 		a, err = base.BuildErrorAnswer(m, cfg, messageErr.ResultCode, []*diam.AVP{messageErr.FailedAVP}, false)
 		if err != nil {
 			return err
 		}
 	} else {
-		var err error
 		a, err = base.BuildCEA(m, cfg, resultCode)
 		if err != nil {
-			return err
+			return fmt.Errorf("error CEA '%s' create failure: %w", errMessage, err)
 		}
 	}
 	if sm.cfg.OnCEA != nil {
 		sm.cfg.OnCEA(c, a)
 	}
-	_, err := a.WriteTo(c)
+	_, err = a.WriteTo(c)
 	if err != nil {
 		err = fmt.Errorf("error CEA '%s' send failure: %v", errMessage, err)
 	}
@@ -147,7 +146,7 @@ func buildSuccessCEA(sm *StateMachine, c diam.Conn, m *diam.Message) (*diam.Mess
 	cfg.HostIPAddresses = hostAddresses
 	for _, app := range sm.supportedApps {
 		cfg.Applications = append(cfg.Applications, base.LocalApplication{
-			ID: app.ID, AppType: app.AppType, Vendor: app.Vendor,
+			ID: app.ID, AppType: app.AppType, Vendor: app.Vendor, SupportedVendors: app.SupportedVendors,
 		})
 	}
 	// The caller runs OnCEA only once the CEA will be sent.

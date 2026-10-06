@@ -24,7 +24,8 @@
 				<rule avp="Supported-Features" required="false"/>
 				<rule avp="Reservation-Priority" required="false" max="1"/>
 				<rule avp="Framed-IP-Address" required="false" max="1"/>
-				<rule avp="Framed-Ipv6-Prefix" required="false" max="1"/>
+				<!-- RFC 7155 §4.4.10.5.6: inherited from the NASREQ application. -->
+				<rule avp="Framed-IPv6-Prefix" required="false" max="1"/>
 				<rule avp="Called-Station-Id" required="false" max="1"/>
 				<rule avp="Service-URN" required="false" max="1"/>
 				<rule avp="Sponsored-Connectivity-Data" required="false" max="1"/>
@@ -1135,9 +1136,6 @@
 	        </avp>
 		<avp name="Failed-AVP" code="279" must="M" may="P" must-not="V" may-encrypt="-">
         	    	<data type="Grouped"/>
-	        </avp>
-		<avp name="Framed-Ipv6-Prefix" code="97" must="M" may-encrypt="Y">
-            		<data type="OctetString"/>
 	        </avp>
 	
 		<avp name="TGPP-SGSN-MCC-MNC" code="18" must="V"    may="P" must-not="M" may-encrypt="Y" vendor-id="10415">

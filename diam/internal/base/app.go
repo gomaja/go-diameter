@@ -26,11 +26,27 @@ type Application struct {
 	AuthApplicationID           []*diam.AVP
 	VendorSpecificApplicationID []*diam.AVP
 	id                          []uint32 // List of supported application IDs.
+	advertised                  map[uint32]struct{}
 }
 
 // Parse ensures at least one common acct or auth applications in the CE
 // exist in this server's dictionary.
 func (app *Application) Parse(d *dict.Parser, localRole Role) (failedAVP *diam.AVP, err error) {
+	return app.ParseWithApplicationIDs(d, localRole, nil)
+}
+
+// ParseWithApplicationIDs checks the received capabilities against what this
+// node actually advertises. A nil list retains dictionary-based validation
+// for callers without local capability settings. An empty non-nil list has
+// no common application (RFC 6733 §§5.3.1-5.3.2).
+func (app *Application) ParseWithApplicationIDs(d *dict.Parser, localRole Role, localIDs []uint32) (failedAVP *diam.AVP, err error) {
+	app.advertised = nil
+	if localIDs != nil {
+		app.advertised = make(map[uint32]struct{}, len(localIDs))
+		for _, id := range localIDs {
+			app.advertised[id] = struct{}{}
+		}
+	}
 	failedAVP, err = app.validateAll(d, avp.AcctApplicationID, app.AcctApplicationID, localRole)
 	oneFound := err == nil
 	a, e := app.validateAll(d, avp.AuthApplicationID, app.AuthApplicationID, localRole)
@@ -137,12 +153,25 @@ func (app *Application) validate(d *dict.Parser, appType uint32, appAVP *diam.AV
 	}
 	id := uint32(appID)
 	if id == 0xffffffff { // relay application id
+		// A relay peer can carry any application only when this node
+		// advertises at least one (RFC 6733 §§2.4, 5.3).
+		if app.advertised != nil && len(app.advertised) == 0 {
+			return appAVP, ErrNoCommonApplication
+		}
 		app.id = append(app.id, id)
 		return nil, nil
 	}
-	_, err = d.App(id, typ)
-	if err != nil {
-		return appAVP, ErrNoCommonApplication
+	if app.advertised != nil {
+		if _, ok := app.advertised[id]; !ok {
+			if _, relay := app.advertised[0xffffffff]; !relay {
+				return appAVP, ErrNoCommonApplication
+			}
+		}
+	} else {
+		_, err = d.App(id, typ)
+		if err != nil {
+			return appAVP, ErrNoCommonApplication
+		}
 	}
 	app.id = append(app.id, id)
 	return nil, nil

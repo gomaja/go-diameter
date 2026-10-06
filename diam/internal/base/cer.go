@@ -51,6 +51,13 @@ func (cer *CER) ParseWithSecurity(m *diam.Message, localRole Role, tlsActive boo
 // used to advertise local applications (RFC 6733 §5.3). A nil dictionary uses
 // the message dictionary.
 func (cer *CER) ParseWithSecurityAndDictionary(m *diam.Message, localRole Role, tlsActive bool, dictionary *dict.Parser) (failedAVP *diam.AVP, err error) {
+	return cer.ParseWithSecurityAndApplications(m, localRole, tlsActive, dictionary, nil)
+}
+
+// ParseWithSecurityAndApplications validates the peer's CER against the
+// applications this node advertises. A non-nil localIDs slice supersedes
+// dictionary membership (RFC 6733 §5.3.1).
+func (cer *CER) ParseWithSecurityAndApplications(m *diam.Message, localRole Role, tlsActive bool, dictionary *dict.Parser, localIDs []uint32) (failedAVP *diam.AVP, err error) {
 	// A non-strict dictionary retains an undecodable Address payload as
 	// Unknown. Classify it before reflection requires datatype.Address, so
 	// RFC 6733 §§4.3.1 and 7.1.5 can identify the original AVP in the
@@ -98,7 +105,7 @@ func (cer *CER) ParseWithSecurityAndDictionary(m *diam.Message, localRole Role, 
 	if dictionary == nil {
 		dictionary = m.Dictionary()
 	}
-	if failedAVP, err = app.Parse(dictionary, localRole); err != nil {
+	if failedAVP, err = app.ParseWithApplicationIDs(dictionary, localRole, localIDs); err != nil {
 		return failedAVP, err
 	}
 	cer.appID = app.ID()

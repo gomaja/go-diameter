@@ -26,15 +26,17 @@ type Settings struct {
 	Applications                []LocalApplication
 }
 
-// LocalApplication is one capability advertised in a successful CEA.
+// LocalApplication describes a locally supported application and its vendors.
 type LocalApplication struct {
-	ID      uint32
-	AppType string
-	Vendor  uint32
+	ID               uint32
+	AppType          string
+	Vendor           uint32
+	SupportedVendors []uint32
 }
 
-// BuildCER constructs the RFC 6733 §5.3.1 request in legacy AVP order.
+// BuildCER constructs the RFC 6733 §5.3.1 request.
 func BuildCER(dictionary *dict.Parser, cfg Settings) (*diam.Message, error) {
+	apps := advertisedApplications(cfg)
 	m := diam.NewRequest(diam.CapabilitiesExchange, 0, dictionary)
 	if _, err := m.NewAVP(avp.OriginHost, avp.Mbit, 0, cfg.OriginHost); err != nil {
 		return nil, err
@@ -58,24 +60,14 @@ func BuildCER(dictionary *dict.Parser, cfg Settings) (*diam.Message, error) {
 			return nil, err
 		}
 	}
-	for _, a := range cfg.SupportedVendorID {
-		m.AddAVP(a)
-	}
-	for _, a := range cfg.AuthApplicationID {
-		m.AddAVP(a)
-	}
+	addSupportedVendors(m, cfg, apps)
 	// RFC 6733 §6.10: zero is the omitted default in a CER.
 	if cfg.InbandSecurityID != 0 {
 		if _, err := m.NewAVP(avp.InbandSecurityID, avp.Mbit, 0, datatype.Unsigned32(cfg.InbandSecurityID)); err != nil {
 			return nil, err
 		}
 	}
-	for _, a := range cfg.AcctApplicationID {
-		m.AddAVP(a)
-	}
-	for _, a := range cfg.VendorSpecificApplicationID {
-		m.AddAVP(a)
-	}
+	addApplications(m, cfg, apps)
 	if cfg.FirmwareRevision != 0 {
 		if _, err := m.NewAVP(avp.FirmwareRevision, 0, 0, cfg.FirmwareRevision); err != nil {
 			return nil, err
@@ -108,26 +100,9 @@ func BuildCEA(request *diam.Message, cfg Settings, resultCode uint32) (*diam.Mes
 		add(avp.OriginStateID, avp.Mbit, 0, cfg.OriginStateID)
 	}
 	if resultCode == diam.Success {
-		for _, app := range cfg.Applications {
-			var typ uint32
-			switch app.AppType {
-			case "auth":
-				typ = avp.AuthApplicationID
-			case "acct":
-				typ = avp.AcctApplicationID
-			}
-			if app.Vendor != 0 {
-				add(avp.SupportedVendorID, avp.Mbit, 0, datatype.Unsigned32(app.Vendor))
-				add(avp.VendorSpecificApplicationID, avp.Mbit, 0, &diam.GroupedAVP{
-					AVP: []*diam.AVP{
-						diam.NewAVP(avp.VendorID, avp.Mbit, 0, datatype.Unsigned32(app.Vendor)),
-						diam.NewAVP(typ, avp.Mbit, 0, datatype.Unsigned32(app.ID)),
-					},
-				})
-			} else {
-				add(typ, avp.Mbit, 0, datatype.Unsigned32(app.ID))
-			}
-		}
+		apps := advertisedApplications(cfg)
+		addSupportedVendors(a, cfg, apps)
+		addApplications(a, cfg, apps)
 	}
 	if cfg.FirmwareRevision != 0 {
 		add(avp.FirmwareRevision, 0, 0, cfg.FirmwareRevision)

@@ -23,15 +23,37 @@ type File struct {
 // App defines a diameter application in XML and its multiple AVPs.
 type App struct {
 	ID      uint32     `xml:"id,attr"`   // Application Id
-	Type    string     `xml:"type,attr"` // Application type
+	Type    string     `xml:"type,attr"` // "acct" selects accounting; all other values default to auth during capabilities exchange.
 	Name    string     `xml:"name,attr"` // Application name
-	Vendor  []*Vendor  `xml:"vendor"`    // Support for multiple vendors
+	Vendor  []*Vendor  `xml:"vendor"`    // Ordered vendor declarations; see ApplicationVendor.
 	Command []*Command `xml:"command"`   // Diameter commands
 	AVP     []*AVP     `xml:"avp"`       // Each application support multiple AVPs
 }
 
-// Vendor defines diameter vendors in XML, that can be used to translate
-// the VendorId AVP of incoming messages.
+// IsVendorSpecificApplication reports whether id belongs to the IANA AAA
+// registry's vendor-specific Application IDs range:
+// https://www.iana.org/assignments/aaa-parameters
+// The reserved relay ID 0xffffffff is separate (RFC 6733 §2.4).
+func IsVendorSpecificApplication(id uint32) bool {
+	return id >= 16777216 && id != 0xffffffff
+}
+
+// ApplicationVendor returns the author candidate from this declaration. For
+// vendor-specific applications, capabilities exchange uses the first vendor of
+// the first-loaded declaration of that application, even if absent. All other
+// declared vendors are AVP suppliers; later declarations cannot change the author.
+// Bundled dictionaries load in filename order, followed by subsequent Load calls.
+// Standard applications and relay have no vendor author (RFC 6733 §§2.4, 6.11).
+func (app *App) ApplicationVendor() uint32 {
+	if IsVendorSpecificApplication(app.ID) && len(app.Vendor) != 0 {
+		return app.Vendor[0].ID
+	}
+	return 0
+}
+
+// Vendor declares an AVP supplier. The first vendor of the first-loaded
+// declaration also identifies a vendor-specific application's author; see
+// ApplicationVendor. Suppliers contribute to inferred Supported-Vendor-Id.
 type Vendor struct {
 	ID   uint32 `xml:"id,attr"`
 	Name string `xml:"name,attr"`
