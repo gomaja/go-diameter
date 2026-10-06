@@ -29,12 +29,27 @@ func DecodeGrouped(data datatype.Grouped, application uint32, dictionary *dict.P
 }
 
 // DecodeGroupedFromBytes decodes a Grouped AVP directly from a raw byte slice,
-// avoiding the intermediate datatype.Grouped copy.
+// avoiding the intermediate datatype.Grouped copy. b is the payload of a
+// Grouped AVP at level 1; nesting is limited as described for DecodeAVP.
 func DecodeGroupedFromBytes(b []byte, application uint32, dictionary *dict.Parser) (*GroupedAVP, error) {
+	g, err := decodeGroupedFromBytes(b, application, dictionary, 1)
+	if err != nil {
+		// The members are returned to the caller, so the fallback bytes of
+		// the ones that failed must not alias b.
+		for _, a := range g.AVP {
+			ownAVPData(a)
+		}
+	}
+	return g, err
+}
+
+// decodeGroupedFromBytes decodes the payload of a Grouped AVP whose members
+// are enclosed by depth Grouped AVPs.
+func decodeGroupedFromBytes(b []byte, application uint32, dictionary *dict.Parser, depth int) (*GroupedAVP, error) {
 	g := &GroupedAVP{}
 	var errs []string
 	for n := 0; n < len(b); {
-		a, err := DecodeAVP(b[n:], application, dictionary)
+		a, err := decodeAVP(b[n:], application, dictionary, depth)
 		if err != nil {
 			var lengthErr *avpLengthError
 			if errors.As(err, &lengthErr) {
@@ -52,6 +67,7 @@ func DecodeGroupedFromBytes(b []byte, application uint32, dictionary *dict.Parse
 		// RFC 6733 Sections 4.1 and 4.4 require each Grouped child, including
 		// its padding, to fit within the Grouped AVP payload.
 		if advance <= 0 || advance > len(b)-n {
+			ownAVPData(a) // The Failed-AVP outlives the input.
 			return g, newDecodedAVPLengthError(a, fmt.Errorf(
 				"%w: grouped AVP at offset %d consumes %d padded bytes, have %d",
 				errAVPDataTooShort, n, advance, len(b)-n))
