@@ -5,6 +5,7 @@
         ME-Identity-Check procedure
     -->
     <application id="16777252" type="auth" name="TGPP S13">
+        <!-- proxiable: the request CCF is "REQ, PXY", the answer "PXY" (3GPP TS 29.272 V19.6.0 §§7.2.19-7.2.20). -->
         <vendor id="10415" name="TGPP"/>
 
         <command code="324" short="EC" name="ME-Identity-Check">
@@ -23,7 +24,7 @@
                 *[ Proxy-Info ]
                 *[ Route-Record ]
             -->
-            <request>
+            <request proxiable="true">
                 <rule avp="Session-Id" required="true" max="1" />
                 <rule avp="Vendor-Specific-Application-Id" required="false" max="1" />
                 <rule avp="Auth-Session-State" required="true" max="1" />
@@ -52,7 +53,7 @@
                 *[ Proxy-Info ]
                 *[ Route-Record ]
             -->
-            <answer>
+            <answer proxiable="true">
                 <rule avp="Session-Id" required="true" max="1" />
                 <rule avp="Vendor-Specific-Application-Id" required="false" max="1" />
                 <rule avp="Result-Code" required="false" max="1" />

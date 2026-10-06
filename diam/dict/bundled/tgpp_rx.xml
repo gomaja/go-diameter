@@ -1,9 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <diameter>
 <application id="16777236" type="auth" name="Rx">
+        <!-- proxiable: each request CCF is "REQ, PXY", each answer "PXY" (3GPP TS 29.214 V20.0.0 §§5.6.1-5.6.8). -->
         <vendor id="10415" name="TGPP"/>
         <command code="265" short="AA" name="AA">
-			<request>
+			<request proxiable="true">
 				<rule avp="Session-Id" required="true" max="1"/>
 				<rule avp="DRMP" required="false" max="1"/>
 				<rule avp="Auth-Application-Id" required="true" max="1"/>
@@ -47,7 +48,7 @@
 				<rule avp="Route-Record" required="false"/>
 				<rule avp="AVP" required="false"/>
 			</request>
-			<answer>
+			<answer proxiable="true">
 				<rule avp="Session-Id" required="true" max="1"/>
 				<rule avp="DRMP" required="false" max="1"/>
 				<rule avp="Auth-Application-Id" required="true" max="1"/>
@@ -89,7 +90,7 @@
 			</answer>
 		</command>
 		<command code="258" short="RA" name="Re-Auth">
-			<request>
+			<request proxiable="true">
 				<rule avp="Session-Id" required="true" max="1"/>
 				<rule avp="DRMP" required="false" max="1"/>
 				<rule avp="Origin-Host" required="true" max="1"/>
@@ -129,7 +130,7 @@
 				<rule avp="Route-Record" required="false"/>
 				<rule avp="AVP" required="false"/>
 			</request>
-			<answer>
+			<answer proxiable="true">
 				<rule avp="Session-Id" required="true" max="1"/>
 				<rule avp="DRMP" required="false" max="1"/>
 				<rule avp="Origin-Host" required="true" max="1"/>
@@ -153,7 +154,7 @@
 			</answer>
 		</command>
 		<command code="275" short="ST" name="Session-Termination">
-			<request>
+			<request proxiable="true">
 				<rule avp="Session-Id" required="true" max="1"/>
 				<rule avp="DRMP" required="false" max="1"/>
 				<rule avp="Origin-Host" required="true" max="1"/>
@@ -170,7 +171,7 @@
 				<rule avp="Route-Record" required="false"/>
 				<rule avp="AVP" required="false"/>
 			</request>
-			<answer>
+			<answer proxiable="true">
 				<rule avp="Session-Id" required="true" max="1"/>
 				<rule avp="DRMP" required="false" max="1"/>
 				<rule avp="Origin-Host" required="true" max="1"/>
@@ -206,7 +207,7 @@
 			</answer>
 		</command>
 		<command code="274" short="AS" name="Abort-Session">
-			<request>
+			<request proxiable="true">
 				<rule avp="Session-Id" required="true" max="1"/>
 				<rule avp="DRMP" required="false" max="1"/>
 				<rule avp="Origin-Host" required="true" max="1"/>
@@ -221,7 +222,7 @@
 				<rule avp="Route-Record" required="false"/>
 				<rule avp="AVP" required="false"/>
 			</request>
-			<answer>
+			<answer proxiable="true">
 				<rule avp="Session-Id" required="true" max="1"/>
 				<rule avp="DRMP" required="false" max="1"/>
 				<rule avp="Origin-Host" required="true" max="1"/>

@@ -5,9 +5,10 @@
         See: https://www.3gpp.org/dynareport/29272.htm
     -->
     <application id="16777251" type="auth" name="TGPP S6A">
+        <!-- proxiable: each request CCF is "REQ, PXY", each answer "PXY" (3GPP TS 29.272 V19.6.0 §§7.2.3-7.2.18). -->
         <vendor id="10415" name="TGPP"/>
         <command code="316" short="UL" name="Update-Location">
-            <request>
+            <request proxiable="true">
                 <rule avp="Session-Id" required="true" max="1"/>
                 <rule avp="Vendor-Specific-Application-Id" required="false" max="1"/>
                 <rule avp="Auth-Session-State" required="true" max="1"/>
@@ -30,7 +31,7 @@
                 <rule avp="Proxy-Info" required="false"/>
                 <rule avp="Route-Record" required="false"/>
             </request>
-            <answer>
+            <answer proxiable="true">
                 <rule avp="Session-Id" required="true" max="1"/>
                 <rule avp="Vendor-Specific-Application-Id" required="false" max="1"/>
                 <rule avp="Result-Code" required="false" max="1"/>
@@ -50,7 +51,7 @@
         </command>
 
         <command code="317" short="CL" name="Cancel-Location">
-            <request>
+            <request proxiable="true">
                 <rule avp="Session-Id" required="true" max="1"/>
                 <rule avp="Vendor-Specific-Application-Id" required="false" max="1"/>
                 <rule avp="Auth-Session-State" required="true" max="1"/>
@@ -66,7 +67,7 @@
                 <rule avp="Proxy-Info" required="false"/>
                 <rule avp="Route-Record" required="false"/>
             </request>
-            <answer>
+            <answer proxiable="true">
                 <rule avp="Session-Id" required="true" max="1"/>
                 <rule avp="Vendor-Specific-Application-Id" required="false" max="1"/>
                 <rule avp="Supported-Features" required="false"/>
@@ -83,7 +84,7 @@
         </command>
 
         <command code="319" short="ID" name="Insert-Subscriber-Data">
-            <request>
+            <request proxiable="true">
                 <rule avp="Session-Id" required="true" max="1"/>
                 <rule avp="DRMP" required="false" max="1" />
                 <rule avp="Vendor-Specific-Application-Id" required="false" max="1"/>
@@ -101,7 +102,7 @@
                 <rule avp="Proxy-Info" required="false"/>
                 <rule avp="Route-Record" required="false"/>
             </request>
-            <answer>
+            <answer proxiable="true">
                 <rule avp="Session-Id" required="true" max="1"/>
                  <rule avp="DRMP" required="false" max="1" />
                 <rule avp="Vendor-Specific-Application-Id" required="false" max="1"/>
@@ -129,7 +130,7 @@
         </command>
 
         <command code="318" short="AI" name="Authentication-Information">
-            <request>
+            <request proxiable="true">
                 <rule avp="Session-Id" required="true" max="1"/>
                 <rule avp="Vendor-Specific-Application-Id" required="false" max="1"/>
                 <rule avp="Auth-Session-State" required="true" max="1"/>
@@ -146,7 +147,7 @@
                 <rule avp="Proxy-Info" required="false"/>
                 <rule avp="Route-Record" required="false"/>
             </request>
-            <answer>
+            <answer proxiable="true">
                 <rule avp="Session-Id" required="true" max="1"/>
                 <rule avp="Vendor-Specific-Application-Id" required="false" max="1"/>
                 <rule avp="Result-Code" required="false" max="1"/>
@@ -184,7 +185,7 @@
                 *[ Proxy-Info ]
                 *[ Route-Record ]
             -->
-            <request>
+            <request proxiable="true">
                 <rule avp="Session-Id" required="true" max="1" />
                 <rule avp="DRMP" required="false" max="1" />
                 <rule avp="Vendor-Specific-Application-Id" required="false" max="1" />
@@ -222,7 +223,7 @@
                 *[ Proxy-Info ]
                 *[ Route-Record ]
             -->
-            <answer>
+            <answer proxiable="true">
                 <rule avp="Session-Id" required="true" max="1" />
                 <rule avp="DRMP" required="false" max="1" />
                 <rule avp="Vendor-Specific-Application-Id" required="false" max="1" />
@@ -272,7 +273,7 @@
                 *[ Proxy-Info ]
                 *[ Route-Record ]
             -->
-            <request>
+            <request proxiable="true">
                 <rule avp="Session-Id" required="true" max="1" />
                 <rule avp="Vendor-Specific-Application-Id" required="false" max="1" />
                 <rule avp="DRMP" required="false" max="1" />
@@ -318,7 +319,7 @@
                 *[ Proxy-Info ]
                 *[ Route-Record ]
             -->
-            <answer>
+            <answer proxiable="true">
                 <rule avp="Session-Id" required="true" max="1" />
                 <rule avp="DRMP" required="false" max="1" />
                 <rule avp="Vendor-Specific-Application-Id" required="false" max="1" />
@@ -353,7 +354,7 @@
                 *[ Proxy-Info ]
                 *[ Route-Record ]
             -->
-            <request>
+            <request proxiable="true">
                 <rule avp="Session-Id" required="true" max="1" />
                 <rule avp="Vendor-Specific-Application-Id" required="false" max="1" />
                 <rule avp="Auth-Session-State" required="true" max="1" />
@@ -381,7 +382,7 @@
                 *[ Proxy-Info ]
                 *[ Route-Record ]
             -->
-            <answer>
+            <answer proxiable="true">
                 <rule avp="Session-Id" required="true" max="1" />
                 <rule avp="Vendor-Specific-Application-Id" required="false" max="1" />
                 <rule avp="Supported-Features" required="false" />
@@ -419,7 +420,7 @@
                 *[ Proxy-Info ]
                 *[ Route-Record ]
             -->
-            <request>
+            <request proxiable="true">
                 <rule avp="Session-Id" required="true" max="1" />
                 <rule avp="DRMP" required="false" max="1" />
                 <rule avp="Vendor-Specific-Application-Id" required="false" max="1" />
@@ -456,7 +457,7 @@
                 *[ Proxy-Info ]
                 *[ Route-Record ]
             -->
-            <answer>
+            <answer proxiable="true">
                 <rule avp="Session-Id" required="true" max="1" />
                 <rule avp="DRMP" required="false" max="1" />
                 <rule avp="Vendor-Specific-Application-Id" required="false" max="1" />
@@ -976,6 +977,24 @@
 
         <avp name="Visited-PLMN-Id" code="1407" must="M,V" may-encrypt="N" vendor-id="10415">
             <data type="OctetString"/>
+        </avp>
+
+        <!-- TS 29.272 V19.6.0 §7.3.13 and Table 7.3.1/2 (NOTE 1): reused TS 29.212 AVP whose
+             M bit "Must set" overrides the "Must not" of TS 29.212 Table 5.3.0.1. -->
+        <avp name="RAT-Type" code="1032" must="M,V" may="P" may-encrypt="Y" vendor-id="10415">
+            <data type="Enumerated">
+                <item code="0" name="WLAN"/>
+                <item code="1" name="VIRTUAL"/>
+                <item code="1000" name="UTRAN"/>
+                <item code="1001" name="GERAN"/>
+                <item code="1002" name="GAN"/>
+                <item code="1003" name="HSPA_EVOLUTION"/>
+                <item code="1004" name="EUTRAN"/>
+                <item code="2000" name="CDMA2000_1X"/>
+                <item code="2001" name="HRPD"/>
+                <item code="2002" name="UMB"/>
+                <item code="2003" name="EHRPD"/>
+            </data>
         </avp>
 
         <avp name="Error-Diagnostic" code="1614" must="V" must-not="M" may-encrypt="N" vendor-id="10415">

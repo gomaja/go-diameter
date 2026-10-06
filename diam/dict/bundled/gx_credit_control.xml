@@ -4,10 +4,11 @@
     <application id="16777238" type="auth" name="Gx Charging Control">
         <!-- Diameter Gx Credit Control Application -->
         <!-- 3GPP 29.212 -->
+        <!-- proxiable: each request CCF is "REQ, PXY", each answer "PXY" (3GPP TS 29.212 V20.0.0 §§5.6.2-5.6.5). -->
 
         <vendor id="10415" name="TGPP"/>
         <command code="272" short="CC" name="Credit-Control">
-            <request>
+            <request proxiable="true">
                 <!-- 3GPP 29.212 Section 5.6.2 -->
                 <rule avp="Session-Id" required="true" max="1"/>
                 <rule avp="Origin-Host" required="true" max="1"/>
@@ -45,7 +46,7 @@
                 <rule avp="TGPP-SGSN-MCC-MNC" required="false" max="1"/>
                 <rule avp="TGPP-User-Location-Info" required="false" max="1"/>
             </request>
-            <answer>
+            <answer proxiable="true">
                 <!-- 3GPP 29.212 Section 5.6.3 -->
                 <rule avp="Session-Id" required="true" max="1"/>
                 <rule avp="Result-Code" required="true" max="1"/>
@@ -66,7 +67,7 @@
         </command>
 
         <command code="258" short="RA" name="Re-Auth">
-            <request>
+            <request proxiable="true">
                 <rule avp="Session-Id" required="true" max="1"/>
                 <rule avp="Origin-Host" required="true" max="1"/>
                 <rule avp="Origin-Realm" required="true" max="1"/>
@@ -81,7 +82,7 @@
                 <rule avp="Event-Trigger" required="false"/>
                 <rule avp="Revalidation-Time" required="false"/>
             </request>
-            <answer>
+            <answer proxiable="true">
                 <rule avp="Session-Id" required="true" max="1"/>
                 <rule avp="Result-Code" required="true" max="1"/>
                 <rule avp="Origin-Host" required="true" max="1"/>

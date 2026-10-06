@@ -233,9 +233,9 @@ func (a *AVP) SerializeTo(b []byte) error {
 		}
 	}
 	hl := a.serializeHeaderTo(b, a.Data.Len())
-	if group, ok := a.Data.(*GroupedAVP); ok {
+	if _, ok := a.Data.(*GroupedAVP); ok {
 		offset := hl
-		for _, child := range group.AVP {
+		for _, child := range members(a) {
 			if err := child.SerializeTo(b[offset:]); err != nil {
 				return err
 			}
