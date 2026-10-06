@@ -209,6 +209,17 @@ func (sm *StateMachine) ServeDIAM(c diam.Conn, m *diam.Message) {
 		c.Close()
 		return
 	}
+	if sm.cfg.ValidateRequests && m.Header.CommandFlags&diam.RequestFlag != 0 &&
+		!sm.supportsApplication(m.Header.ApplicationID) {
+		// RFC 6733 §7.1.3: the applications this node advertises decide
+		// 3007, not the dictionary that decoded the message, so this runs
+		// before Validate and before AVP-level checks. HandleMessageError
+		// also closes the connection of a rejected CER (§5.3).
+		if err := sm.HandleMessageError(c, m, &diam.MessageError{ResultCode: diam.ApplicationUnsupported}); err != nil {
+			sm.Error(&diam.ErrorReport{Conn: c, Message: m, Error: err})
+		}
+		return
+	}
 	if sm.cfg.RejectUnknownMandatoryAVPs && m.Header.CommandFlags&diam.RequestFlag != 0 {
 		if failed := m.UnknownMandatoryAVPs(); len(failed) != 0 {
 			// RFC 6733 §7.1.5, Verified Erratum 4615: one Failed-AVP
