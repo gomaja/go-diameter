@@ -233,12 +233,7 @@ func startPipeServer(t *testing.T, handler Handler) (net.Conn, <-chan struct{}) 
 	t.Helper()
 	local, remote := net.Pipe()
 	srv := &Server{Handler: handler, Dict: dict.Default}
-	c, err := srv.newConn(local)
-	if err != nil {
-		_ = local.Close()
-		_ = remote.Close()
-		t.Fatal(err)
-	}
+	c := srv.newConn(local)
 	done := make(chan struct{})
 	go func() {
 		c.serve()

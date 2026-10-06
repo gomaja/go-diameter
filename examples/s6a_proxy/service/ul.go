@@ -3,7 +3,7 @@
 package service
 
 import (
-	"log"
+	"log/slog"
 	"math/rand"
 	"time"
 
@@ -89,7 +89,7 @@ func handleULA(s *s6aProxy) diam.HandlerFunc {
 		var ula ULA
 		err := m.Unmarshal(&ula)
 		if err != nil {
-			log.Printf("ULA Unmarshal failed for remote %s & message %s: %s", c.RemoteAddr(), m, err)
+			slog.Warn("dropping ULA: unmarshal failed", "remote_addr", c.RemoteAddr(), "message", m, "error", err)
 			return
 		}
 		s.sessionsMu.Lock()
@@ -100,7 +100,8 @@ func handleULA(s *s6aProxy) diam.HandlerFunc {
 			ch <- &ula
 		} else {
 			s.sessionsMu.Unlock()
-			log.Printf("ULA SessionID %s not found. Message: %s, Remote: %s", ula.SessionID, m, c.RemoteAddr())
+			slog.Warn("dropping ULA: no pending ULR for its session",
+				"session_id", ula.SessionID, "remote_addr", c.RemoteAddr(), "message", m)
 		}
 	}
 }
@@ -128,7 +129,7 @@ func (s *s6aProxy) UpdateLocationImpl(req *protos.UpdateLocationRequest) (*proto
 		if err != nil {
 			s.releaseConnection()
 			s.cleanupSession(sid)
-			log.Printf("Cannot connect to %s://%s; %v", s.cfg.Protocol, s.cfg.HssAddr, err)
+			slog.Warn("cannot connect to HSS", "network", s.cfg.Protocol, "address", s.cfg.HssAddr, "error", err)
 			return res, Error(codes.Unavailable, err)
 		}
 		err = s.sendULR(sid, req)
@@ -136,7 +137,7 @@ func (s *s6aProxy) UpdateLocationImpl(req *protos.UpdateLocationRequest) (*proto
 		s.releaseConnection() // we can unlock reader after send
 
 		if err != nil {
-			log.Printf("Error sending ULR with SID %s: %v", sid, err)
+			slog.Warn("sending ULR failed", "session_id", sid, "error", err)
 			if status, ok := status.FromError(err); ok && status != nil && status.Code() == codes.DataLoss {
 				s.cleanupConn(c)
 				continue

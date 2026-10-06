@@ -78,19 +78,23 @@ func newLocalListener(network string) net.Listener {
 		network = "tcp"
 	}
 	l, err := diam.MultistreamListen(network, "127.0.0.1:0")
-	if err != nil {
-		fmt.Printf("diamtest: failed initial listen on network %s: %v", network, err)
-		switch network {
-		case "sctp":
-			network = "sctp6"
-		case "tcp":
-			network = "tcp6"
-		default:
-			panic(fmt.Sprintf("diamtest: failed to listen on network %s: %v", network, err))
-		}
-		if l, err = diam.MultistreamListen(network, "[::1]:0"); err != nil {
-			panic(fmt.Sprintf("diamtest: failed to listen on a port: %v", err))
-		}
+	if err == nil {
+		return l
+	}
+	// Fall back to IPv6 loopback, as net/http/httptest does. The IPv4
+	// failure is reported only if the fallback fails as well.
+	var fallback string
+	switch network {
+	case "sctp":
+		fallback = "sctp6"
+	case "tcp":
+		fallback = "tcp6"
+	default:
+		panic(fmt.Sprintf("diamtest: failed to listen on network %s: %v", network, err))
+	}
+	l, err6 := diam.MultistreamListen(fallback, "[::1]:0")
+	if err6 != nil {
+		panic(fmt.Sprintf("diamtest: failed to listen on a port: %v", errors.Join(err, err6)))
 	}
 	return l
 }

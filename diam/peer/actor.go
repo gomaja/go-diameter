@@ -241,7 +241,7 @@ func (m *Manager) dialEndpoint(ctx context.Context, e Endpoint, a *actor, gen ui
 		network = "tcp"
 	}
 	ready := make(chan *session, 1)
-	srv := &diam.Server{Network: network, Addr: e.Address, Handler: m, Dict: m.cfg.Settings.Dict, WriteTimeout: m.cfg.Timers.Closing, OnNewConnection: func(c diam.Conn) { ready <- m.newSession(c, a, gen, false) }}
+	srv := &diam.Server{Network: network, Addr: e.Address, Handler: m, Dict: m.cfg.Settings.Dict, WriteTimeout: m.cfg.Timers.Closing, Logger: m.cfg.Logger, OnNewConnection: func(c diam.Conn) { ready <- m.newSession(c, a, gen, false) }}
 	var c diam.Conn
 	var err error
 	if m.cfg.Dial != nil {

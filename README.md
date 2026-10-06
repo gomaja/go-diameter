@@ -37,8 +37,10 @@ commit to a newer one.
   obsolete RFC references.
 - Uses `github.com/gomaja/go-sctp` for Linux SCTP support, with TCP and TLS
   support available through the standard Go networking stack.
+- Writes structured `log/slog` records to a logger you inject.
 - Ships with practical examples for clients, servers, SCTP, snooping, grouped
-  AVPs, S6a, middleware, Wireshark dictionary conversion, and benchmarking.
+  AVPs, S6a, OpenTelemetry tracing middleware, Wireshark dictionary
+  conversion, and benchmarking.
 - Maintains public CI and security gates covering formatting, Linux tests,
   race tests, vet, cross-architecture vet, static analysis, vulnerability
   scanning, CodeQL, and secret detection.
@@ -171,6 +173,33 @@ The security pipeline adds:
 - Scheduled dependency scanning.
 - CodeQL SAST with extended Go queries.
 - Secret detection with gitleaks.
+
+## Logging and Tracing
+
+`diam.Server`, `sm.Client` and `peer.Config` each have a `Logger
+*slog.Logger` field. It receives what the library cannot return to a caller:
+recovered handler panics (Error, with the stack), accept failures that
+`Serve` retries (Warn), and failures to close a connection (Debug). A nil
+`Logger` uses `slog.Default()`; `slog.New(slog.DiscardHandler)` discards the
+records.
+
+```go
+srv := &diam.Server{
+	Handler: mux,
+	Logger:  slog.New(slog.NewJSONHandler(os.Stderr, nil)),
+}
+```
+
+The `examples/middleware` module wraps a handler with OpenTelemetry tracing:
+one span per message, with the Diameter application, command and result as
+attributes. When the handler panics, the span ends with status Error and an
+`error.type`. The panic is recorded as one `exception` log record, at
+severity ERROR, carrying the span's context, through the OpenTelemetry Logs
+API. It is not recorded as a span event, which the semantic conventions
+deprecate ([exceptions in logs](https://opentelemetry.io/docs/specs/semconv/exceptions/exceptions-logs/),
+[recording errors](https://opentelemetry.io/docs/specs/semconv/general/recording-errors/)).
+The panic then continues to `diam.Server`. `WithTracerProvider` and
+`WithLoggerProvider` choose the providers; the defaults are the global ones.
 
 ## Performance
 

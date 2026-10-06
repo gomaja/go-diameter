@@ -4,12 +4,11 @@ package service
 
 import (
 	"fmt"
-	"log"
+	"log/slog"
 	"math/rand"
 	"strings"
 	"time"
 
-	"github.com/golang/glog"
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
@@ -22,7 +21,7 @@ import (
 
 // sendAIR - sends AIR with given Session ID (sid)
 func (s *s6aProxy) sendAIR(sid string, req *protos.AuthenticationInformationRequest) error {
-	glog.V(4).Infof("Got into sendAIR request from gateway: %v\n", req)
+	slog.Debug("sending AIR", "session_id", sid, "request", req)
 	c := s.conn
 	meta, ok := smpeer.FromContext(c.Context())
 	if !ok {
@@ -128,11 +127,11 @@ func newAIR(cfg *S6aProxyConfig, meta *smpeer.Metadata, sid string, req *protos.
 // S6a AIA
 func handleAIA(s *s6aProxy) diam.HandlerFunc {
 	return func(c diam.Conn, m *diam.Message) {
-		glog.V(4).Infof("Got into handleAIA, diam msg: %v\n", m)
+		slog.Debug("received AIA", "remote_addr", c.RemoteAddr(), "message", m)
 		var aia AIA
 		err := m.Unmarshal(&aia)
 		if err != nil {
-			log.Printf("AIA Unmarshal failed for remote %s & message %s: %s", c.RemoteAddr(), m, err)
+			slog.Warn("dropping AIA: unmarshal failed", "remote_addr", c.RemoteAddr(), "message", m, "error", err)
 			return
 		}
 		s.sessionsMu.Lock()
@@ -141,13 +140,15 @@ func handleAIA(s *s6aProxy) diam.HandlerFunc {
 		idx := strings.LastIndex(aia.SessionID, ";stream:")
 		if idx < 0 {
 			s.sessionsMu.Unlock()
-			log.Printf("AIA SessionID %q has no stream marker. Message: %q, Remote: %q", aia.SessionID, m, c.RemoteAddr())
+			slog.Warn("dropping AIA: Session-Id has no stream marker",
+				"session_id", aia.SessionID, "remote_addr", c.RemoteAddr(), "message", m)
 			return
 		}
 		sid := aia.SessionID[0:idx]
 		if _, err = fmt.Sscanf(aia.SessionID[idx:], ";stream:%d", &msgStream); err != nil {
 			s.sessionsMu.Unlock()
-			log.Printf("AIA SessionID %q has invalid stream marker: %v. Message: %q, Remote: %q", aia.SessionID, err, m, c.RemoteAddr())
+			slog.Warn("dropping AIA: Session-Id has an invalid stream marker",
+				"session_id", aia.SessionID, "remote_addr", c.RemoteAddr(), "message", m, "error", err)
 			return
 		}
 		ch, ok := s.sessions[sid]
@@ -159,8 +160,9 @@ func handleAIA(s *s6aProxy) diam.HandlerFunc {
 				delete(s.sessions, sid)
 				s.sessionsMu.Unlock()
 				close(ch)
-				log.Printf("AIA stream mismatch: session stream %d from SessionID %q != message stream %d. Message: %q, Remote: %q",
-					msgStream, aia.SessionID, stream, m, c.RemoteAddr())
+				slog.Warn("dropping AIA: received on another stream than its Session-Id names",
+					"session_id", aia.SessionID, "session_stream", msgStream, "message_stream", stream,
+					"remote_addr", c.RemoteAddr(), "message", m)
 				return
 			}
 			delete(s.sessions, sid)
@@ -168,7 +170,8 @@ func handleAIA(s *s6aProxy) diam.HandlerFunc {
 			ch <- &aia
 		} else {
 			s.sessionsMu.Unlock()
-			log.Printf("AIA SessionID %q (%q) not found. Message: %q, Remote: %q", aia.SessionID, sid, m, c.RemoteAddr())
+			slog.Warn("dropping AIA: no pending AIR for its session",
+				"session_id", aia.SessionID, "remote_addr", c.RemoteAddr(), "message", m)
 		}
 	}
 }
@@ -177,7 +180,7 @@ func handleAIA(s *s6aProxy) diam.HandlerFunc {
 // waits (blocks) for AIA & returns its RPC representation
 func (s *s6aProxy) AuthenticationInformationImpl(
 	req *protos.AuthenticationInformationRequest) (*protos.AuthenticationInformationAnswer, error) {
-	glog.V(4).Infof("Got AI request from gateway\n")
+	slog.Debug("received AI request from gateway")
 	res := &protos.AuthenticationInformationAnswer{}
 	if req == nil {
 		return res, Errorf(codes.InvalidArgument, "Nil AI Request")
@@ -197,13 +200,13 @@ func (s *s6aProxy) AuthenticationInformationImpl(
 		if err != nil {
 			s.releaseConnection()
 			s.cleanupSession(sid)
-			log.Printf("Cannot connect to %s://%s; %v", s.cfg.Protocol, s.cfg.HssAddr, err)
+			slog.Warn("cannot connect to HSS", "network", s.cfg.Protocol, "address", s.cfg.HssAddr, "error", err)
 			return res, Error(codes.Unavailable, err)
 		}
 		err = s.sendAIR(sid, req)
 		s.releaseConnection() // we can unlock reader after send
 		if err != nil {
-			log.Printf("Error sending AIR with SID %s: %v", sid, err)
+			slog.Warn("sending AIR failed", "session_id", sid, "error", err)
 			if status, ok := status.FromError(err); ok && status != nil && status.Code() == codes.DataLoss {
 				s.cleanupConn(c)
 				continue

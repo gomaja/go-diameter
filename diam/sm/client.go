@@ -8,6 +8,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"log/slog"
 	"math/rand"
 	"net"
 	"net/netip"
@@ -103,6 +104,10 @@ type Client struct {
 	// produced each event. Like OnWatchdogEvent, it must be concurrency-safe
 	// and return promptly. The existing callback runs first when both are set.
 	OnWatchdogConnEvent func(diam.Conn, WatchdogEvent)
+
+	// Logger receives the records of the connections the client opens, as
+	// diam.Server.Logger does for a server. Nil uses slog.Default.
+	Logger *slog.Logger
 
 	watchdogEventMu sync.Mutex
 	defaultsOnce    sync.Once
@@ -256,7 +261,7 @@ func (cli *Client) NewConn(rw net.Conn, addr string) (diam.Conn, error) {
 }
 
 // server builds the diam.Server template used to open outgoing connections,
-// carrying the client's dictionary, handler and I/O timeouts.
+// carrying the client's dictionary, handler, I/O timeouts and logger.
 func (cli *Client) server(network, addr string, laddr net.Addr, activity *watchdogActivity) *diam.Server {
 	var handler diam.Handler = cli.Handler
 	if activity != nil {
@@ -276,6 +281,7 @@ func (cli *Client) server(network, addr string, laddr net.Addr, activity *watchd
 		TLSConfig:    cli.TLSConfig,
 		ReadTimeout:  cli.ReadTimeout,
 		WriteTimeout: cli.WriteTimeout,
+		Logger:       cli.Logger,
 	}
 }
 

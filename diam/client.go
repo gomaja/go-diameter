@@ -8,6 +8,7 @@ package diam
 
 import (
 	"crypto/tls"
+	"errors"
 	"net"
 	"strings"
 	"time"
@@ -87,12 +88,15 @@ func dialBind(srv *Server, laddr net.Addr, timeout time.Duration) (Conn, error) 
 	if err != nil {
 		return nil, err
 	}
-	c, err := srv.newConn(rw)
-	if err != nil {
-		return nil, err
-	}
+	return srv.serveConn(rw), nil
+}
+
+// serveConn starts serving rw, opened by the caller, and returns the Conn
+// that writes to it.
+func (srv *Server) serveConn(rw net.Conn) Conn {
+	c := srv.newConn(rw)
 	go c.serve()
-	return c.writer, nil
+	return c.writer
 }
 
 // DialTLS is the same as Dial, but for TLS. A blank address uses port 5868
@@ -156,12 +160,7 @@ func dialTLS(srv *Server, certFile, keyFile string, timeout time.Duration) (Conn
 	if err != nil {
 		return nil, err
 	}
-	c, err := srv.newConn(tls.Client(rw, config))
-	if err != nil {
-		return nil, err
-	}
-	go c.serve()
-	return c.writer, nil
+	return srv.serveConn(tls.Client(rw, config)), nil
 }
 
 // defaultTransportAddress applies RFC 6733 §2.1 and Verified Erratum 3997.
@@ -228,25 +227,20 @@ func (srv *Server) DialTLS(certFile, keyFile string, timeout time.Duration) (Con
 	return dialTLS(srv, certFile, keyFile, timeout)
 }
 
+// errNilConn is returned by NewConn for a nil net.Conn.
+var errNilConn = errors.New("diam: nil net.Conn")
+
 // NewConn is like Dial, but using an already open net.Conn. Honors
-// srv.Handler, srv.Dict, srv.ReadTimeout and srv.WriteTimeout.
+// srv.Handler, srv.Dict, srv.ReadTimeout, srv.WriteTimeout and srv.Logger.
 func (srv *Server) NewConn(rw net.Conn) (Conn, error) {
-	c, err := srv.newConn(rw)
-	if err != nil {
-		return nil, err
+	if rw == nil {
+		return nil, errNilConn
 	}
-	go c.serve()
-	return c.writer, nil
+	return srv.serveConn(rw), nil
 }
 
 // NewConn is the same as Dial, but using an already open net.Conn.
 func NewConn(rw net.Conn, addr string, handler Handler, dp *dict.Parser) (Conn, error) {
 	srv := &Server{Addr: addr, Handler: handler, Dict: dp}
-
-	c, err := srv.newConn(rw)
-	if err != nil {
-		return nil, err
-	}
-	go c.serve()
-	return c.writer, nil
+	return srv.NewConn(rw)
 }

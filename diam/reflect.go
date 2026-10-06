@@ -250,10 +250,8 @@ BASIC_TYPE:
 		v := reflect.Indirect(p)
 
 		if fieldType.AssignableTo(t) {
-			// log.Println("assign: ", fieldAVP.Name, " ", fieldType.String(), " => ", t.String())
 			v.Set(field)
 		} else if fieldType.ConvertibleTo(t) {
-			// log.Println("convert: ", fieldAVP.Name, " ", fieldType.String(), " => ", t.String())
 			v.Set(field.Convert(t))
 		} else {
 			return nil, errors.New(fieldAVP.Name + " AVP type mismatched: " + fieldType.String() + " => " + t.String())
@@ -416,7 +414,6 @@ func scanStruct(m *Message, field reflect.Value, avps []*AVP) error {
 		if !exists {
 			continue
 		}
-		//log.Println("Handling", f, bt)
 		if err := unmarshal(m, f, avps, d.Data.Type); err != nil {
 			return err
 		}

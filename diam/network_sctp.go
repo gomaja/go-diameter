@@ -8,8 +8,9 @@ import (
 	"bytes"
 	"container/heap"
 	"context"
+	"errors"
+	"fmt"
 	"io"
-	"log"
 	"net"
 	"strconv"
 	"sync"
@@ -137,24 +138,36 @@ type SCTPConn struct {
 	errorHandler MutistreamConnErrorHandler
 }
 
-// NewSCTPConn creates a multistream connection from a go-sctp Conn.
-func NewSCTPConn(sctpConn *sctp.Conn) MultistreamConn {
+// NewSCTPConn wraps a go-sctp connection the caller opened as a
+// MultistreamConn. It applies the two latency settings that Dial, Listen and
+// MultistreamListen give every association through their sctp.Config:
+// SCTP_NODELAY (RFC 6458 §8.1.5), so small Diameter messages are sent at
+// once instead of being coalesced, and a delayed-SACK frequency of 1
+// (RFC 6458 §8.1.19), so every packet is acknowledged without delay.
+//
+// A failure to apply either setting is returned, as go-sctp returns it, and
+// sctpConn is left open for the caller to close. Settings fixed when the
+// association is set up, such as its stream counts (RFC 6458 §8.1.3), are
+// chosen by whoever opens sctpConn.
+func NewSCTPConn(sctpConn *sctp.Conn) (MultistreamConn, error) {
 	if sctpConn == nil {
-		return nil
+		return nil, errors.New("diam: nil SCTP connection")
 	}
-	// Sender side: disable the SCTP Nagle algorithm (RFC 6458 §8.1.5) so small
-	// Diameter messages are sent immediately instead of being coalesced. This is
-	// the primary fix for the latency caused by sender-side buffering.
 	if err := sctpConn.SetNoDelay(true); err != nil {
-		log.Printf("diam: set SCTP_NODELAY failed: %v", err)
+		return nil, fmt.Errorf("diam: set SCTP_NODELAY: %w", err)
 	}
-
-	// Receiver side: disable the delayed-SACK timer (RFC 6458 §8.1.19) so
-	// acknowledgements are sent for every packet without delay, complementing the
-	// sender-side NODELAY above to minimize round-trip latency.
 	if err := sctpConn.SetDelayedSACK(&sctp.DelayedSACK{Frequency: 1}); err != nil {
-		log.Printf("diam: set SCTP delayed-SACK timer failed: %v", err)
+		return nil, fmt.Errorf("diam: set SCTP delayed SACK: %w", err)
 	}
+	return newSCTPConn(sctpConn), nil
+}
+
+// newSCTPConn wraps a connection opened from diameterSCTPConfig without
+// setting any option again. go-sctp applied the Config before the socket
+// connected or listened and failed the call if it could not, and an
+// accepted socket inherits the listening socket's settings (go-sctp
+// Listener documentation).
+func newSCTPConn(sctpConn *sctp.Conn) *SCTPConn {
 	return &SCTPConn{Conn: sctpConn, s: &streams{}, currStream: InvalidStreamID, writerStream: InvalidStreamID}
 }
 
@@ -414,7 +427,10 @@ func (d sctpDialer) Dial(network, address string) (net.Conn, error) {
 		defer cancel()
 	}
 	conn, err := diameterSCTPConfig().Dial(ctx, network, d.LocalAddr, sctpAddr)
-	return NewSCTPConn(conn), err
+	if err != nil {
+		return nil, err
+	}
+	return newSCTPConn(conn), nil
 }
 
 // Dial - SCTP dial for stream unaware apps.
@@ -425,5 +441,8 @@ func (d sctpSingleStreamDialer) Dial(network, address string) (net.Conn, error) 
 // Accept implements the Accept method in the listener interface for sctpListener (see: MultistreamListen).
 func (l sctpListener) Accept() (net.Conn, error) {
 	conn, err := l.AcceptSCTP()
-	return NewSCTPConn(conn), err
+	if err != nil {
+		return nil, err
+	}
+	return newSCTPConn(conn), nil
 }

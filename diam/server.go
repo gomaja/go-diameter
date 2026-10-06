@@ -13,9 +13,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net"
-	"runtime"
 	"sync"
 	"time"
 
@@ -144,8 +143,9 @@ func (c *conn) closeNotify() <-chan struct{} {
 		if msc, isMulti := c.rwc.(MultistreamConn); isMulti {
 			// MultistreamConn provides it's own error handler
 			msc.SetErrorHandler(func(mc MultistreamConn, err error) {
-				if closeErr := mc.Close(); closeErr != nil {
-					log.Printf("diam: close multistream connection after error: %v", closeErr)
+				if closeErr := mc.Close(); closeErr != nil && !errors.Is(closeErr, net.ErrClosed) {
+					c.log(slog.LevelDebug, "diam: close connection after read error",
+						slog.Any(logKeyError, closeErr), slog.Any(logKeyReadError, err))
 				}
 				c.notifyClientGone()
 			})
@@ -184,8 +184,8 @@ func (c *conn) notifyClientGone() {
 	c.clientGone = true
 }
 
-// Create new connection from rwc.
-func (srv *Server) newConn(rwc net.Conn) (c *conn, err error) {
+// newConn wraps rwc in a connection served by srv.
+func (srv *Server) newConn(rwc net.Conn) (c *conn) {
 	msc, isMulti := rwc.(MultistreamConn)
 	if isMulti {
 		c = &conn{
@@ -210,7 +210,7 @@ func (srv *Server) newConn(rwc net.Conn) (c *conn, err error) {
 	if n := srv.MaxConcurrentHandlers; n > 0 {
 		c.sem = make(chan struct{}, n)
 	}
-	return c, nil
+	return c
 }
 
 // Read next message from connection.
@@ -234,11 +234,8 @@ func (c *conn) readMessage() (m *Message, err error) {
 func (c *conn) serve() {
 	var onClose func()
 	defer func() {
-		if err := recover(); err != nil {
-			buf := make([]byte, 4096)
-			buf = buf[:runtime.Stack(buf, false)]
-			log.Printf("diam: panic serving %v: %v\n%s",
-				c.rwc.RemoteAddr().String(), err, buf)
+		if v := recover(); v != nil {
+			c.logPanic(v)
 		}
 		// Wait for in-flight handler goroutines to finish so they are
 		// not writing to a closed connection when we call rwc.Close().
@@ -246,7 +243,7 @@ func (c *conn) serve() {
 		// A connection that an earlier Close, Disconnect or Shutdown already
 		// closed is not an error worth logging.
 		if err := c.rwc.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
-			log.Printf("diam: close connection: %v", err)
+			c.log(slog.LevelDebug, "diam: close connection", slog.Any(logKeyError, err))
 		}
 		if onClose != nil {
 			onClose()
@@ -400,11 +397,8 @@ func (c *conn) dispatch(m *Message) {
 			}
 		}()
 		defer func() {
-			if err := recover(); err != nil {
-				buf := make([]byte, 4096)
-				buf = buf[:runtime.Stack(buf, false)]
-				log.Printf("diam: panic serving %v: %v\n%s",
-					c.rwc.RemoteAddr().String(), err, buf)
+			if v := recover(); v != nil {
+				c.logPanic(v)
 			}
 		}()
 		serverHandler{c.server}.ServeDIAM(c.writer, m)
@@ -510,10 +504,11 @@ func (w *response) SetWriterStream(stream uint) uint {
 	return 0
 }
 
-// Close closes the connection.
+// Close closes the connection. A failure to close a connection that is not
+// already closed is logged to Server.Logger at Debug level.
 func (w *response) Close() {
 	if err := w.conn.rwc.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
-		log.Printf("diam: close response connection: %v", err)
+		w.conn.log(slog.LevelDebug, "diam: close connection", slog.Any(logKeyError, err))
 	}
 }
 
@@ -909,10 +904,10 @@ type Server struct {
 	// disconnection:
 	//
 	//	srv.OnNewConnection = func(c diam.Conn) {
-	//		log.Printf("up: %s", c.RemoteAddr())
+	//		slog.Info("peer connected", "remote_addr", c.RemoteAddr())
 	//		go func() {
 	//			<-c.(diam.CloseNotifier).CloseNotify()
-	//			log.Printf("down: %s", c.RemoteAddr())
+	//			slog.Info("peer disconnected", "remote_addr", c.RemoteAddr())
 	//		}()
 	//	}
 	OnNewConnection func(Conn)
@@ -922,6 +917,19 @@ type Server struct {
 	// available for a DPR/DPA exchange. The callback must honor ctx and
 	// return promptly when it is canceled.
 	OnShutdownConnection func(ctx context.Context, c Conn)
+
+	// Logger receives the records the server writes about the connections
+	// it serves, accepted and dialed alike: recovered handler panics (Error,
+	// with the panic value and stack), accept failures Serve retries (Warn)
+	// and failures to close a connection (Debug). Connection records carry
+	// the network, local_addr and remote_addr attributes and are written
+	// with the connection's Context. An error returned to the caller is not
+	// logged as well.
+	//
+	// A nil Logger uses slog.Default, looked up for every record so that a
+	// later slog.SetDefault applies. Use slog.New(slog.DiscardHandler) to
+	// discard the records.
+	Logger *slog.Logger
 
 	mu        sync.Mutex
 	listeners map[net.Listener]struct{}
@@ -970,14 +978,15 @@ var ErrServerClosed = fmt.Errorf("diam: Server closed")
 // connections and in-flight handlers continue until their read loop exits
 // naturally or their underlying connection is closed by the peer. After Close,
 // Server.Serve returns ErrServerClosed and no new connections are accepted.
+// The error joins every failure to close a listener or a connection.
 func (srv *Server) Close() error {
 	srv.mu.Lock()
 	defer srv.mu.Unlock()
 	srv.closed = true
-	var firstErr error
+	var errs []error
 	for l := range srv.listeners {
-		if err := l.Close(); err != nil && firstErr == nil {
-			firstErr = err
+		if err := l.Close(); err != nil {
+			errs = append(errs, err)
 		}
 	}
 	for c := range srv.conns {
@@ -985,14 +994,14 @@ func (srv *Server) Close() error {
 			select {
 			case <-c.handshakeDone:
 			default:
-				if err := c.rwc.Close(); err != nil && !errors.Is(err, net.ErrClosed) && firstErr == nil {
-					firstErr = err
+				if err := c.rwc.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
+					errs = append(errs, err)
 				}
 			}
 		}
 	}
 	srv.listeners = nil
-	return firstErr
+	return errors.Join(errs...)
 }
 
 // Shutdown stops accepting connections, waits for active handlers, runs
@@ -1119,16 +1128,29 @@ func (srv *Server) isClosed() bool {
 // onceCloseListener wraps a net.Listener so that Close is idempotent.
 // Used internally by ListenAndServe(TLS) so the defer l.Close() and
 // Server.Close do not both close the underlying listener, which triggers
-// file-descriptor reuse races on SCTP (see 29cbaef).
+// file-descriptor reuse races on SCTP (see 29cbaef). Only the first Close
+// reports the outcome of closing the listener; later calls return
+// net.ErrClosed, as a second Close of a net listener does, so a close
+// failure reaches exactly one caller.
 type onceCloseListener struct {
 	net.Listener
-	once     sync.Once
-	closeErr error
+	once sync.Once
 }
 
 func (oc *onceCloseListener) Close() error {
-	oc.once.Do(func() { oc.closeErr = oc.Listener.Close() })
-	return oc.closeErr
+	err := net.ErrClosed
+	oc.once.Do(func() { err = oc.Listener.Close() })
+	return err
+}
+
+// closeOwnedListener closes a listener ListenAndServe(TLS) opened, after
+// Serve returned *err, and joins a close failure to *err. When Server.Close
+// closed the listener first, Close reports net.ErrClosed here, and the
+// failure, if any, was returned by Server.Close.
+func closeOwnedListener(l net.Listener, err *error) {
+	if closeErr := l.Close(); closeErr != nil && !errors.Is(closeErr, net.ErrClosed) {
+		*err = errors.Join(*err, fmt.Errorf("diam: close listener: %w", closeErr))
+	}
 }
 
 // serverHandler delegates to either the server's Handler or DefaultServeMux.
@@ -1145,11 +1167,13 @@ func (sh serverHandler) ServeDIAM(w Conn, m *Message) {
 }
 
 // ListenAndServe listens on the network address srv.Addr and then
-// calls Serve to handle requests on incoming connections.  If
+// calls Serve to handle requests on incoming connections. It closes the
+// listener when Serve returns; a failure to close it is joined to the error
+// Serve returned.
 //
 // If srv.Network is blank, "tcp" is used
 // If srv.Addr is blank, ":3868" is used.
-func (srv *Server) ListenAndServe() error {
+func (srv *Server) ListenAndServe() (err error) {
 	network := srv.Network
 	if len(network) == 0 {
 		network = "tcp"
@@ -1163,11 +1187,7 @@ func (srv *Server) ListenAndServe() error {
 		return e
 	}
 	l = &onceCloseListener{Listener: l}
-	defer func() {
-		if err := l.Close(); err != nil {
-			log.Printf("diam: close listener: %v", err)
-		}
-	}()
+	defer closeOwnedListener(l, &err)
 	return srv.Serve(l)
 }
 
@@ -1197,33 +1217,25 @@ func (srv *Server) Serve(l net.Listener) error {
 				if max := 1 * time.Second; tempDelay > max {
 					tempDelay = max
 				}
-				log.Printf("diam: accept error: %v; retrying in %v", e, tempDelay)
+				attrs := append(addrAttrs(l.Addr(), nil),
+					slog.Any(logKeyError, e), slog.Duration(logKeyRetryIn, tempDelay))
+				srv.logger().LogAttrs(context.Background(), slog.LevelWarn,
+					"diam: accept failed; retrying", attrs...)
 				time.Sleep(tempDelay)
 				continue
 			}
-			network := "<nil>"
-			address := network
-			addr := l.Addr()
-			if addr != nil {
-				network = addr.Network()
-				address = addr.String()
-			}
-			log.Printf("diam: accept error: %v for %s %s", e, network, address)
+			// Returned, not logged: the caller decides how to report it,
+			// and a listener's error already names its network and address.
 			return e
 		}
 		tempDelay = 0
-		if c, err := srv.newConn(rw); err != nil {
-			log.Printf("srv.newConn error: %v", err)
+		c := srv.newConn(rw)
+		c.accepted = true
+		if !srv.trackConn(c) {
 			_ = rw.Close()
-			continue
-		} else {
-			c.accepted = true
-			if !srv.trackConn(c) {
-				_ = rw.Close()
-				return ErrServerClosed
-			}
-			go c.serve()
+			return ErrServerClosed
 		}
+		go c.serve()
 	}
 }
 
@@ -1260,9 +1272,12 @@ func ListenAndServe(addr string, handler Handler, dp *dict.Parser) error {
 // certificate authority, the certFile should be the concatenation
 // of the server's certificate followed by the CA's certificate.
 //
+// It closes the listener when Serve returns; a failure to close it is joined
+// to the error Serve returned.
+//
 // If srv.Network is blank, "tcp" is used
 // If srv.Addr is blank, ":5868" is used (RFC 6733 §2.1, Verified Erratum 3997).
-func (srv *Server) ListenAndServeTLS(certFile, keyFile string) error {
+func (srv *Server) ListenAndServeTLS(certFile, keyFile string) (err error) {
 	network := srv.Network
 	if len(network) == 0 {
 		network = "tcp"
@@ -1274,7 +1289,6 @@ func (srv *Server) ListenAndServeTLS(certFile, keyFile string) error {
 	} else {
 		config = TLSConfigClone(srv.TLSConfig)
 	}
-	var err error
 	if config.GetCertificate == nil {
 		config.Certificates = make([]tls.Certificate, 1)
 		config.Certificates[0], err = tls.LoadX509KeyPair(certFile, keyFile)
@@ -1288,11 +1302,7 @@ func (srv *Server) ListenAndServeTLS(certFile, keyFile string) error {
 	}
 	tlsListener := tls.NewListener(conn, config)
 	tlsListener = &onceCloseListener{Listener: tlsListener}
-	defer func() {
-		if err := tlsListener.Close(); err != nil {
-			log.Printf("diam: close TLS listener: %v", err)
-		}
-	}()
+	defer closeOwnedListener(tlsListener, &err)
 	return srv.Serve(tlsListener)
 }
 
