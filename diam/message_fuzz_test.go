@@ -83,11 +83,8 @@ var malformedAVPMessages = []struct {
 }
 
 func TestReadMessageRejectsMalformedAVPFraming(t *testing.T) {
-	permissive, err := dict.NewParser("dict/testdata/base.xml")
-	if err != nil {
-		t.Fatal(err)
-	}
-	permissive.Strict = false
+	permissive := dict.New(dict.Base)
+	permissive.SetStrict(false)
 	parsers := []struct {
 		name       string
 		dictionary *dict.Parser
@@ -121,7 +118,7 @@ func TestDecodeAVPsRejectsMissingPadding(t *testing.T) {
 		'x',
 	}
 	m := NewRequest(CapabilitiesExchange, 0, dict.Default)
-	if err := m.decodeAVPs(body); err == nil {
+	if err := m.decodeAVPs(body, dict.Default.Snapshot()); err == nil {
 		t.Fatal("decodeAVPs accepted an AVP without its required padding")
 	}
 	if len(m.AVP) != 0 {

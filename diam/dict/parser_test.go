@@ -11,12 +11,12 @@ import (
 )
 
 var testDicts = []string{
-	"./testdata/base.xml",
-	"./testdata/credit_control.xml",
-	"./testdata/network_access_server.xml",
-	"./testdata/tgpp_ro_rf.xml",
-	"./testdata/tgpp_s6a.xml",
-	"./testdata/tgpp_swx.xml"}
+	"./bundled/base.xml",
+	"./bundled/credit_control.xml",
+	"./bundled/network_access_server.xml",
+	"./bundled/tgpp_ro_rf.xml",
+	"./bundled/tgpp_s6a.xml",
+	"./bundled/tgpp_swx.xml"}
 
 func TestNewParser(t *testing.T) {
 	for _, dict := range testDicts {
@@ -57,7 +57,7 @@ func TestRxVendorIDs(t *testing.T) {
 			load func() (*Parser, error)
 		}{
 			{"embedded", func() (*Parser, error) { return Default, nil }},
-			{"xml", func() (*Parser, error) { return NewParser("testdata/tgpp_rx.xml") }},
+			{"selected", func() (*Parser, error) { return New(Rx), nil }},
 		} {
 			p, err := source.load()
 			if err != nil {
@@ -79,7 +79,7 @@ func TestS6aReusedIETFAVPsHaveNoVendor(t *testing.T) {
 		load func() (*Parser, error)
 	}{
 		{"embedded", func() (*Parser, error) { return Default, nil }},
-		{"xml", func() (*Parser, error) { return NewParser("testdata/tgpp_s6a.xml") }},
+		{"selected", func() (*Parser, error) { return New(S6a), nil }},
 	} {
 		p, err := source.load()
 		if err != nil {

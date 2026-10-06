@@ -59,11 +59,8 @@ func FuzzCERSecurityLength(f *testing.F) {
 	for _, seed := range [][]byte{{}, {0, 1}, {0, 0, 0, 0}, {0, 0, 0, 1}, {1, 2, 3, 4, 5}} {
 		f.Add(seed)
 	}
-	dictionary, err := dict.NewParser("../../dict/testdata/base.xml")
-	if err != nil {
-		f.Fatal(err)
-	}
-	dictionary.Strict = false
+	dictionary := dict.New(dict.Base)
+	dictionary.SetStrict(false)
 	f.Fuzz(func(t *testing.T, payload []byte) {
 		if len(payload) > 64 {
 			return

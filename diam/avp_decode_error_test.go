@@ -25,10 +25,7 @@ func TestReadMessageClassifiesPayloadLengths(t *testing.T) {
 		{"Float32", 4}, {"Float64", 8}, {"Enumerated", 4}, {"Time", 4}, {"IPv4", 4}, {"IPv6", 16},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			d, err := dict.NewParser("dict/testdata/base.xml")
-			if err != nil {
-				t.Fatal(err)
-			}
+			d := dict.New(dict.Base)
 			xml := fmt.Sprintf(`<diameter><application id="0"><avp name="Payload-Test" code="900001" vendor-id="10415"><data type="%s"/></avp></application></diameter>`, tc.name)
 			if err := d.Load(strings.NewReader(xml)); err != nil {
 				t.Fatal(err)
@@ -81,11 +78,8 @@ func TestReadMessageClassifiesAddressFailures(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			for _, strict := range []bool{false, true} {
-				d, err := dict.NewParser("dict/testdata/base.xml")
-				if err != nil {
-					t.Fatal(err)
-				}
-				d.Strict = strict
+				d := dict.New(dict.Base)
+				d.SetStrict(strict)
 				m, err := ReadMessage(bytes.NewReader(testFramedMessage(t, RequestFlag, rawAVP(avp.HostIPAddress, tc.payload))), d)
 				if !strict {
 					if err != nil || m.DecodeErr == nil {
@@ -156,11 +150,8 @@ func TestReadMessagePayloadFailureHierarchyAndPrecedence(t *testing.T) {
 }
 
 func TestReadMessageGroupedDepthFailure(t *testing.T) {
-	d, err := dict.NewParser("dict/testdata/base.xml")
-	if err != nil {
-		t.Fatal(err)
-	}
-	d.MaxGroupedDepth = 2
+	d := dict.New(dict.Base)
+	d.SetMaxGroupedDepth(2)
 	body := rawAVP(avp.VendorSpecificApplicationID, rawAVP(avp.VendorSpecificApplicationID, rawAVP(avp.VendorSpecificApplicationID, rawAVP(avp.OriginHost, bytes.Repeat([]byte{'x'}, 4096)))))
 	m, err := ReadMessage(bytes.NewReader(testFramedMessage(t, RequestFlag, body)), d)
 	me := requirePayloadMessageError(t, m, err, InvalidAVPValue)

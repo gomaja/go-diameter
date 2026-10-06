@@ -68,10 +68,7 @@ func TestReadMessageMalformedAnswerReturnsDecodeErr(t *testing.T) {
 }
 
 func TestFailedAVPLeniencyIsVendorScoped(t *testing.T) {
-	d, err := dict.NewParser("dict/testdata/base.xml")
-	if err != nil {
-		t.Fatal(err)
-	}
+	d := dict.New(dict.Base)
 	if err := d.Load(strings.NewReader(`<diameter><application id="0"><avp name="Vendor-Group" code="279" vendor-id="10415"><data type="Grouped"/></avp></application></diameter>`)); err != nil {
 		t.Fatal(err)
 	}
@@ -84,11 +81,8 @@ func TestFailedAVPLeniencyIsVendorScoped(t *testing.T) {
 }
 
 func TestFailedAVPStillEnforcesFramingAndDepth(t *testing.T) {
-	d, err := dict.NewParser("dict/testdata/base.xml")
-	if err != nil {
-		t.Fatal(err)
-	}
-	d.MaxGroupedDepth = 2
+	d := dict.New(dict.Base)
+	d.SetMaxGroupedDepth(2)
 	for _, tc := range []struct {
 		name    string
 		payload []byte

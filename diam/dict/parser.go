@@ -13,6 +13,7 @@ import (
 	"io"
 	"os"
 	"sync"
+	"sync/atomic"
 
 	"github.com/gomaja/go-diameter/diam/datatype"
 )
@@ -28,43 +29,27 @@ const (
 // messages before sending them over the wire.
 //
 // Parser can load multiple XML dictionary files, which in turn support
-// multiple applications that are composed by multiple AVPs.
+// multiple applications that are composed by multiple AVPs. AVPs can also
+// be registered without XML, see Register.
 //
-// The Parser element has an index to make pre-loaded AVPs searcheable per App.
+// All methods of Parser are safe for concurrent use, so definitions may be
+// added while other goroutines decode messages with the same Parser. Each
+// change is published as a new Snapshot that replaces the previous one
+// atomically: a lookup sees the definitions as they were before a change or
+// after it, never part of it, and lookups take no lock. Changes are
+// serialized and each rebuilds the Parser's index, so it costs time
+// proportional to the size of the dictionaries; changes are meant for
+// configuration, not for every message.
+//
+// The zero Parser is empty and ready to use, like the one NewParser returns.
+// A Parser must not be copied after first use.
 type Parser struct {
-	file    []*File               // Dict supports multiple XML dictionaries
-	appcode map[uint32]*App       // Application index by code
-	apptype map[appIdTypeIdx]*App // Application index by code and type
-	avpname map[nameIdx]*AVP      // AVP index by name
-	avpcode map[codeIdx]*AVP      // AVP index by code
-	command map[codeIdx]*Command  // Command index
-	mu      sync.Mutex            // Protects all maps
-	once    sync.Once
-
-	// Strict indicates whether an error should be returned when one  or more
-	// AVPs are invalid/empty and cannot be properly decoded.
-	//
-	// Defaults to true. When set to false, all decoding errors found during the
-	// parsing process will be stored in the Message's DecodeErr field which is
-	// accessible from a request handler.
-	Strict bool
-
-	// MaxGroupedDepth is how many levels of Grouped AVPs the decoder
-	// descends into, counting the outermost Grouped AVP as level 1. A Grouped
-	// AVP nested deeper keeps its payload as datatype.Unknown and the decode
-	// returns a DecodeError. Zero or a negative value means
-	// DefaultMaxGroupedDepth; no value turns the limit off.
-	//
-	// Raise it only for a custom dictionary that nests deeper than the
-	// default: decoding cost grows quadratically with depth, and the limit is
-	// what bounds it for messages from untrusted peers, so a very high value
-	// gives that protection up. Set it before the Parser is used for decoding
-	// and do not change it afterwards.
-	MaxGroupedDepth int
+	mu  sync.Mutex               // Serializes changes
+	cur atomic.Pointer[Snapshot] // Published state; nil means emptySnapshot
 }
 
-// DefaultMaxGroupedDepth is the Grouped AVP nesting limit used when
-// Parser.MaxGroupedDepth is zero or negative. The named rules of the shipped
+// DefaultMaxGroupedDepth is the Grouped AVP nesting limit used unless
+// Parser.SetMaxGroupedDepth sets another. The named rules of the shipped
 // dictionaries nest at most 8 levels. A *[ AVP ] wildcard admits any AVP,
 // including the Grouped AVP that contains it, so the grammar does not bound
 // nesting; the limit is a decoding policy with room above the named rules.
@@ -82,181 +67,102 @@ type nameIdx struct {
 	vendorID uint32
 }
 
+type appNameIdx struct {
+	appID uint32
+	name  string
+}
+
+type commandIdx struct {
+	appID uint32
+	code  uint32
+}
+
 type appIdTypeIdx struct {
 	appID uint32
 	typ   string
 }
 
 // NewParser allocates a new Parser optionally loading dictionary XML files.
+// The files are loaded together: if one fails to load, NewParser returns
+// the error and no Parser.
 func NewParser(filename ...string) (*Parser, error) {
-	p := new(Parser)
-	p.Strict = true
-	var err error
-	for _, f := range filename {
-		if err = p.LoadFile(f); err != nil {
+	files := make([]*File, 0, len(filename))
+	for _, name := range filename {
+		f, err := parseFileNamed(name)
+		if err != nil {
 			return nil, err
 		}
+		files = append(files, f)
+	}
+	p := new(Parser)
+	if err := p.update(func(cur *Snapshot) (*Snapshot, error) {
+		return cur.with(files, nil)
+	}); err != nil {
+		return nil, err
 	}
 	return p, nil
 }
 
-// LoadFile loads a dictionary XML file. May be used multiple times.
+// LoadFile loads a dictionary XML file. May be used multiple times. See Load.
 func (p *Parser) LoadFile(filename string) error {
-	fd, err := os.Open(filename)
+	f, err := parseFileNamed(filename)
 	if err != nil {
 		return err
 	}
-	err = p.Load(fd)
+	return p.add(f)
+}
+
+// Load loads a dictionary from an XML stream. May be used multiple times.
+//
+// A definition replaces an earlier loaded one with the same application and
+// AVP code and vendor, or name and vendor. A dictionary that would change
+// the meaning of a registered AVP in its application is refused, as is one
+// that defines a command already loaded for the same application. Load
+// either applies the whole dictionary or, returning an error, none of it.
+func (p *Parser) Load(r io.Reader) error {
+	f, err := parseFile(r)
+	if err != nil {
+		return err
+	}
+	return p.add(f)
+}
+
+func (p *Parser) add(f *File) error {
+	return p.update(func(cur *Snapshot) (*Snapshot, error) {
+		return cur.with([]*File{f}, nil)
+	})
+}
+
+func parseFileNamed(filename string) (*File, error) {
+	fd, err := os.Open(filename)
+	if err != nil {
+		return nil, err
+	}
+	f, err := parseFile(fd)
 	if closeErr := fd.Close(); err == nil {
 		err = closeErr
 	}
-	return err
+	return f, err
 }
 
-// Load loads a dictionary from byte array. May be used multiple times.
-func (p *Parser) Load(r io.Reader) error {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.once.Do(func() {
-		p.appcode = make(map[uint32]*App)
-		p.apptype = make(map[appIdTypeIdx]*App)
-		p.avpname = make(map[nameIdx]*AVP)
-		p.avpcode = make(map[codeIdx]*AVP)
-		p.command = make(map[codeIdx]*Command)
-	})
+// parseFile decodes a dictionary and resolves its data types and AVP
+// application links. It runs before the File is published, which is what
+// lets readers use the File without synchronization afterwards.
+func parseFile(r io.Reader) (*File, error) {
 	f := new(File)
-	d := xml.NewDecoder(r)
-	if err := d.Decode(f); err != nil {
-		return err
+	if err := xml.NewDecoder(r).Decode(f); err != nil {
+		return nil, err
 	}
-	p.file = append(p.file, f)
 	for _, app := range f.App {
-		// Cache supported applications by ID.
-		p.appcode[app.ID] = app
-		p.apptype[appIdTypeIdx{app.ID, app.Type}] = app
-		// Cache commands.
-		for _, cmd := range app.Command {
-			idx := codeIdx{app.ID, cmd.Code, UndefinedVendorID}
-			_, exist := p.command[idx]
-			if exist {
-				return fmt.Errorf("command %s cannot be added: index exists", cmd)
-			}
-			p.command[idx] = cmd
-		}
-		// Cache AVPs.
 		for _, avp := range app.AVP {
 			// Link AVP to its Application
 			avp.App = app
-			p.avpname[nameIdx{app.ID, avp.Name, avp.VendorID}] = avp
-			p.avpcode[codeIdx{app.ID, avp.Code, avp.VendorID}] = avp
-			// Index without vendorId
-			p.avpname[nameIdx{app.ID, avp.Name, UndefinedVendorID}] = avp
-			p.avpcode[codeIdx{app.ID, avp.Code, UndefinedVendorID}] = avp
-			// Check the AVP type.
 			if err := updateType(avp); err != nil {
-				return err
+				return nil, err
 			}
 		}
 	}
-	// Pre-merge inherited AVPs so that lookups for child apps resolve in a
-	// single map access instead of walking the parent chain at runtime.
-	return p.mergeInheritedAVPs()
-}
-
-// mergeInheritedAVPs copies AVP entries from ancestor applications into
-// each child application's index. This eliminates the runtime fallback
-// loop in FindAVPByCode: every lookup becomes a single map access.
-//
-// For each application that has a parent chain (via parentAppIds) or
-// inherits from the base app (id=0), entries are copied only if the
-// child does not already define an AVP with the same code and vendorID.
-//
-// The iteration uses a pre-computed per-app snapshot of the index rather
-// than ranging over the live p.avpcode / p.avpname maps, so writes made
-// during the merge cannot affect iteration order or content within a
-// single call. Note that on repeated Load calls the snapshot reads the
-// current live index, which already contains entries synthesized by
-// earlier merges; those entries point at the real owning AVP, so the
-// guard at the insertion site keeps the result correct but this function
-// does not structurally separate "original" from "synthesized" sources.
-//
-// Memory: base AVPs are duplicated per child app at Load time,
-// not per message; bounded by dictionary size.
-func (p *Parser) mergeInheritedAVPs() error {
-	// Collect every declared application so apps that inherit all their
-	// AVPs from an ancestor (and define none of their own) are still
-	// processed. Also include any appIDs that only appear as AVP owners.
-	apps := make(map[uint32]bool, len(p.appcode))
-	for appID := range p.appcode {
-		apps[appID] = true
-	}
-	for idx := range p.avpcode {
-		apps[idx.appID] = true
-	}
-
-	// Snapshot the current index grouped by owning appID. Subsequent
-	// writes to p.avpcode / p.avpname during the merge will not appear
-	// in these snapshots, so iteration order and content are stable.
-	type codeEntry struct {
-		idx codeIdx
-		avp *AVP
-	}
-	type nameEntry struct {
-		idx nameIdx
-		avp *AVP
-	}
-	codeByApp := make(map[uint32][]codeEntry, len(apps))
-	for idx, avp := range p.avpcode {
-		codeByApp[idx.appID] = append(codeByApp[idx.appID], codeEntry{idx, avp})
-	}
-	nameByApp := make(map[uint32][]nameEntry, len(apps))
-	for idx, avp := range p.avpname {
-		nameByApp[idx.appID] = append(nameByApp[idx.appID], nameEntry{idx, avp})
-	}
-
-	// For each app, walk its parent chain and copy missing entries.
-	for appID := range apps {
-		if appID == 0 {
-			continue // base app has no parents
-		}
-		// Build the ancestor chain: e.g. for app 4 → [1, 0]
-		var ancestors []uint32
-		cur := appID
-		visited := map[uint32]bool{appID: true}
-		for {
-			parent, hasParent := parentAppIds[cur]
-			if hasParent {
-				if visited[parent] {
-					return fmt.Errorf("dictionary parent application cycle at %d", parent)
-				}
-				visited[parent] = true
-				ancestors = append(ancestors, parent)
-				cur = parent
-			} else if cur != 0 {
-				ancestors = append(ancestors, 0)
-				break
-			} else {
-				break
-			}
-		}
-
-		// Copy AVPs from each ancestor (nearest first) into this app.
-		for _, ancestorID := range ancestors {
-			for _, e := range codeByApp[ancestorID] {
-				childIdx := codeIdx{appID, e.idx.code, e.idx.vendorID}
-				if _, exists := p.avpcode[childIdx]; !exists {
-					p.avpcode[childIdx] = e.avp
-				}
-			}
-			for _, e := range nameByApp[ancestorID] {
-				childIdx := nameIdx{appID, e.idx.name, e.idx.vendorID}
-				if _, exists := p.avpname[childIdx]; !exists {
-					p.avpname[childIdx] = e.avp
-				}
-			}
-		}
-	}
-	return nil
+	return f, nil
 }
 
 func updateType(a *AVP) error {
@@ -268,10 +174,85 @@ func updateType(a *AVP) error {
 	return nil
 }
 
+// Snapshot returns the Parser's current state. Lookups through the
+// returned Snapshot keep answering from that state while the Parser
+// changes, so a sequence of lookups that must agree, such as decoding one
+// message, should use one Snapshot.
+func (p *Parser) Snapshot() *Snapshot {
+	if s := p.cur.Load(); s != nil {
+		return s
+	}
+	return emptySnapshot
+}
+
+// update applies change to the current Snapshot and publishes the result.
+// change returns nil and no error when there is nothing to publish.
+func (p *Parser) update(change func(cur *Snapshot) (*Snapshot, error)) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	next, err := change(p.Snapshot())
+	if err != nil {
+		return err
+	}
+	if next != nil {
+		p.cur.Store(next)
+	}
+	return nil
+}
+
+// SetStrict sets whether ReadMessage returns an error when one or more AVPs
+// are invalid or empty and cannot be properly decoded. A new Parser is
+// strict. When it is not, the decoding errors found are stored in the
+// Message's DecodeErr field, which is accessible from a request handler.
+//
+// A message decode uses the setting in effect when it starts.
+func (p *Parser) SetStrict(strict bool) {
+	_ = p.update(func(cur *Snapshot) (*Snapshot, error) {
+		if cur.strict == strict {
+			return nil, nil
+		}
+		next := *cur
+		next.strict = strict
+		return &next, nil
+	})
+}
+
+// Strict reports the setting made by SetStrict.
+func (p *Parser) Strict() bool { return p.Snapshot().Strict() }
+
+// SetMaxGroupedDepth sets how many levels of Grouped AVPs the decoder
+// descends into, counting the outermost Grouped AVP as level 1. A Grouped
+// AVP nested deeper keeps its payload as datatype.Unknown and the decode
+// returns a DecodeError. Zero or a negative value restores
+// DefaultMaxGroupedDepth; no value turns the limit off.
+//
+// Raise it only for a custom dictionary that nests deeper than the default:
+// decoding cost grows quadratically with depth, and the limit is what
+// bounds it for messages from untrusted peers, so a very high value gives
+// that protection up. A message decode uses the limit in effect when it
+// starts.
+func (p *Parser) SetMaxGroupedDepth(depth int) {
+	depth = max(depth, 0)
+	_ = p.update(func(cur *Snapshot) (*Snapshot, error) {
+		if cur.maxGroupedDepth == depth {
+			return nil, nil
+		}
+		next := *cur
+		next.maxGroupedDepth = depth
+		return &next, nil
+	})
+}
+
+// MaxGroupedDepth returns the Grouped AVP nesting limit the decoder applies.
+func (p *Parser) MaxGroupedDepth() int { return p.Snapshot().MaxGroupedDepth() }
+
 // String returns the Parser represented in a human readable form.
-func (p *Parser) String() string {
+func (p *Parser) String() string { return p.Snapshot().String() }
+
+// String returns the Snapshot represented in a human readable form.
+func (s *Snapshot) String() string {
 	var b bytes.Buffer
-	for _, f := range p.file {
+	for _, f := range s.files {
 		for _, app := range f.App {
 			writef(&b, "Application Id: %d\n", app.ID)
 			writef(&b, "\tVendors:\n")
@@ -288,6 +269,10 @@ func (p *Parser) String() string {
 			}
 		}
 	}
+	for _, r := range s.regs {
+		writef(&b, "Registered in Application Id: %d\n", r.app)
+		printAVP(&b, r.avp)
+	}
 	return b.String()
 }
 
@@ -299,20 +284,20 @@ func writef(w io.Writer, format string, args ...interface{}) {
 
 func printCommand(w io.Writer, cmd *Command) {
 	writef(w, "\t\t%-4d %s-Request (%sR)\n", cmd.Code, cmd.Name, cmd.Short)
-	for _, rule := range cmd.Request.Rule {
-		if rule.Required && rule.Min == 0 {
-			rule.Min = 1
-		}
-		writef(w, "\t\t\t% -40s required=%-5t min=%d max=%d\n",
-			rule.AVP, rule.Required, rule.Min, rule.Max)
-	}
+	printCommandRules(w, cmd.Request.Rule)
 	writef(w, "\t\t%-4d %s-Answer (%sA)\n", cmd.Code, cmd.Name, cmd.Short)
-	for _, rule := range cmd.Answer.Rule {
-		if rule.Required && rule.Min == 0 {
-			rule.Min = 1
+	printCommandRules(w, cmd.Answer.Rule)
+}
+
+func printCommandRules(w io.Writer, rules []*Rule) {
+	for _, rule := range rules {
+		// Print the effective minimum without changing the shared rule.
+		min := rule.Min
+		if rule.Required && min == 0 {
+			min = 1
 		}
 		writef(w, "\t\t\t% -40s required=%-5t min=%d max=%d\n",
-			rule.AVP, rule.Required, rule.Min, rule.Max)
+			rule.AVP, rule.Required, min, rule.Max)
 	}
 }
 

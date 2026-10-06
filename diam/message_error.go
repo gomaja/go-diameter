@@ -63,7 +63,7 @@ func (e *avpLengthError) withGroupedParent(parent *AVP) *avpLengthError {
 	}
 }
 
-func newAVPLengthError(data []byte, application uint32, dictionary *dict.Parser, err error) *avpLengthError {
+func newAVPLengthError(data []byte, application uint32, dictionary *dict.Snapshot, err error) *avpLengthError {
 	return &avpLengthError{
 		failedAVP: failedAVPFromWire(data, application, dictionary),
 		err:       err,
@@ -74,7 +74,7 @@ func newDecodedAVPLengthError(a *AVP, err error) *avpLengthError {
 	return &avpLengthError{failedAVP: a, err: err}
 }
 
-func failedAVPFromWire(data []byte, application uint32, dictionary *dict.Parser) *AVP {
+func failedAVPFromWire(data []byte, application uint32, dictionary *dict.Snapshot) *AVP {
 	var header [12]byte
 	copy(header[:], data)
 

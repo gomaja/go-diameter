@@ -331,12 +331,9 @@ func readMessageBytes(t *testing.T, b []byte, d *dict.Parser) (*Message, error) 
 
 func lenientParser(t *testing.T, limit int) *dict.Parser {
 	t.Helper()
-	p, err := dict.NewParser("./dict/testdata/base.xml", "./dict/testdata/credit_control.xml")
-	if err != nil {
-		t.Fatal(err)
-	}
-	p.Strict = false
-	p.MaxGroupedDepth = limit
+	p := dict.New(dict.Base, dict.CreditControl)
+	p.SetStrict(false)
+	p.SetMaxGroupedDepth(limit)
 	return p
 }
 

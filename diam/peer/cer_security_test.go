@@ -14,11 +14,8 @@ import (
 )
 
 func TestCERMalformedSecurityReturnsFailedAVP(t *testing.T) {
-	dictionary, err := dict.NewParser("../dict/testdata/base.xml", "../dict/testdata/credit_control.xml")
-	if err != nil {
-		t.Fatal(err)
-	}
-	dictionary.Strict = false
+	dictionary := dict.New(dict.Base, dict.CreditControl)
+	dictionary.SetStrict(false)
 	settings := testSettings("local.example.net")
 	settings.Dict = dictionary
 	m, err := New(Config{Settings: settings})

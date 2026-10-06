@@ -43,6 +43,14 @@ func TestFindAVPWithVendorTerminatesOnParentCycle(t *testing.T) {
 	}
 }
 
+func TestFindAVPByCodeTerminatesOnParentCycle(t *testing.T) {
+	withParentAppCycle(t)
+	avp, err := Default.FindAVPByCode(16777238, 999999, 99999)
+	if err == nil || avp.Name != "Unknown-999999-99999" {
+		t.Fatalf("lookup = %v, %v; want Unknown", avp, err)
+	}
+}
+
 func TestLoadTerminatesOnParentCycle(t *testing.T) {
 	withParentAppCycle(t)
 	p, err := NewParser()

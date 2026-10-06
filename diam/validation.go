@@ -47,10 +47,12 @@ var genericErrorRules = []*dict.Rule{
 // and each known Grouped AVP grammar. It does not mutate the message.
 // RFC 6733 §§3.1-3.2, 4.1, 4.4-4.5, 7.1 and 7.5 define these checks.
 // Applications may call Validate before sending; receive validation is opt-in.
+// The whole message is checked against one dict.Snapshot of its dictionary.
 func (m *Message) Validate() *ValidationError {
 	if m == nil || m.Header == nil {
 		return &ValidationError{ResultCode: InvalidHDRBits, Reason: "missing Diameter header"}
 	}
+	dictionary := m.Dictionary().Snapshot()
 	h := m.Header
 	if h.CommandFlags&0x0f != 0 || h.CommandFlags&RequestFlag != 0 && h.CommandFlags&ErrorFlag != 0 || h.CommandFlags&RequestFlag == 0 && h.CommandFlags&RetransmittedFlag != 0 {
 		return &ValidationError{ResultCode: InvalidHDRBits, Reason: "invalid command header flags"}
@@ -70,9 +72,9 @@ func (m *Message) Validate() *ValidationError {
 		if code < 3000 || code >= 4000 {
 			return &ValidationError{ResultCode: InvalidHDRBits, Reason: "E bit requires a 3xxx result code"}
 		}
-		return validateAVPs(m.AVP, genericErrorRules, h.ApplicationID, m.Dictionary())
+		return validateAVPs(m.AVP, genericErrorRules, h.ApplicationID, dictionary)
 	}
-	command, err := m.Dictionary().FindCommand(h.ApplicationID, h.CommandCode)
+	command, err := dictionary.FindCommand(h.ApplicationID, h.CommandCode)
 	if err != nil {
 		return &ValidationError{ResultCode: CommandUnsupported, Reason: err.Error()}
 	}
@@ -86,10 +88,10 @@ func (m *Message) Validate() *ValidationError {
 	if grammar.Proxiable != nil && (h.CommandFlags&ProxiableFlag != 0) != *grammar.Proxiable {
 		return &ValidationError{ResultCode: InvalidHDRBits, Reason: "P bit disagrees with command grammar"}
 	}
-	return validateAVPs(m.AVP, grammar.Rule, h.ApplicationID, m.Dictionary())
+	return validateAVPs(m.AVP, grammar.Rule, h.ApplicationID, dictionary)
 }
 
-func validateAVPs(items []*AVP, rules []*dict.Rule, appID uint32, dictionary *dict.Parser) *ValidationError {
+func validateAVPs(items []*AVP, rules []*dict.Rule, appID uint32, dictionary *dict.Snapshot) *ValidationError {
 	byKey := make(map[validationKey]validationRule, len(rules))
 	ordered := make([]validationRule, 0, len(rules))
 	allowAny := false
@@ -209,7 +211,7 @@ func hasMaximum(rule *dict.Rule) bool { return rule.MaxSet || rule.Max > 0 }
 // RFC 6733 §§7.1.5 and 7.5 require the missing AVP's Vendor-Id and a
 // zero-valued payload of the correct minimum length. Grouped examples keep
 // required child structure so the recipient can identify the missing field.
-func missingAVPExample(definition *dict.AVP, appID uint32, dictionary *dict.Parser, seen map[validationKey]bool) *AVP {
+func missingAVPExample(definition *dict.AVP, appID uint32, dictionary *dict.Snapshot, seen map[validationKey]bool) *AVP {
 	flags := requiredFlags(definition)
 	key := validationKey{definition.Code, definition.VendorID}
 	switch definition.Data.Type {

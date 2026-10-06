@@ -376,13 +376,7 @@ func TestMessageWriteTo(t *testing.T) {
     </avp>
   </application>
 </diameter>`
-	parser, err := dict.NewParser(
-		"dict/testdata/base.xml",
-		"dict/testdata/credit_control.xml",
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	parser := dict.New(dict.Base, dict.CreditControl)
 	if err := parser.Load(bytes.NewReader([]byte(mydictXML))); err != nil {
 		t.Fatal(err)
 	}
