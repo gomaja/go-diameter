@@ -4,9 +4,12 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
+	"io/fs"
 	"log/slog"
 	"net/netip"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -19,6 +22,9 @@ import (
 	"github.com/gomaja/go-diameter/diam/dict"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
+	otellog "go.opentelemetry.io/otel/log"
+	"go.opentelemetry.io/otel/log/embedded"
+	sdklog "go.opentelemetry.io/otel/sdk/log"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	semconv "go.opentelemetry.io/otel/semconv/v1.43.0"
@@ -277,64 +283,284 @@ type handlerError struct{}
 
 func (handlerError) Error() string { return "handler failed" }
 
+// classifiedError classifies itself for error.type; exception.type still
+// names its Go type.
+type classifiedError struct{}
+
+func (classifiedError) Error() string     { return "classified failure" }
+func (classifiedError) ErrorType() string { return "classified" }
+
+// panickyClassifier panics when asked for its error.type, while the tracer
+// handles another panic.
+type panickyClassifier struct{}
+
+func (panickyClassifier) Error() string     { return "handler failed" }
+func (panickyClassifier) ErrorType() string { panic("classification failure") }
+
+// panickyUnwrap panics when semconv.ErrorType looks through it.
+type panickyUnwrap struct{}
+
+func (panickyUnwrap) Error() string { return "handler failed" }
+func (panickyUnwrap) Unwrap() error { panic("unwrap failure") }
+
+// panickyMessage panics when asked for its message.
+type panickyMessage struct{}
+
+func (panickyMessage) Error() string { panic("message failure") }
+
 func TestTracerMarksHandlerPanic(t *testing.T) {
+	const pkg = "github.com/gomaja/go-diameter/examples/middleware."
+	pathErr := &fs.PathError{Op: "open", Path: "/nonexistent", Err: fs.ErrNotExist}
+	wrapped := fmt.Errorf("load dictionary: %w", pathErr)
 	for _, tc := range []struct {
-		name      string
-		value     any
-		errorType string
-		message   string
+		name          string
+		value         any
+		exceptionType string // the panic value's Go type
+		errorType     string // its classification
+		message       string
 	}{
-		{"string", "boom", "string", "boom"},
-		{"error", handlerError{}, "github.com/gomaja/go-diameter/examples/middleware.handlerError", "handler failed"},
+		{"string", "boom", "string", "string", "boom"},
+		{"error", handlerError{}, pkg + "handlerError", pkg + "handlerError", "handler failed"},
+		{"pointer error", pathErr, "*fs.PathError", "*fs.PathError", pathErr.Error()},
+		{"wrapped error", wrapped, "*fmt.wrapError", "*fs.PathError", wrapped.Error()},
+		{"classified error", classifiedError{}, pkg + "classifiedError", "classified", "classified failure"},
+		{"classifier panics", panickyClassifier{}, pkg + "panickyClassifier", pkg + "panickyClassifier", "handler failed"},
+		{"unwrap panics", panickyUnwrap{}, pkg + "panickyUnwrap", pkg + "panickyUnwrap", "handler failed"},
+		{"message panics", panickyMessage{}, pkg + "panickyMessage", pkg + "panickyMessage", "%!v(PANIC=Error method: message failure)"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			sr, tp := newRecorder(t)
+			logs, lp := newLogRecorder(t)
 			// An answer whose Result-Code is a failure: the panic, which
 			// ended the handler, decides error.type and the status.
 			answer := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default).Answer(diam.UnableToDeliver)
-			h := NewTracer(diam.HandlerFunc(func(diam.Conn, *diam.Message) { panic(tc.value) }), WithTracerProvider(tp))
+			h := NewTracer(diam.HandlerFunc(func(diam.Conn, *diam.Message) { panic(tc.value) }),
+				WithTracerProvider(tp), WithLoggerProvider(lp))
 			var recovered any
 			func() {
 				defer func() { recovered = recover() }()
 				h.ServeDIAM(nil, answer)
 			}()
 			if recovered != tc.value {
-				t.Fatalf("panic value after the tracer = %v, want %v", recovered, tc.value)
+				t.Errorf("panic value after the tracer = %v, want %v", recovered, tc.value)
 			}
 			span := endedSpans(t, sr, 1)[0]
 			if span.Status().Code != codes.Error || span.Status().Description != tc.message {
 				t.Errorf("span status = %+v, want Error %q", span.Status(), tc.message)
 			}
 			wantAttrs(t, span, semconv.ErrorTypeKey.String(tc.errorType), ResultCodeKey.Int64(diam.UnableToDeliver))
-			events := span.Events()
-			if len(events) != 1 || events[0].Name != semconv.ExceptionEventName {
-				t.Fatalf("span events = %+v, want one %q event", events, semconv.ExceptionEventName)
+			// Exceptions on spans are deprecated in favour of log records;
+			// End is not left to record the panic as a span event either.
+			if events := span.Events(); len(events) != 0 {
+				t.Errorf("span events = %+v, want none", events)
 			}
-			event := map[attribute.Key]attribute.Value{}
-			for _, kv := range events[0].Attributes {
-				event[kv.Key] = kv.Value
+
+			records := logs.Records()
+			if len(records) != 1 {
+				t.Fatalf("emitted %d log records, want 1 exception record", len(records))
 			}
-			if got := event[semconv.ExceptionTypeKey].AsString(); got != tc.errorType {
-				t.Errorf("exception.type = %q, want %q", got, tc.errorType)
+			rec := records[0]
+			if rec.EventName() != "exception" {
+				t.Errorf("event name = %q, want exception", rec.EventName())
 			}
-			if got := event[semconv.ExceptionMessageKey].AsString(); got != tc.message {
+			if rec.Severity() != otellog.SeverityError || rec.Severity() != 17 || rec.SeverityText() != "ERROR" {
+				t.Errorf("severity = %d %q, want 17 ERROR", rec.Severity(), rec.SeverityText())
+			}
+			if rec.InstrumentationScope().Name != ScopeName {
+				t.Errorf("log scope = %q, want %q", rec.InstrumentationScope().Name, ScopeName)
+			}
+			if rec.TraceID() != span.SpanContext().TraceID() || rec.SpanID() != span.SpanContext().SpanID() {
+				t.Errorf("log record trace %s span %s, want the span's %s %s",
+					rec.TraceID(), rec.SpanID(), span.SpanContext().TraceID(), span.SpanContext().SpanID())
+			}
+			attrs := map[attribute.Key]attribute.Value{}
+			rec.WalkAttributes(func(kv attribute.KeyValue) bool {
+				attrs[kv.Key] = kv.Value
+				return true
+			})
+			if len(attrs) != 3 {
+				t.Errorf("log record attributes = %v, want exception.type, exception.message and exception.stacktrace", attrs)
+			}
+			if got := attrs[semconv.ExceptionTypeKey].AsString(); got != tc.exceptionType {
+				t.Errorf("exception.type = %q, want %q", got, tc.exceptionType)
+			}
+			if got := attrs[semconv.ExceptionMessageKey].AsString(); got != tc.message {
 				t.Errorf("exception.message = %q, want %q", got, tc.message)
 			}
-			if got := event[semconv.ExceptionStacktraceKey].AsString(); !strings.Contains(got, "TestTracerMarksHandlerPanic") {
+			if got := attrs[semconv.ExceptionStacktraceKey].AsString(); !strings.Contains(got, "TestTracerMarksHandlerPanic") {
 				t.Errorf("exception.stacktrace lacks the panicking handler:\n%s", got)
 			}
 		})
 	}
 }
 
+// memoryExporter keeps the log records it exports.
+type memoryExporter struct {
+	mu      sync.Mutex
+	records []sdklog.Record
+}
+
+func (e *memoryExporter) Export(_ context.Context, records []sdklog.Record) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	for _, r := range records {
+		e.records = append(e.records, r.Clone())
+	}
+	return nil
+}
+
+func (e *memoryExporter) Shutdown(context.Context) error   { return nil }
+func (e *memoryExporter) ForceFlush(context.Context) error { return nil }
+
+func (e *memoryExporter) Records() []sdklog.Record {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return append([]sdklog.Record(nil), e.records...)
+}
+
+// newLogRecorder returns a log SDK provider that exports each record, as it
+// is emitted, to the returned exporter.
+func newLogRecorder(t *testing.T) (*memoryExporter, otellog.LoggerProvider) {
+	t.Helper()
+	exp := &memoryExporter{}
+	lp := sdklog.NewLoggerProvider(sdklog.WithProcessor(sdklog.NewSimpleProcessor(exp)))
+	t.Cleanup(func() {
+		if err := lp.Shutdown(context.Background()); err != nil {
+			t.Error(err)
+		}
+	})
+	return exp, lp
+}
+
+// apiLogger keeps the Logs API records it is given, with their error.
+type apiLogger struct {
+	embedded.Logger
+	enabled bool
+	mu      sync.Mutex
+	records []otellog.Record
+}
+
+func (l *apiLogger) Emit(_ context.Context, r otellog.Record) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.records = append(l.records, r.Clone())
+}
+
+func (l *apiLogger) Enabled(context.Context, otellog.EnabledParameters) bool { return l.enabled }
+
+type apiLoggerProvider struct {
+	embedded.LoggerProvider
+	logger *apiLogger
+}
+
+func (p apiLoggerProvider) Logger(string, ...otellog.LoggerOption) otellog.Logger { return p.logger }
+
+// TestTracerGivesPanicErrorToLogger checks that an error panic value reaches
+// the Logs API as the record's error instance, and that a disabled logger
+// is given no record.
+func TestTracerGivesPanicErrorToLogger(t *testing.T) {
+	pathErr := &fs.PathError{Op: "open", Path: "/nonexistent", Err: fs.ErrNotExist}
+	for _, tc := range []struct {
+		name    string
+		value   any
+		enabled bool
+		records int
+		err     error
+	}{
+		{"error", pathErr, true, 1, pathErr},
+		{"not an error", "boom", true, 1, nil},
+		{"logger disabled", pathErr, false, 0, nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, tp := newRecorder(t)
+			logger := &apiLogger{enabled: tc.enabled}
+			h := NewTracer(diam.HandlerFunc(func(diam.Conn, *diam.Message) { panic(tc.value) }),
+				WithTracerProvider(tp), WithLoggerProvider(apiLoggerProvider{logger: logger}))
+			func() {
+				defer func() { _ = recover() }()
+				h.ServeDIAM(nil, diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default))
+			}()
+			logger.mu.Lock()
+			defer logger.mu.Unlock()
+			if len(logger.records) != tc.records {
+				t.Fatalf("logger was given %d records, want %d", len(logger.records), tc.records)
+			}
+			if tc.records == 1 && logger.records[0].Err() != tc.err {
+				t.Errorf("record error = %v, want %v", logger.records[0].Err(), tc.err)
+			}
+		})
+	}
+}
+
+// panickingLogger panics when it is given a record.
+type panickingLogger struct{ apiLogger }
+
+func (*panickingLogger) Emit(context.Context, otellog.Record) { panic("exporter failure") }
+
+type panickingLoggerProvider struct{ embedded.LoggerProvider }
+
+func (panickingLoggerProvider) Logger(string, ...otellog.LoggerOption) otellog.Logger {
+	return &panickingLogger{apiLogger{enabled: true}}
+}
+
+// TestTracerSurvivesPanickingLogger checks that a panic in the logging
+// pipeline neither replaces the handler's panic value nor leaves the span
+// open.
+func TestTracerSurvivesPanickingLogger(t *testing.T) {
+	sr, tp := newRecorder(t)
+	h := NewTracer(diam.HandlerFunc(func(diam.Conn, *diam.Message) { panic("boom") }),
+		WithTracerProvider(tp), WithLoggerProvider(panickingLoggerProvider{}))
+	var recovered any
+	func() {
+		defer func() { recovered = recover() }()
+		h.ServeDIAM(nil, diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default))
+	}()
+	if recovered != "boom" {
+		t.Errorf("panic value after the tracer = %v, want boom", recovered)
+	}
+	if span := endedSpans(t, sr, 1)[0]; span.Status().Code != codes.Error {
+		t.Errorf("span status = %+v, want Error", span.Status())
+	}
+}
+
+// TestTracerEndsSpanOnGoexit checks a handler that ends its goroutine with
+// runtime.Goexit, as t.FailNow does: nothing panicked, so the span ends
+// without a failure and nothing is logged.
+func TestTracerEndsSpanOnGoexit(t *testing.T) {
+	sr, tp := newRecorder(t)
+	logs, lp := newLogRecorder(t)
+	h := NewTracer(diam.HandlerFunc(func(diam.Conn, *diam.Message) { runtime.Goexit() }),
+		WithTracerProvider(tp), WithLoggerProvider(lp))
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		h.ServeDIAM(nil, diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default))
+		t.Error("ServeDIAM returned after the handler called runtime.Goexit")
+	}()
+	<-done
+	span := endedSpans(t, sr, 1)[0]
+	if span.Status().Code != codes.Unset {
+		t.Errorf("span status = %+v, want unset", span.Status())
+	}
+	noAttrs(t, span, semconv.ErrorTypeKey)
+	if events := span.Events(); len(events) != 0 {
+		t.Errorf("span events = %+v, want none", events)
+	}
+	if n := len(logs.Records()); n != 0 {
+		t.Errorf("emitted %d log records, want none", n)
+	}
+}
+
 // TestTracerPanicReachesServerLogger serves a panicking handler through
-// diam.Server: the span is marked failed, and the panic, with the handler's
-// frames, is recorded once, by the server's Logger.
+// diam.Server: the span is marked failed, the tracer emits one exception log
+// record, and the panic, with the handler's frames, still reaches the
+// server, whose Logger records it.
 func TestTracerPanicReachesServerLogger(t *testing.T) {
 	sr, tp := newRecorder(t)
+	otelLogs, lp := newLogRecorder(t)
 	logs := &lockedBuffer{}
 	smux := diam.NewServeMux()
-	smux.Handle("CER", NewTracer(diam.HandlerFunc(panicsHandlingCER), WithTracerProvider(tp)))
+	smux.Handle("CER", NewTracer(diam.HandlerFunc(panicsHandlingCER), WithTracerProvider(tp), WithLoggerProvider(lp)))
 	srv := diamtest.NewUnstartedServer(smux, nil)
 	srv.Config.Logger = slog.New(slog.NewJSONHandler(logs, nil))
 	srv.Start()
@@ -362,6 +588,10 @@ func TestTracerPanicReachesServerLogger(t *testing.T) {
 	}
 	if n := strings.Count(logs.String(), `"level":"ERROR"`); n != 1 {
 		t.Errorf("server logged %d Error records, want 1:\n%s", n, logs.String())
+	}
+	records := otelLogs.Records()
+	if len(records) != 1 || records[0].SpanID() != span.SpanContext().SpanID() {
+		t.Errorf("tracer emitted %d exception records, want 1 on span %s", len(records), span.SpanContext().SpanID())
 	}
 }
 

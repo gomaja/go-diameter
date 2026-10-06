@@ -1,4 +1,5 @@
-// Package middleware traces Diameter handlers with OpenTelemetry.
+// Package middleware traces Diameter handlers with OpenTelemetry: a span
+// per message, and an exception log record when a handler panics.
 package middleware
 
 import (
@@ -9,6 +10,7 @@ import (
 	"reflect"
 	"runtime"
 	"strconv"
+	"time"
 
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
@@ -16,11 +18,13 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
+	otellog "go.opentelemetry.io/otel/log"
 	semconv "go.opentelemetry.io/otel/semconv/v1.43.0"
 	"go.opentelemetry.io/otel/trace"
 )
 
-// ScopeName is the instrumentation scope of the tracer that starts the spans.
+// ScopeName is the instrumentation scope of the tracer that starts the spans
+// and of the logger that records a panic in the wrapped handler.
 const ScopeName = "github.com/gomaja/go-diameter/examples/middleware"
 
 // Attribute keys of the Diameter header fields and result. OpenTelemetry's
@@ -44,13 +48,21 @@ const (
 type Option func(*config)
 
 type config struct {
-	provider trace.TracerProvider
+	provider       trace.TracerProvider
+	loggerProvider otellog.LoggerProvider
 }
 
 // WithTracerProvider sets the provider of the tracer that starts the spans.
 // The default is the global provider, otel.GetTracerProvider.
 func WithTracerProvider(tp trace.TracerProvider) Option {
 	return func(c *config) { c.provider = tp }
+}
+
+// WithLoggerProvider sets the provider of the logger that records a panic in
+// the wrapped handler. The default is the global provider,
+// otel.GetLoggerProvider.
+func WithLoggerProvider(lp otellog.LoggerProvider) Option {
+	return func(c *config) { c.loggerProvider = lp }
 }
 
 // Tracer is a diam.Handler that starts a span for every message it serves,
@@ -61,10 +73,13 @@ func WithTracerProvider(tp trace.TracerProvider) Option {
 // span, since the outgoing request it answers belongs to whoever sent it;
 // its Result-Code, or Experimental-Result-Code, is recorded, and a code
 // outside the informational (1xxx) and success (2xxx) classes sets the
-// span's status to Error (RFC 6733 §§7.1, 7.7).
+// span's status to Error (RFC 6733 §§7.1, 7.7). A panic in the wrapped
+// handler marks the span failed and is recorded as an exception log record
+// (see ServeDIAM).
 type Tracer struct {
 	h      diam.Handler
 	tracer trace.Tracer
+	logger otellog.Logger
 }
 
 // NewTracer returns a Tracer that serves messages with h.
@@ -76,9 +91,13 @@ func NewTracer(h diam.Handler, opts ...Option) *Tracer {
 	if cfg.provider == nil {
 		cfg.provider = otel.GetTracerProvider()
 	}
+	if cfg.loggerProvider == nil {
+		cfg.loggerProvider = otel.GetLoggerProvider()
+	}
 	return &Tracer{
 		h:      h,
 		tracer: cfg.provider.Tracer(ScopeName, trace.WithSchemaURL(semconv.SchemaURL)),
+		logger: cfg.loggerProvider.Logger(ScopeName, otellog.WithSchemaURL(semconv.SchemaURL)),
 	}
 }
 
@@ -87,57 +106,119 @@ func TracerFunc(f diam.HandlerFunc, opts ...Option) diam.HandlerFunc {
 	return NewTracer(f, opts...).ServeDIAM
 }
 
-// ServeDIAM implements diam.Handler. When the wrapped handler panics, the
-// span records the failure and ends, and the panic continues with its value
-// unchanged, for diam.Server to recover and log.
+// ServeDIAM implements diam.Handler.
+//
+// When the wrapped handler panics, ServeDIAM follows the OpenTelemetry
+// semantic conventions for recording errors
+// (https://opentelemetry.io/docs/specs/semconv/general/recording-errors/):
+// the span gets status Error, with the panic message as description, and
+// error.type classifying the panic value. The exception itself is recorded
+// as one log record (see logException), not as a span event: exceptions on
+// spans are deprecated in favour of exceptions in logs. The span then ends,
+// and the panic continues with its value unchanged, for diam.Server to
+// recover and log.
+//
+// The span is ended here rather than by a deferred span.End, whose recover
+// would record the panic as a span event in the Go SDK. Nothing done here
+// can replace the panic value or leave the span open: the application code
+// it runs, the panic value's Error or String method and its classification,
+// is contained (fmt recovers a panicking Error or String method itself), and
+// so is the logging pipeline.
 func (t *Tracer) ServeDIAM(c diam.Conn, m *diam.Message) {
 	ctx, span := t.start(c, m)
 	defer func() {
-		if v := recover(); v != nil {
-			recordPanic(span, v)
-			span.End()
-			panic(v)
+		v := recover()
+		if v != nil {
+			message := fmt.Sprint(v)
+			span.SetAttributes(semconv.ErrorTypeKey.String(classify(v)))
+			span.SetStatus(codes.Error, message)
+			t.logException(ctx, v, message)
 		}
 		span.End()
+		if v != nil {
+			panic(v)
+		}
 	}()
 	m.SetContext(ctx)
 	t.h.ServeDIAM(c, m)
 }
 
-// recordPanic marks span as ended by the panic value v, following the
-// OpenTelemetry semantic conventions on recording errors: status Error with
-// the panic message as description, and error.type naming v's type. It also
-// adds the exception event the Go SDK adds for a panic, with the stack of
-// the panicking goroutine.
+// exceptionEventName is the event name of the exception log record. The
+// semantic conventions for exceptions in logs name a record after the
+// instrumented operation, with an ".exception" suffix. No semantic
+// convention defines a Diameter operation, and this middleware wraps any
+// Diameter handler, so it uses "exception", the name the conventions give
+// to instrumentation that is not specific to an operation.
+const exceptionEventName = "exception"
+
+// logException emits the exception log record of panic value v, with ctx,
+// following the OpenTelemetry semantic conventions for exceptions in logs
+// (Stable, https://opentelemetry.io/docs/specs/semconv/exceptions/exceptions-logs/):
+//   - severity ERROR (17), for an exception the application code did not
+//     handle and that does not shut the application down;
+//   - event name exceptionEventName;
+//   - exception.type (v's dynamic Go type), exception.message and
+//     exception.stacktrace;
+//   - ctx holds the span, so the record carries the span's context.
 //
-// span.End is not deferred directly, so the SDK's own panic recording in End
-// does not run and the panic is recorded once.
-func recordPanic(span trace.Span, v any) {
-	errorType := panicType(v)
-	message := fmt.Sprint(v)
+// An error panic value is also given to the Logs API as the record's error,
+// as the conventions ask. The Go SDK would derive exception.message from it
+// and exception.type from the error's ErrorType method or unwrapped type;
+// because both are set here, it derives neither, and runs no application
+// code while the panic is handled.
+//
+// A panic in the logging pipeline is dropped, so that it cannot replace v.
+func (t *Tracer) logException(ctx context.Context, v any, message string) {
+	defer func() { _ = recover() }()
+	if !t.logger.Enabled(ctx, otellog.EnabledParameters{Severity: otellog.SeverityError, EventName: exceptionEventName}) {
+		return
+	}
 	stack := make([]byte, 64<<10)
 	stack = stack[:runtime.Stack(stack, false)]
-	span.AddEvent(semconv.ExceptionEventName, trace.WithAttributes(
-		semconv.ExceptionType(errorType),
+	var r otellog.Record
+	r.SetTimestamp(time.Now())
+	r.SetEventName(exceptionEventName)
+	r.SetSeverity(otellog.SeverityError)
+	r.SetSeverityText("ERROR")
+	r.AddAttributes(
+		semconv.ExceptionType(typeName(v)),
 		semconv.ExceptionMessage(message),
 		semconv.ExceptionStacktrace(string(stack)),
-	))
-	span.SetAttributes(semconv.ErrorTypeKey.String(errorType))
-	span.SetStatus(codes.Error, message)
+	)
+	if err, ok := v.(error); ok {
+		r.SetErr(err)
+	}
+	t.logger.Emit(ctx, r)
 }
 
-// panicType names the type of panic value v as error.type names an error:
-// for an error, as semconv.ErrorType does; otherwise its package-qualified
-// type name, or the type itself for a predeclared or unnamed type.
-func panicType(v any) string {
-	if err, ok := v.(error); ok {
-		return semconv.ErrorType(err).Value.AsString()
-	}
+// typeName returns the dynamic Go type of v, as exception.type names it: the
+// package path and name of a named type, or the type's own spelling, such as
+// *fs.PathError or string, for a pointer, predeclared or unnamed type.
+func typeName(v any) string {
 	t := reflect.TypeOf(v)
 	if t.PkgPath() != "" && t.Name() != "" {
 		return t.PkgPath() + "." + t.Name()
 	}
 	return t.String()
+}
+
+// classify returns the error.type of panic value v. For an error it is
+// semconv.ErrorType's, which uses the error's own ErrorType method and looks
+// through fmt.Errorf wrappers; otherwise it is v's Go type. ErrorType, and
+// the Unwrap and As methods semconv.ErrorType calls, are application code
+// running while a panic is handled: if one of them panics, v's Go type is
+// used instead.
+func classify(v any) (errorType string) {
+	err, ok := v.(error)
+	if !ok {
+		return typeName(v)
+	}
+	defer func() {
+		if recover() != nil {
+			errorType = typeName(v)
+		}
+	}()
+	return semconv.ErrorType(err).Value.AsString()
 }
 
 // HandleAccept preserves the wrapped handler's RFC 6733 §5.6.1 admission lifecycle.

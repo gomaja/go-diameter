@@ -192,7 +192,14 @@ srv := &diam.Server{
 
 The `examples/middleware` module wraps a handler with OpenTelemetry tracing:
 one span per message, with the Diameter application, command and result as
-attributes.
+attributes. When the handler panics, the span ends with status Error and an
+`error.type`. The panic is recorded as one `exception` log record, at
+severity ERROR, carrying the span's context, through the OpenTelemetry Logs
+API. It is not recorded as a span event, which the semantic conventions
+deprecate ([exceptions in logs](https://opentelemetry.io/docs/specs/semconv/exceptions/exceptions-logs/),
+[recording errors](https://opentelemetry.io/docs/specs/semconv/general/recording-errors/)).
+The panic then continues to `diam.Server`. `WithTracerProvider` and
+`WithLoggerProvider` choose the providers; the defaults are the global ones.
 
 ## Performance
 
