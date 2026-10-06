@@ -14,7 +14,7 @@ import (
 
 // TestServerOnNewConnection verifies that Server.OnNewConnection fires once
 // per accepted connection with a Conn that can be used with CloseNotify to
-// detect disconnection. Regression test for #152.
+// detect disconnection.
 func TestServerOnNewConnection(t *testing.T) {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
