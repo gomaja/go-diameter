@@ -54,6 +54,9 @@ const (
 	// NASREQ is the Diameter Network Access Server Application, RFC 7155
 	// (application 1). It builds on Base.
 	NASREQ Bundled = "network_access_server.xml"
+	// Cx is the 3GPP Cx/Dx interface, TS 29.229 V19.1.0 (application
+	// 16777216). It builds on NASREQ and Base.
+	Cx Bundled = "tgpp_cx.xml"
 	// RoRf adds the 3GPP charging AVPs of TS 32.299 to application 4. It
 	// builds on CreditControl, NASREQ and Base.
 	RoRf Bundled = "tgpp_ro_rf.xml"
@@ -72,6 +75,9 @@ const (
 	// SGd is the 3GPP SGd interface, TS 29.338 (application 16777313). It
 	// builds on S6c, CreditControl, RoRf, NASREQ and Base.
 	SGd Bundled = "tgpp_sgd.xml"
+	// Sh is the 3GPP Sh interface, TS 29.329 V19.1.0 (application
+	// 16777217). It builds on Cx, NASREQ and Base.
+	Sh Bundled = "tgpp_sh.xml"
 	// SWx is the 3GPP SWx interface, TS 29.273 (application 16777265). It
 	// builds on S6a, S6c, CreditControl, RoRf, NASREQ and Base.
 	SWx Bundled = "tgpp_swx.xml"

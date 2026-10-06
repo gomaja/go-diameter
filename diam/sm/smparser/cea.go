@@ -44,6 +44,12 @@ func (e ErrFailedResultCode) Error() string {
 
 // Parse parses and validates the given message.
 func (cea *CEA) Parse(m *diam.Message, localRole Role) error {
+	return cea.ParseWithApplicationIDs(m, localRole, nil)
+}
+
+// ParseWithApplicationIDs intersects the CEA with the applications offered
+// in this connection's CER (RFC 6733 §5.3.2).
+func (cea *CEA) ParseWithApplicationIDs(m *diam.Message, localRole Role, localIDs []uint32) error {
 	parsed := &base.CEA{
 		HostIPAddresses:             cea.HostIPAddresses,
 		ResultCode:                  cea.ResultCode,
@@ -59,7 +65,7 @@ func (cea *CEA) Parse(m *diam.Message, localRole Role) error {
 		FailedAVP:                   cea.FailedAVP,
 		ErrorMessage:                cea.ErrorMessage,
 	}
-	err := parsed.Parse(m, base.Role(localRole))
+	err := parsed.ParseWithApplicationIDs(m, base.Role(localRole), localIDs)
 	cea.ResultCode = parsed.ResultCode
 	cea.HostIPAddresses = parsed.HostIPAddresses
 	cea.OriginHost = parsed.OriginHost

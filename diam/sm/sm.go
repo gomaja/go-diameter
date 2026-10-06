@@ -12,6 +12,7 @@ import (
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/dict"
+	"github.com/gomaja/go-diameter/diam/internal/base"
 	"github.com/gomaja/go-diameter/diam/sm/smpeer"
 )
 
@@ -19,7 +20,10 @@ import (
 type SupportedApp struct {
 	ID      uint32
 	AppType string
-	Vendor  uint32
+	// Vendor identifies the application author; zero for standard/relay IDs.
+	Vendor uint32
+	// SupportedVendors includes every XML vendor whose AVPs are supported.
+	SupportedVendors []uint32
 }
 
 // PrepareSupportedApps prepares a list of locally supported apps
@@ -32,8 +36,9 @@ func PrepareSupportedApps(d *dict.Parser) []*SupportedApp {
 		addApp := new(SupportedApp)
 		addApp.ID = app.ID
 		addApp.AppType = app.Type
+		addApp.Vendor = app.ApplicationVendor()
 		for _, vendor := range app.Vendor {
-			addApp.Vendor = vendor.ID
+			addApp.SupportedVendors = append(addApp.SupportedVendors, vendor.ID)
 		}
 		locallySupportedApps = append(locallySupportedApps, addApp)
 	}
@@ -47,6 +52,23 @@ type Settings struct {
 	OriginRealm datatype.DiameterIdentity
 	VendorID    datatype.Unsigned32
 	ProductName datatype.UTF8String
+
+	// SupportedVendorID is sent exactly as configured, including order,
+	// repetitions, and the device vendor. Nil derives vendors from the
+	// advertised applications; a non-nil empty slice advertises none.
+	// Client.SupportedVendorID takes precedence when set (RFC 6733 §5.3.6).
+	SupportedVendorID []*diam.AVP
+
+	// These application AVPs are sent exactly as configured. If all three
+	// slices are nil, applications are derived from Dict. A non-nil empty
+	// slice counts as explicit configuration. A Client with any non-nil
+	// application slice overrides all three Settings slices for its CER.
+	// Vendor-Specific-Application-Id must have exactly one Vendor-Id and
+	// exactly one Auth- or Acct-Application-Id (RFC 6733 §6.11, Verified
+	// Erratum 4808); New rejects malformed groups.
+	AuthApplicationID           []*diam.AVP
+	AcctApplicationID           []*diam.AVP
+	VendorSpecificApplicationID []*diam.AVP
 
 	// OriginStateID is optional for clients and servers and is omitted if unset.
 	// RFC 6733 §8.16 requires it to reflect this entity's Origin-Host.
@@ -66,9 +88,8 @@ type Settings struct {
 	//
 	HostIPAddresses []datatype.Address
 
-	// Dict governs advertised applications and CER application validation
-	// (RFC 6733 §5.3). If nil, advertising uses dict.Default and validation
-	// uses the received message's dictionary.
+	// Dict supplies application metadata for derived advertisement and
+	// decoding. If nil, dict.Default is used (RFC 6733 §5.3).
 	Dict *dict.Parser
 
 	// OnCER, if non-nil, is invoked when a CER is received, before the
@@ -123,6 +144,10 @@ const DefaultHandshakeTimeout = 30 * time.Second
 
 // Validate checks settings that would make a capability exchange invalid.
 // RFC 6733 §4.3.1 defines the family and payload of each Address AVP.
+// Explicit application and Supported-Vendor-Id AVPs must be well formed, and
+// each Vendor-Specific-Application-Id must have exactly one Vendor-Id and
+// exactly one Auth- or Acct-Application-Id (RFC 6733 §6.11, Verified
+// Erratum 4808). Explicit values are otherwise sent as configured.
 func (settings *Settings) Validate() error {
 	if settings == nil {
 		return fmt.Errorf("nil settings")
@@ -131,6 +156,9 @@ func (settings *Settings) Validate() error {
 		if err := address.Valid(); err != nil {
 			return fmt.Errorf("HostIPAddresses[%d]: %w", i, err)
 		}
+	}
+	if err := base.ValidateCapabilities(baseSettings(settings)); err != nil {
+		return fmt.Errorf("invalid capabilities configuration: %w", err)
 	}
 	return nil
 }
@@ -153,6 +181,7 @@ type StateMachine struct {
 	mux           *diam.ServeMux
 	hsNotifyc     chan diam.Conn // handshake notifier
 	supportedApps []*SupportedApp
+	advertised    []uint32
 	dictionary    *dict.Parser
 	disconnects   disconnectState
 	accepted      sync.Map // diam.Conn -> *acceptedHandshake
@@ -182,6 +211,13 @@ func New(settings *Settings) (*StateMachine, error) {
 		supportedApps: PrepareSupportedApps(dp),
 		dictionary:    settings.Dict,
 	}
+	capabilities := baseSettings(settings)
+	for _, app := range sm.supportedApps {
+		capabilities.Applications = append(capabilities.Applications, base.LocalApplication{
+			ID: app.ID, AppType: app.AppType, Vendor: app.Vendor, SupportedVendors: app.SupportedVendors,
+		})
+	}
+	sm.advertised = base.AdvertisedApplicationIDs(capabilities)
 	cerHandler := chainPreHook(settings.OnCER, handleCER(sm))
 	dwrHandler := chainPreHook(settings.OnDWR, handleDWR(sm))
 	sm.mux.Handle("CER", cerHandler)
@@ -221,7 +257,7 @@ func (sm *StateMachine) ServeDIAM(c diam.Conn, m *diam.Message) {
 		return
 	}
 	if sm.cfg.ValidateRequests && m.Header.CommandFlags&diam.RequestFlag != 0 &&
-		!sm.supportsApplication(m.Header.ApplicationID) {
+		!sm.supportsApplicationOn(c, m.Header.ApplicationID) {
 		// RFC 6733 §7.1.3: the applications this node advertises decide
 		// 3007, not the dictionary that decoded the message, so this runs
 		// before Validate and before AVP-level checks. HandleMessageError

@@ -103,6 +103,8 @@ The embedded dictionary set also includes application dictionaries for:
 - Credit-Control.
 - Gx.
 - Network Access Server.
+- 3GPP Cx/Dx (TS 29.229 V19.1.0).
+- 3GPP Sh (TS 29.329 V19.1.0).
 - 3GPP Ro/Rf.
 - 3GPP Rx.
 - 3GPP S6a.

@@ -39,6 +39,27 @@ func TestCapabilityParsersReusableWithoutStateMachine(t *testing.T) {
 	}
 }
 
+func TestRelayCERNeedsLocallyAdvertisedApplication(t *testing.T) {
+	relay := diam.NewAVP(avp.AuthApplicationID, avp.Mbit, 0, datatype.Unsigned32(0xffffffff))
+	for _, tc := range []struct {
+		name     string
+		localIDs []uint32
+		wantErr  error
+	}{
+		{"none", []uint32{}, base.ErrNoCommonApplication},
+		{"accounting", []uint32{3}, nil},
+		{"dictionary-fallback", nil, nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			parsed := &base.Application{AuthApplicationID: []*diam.AVP{relay}}
+			_, err := parsed.ParseWithApplicationIDs(dict.Default, base.Server, tc.localIDs)
+			if err != tc.wantErr {
+				t.Fatalf("relay with local applications %v: error = %v, want %v", tc.localIDs, err, tc.wantErr)
+			}
+		})
+	}
+}
+
 func TestWatchdogParsersReusableWithoutStateMachine(t *testing.T) {
 	request := diam.NewMessage(diam.DeviceWatchdog, diam.RequestFlag, 0, 3, 4, dict.Default)
 	parsed := new(base.DWR)

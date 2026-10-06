@@ -56,10 +56,10 @@ func NewS6aProxy(cfg *S6aProxyConfig) (*s6aProxy, error) {
 			datatype.AddressFromIP(netip.MustParseAddr("127.0.0.1")),
 		},
 	})
-
 	if err != nil {
 		return nil, err
 	}
+
 	mux.HandleFunc("ALL", func(diam.Conn, *diam.Message) {}) // Catch all.
 
 	proxy := &s6aProxy{
@@ -79,7 +79,7 @@ func NewS6aProxy(cfg *S6aProxyConfig) (*s6aProxy, error) {
 				diam.NewAVP(avp.VendorSpecificApplicationID, avp.Mbit, 0, &diam.GroupedAVP{
 					AVP: []*diam.AVP{
 						diam.NewAVP(avp.AuthApplicationID, avp.Mbit, 0, datatype.Unsigned32(diam.TGPP_S6A_APP_ID)),
-						diam.NewAVP(avp.VendorID, avp.Mbit, 0, datatype.Unsigned32(diam.TGPP_S6A_APP_ID)),
+						diam.NewAVP(avp.VendorID, avp.Mbit, 0, datatype.Unsigned32(VENDOR_3GPP)),
 					},
 				}),
 			},

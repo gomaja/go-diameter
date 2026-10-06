@@ -20,12 +20,14 @@ func TestApps(t *testing.T) {
 		16777302, // Diameter Sy (diameter_sy.xml)
 		16777238, // 3GPP Gx (gx_credit_control.xml)
 		1,        // NASREQ (network_access_server.xml)
+		16777216, // 3GPP Cx/Dx (tgpp_cx.xml)
 		4,        // 3GPP Ro/Rf charging AVPs (tgpp_ro_rf.xml)
 		16777236, // 3GPP Rx (tgpp_rx.xml)
 		16777252, // 3GPP S13 (tgpp_s13.xml)
 		16777251, // 3GPP S6a (tgpp_s6a.xml)
 		16777312, // 3GPP S6c (tgpp_s6c.xml)
 		16777313, // 3GPP SGd (tgpp_sgd.xml)
+		16777217, // 3GPP Sh (tgpp_sh.xml)
 		16777265, // 3GPP SWx (tgpp_swx.xml)
 	}
 	var have []uint32

@@ -1,0 +1,760 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<diameter>
+    <!-- 3GPP TS 29.229 V19.1.0 §§6.1, 6.3. AVP P is reserved and SHOULD be zero (RFC 6733 §4.1). -->
+    <application id="16777216" type="auth" name="TGPP Cx">
+        <vendor id="10415" name="TGPP"/>
+        <!-- TS 29.229 V19.1.0 §5.6 requires both vendors in Supported-Vendor-Id. -->
+        <vendor id="13019" name="ETSI"/>
+        <!-- 3GPP TS 29.229 V19.1.0 §§6.1.1, 6.1.2. -->
+        <command code="300" short="UA" name="User-Authorization">
+            <request proxiable="true">
+                <rule avp="Session-Id" required="true" max="1" fixed="true"/>
+                <rule avp="DRMP" required="false" max="1"/>
+                <rule avp="Vendor-Specific-Application-Id" required="true" max="1"/>
+                <rule avp="Auth-Session-State" required="true" max="1"/>
+                <rule avp="Origin-Host" required="true" max="1"/>
+                <rule avp="Origin-Realm" required="true" max="1"/>
+                <rule avp="Destination-Host" required="false" max="1"/>
+                <rule avp="Destination-Realm" required="true" max="1"/>
+                <rule avp="User-Name" required="true" max="1"/>
+                <rule avp="OC-Supported-Features" required="false" max="1"/>
+                <rule avp="Supported-Features" required="false"/>
+                <rule avp="Public-Identity" required="true" max="1"/>
+                <rule avp="Visited-Network-Identifier" required="true" max="1"/>
+                <rule avp="User-Authorization-Type" required="false" max="1"/>
+                <rule avp="UAR-Flags" required="false" max="1"/>
+                <rule avp="AVP" required="false"/>
+                <rule avp="Proxy-Info" required="false"/>
+                <rule avp="Route-Record" required="false"/>
+            </request>
+            <answer proxiable="true">
+                <rule avp="Session-Id" required="true" max="1" fixed="true"/>
+                <rule avp="DRMP" required="false" max="1"/>
+                <rule avp="Vendor-Specific-Application-Id" required="true" max="1"/>
+                <rule avp="Result-Code" required="false" max="1"/>
+                <rule avp="Experimental-Result" required="false" max="1"/>
+                <rule avp="Auth-Session-State" required="true" max="1"/>
+                <rule avp="Origin-Host" required="true" max="1"/>
+                <rule avp="Origin-Realm" required="true" max="1"/>
+                <rule avp="OC-Supported-Features" required="false" max="1"/>
+                <rule avp="OC-OLR" required="false" max="1"/>
+                <rule avp="Load" required="false"/>
+                <rule avp="Supported-Features" required="false"/>
+                <rule avp="Server-Name" required="false" max="1"/>
+                <rule avp="Server-Capabilities" required="false" max="1"/>
+                <rule avp="AVP" required="false"/>
+                <rule avp="Failed-AVP" required="false" max="1"/>
+                <rule avp="Proxy-Info" required="false"/>
+                <rule avp="Route-Record" required="false"/>
+            </answer>
+        </command>
+        <!-- 3GPP TS 29.229 V19.1.0 §§6.1.3, 6.1.4. -->
+        <command code="301" short="SA" name="Server-Assignment">
+            <request proxiable="true">
+                <rule avp="Session-Id" required="true" max="1" fixed="true"/>
+                <rule avp="DRMP" required="false" max="1"/>
+                <rule avp="Vendor-Specific-Application-Id" required="true" max="1"/>
+                <rule avp="Auth-Session-State" required="true" max="1"/>
+                <rule avp="Origin-Host" required="true" max="1"/>
+                <rule avp="Origin-Realm" required="true" max="1"/>
+                <rule avp="Destination-Host" required="false" max="1"/>
+                <rule avp="Destination-Realm" required="true" max="1"/>
+                <rule avp="User-Name" required="false" max="1"/>
+                <rule avp="OC-Supported-Features" required="false" max="1"/>
+                <rule avp="Supported-Features" required="false"/>
+                <rule avp="Public-Identity" required="false"/>
+                <rule avp="Wildcarded-Public-Identity" required="false" max="1"/>
+                <rule avp="Server-Name" required="true" max="1"/>
+                <rule avp="Server-Assignment-Type" required="true" max="1"/>
+                <rule avp="User-Data-Already-Available" required="true" max="1"/>
+                <rule avp="SCSCF-Restoration-Info" required="false" max="1"/>
+                <rule avp="Multiple-Registration-Indication" required="false" max="1"/>
+                <rule avp="Session-Priority" required="false" max="1"/>
+                <rule avp="SAR-Flags" required="false" max="1"/>
+                <rule avp="Failed-PCSCF" required="false" max="1"/>
+                <rule avp="AVP" required="false"/>
+                <rule avp="Proxy-Info" required="false"/>
+                <rule avp="Route-Record" required="false"/>
+            </request>
+            <answer proxiable="true">
+                <rule avp="Session-Id" required="true" max="1" fixed="true"/>
+                <rule avp="DRMP" required="false" max="1"/>
+                <rule avp="Vendor-Specific-Application-Id" required="true" max="1"/>
+                <rule avp="Result-Code" required="false" max="1"/>
+                <rule avp="Experimental-Result" required="false" max="1"/>
+                <rule avp="Auth-Session-State" required="true" max="1"/>
+                <rule avp="Origin-Host" required="true" max="1"/>
+                <rule avp="Origin-Realm" required="true" max="1"/>
+                <rule avp="User-Name" required="false" max="1"/>
+                <rule avp="OC-Supported-Features" required="false" max="1"/>
+                <rule avp="OC-OLR" required="false" max="1"/>
+                <rule avp="Load" required="false"/>
+                <rule avp="Supported-Features" required="false"/>
+                <rule avp="User-Data" required="false" max="1"/>
+                <rule avp="Charging-Information" required="false" max="1"/>
+                <rule avp="Associated-Identities" required="false" max="1"/>
+                <rule avp="Loose-Route-Indication" required="false" max="1"/>
+                <rule avp="SCSCF-Restoration-Info" required="false"/>
+                <rule avp="Associated-Registered-Identities" required="false" max="1"/>
+                <rule avp="Server-Name" required="false" max="1"/>
+                <rule avp="Wildcarded-Public-Identity" required="false" max="1"/>
+                <rule avp="Priviledged-Sender-Indication" required="false" max="1"/>
+                <rule avp="Allowed-WAF-WWSF-Identities" required="false" max="1"/>
+                <rule avp="AVP" required="false"/>
+                <rule avp="Failed-AVP" required="false" max="1"/>
+                <rule avp="Proxy-Info" required="false"/>
+                <rule avp="Route-Record" required="false"/>
+            </answer>
+        </command>
+        <!-- 3GPP TS 29.229 V19.1.0 §§6.1.5, 6.1.6. -->
+        <command code="302" short="LI" name="Location-Info">
+            <request proxiable="true">
+                <rule avp="Session-Id" required="true" max="1" fixed="true"/>
+                <rule avp="DRMP" required="false" max="1"/>
+                <rule avp="Vendor-Specific-Application-Id" required="true" max="1"/>
+                <rule avp="Auth-Session-State" required="true" max="1"/>
+                <rule avp="Origin-Host" required="true" max="1"/>
+                <rule avp="Origin-Realm" required="true" max="1"/>
+                <rule avp="Destination-Host" required="false" max="1"/>
+                <rule avp="Destination-Realm" required="true" max="1"/>
+                <rule avp="Originating-Request" required="false" max="1"/>
+                <rule avp="OC-Supported-Features" required="false" max="1"/>
+                <rule avp="Supported-Features" required="false"/>
+                <rule avp="Public-Identity" required="true" max="1"/>
+                <rule avp="User-Authorization-Type" required="false" max="1"/>
+                <rule avp="Session-Priority" required="false" max="1"/>
+                <rule avp="AVP" required="false"/>
+                <rule avp="Proxy-Info" required="false"/>
+                <rule avp="Route-Record" required="false"/>
+            </request>
+            <answer proxiable="true">
+                <rule avp="Session-Id" required="true" max="1" fixed="true"/>
+                <rule avp="DRMP" required="false" max="1"/>
+                <rule avp="Vendor-Specific-Application-Id" required="true" max="1"/>
+                <rule avp="Result-Code" required="false" max="1"/>
+                <rule avp="Experimental-Result" required="false" max="1"/>
+                <rule avp="Auth-Session-State" required="true" max="1"/>
+                <rule avp="Origin-Host" required="true" max="1"/>
+                <rule avp="Origin-Realm" required="true" max="1"/>
+                <rule avp="OC-Supported-Features" required="false" max="1"/>
+                <rule avp="OC-OLR" required="false" max="1"/>
+                <rule avp="Load" required="false"/>
+                <rule avp="Supported-Features" required="false"/>
+                <rule avp="Server-Name" required="false" max="1"/>
+                <rule avp="Server-Capabilities" required="false" max="1"/>
+                <rule avp="Wildcarded-Public-Identity" required="false" max="1"/>
+                <rule avp="LIA-Flags" required="false" max="1"/>
+                <rule avp="AVP" required="false"/>
+                <rule avp="Failed-AVP" required="false" max="1"/>
+                <rule avp="Proxy-Info" required="false"/>
+                <rule avp="Route-Record" required="false"/>
+            </answer>
+        </command>
+        <!-- 3GPP TS 29.229 V19.1.0 §§6.1.7, 6.1.8. -->
+        <command code="303" short="MA" name="Multimedia-Auth">
+            <request proxiable="true">
+                <rule avp="Session-Id" required="true" max="1" fixed="true"/>
+                <rule avp="DRMP" required="false" max="1"/>
+                <rule avp="Vendor-Specific-Application-Id" required="true" max="1"/>
+                <rule avp="Auth-Session-State" required="true" max="1"/>
+                <rule avp="Origin-Host" required="true" max="1"/>
+                <rule avp="Origin-Realm" required="true" max="1"/>
+                <rule avp="Destination-Realm" required="true" max="1"/>
+                <rule avp="Destination-Host" required="false" max="1"/>
+                <rule avp="User-Name" required="true" max="1"/>
+                <rule avp="OC-Supported-Features" required="false" max="1"/>
+                <rule avp="Supported-Features" required="false"/>
+                <rule avp="Public-Identity" required="true" max="1"/>
+                <rule avp="SIP-Auth-Data-Item" required="true" max="1"/>
+                <rule avp="SIP-Number-Auth-Items" required="true" max="1"/>
+                <rule avp="Server-Name" required="true" max="1"/>
+                <rule avp="AVP" required="false"/>
+                <rule avp="Proxy-Info" required="false"/>
+                <rule avp="Route-Record" required="false"/>
+            </request>
+            <answer proxiable="true">
+                <rule avp="Session-Id" required="true" max="1" fixed="true"/>
+                <rule avp="DRMP" required="false" max="1"/>
+                <rule avp="Vendor-Specific-Application-Id" required="true" max="1"/>
+                <rule avp="Result-Code" required="false" max="1"/>
+                <rule avp="Experimental-Result" required="false" max="1"/>
+                <rule avp="Auth-Session-State" required="true" max="1"/>
+                <rule avp="Origin-Host" required="true" max="1"/>
+                <rule avp="Origin-Realm" required="true" max="1"/>
+                <rule avp="User-Name" required="false" max="1"/>
+                <rule avp="OC-Supported-Features" required="false" max="1"/>
+                <rule avp="OC-OLR" required="false" max="1"/>
+                <rule avp="Load" required="false"/>
+                <rule avp="Supported-Features" required="false"/>
+                <rule avp="Public-Identity" required="false" max="1"/>
+                <rule avp="SIP-Number-Auth-Items" required="false" max="1"/>
+                <rule avp="SIP-Auth-Data-Item" required="false"/>
+                <rule avp="AVP" required="false"/>
+                <rule avp="Failed-AVP" required="false" max="1"/>
+                <rule avp="Proxy-Info" required="false"/>
+                <rule avp="Route-Record" required="false"/>
+            </answer>
+        </command>
+        <!-- 3GPP TS 29.229 V19.1.0 §§6.1.9, 6.1.10. -->
+        <command code="304" short="RT" name="Registration-Termination">
+            <request proxiable="true">
+                <!-- §6.1.9 omits the opening bracket on RTR-Flags; TS 29.228 V20.0.0 Table 6.1.3.1 marks it optional.
+                     Destination-Host is mandatory under §5.5 and TS 29.228 V20.0.0 Table 6.1.3.1;
+                     its omission from §6.1.9 is repaired here. -->
+                <rule avp="Session-Id" required="true" max="1" fixed="true"/>
+                <rule avp="DRMP" required="false" max="1"/>
+                <rule avp="Vendor-Specific-Application-Id" required="true" max="1"/>
+                <rule avp="Auth-Session-State" required="true" max="1"/>
+                <rule avp="Origin-Host" required="true" max="1"/>
+                <rule avp="Origin-Realm" required="true" max="1"/>
+                <rule avp="Destination-Host" required="true" max="1"/>
+                <rule avp="Destination-Realm" required="true" max="1"/>
+                <rule avp="User-Name" required="true" max="1"/>
+                <rule avp="Associated-Identities" required="false" max="1"/>
+                <rule avp="Supported-Features" required="false"/>
+                <rule avp="Public-Identity" required="false"/>
+                <rule avp="Deregistration-Reason" required="true" max="1"/>
+                <rule avp="RTR-Flags" required="false" max="1"/>
+                <rule avp="AVP" required="false"/>
+                <rule avp="Proxy-Info" required="false"/>
+                <rule avp="Route-Record" required="false"/>
+            </request>
+            <answer proxiable="true">
+                <!-- §6.1.10 repeats Session-Id editorially; RFC 6733 §8.8 permits exactly one, first in the message. -->
+                <rule avp="Session-Id" required="true" max="1" fixed="true"/>
+                <rule avp="DRMP" required="false" max="1"/>
+                <rule avp="Vendor-Specific-Application-Id" required="true" max="1"/>
+                <rule avp="Result-Code" required="false" max="1"/>
+                <rule avp="Experimental-Result" required="false" max="1"/>
+                <rule avp="Auth-Session-State" required="true" max="1"/>
+                <rule avp="Origin-Host" required="true" max="1"/>
+                <rule avp="Origin-Realm" required="true" max="1"/>
+                <rule avp="Associated-Identities" required="false" max="1"/>
+                <rule avp="Supported-Features" required="false"/>
+                <rule avp="Identity-with-Emergency-Registration" required="false"/>
+                <rule avp="AVP" required="false"/>
+                <rule avp="Failed-AVP" required="false" max="1"/>
+                <rule avp="Proxy-Info" required="false"/>
+                <rule avp="Route-Record" required="false"/>
+            </answer>
+        </command>
+        <!-- 3GPP TS 29.229 V19.1.0 §§6.1.11, 6.1.12. -->
+        <command code="305" short="PP" name="Push-Profile">
+            <request proxiable="true">
+                <rule avp="Session-Id" required="true" max="1" fixed="true"/>
+                <rule avp="DRMP" required="false" max="1"/>
+                <rule avp="Vendor-Specific-Application-Id" required="true" max="1"/>
+                <rule avp="Auth-Session-State" required="true" max="1"/>
+                <rule avp="Origin-Host" required="true" max="1"/>
+                <rule avp="Origin-Realm" required="true" max="1"/>
+                <rule avp="Destination-Host" required="true" max="1"/>
+                <rule avp="Destination-Realm" required="true" max="1"/>
+                <rule avp="User-Name" required="true" max="1"/>
+                <rule avp="Supported-Features" required="false"/>
+                <rule avp="User-Data" required="false" max="1"/>
+                <rule avp="Charging-Information" required="false" max="1"/>
+                <rule avp="SIP-Auth-Data-Item" required="false" max="1"/>
+                <rule avp="Allowed-WAF-WWSF-Identities" required="false" max="1"/>
+                <rule avp="AVP" required="false"/>
+                <rule avp="Proxy-Info" required="false"/>
+                <rule avp="Route-Record" required="false"/>
+            </request>
+            <answer proxiable="true">
+                <rule avp="Session-Id" required="true" max="1" fixed="true"/>
+                <rule avp="DRMP" required="false" max="1"/>
+                <rule avp="Vendor-Specific-Application-Id" required="true" max="1"/>
+                <rule avp="Result-Code" required="false" max="1"/>
+                <rule avp="Experimental-Result" required="false" max="1"/>
+                <rule avp="Auth-Session-State" required="true" max="1"/>
+                <rule avp="Origin-Host" required="true" max="1"/>
+                <rule avp="Origin-Realm" required="true" max="1"/>
+                <rule avp="Supported-Features" required="false"/>
+                <rule avp="AVP" required="false"/>
+                <rule avp="Failed-AVP" required="false" max="1"/>
+                <rule avp="Proxy-Info" required="false"/>
+                <rule avp="Route-Record" required="false"/>
+            </answer>
+        </command>
+        <!-- 3GPP TS 29.229 V19.1.0 §6.3.1, Table 6.3.0.1. -->
+        <avp name="Visited-Network-Identifier" code="600" vendor-id="10415" must="M,V" may="" must-not="" may-encrypt="N">
+            <data type="OctetString"/>
+        </avp>
+        <!-- 3GPP TS 29.229 V19.1.0 §6.3.2, Table 6.3.0.1. -->
+        <avp name="Public-Identity" code="601" vendor-id="10415" must="M,V" may="" must-not="" may-encrypt="N">
+            <data type="UTF8String"/>
+        </avp>
+        <!-- 3GPP TS 29.229 V19.1.0 §6.3.3, Table 6.3.0.1. -->
+        <avp name="Server-Name" code="602" vendor-id="10415" must="M,V" may="" must-not="" may-encrypt="N">
+            <data type="UTF8String"/>
+        </avp>
+        <!-- 3GPP TS 29.229 V19.1.0 §6.3.4, Table 6.3.0.1. -->
+        <avp name="Server-Capabilities" code="603" vendor-id="10415" must="M,V" may="" must-not="" may-encrypt="N">
+            <data type="Grouped">
+                <rule avp="Mandatory-Capability" required="false"/>
+                <rule avp="Optional-Capability" required="false"/>
+                <rule avp="Server-Name" required="false"/>
+                <rule avp="AVP" required="false"/>
+            </data>
+        </avp>
+        <!-- 3GPP TS 29.229 V19.1.0 §6.3.5, Table 6.3.0.1. -->
+        <avp name="Mandatory-Capability" code="604" vendor-id="10415" must="M,V" may="" must-not="" may-encrypt="N">
+            <data type="Unsigned32"/>
+        </avp>
+        <!-- 3GPP TS 29.229 V19.1.0 §6.3.6, Table 6.3.0.1. -->
+        <avp name="Optional-Capability" code="605" vendor-id="10415" must="M,V" may="" must-not="" may-encrypt="N">
+            <data type="Unsigned32"/>
+        </avp>
+        <!-- 3GPP TS 29.229 V19.1.0 §6.3.7, Table 6.3.0.1. -->
+        <avp name="User-Data" code="606" vendor-id="10415" must="M,V" may="" must-not="" may-encrypt="N">
+            <data type="OctetString"/>
+        </avp>
+        <!-- 3GPP TS 29.229 V19.1.0 §6.3.8, Table 6.3.0.1. -->
+        <avp name="SIP-Number-Auth-Items" code="607" vendor-id="10415" must="M,V" may="" must-not="" may-encrypt="N">
+            <data type="Unsigned32"/>
+        </avp>
+        <!-- 3GPP TS 29.229 V19.1.0 §6.3.9, Table 6.3.0.1. -->
+        <avp name="SIP-Authentication-Scheme" code="608" vendor-id="10415" must="M,V" may="" must-not="" may-encrypt="N">
+            <data type="UTF8String"/>
+        </avp>
+        <!-- 3GPP TS 29.229 V19.1.0 §6.3.10, Table 6.3.0.1. -->
+        <avp name="SIP-Authenticate" code="609" vendor-id="10415" must="M,V" may="" must-not="" may-encrypt="N">
+            <data type="OctetString"/>
+        </avp>
+        <!-- 3GPP TS 29.229 V19.1.0 §6.3.11, Table 6.3.0.1. -->
+        <avp name="SIP-Authorization" code="610" vendor-id="10415" must="M,V" may="" must-not="" may-encrypt="N">
+            <data type="OctetString"/>
+        </avp>
+        <!-- 3GPP TS 29.229 V19.1.0 §6.3.12, Table 6.3.0.1. -->
+        <avp name="SIP-Authentication-Context" code="611" vendor-id="10415" must="M,V" may="" must-not="" may-encrypt="N">
+            <data type="OctetString"/>
+        </avp>
+        <!-- 3GPP TS 29.229 V19.1.0 §6.3.13, Table 6.3.0.1. -->
+        <avp name="SIP-Auth-Data-Item" code="612" vendor-id="10415" must="M,V" may="" must-not="" may-encrypt="N">
+            <data type="Grouped">
+                <rule avp="SIP-Item-Number" required="false" max="1"/>
+                <rule avp="SIP-Authentication-Scheme" required="false" max="1"/>
+                <rule avp="SIP-Authenticate" required="false" max="1"/>
+                <rule avp="SIP-Authorization" required="false" max="1"/>
+                <rule avp="SIP-Authentication-Context" required="false" max="1"/>
+                <rule avp="Confidentiality-Key" required="false" max="1"/>
+                <rule avp="Integrity-Key" required="false" max="1"/>
+                <rule avp="SIP-Digest-Authenticate" required="false" max="1"/>
+                <rule avp="Framed-IP-Address" required="false" max="1"/>
+                <rule avp="Framed-IPv6-Prefix" required="false" max="1"/>
+                <rule avp="Framed-Interface-Id" required="false" max="1"/>
+                <rule avp="Line-Identifier" required="false"/>
+                <rule avp="AVP" required="false"/>
+            </data>
+        </avp>
+        <!-- 3GPP TS 29.229 V19.1.0 §6.3.14, Table 6.3.0.1. -->
+        <avp name="SIP-Item-Number" code="613" vendor-id="10415" must="M,V" may="" must-not="" may-encrypt="N">
+            <data type="Unsigned32"/>
+        </avp>
+        <!-- 3GPP TS 29.229 V19.1.0 §6.3.15, Table 6.3.0.1. -->
+        <avp name="Server-Assignment-Type" code="614" vendor-id="10415" must="M,V" may="" must-not="" may-encrypt="N">
+            <data type="Enumerated">
+                <item code="0" name="NO_ASSIGNMENT"/>
+                <item code="1" name="REGISTRATION"/>
+                <item code="2" name="RE_REGISTRATION"/>
+                <item code="3" name="UNREGISTERED_USER"/>
+                <item code="4" name="TIMEOUT_DEREGISTRATION"/>
+                <item code="5" name="USER_DEREGISTRATION"/>
+                <item code="6" name="TIMEOUT_DEREGISTRATION_STORE_SERVER_NAME"/>
+                <item code="7" name="USER_DEREGISTRATION_STORE_SERVER_NAME"/>
+                <item code="8" name="ADMINISTRATIVE_DEREGISTRATION"/>
+                <item code="9" name="AUTHENTICATION_FAILURE"/>
+                <item code="10" name="AUTHENTICATION_TIMEOUT"/>
+                <item code="11" name="DEREGISTRATION_TOO_MUCH_DATA"/>
+                <item code="12" name="AAA_USER_DATA_REQUEST"/>
+                <item code="13" name="PGW_UPDATE"/>
+                <item code="14" name="RESTORATION"/>
+            </data>
+        </avp>
+        <!-- 3GPP TS 29.229 V19.1.0 §6.3.16, Table 6.3.0.1. -->
+        <avp name="Deregistration-Reason" code="615" vendor-id="10415" must="M,V" may="" must-not="" may-encrypt="N">
+            <data type="Grouped">
+                <rule avp="Reason-Code" required="true" max="1"/>
+                <rule avp="Reason-Info" required="false" max="1"/>
+                <rule avp="AVP" required="false"/>
+            </data>
+        </avp>
+        <!-- 3GPP TS 29.229 V19.1.0 §6.3.17, Table 6.3.0.1. -->
+        <avp name="Reason-Code" code="616" vendor-id="10415" must="M,V" may="" must-not="" may-encrypt="N">
+            <data type="Enumerated">
+                <item code="0" name="PERMANENT_TERMINATION"/>
+                <item code="1" name="NEW_SERVER_ASSIGNED"/>
+                <item code="2" name="SERVER_CHANGE"/>
+                <item code="3" name="REMOVE_S-CSCF"/>
+            </data>
+        </avp>
+        <!-- 3GPP TS 29.229 V19.1.0 §6.3.18, Table 6.3.0.1. -->
+        <avp name="Reason-Info" code="617" vendor-id="10415" must="M,V" may="" must-not="" may-encrypt="N">
+            <data type="UTF8String"/>
+        </avp>
+        <!-- 3GPP TS 29.229 V19.1.0 §6.3.19, Table 6.3.0.1. -->
+        <avp name="Charging-Information" code="618" vendor-id="10415" must="M,V" may="" must-not="" may-encrypt="N">
+            <data type="Grouped">
+                <rule avp="Primary-Event-Charging-Function-Name" required="false" max="1"/>
+                <rule avp="Secondary-Event-Charging-Function-Name" required="false" max="1"/>
+                <rule avp="Primary-Charging-Collection-Function-Name" required="false" max="1"/>
+                <rule avp="Secondary-Charging-Collection-Function-Name" required="false" max="1"/>
+                <rule avp="AVP" required="false"/>
+            </data>
+        </avp>
+        <!-- 3GPP TS 29.229 V19.1.0 §6.3.20, Table 6.3.0.1. -->
+        <avp name="Primary-Event-Charging-Function-Name" code="619" vendor-id="10415" must="M,V" may="" must-not="" may-encrypt="N">
+            <data type="DiameterURI"/>
+        </avp>
+        <!-- 3GPP TS 29.229 V19.1.0 §6.3.21, Table 6.3.0.1. -->
+        <avp name="Secondary-Event-Charging-Function-Name" code="620" vendor-id="10415" must="M,V" may="" must-not="" may-encrypt="N">
+            <data type="DiameterURI"/>
+        </avp>
+        <!-- 3GPP TS 29.229 V19.1.0 §6.3.22, Table 6.3.0.1. -->
+        <avp name="Primary-Charging-Collection-Function-Name" code="621" vendor-id="10415" must="M,V" may="" must-not="" may-encrypt="N">
+            <data type="DiameterURI"/>
+        </avp>
+        <!-- 3GPP TS 29.229 V19.1.0 §6.3.23, Table 6.3.0.1. -->
+        <avp name="Secondary-Charging-Collection-Function-Name" code="622" vendor-id="10415" must="M,V" may="" must-not="" may-encrypt="N">
+            <data type="DiameterURI"/>
+        </avp>
+        <!-- 3GPP TS 29.229 V19.1.0 §6.3.24, Table 6.3.0.1. -->
+        <avp name="User-Authorization-Type" code="623" vendor-id="10415" must="M,V" may="" must-not="" may-encrypt="N">
+            <data type="Enumerated">
+                <item code="0" name="REGISTRATION"/>
+                <item code="1" name="DE_REGISTRATION"/>
+                <item code="2" name="REGISTRATION_AND_CAPABILITIES"/>
+            </data>
+        </avp>
+        <!-- 3GPP TS 29.229 V19.1.0 §6.3.26, Table 6.3.0.1. -->
+        <avp name="User-Data-Already-Available" code="624" vendor-id="10415" must="M,V" may="" must-not="" may-encrypt="N">
+            <data type="Enumerated">
+                <item code="0" name="USER_DATA_NOT_AVAILABLE"/>
+                <item code="1" name="USER_DATA_ALREADY_AVAILABLE"/>
+            </data>
+        </avp>
+        <!-- 3GPP TS 29.229 V19.1.0 §6.3.27, Table 6.3.0.1. -->
+        <avp name="Confidentiality-Key" code="625" vendor-id="10415" must="M,V" may="" must-not="" may-encrypt="N">
+            <data type="OctetString"/>
+        </avp>
+        <!-- 3GPP TS 29.229 V19.1.0 §6.3.28, Table 6.3.0.1. -->
+        <avp name="Integrity-Key" code="626" vendor-id="10415" must="M,V" may="" must-not="" may-encrypt="N">
+            <data type="OctetString"/>
+        </avp>
+        <!-- 3GPP TS 29.229 V19.1.0 §6.3.29, Table 6.3.0.1. -->
+        <avp name="Supported-Features" code="628" vendor-id="10415" must="V" may="M" must-not="" may-encrypt="N">
+            <data type="Grouped">
+                <rule avp="Vendor-Id" required="true" max="1"/>
+                <rule avp="Feature-List-ID" required="true" max="1"/>
+                <rule avp="Feature-List" required="true" max="1"/>
+                <rule avp="AVP" required="false"/>
+            </data>
+        </avp>
+        <!-- 3GPP TS 29.229 V19.1.0 §6.3.30, Table 6.3.0.1. -->
+        <avp name="Feature-List-ID" code="629" vendor-id="10415" must="V" may="" must-not="M" may-encrypt="N">
+            <data type="Unsigned32"/>
+        </avp>
+        <!-- 3GPP TS 29.229 V19.1.0 §6.3.31, Table 6.3.0.1. -->
+        <avp name="Feature-List" code="630" vendor-id="10415" must="V" may="" must-not="M" may-encrypt="N">
+            <data type="Unsigned32"/>
+        </avp>
+        <!-- 3GPP TS 29.229 V19.1.0 §6.3.32, Table 6.3.0.1. -->
+        <avp name="Supported-Applications" code="631" vendor-id="10415" must="V" may="" must-not="M" may-encrypt="N">
+            <data type="Grouped">
+                <rule avp="Auth-Application-Id" required="false"/>
+                <rule avp="Acct-Application-Id" required="false"/>
+                <rule avp="Vendor-Specific-Application-Id" required="false"/>
+                <rule avp="AVP" required="false"/>
+            </data>
+        </avp>
+        <!-- 3GPP TS 29.229 V19.1.0 §6.3.33, Table 6.3.0.1. -->
+        <avp name="Associated-Identities" code="632" vendor-id="10415" must="V" may="" must-not="M" may-encrypt="N">
+            <data type="Grouped">
+                <rule avp="User-Name" required="false"/>
+                <rule avp="AVP" required="false"/>
+            </data>
+        </avp>
+        <!-- 3GPP TS 29.229 V19.1.0 §6.3.34, Table 6.3.0.1. -->
+        <avp name="Originating-Request" code="633" vendor-id="10415" must="M,V" may="" must-not="" may-encrypt="N">
+            <data type="Enumerated">
+                <item code="0" name="ORIGINATING"/>
+            </data>
+        </avp>
+        <!-- 3GPP TS 29.229 V19.1.0 §6.3.35, Table 6.3.0.1. -->
+        <avp name="Wildcarded-Public-Identity" code="634" vendor-id="10415" must="V" may="" must-not="M" may-encrypt="N">
+            <data type="UTF8String"/>
+        </avp>
+        <!-- 3GPP TS 29.229 V19.1.0 §6.3.36, Table 6.3.0.1. -->
+        <avp name="SIP-Digest-Authenticate" code="635" vendor-id="10415" must="V" may="" must-not="M" may-encrypt="N">
+            <data type="Grouped">
+                <rule avp="Digest-Realm" required="true" max="1"/>
+                <rule avp="Digest-Algorithm" required="false" max="1"/>
+                <rule avp="Digest-Qop" required="true" max="1"/>
+                <rule avp="Digest-HA1" required="true" max="1"/>
+                <rule avp="Alternate-Digest-Algorithm" required="false" max="1"/>
+                <rule avp="Alternate-Digest-HA1" required="false" max="1"/>
+                <rule avp="AVP" required="false"/>
+            </data>
+        </avp>
+        <!-- 3GPP TS 29.229 V19.1.0 §6.3.37, Table 6.3.0.1. -->
+        <!-- RFC 4740 §9.5.6 and Verified Erratum 6028; RFC 5090 §§3.2, 3.8, 3.9, 3.19. Digest-Qop is the corrected IETF spelling. -->
+        <avp name="Digest-Realm" code="104" vendor-id="0" must="M" may="" must-not="V" may-encrypt="N">
+            <data type="UTF8String"/>
+        </avp>
+        <!-- 3GPP TS 29.229 V19.1.0 §6.3.39, Table 6.3.0.1. -->
+        <!-- RFC 4740 §9.5.6 and Verified Erratum 6028; RFC 5090 §§3.2, 3.8, 3.9, 3.19. Digest-Qop is the corrected IETF spelling. -->
+        <avp name="Digest-Algorithm" code="111" vendor-id="0" must="M" may="" must-not="V" may-encrypt="N">
+            <data type="UTF8String"/>
+        </avp>
+        <!-- 3GPP TS 29.229 V19.1.0 §6.3.40, Table 6.3.0.1. -->
+        <!-- RFC 4740 §9.5.6 and Verified Erratum 6028; RFC 5090 §§3.2, 3.8, 3.9, 3.19. Digest-Qop is the corrected IETF spelling. -->
+        <avp name="Digest-Qop" code="110" vendor-id="0" must="M" may="" must-not="V" may-encrypt="N">
+            <data type="UTF8String"/>
+        </avp>
+        <!-- 3GPP TS 29.229 V19.1.0 §6.3.41, Table 6.3.0.1. -->
+        <!-- RFC 4740 §9.5.6 and Verified Erratum 6028; RFC 5090 §§3.2, 3.8, 3.9, 3.19. Digest-Qop is the corrected IETF spelling. -->
+        <avp name="Digest-HA1" code="121" vendor-id="0" must="M" may="" must-not="V" may-encrypt="N">
+            <data type="UTF8String"/>
+        </avp>
+        <!-- 3GPP TS 29.229 V19.1.0 §6.3.44, Table 6.3.0.1. -->
+        <avp name="UAR-Flags" code="637" vendor-id="10415" must="V" may="" must-not="M" may-encrypt="N">
+            <data type="Unsigned32"/>
+        </avp>
+        <!-- 3GPP TS 29.229 V19.1.0 §6.3.45, Table 6.3.0.1. -->
+        <avp name="Loose-Route-Indication" code="638" vendor-id="10415" must="V" may="" must-not="M" may-encrypt="N">
+            <data type="Enumerated">
+                <item code="0" name="LOOSE_ROUTE_NOT_REQUIRED"/>
+                <item code="1" name="LOOSE_ROUTE_REQUIRED"/>
+            </data>
+        </avp>
+        <!-- 3GPP TS 29.229 V19.1.0 §6.3.46, Table 6.3.0.1. -->
+        <avp name="SCSCF-Restoration-Info" code="639" vendor-id="10415" must="V" may="" must-not="M" may-encrypt="N">
+            <data type="Grouped">
+                <rule avp="User-Name" required="true" max="1"/>
+                <rule avp="Restoration-Info" required="true" min="1"/>
+                <rule avp="Registration-Time-Out" required="false" max="1"/>
+                <rule avp="SIP-Authentication-Scheme" required="false" max="1"/>
+                <rule avp="AVP" required="false"/>
+            </data>
+        </avp>
+        <!-- 3GPP TS 29.229 V19.1.0 §6.3.47, Table 6.3.0.1. -->
+        <avp name="Path" code="640" vendor-id="10415" must="V" may="" must-not="M" may-encrypt="N">
+            <data type="OctetString"/>
+        </avp>
+        <!-- 3GPP TS 29.229 V19.1.0 §6.3.48, Table 6.3.0.1. -->
+        <avp name="Contact" code="641" vendor-id="10415" must="V" may="" must-not="M" may-encrypt="N">
+            <data type="OctetString"/>
+        </avp>
+        <!-- 3GPP TS 29.229 V19.1.0 §6.3.49, Table 6.3.0.1. -->
+        <avp name="Subscription-Info" code="642" vendor-id="10415" must="V" may="" must-not="M" may-encrypt="N">
+            <data type="Grouped">
+                <rule avp="Call-ID-SIP-Header" required="true" max="1"/>
+                <rule avp="From-SIP-Header" required="true" max="1"/>
+                <rule avp="To-SIP-Header" required="true" max="1"/>
+                <rule avp="Record-Route" required="true" max="1"/>
+                <rule avp="Contact" required="true" max="1"/>
+                <rule avp="AVP" required="false"/>
+            </data>
+        </avp>
+        <!-- 3GPP TS 29.229 V19.1.0 §6.3.49.1, Table 6.3.0.1. -->
+        <avp name="Call-ID-SIP-Header" code="643" vendor-id="10415" must="V" may="" must-not="M" may-encrypt="N">
+            <data type="OctetString"/>
+        </avp>
+        <!-- 3GPP TS 29.229 V19.1.0 §6.3.49.2, Table 6.3.0.1. -->
+        <avp name="From-SIP-Header" code="644" vendor-id="10415" must="V" may="" must-not="M" may-encrypt="N">
+            <data type="OctetString"/>
+        </avp>
+        <!-- 3GPP TS 29.229 V19.1.0 §6.3.49.3, Table 6.3.0.1. -->
+        <avp name="To-SIP-Header" code="645" vendor-id="10415" must="V" may="" must-not="M" may-encrypt="N">
+            <data type="OctetString"/>
+        </avp>
+        <!-- 3GPP TS 29.229 V19.1.0 §6.3.49.4, Table 6.3.0.1. -->
+        <avp name="Record-Route" code="646" vendor-id="10415" must="V" may="" must-not="M" may-encrypt="N">
+            <data type="OctetString"/>
+        </avp>
+        <!-- 3GPP TS 29.229 V19.1.0 §6.3.50, Table 6.3.0.1. -->
+        <avp name="Associated-Registered-Identities" code="647" vendor-id="10415" must="V" may="" must-not="M" may-encrypt="N">
+            <data type="Grouped">
+                <rule avp="User-Name" required="false"/>
+                <rule avp="AVP" required="false"/>
+            </data>
+        </avp>
+        <!-- 3GPP TS 29.229 V19.1.0 §6.3.51, Table 6.3.0.1. -->
+        <avp name="Multiple-Registration-Indication" code="648" vendor-id="10415" must="V" may="" must-not="M" may-encrypt="N">
+            <data type="Enumerated">
+                <item code="0" name="NOT_MULTIPLE_REGISTRATION"/>
+                <item code="1" name="MULTIPLE_REGISTRATION"/>
+            </data>
+        </avp>
+        <!-- 3GPP TS 29.229 V19.1.0 §6.3.52, Table 6.3.0.1. -->
+        <avp name="Restoration-Info" code="649" vendor-id="10415" must="V" may="" must-not="M" may-encrypt="N">
+            <data type="Grouped">
+                <rule avp="Path" required="true" max="1"/>
+                <rule avp="Contact" required="true" max="1"/>
+                <rule avp="Initial-CSeq-Sequence-Number" required="false" max="1"/>
+                <rule avp="Call-ID-SIP-Header" required="false" max="1"/>
+                <rule avp="Subscription-Info" required="false" max="1"/>
+                <rule avp="P-CSCF-Subscription-Info" required="false" max="1"/>
+                <rule avp="AVP" required="false"/>
+            </data>
+        </avp>
+        <!-- 3GPP TS 29.229 V19.1.0 §6.3.56, Table 6.3.0.1. -->
+        <avp name="Session-Priority" code="650" vendor-id="10415" must="V" may="" must-not="M" may-encrypt="N">
+            <data type="Enumerated">
+                <item code="0" name="PRIORITY-0"/>
+                <item code="1" name="PRIORITY-1"/>
+                <item code="2" name="PRIORITY-2"/>
+                <item code="3" name="PRIORITY-3"/>
+                <item code="4" name="PRIORITY-4"/>
+            </data>
+        </avp>
+        <!-- 3GPP TS 29.229 V19.1.0 §6.3.57, Table 6.3.0.1. -->
+        <avp name="Identity-with-Emergency-Registration" code="651" vendor-id="10415" must="V" may="" must-not="M" may-encrypt="N">
+            <data type="Grouped">
+                <rule avp="User-Name" required="true" max="1"/>
+                <rule avp="Public-Identity" required="true" max="1"/>
+                <rule avp="AVP" required="false"/>
+            </data>
+        </avp>
+        <!-- 3GPP TS 29.229 V19.1.0 §6.3.58, Table 6.3.0.1. -->
+        <avp name="Priviledged-Sender-Indication" code="652" vendor-id="10415" must="V" may="" must-not="M" may-encrypt="N">
+            <data type="Enumerated">
+                <item code="0" name="NOT_PRIVILEDGED_SENDER"/>
+                <item code="1" name="PRIVILEDGED_SENDER"/>
+            </data>
+        </avp>
+        <!-- 3GPP TS 29.229 V19.1.0 §6.3.59, Table 6.3.0.1. -->
+        <avp name="LIA-Flags" code="653" vendor-id="10415" must="V" may="" must-not="M" may-encrypt="N">
+            <data type="Unsigned32"/>
+        </avp>
+        <!-- 3GPP TS 29.229 V19.1.0 §6.3.61, Table 6.3.0.1. -->
+        <avp name="OC-OLR" code="623" vendor-id="0" must="" may="" must-not="M,V" may-encrypt="N">
+            <data type="Grouped">
+                <rule avp="OC-Sequence-Number" required="true" max="1" fixed="true"/>
+                <rule avp="OC-Report-Type" required="true" max="1" fixed="true"/>
+                <rule avp="OC-Reduction-Percentage" required="false" max="1"/>
+                <rule avp="OC-Validity-Duration" required="false" max="1"/>
+                <rule avp="OC-Reg-Timer-Ext" required="false" max="1"/>
+                <rule avp="SourceID" required="false" max="1"/>
+                <rule avp="AVP" required="false"/>
+            </data>
+            <!-- RFC 7683 §7.3 as updated by RFC 8581 §7.2 adds SourceID; TS 29.229 §6.3.61 adds OC-Reg-Timer-Ext. -->
+        </avp>
+        <!-- 3GPP TS 29.229 V19.1.0 §6.3.62, Table 6.3.0.1. -->
+        <avp name="Initial-CSeq-Sequence-Number" code="654" vendor-id="10415" must="V" may="" must-not="M" may-encrypt="N">
+            <data type="Unsigned32"/>
+        </avp>
+        <!-- 3GPP TS 29.229 V19.1.0 §6.3.63, Table 6.3.0.1. -->
+        <avp name="SAR-Flags" code="655" vendor-id="10415" must="V" may="" must-not="M" may-encrypt="N">
+            <data type="Unsigned32"/>
+        </avp>
+        <!-- 3GPP TS 29.229 V19.1.0 §6.3.64, Table 6.3.0.1. -->
+        <avp name="Allowed-WAF-WWSF-Identities" code="656" vendor-id="10415" must="V" may="" must-not="M" may-encrypt="N">
+            <data type="Grouped">
+                <rule avp="WebRTC-Authentication-Function-Name" required="false"/>
+                <rule avp="WebRTC-Web-Server-Function-Name" required="false"/>
+                <rule avp="AVP" required="false"/>
+            </data>
+        </avp>
+        <!-- 3GPP TS 29.229 V19.1.0 §6.3.65, Table 6.3.0.1. -->
+        <avp name="WebRTC-Authentication-Function-Name" code="657" vendor-id="10415" must="V" may="" must-not="M" may-encrypt="N">
+            <data type="UTF8String"/>
+        </avp>
+        <!-- 3GPP TS 29.229 V19.1.0 §6.3.66, Table 6.3.0.1. -->
+        <avp name="WebRTC-Web-Server-Function-Name" code="658" vendor-id="10415" must="V" may="" must-not="M" may-encrypt="N">
+            <data type="UTF8String"/>
+        </avp>
+        <!-- 3GPP TS 29.229 V19.1.0 §6.3.69, Table 6.3.0.1. -->
+        <avp name="RTR-Flags" code="659" vendor-id="10415" must="V" may="" must-not="M" may-encrypt="N">
+            <data type="Unsigned32"/>
+        </avp>
+        <!-- 3GPP TS 29.229 V19.1.0 §6.3.70, Table 6.3.0.1. -->
+        <avp name="P-CSCF-Subscription-Info" code="660" vendor-id="10415" must="V" may="" must-not="M" may-encrypt="N">
+            <data type="Grouped">
+                <rule avp="Call-ID-SIP-Header" required="true" max="1"/>
+                <rule avp="From-SIP-Header" required="true" max="1"/>
+                <rule avp="To-SIP-Header" required="true" max="1"/>
+                <rule avp="Contact" required="true" max="1"/>
+                <rule avp="AVP" required="false"/>
+            </data>
+        </avp>
+        <!-- 3GPP TS 29.229 V19.1.0 §6.3.71, Table 6.3.0.1. -->
+        <avp name="Registration-Time-Out" code="661" vendor-id="10415" must="V" may="" must-not="M" may-encrypt="N">
+            <data type="Time"/>
+        </avp>
+        <!-- 3GPP TS 29.229 V19.1.0 §6.3.72, Table 6.3.0.1. -->
+        <avp name="Alternate-Digest-Algorithm" code="662" vendor-id="10415" must="V" may="" must-not="M" may-encrypt="N">
+            <data type="UTF8String"/>
+        </avp>
+        <!-- 3GPP TS 29.229 V19.1.0 §6.3.73, Table 6.3.0.1. -->
+        <avp name="Alternate-Digest-HA1" code="663" vendor-id="10415" must="V" may="" must-not="M" may-encrypt="N">
+            <data type="UTF8String"/>
+        </avp>
+        <!-- 3GPP TS 29.229 V19.1.0 §6.3.74, Table 6.3.0.1. -->
+        <avp name="Failed-PCSCF" code="664" vendor-id="10415" must="V" may="" must-not="M" may-encrypt="N">
+            <data type="Grouped">
+                <rule avp="PCSCF-FQDN" required="false" max="1"/>
+                <rule avp="PCSCF-IP-Address" required="false"/>
+                <rule avp="AVP" required="false"/>
+            </data>
+        </avp>
+        <!-- 3GPP TS 29.229 V19.1.0 §6.3.75, Table 6.3.0.1. -->
+        <avp name="PCSCF-FQDN" code="665" vendor-id="10415" must="V" may="" must-not="M" may-encrypt="N">
+            <data type="DiameterIdentity"/>
+        </avp>
+        <!-- 3GPP TS 29.229 V19.1.0 §6.3.76, Table 6.3.0.1. -->
+        <avp name="PCSCF-IP-Address" code="666" vendor-id="10415" must="V" may="" must-not="M" may-encrypt="N">
+            <data type="Address"/>
+        </avp>
+        <!-- 3GPP TS 29.229 V19.1.0 §6.3.77, Table 6.3.0.1. -->
+        <avp name="OC-Reg-Timer-Ext" code="667" vendor-id="10415" must="V" may="" must-not="M" may-encrypt="N">
+            <data type="Unsigned32"/>
+        </avp>
+        <!-- 3GPP TS 29.229 V19.1.0 §6.3.42. ETSI ES 283 035 V3.2.1 Table 4, §7.3.5: V required, M forbidden, encryption permitted. -->
+        <avp name="Line-Identifier" code="500" vendor-id="13019" must="V" may="" must-not="M" may-encrypt="Y">
+            <data type="OctetString"/>
+        </avp>
+        <!-- 3GPP TS 29.229 V19.1.0 §6.3.43; TS 29.329 V19.1.0 Table 6.3.1 supplies code 636 and flag rules, omitted from the Cx table. -->
+        <avp name="Wildcarded-IMPU" code="636" vendor-id="10415" must="V" may="" must-not="M" may-encrypt="N">
+            <data type="UTF8String"/>
+        </avp>
+        <!-- TS 29.229 V19.1.0 Table 6.3.0.1 sets application-specific M-bit rules; RFC 7683 §7.1 as updated by RFC 8581 §7.1. -->
+        <avp name="OC-Supported-Features" code="621" vendor-id="0" must="" may="" must-not="M,V" may-encrypt="N">
+            <data type="Grouped">
+                <rule avp="OC-Feature-Vector" required="false" max="1"/>
+                <rule avp="SourceID" required="false" max="1"/>
+                <rule avp="OC-Peer-Algo" required="false" max="1"/>
+                <rule avp="AVP" required="false"/>
+            </data>
+        </avp>
+        <!-- TS 29.229 V19.1.0 §6.3.67, Table 6.3.0.1; RFC 7944 §§9.1-9.2. -->
+        <avp name="DRMP" code="301" must-not="M,V" may-encrypt="N">
+            <data type="Enumerated">
+                <item code="0" name="PRIORITY_0"/>
+                <item code="1" name="PRIORITY_1"/>
+                <item code="2" name="PRIORITY_2"/>
+                <item code="3" name="PRIORITY_3"/>
+                <item code="4" name="PRIORITY_4"/>
+                <item code="5" name="PRIORITY_5"/>
+                <item code="6" name="PRIORITY_6"/>
+                <item code="7" name="PRIORITY_7"/>
+                <item code="8" name="PRIORITY_8"/>
+                <item code="9" name="PRIORITY_9"/>
+                <item code="10" name="PRIORITY_10"/>
+                <item code="11" name="PRIORITY_11"/>
+                <item code="12" name="PRIORITY_12"/>
+                <item code="13" name="PRIORITY_13"/>
+                <item code="14" name="PRIORITY_14"/>
+                <item code="15" name="PRIORITY_15"/>
+            </data>
+        </avp>
+        <!-- TS 29.229 V19.1.0 §6.3.68, Table 6.3.0.1; RFC 8583 §§7.1-7.5. -->
+        <avp name="Load" code="650" vendor-id="0" must="" may="" must-not="M,V" may-encrypt="N">
+            <data type="Grouped">
+                <rule avp="Load-Type" required="false" max="1"/>
+                <rule avp="Load-Value" required="false" max="1"/>
+                <rule avp="SourceID" required="false" max="1"/>
+                <rule avp="AVP" required="false"/>
+            </data>
+        </avp>
+    </application>
+</diameter>

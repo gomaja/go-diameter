@@ -44,6 +44,12 @@ func (e ErrFailedResultCode) Error() string {
 
 // Parse parses and validates the given message.
 func (cea *CEA) Parse(m *diam.Message, localRole Role) (err error) {
+	return cea.ParseWithApplicationIDs(m, localRole, nil)
+}
+
+// ParseWithApplicationIDs checks the CEA against the applications offered in
+// this connection's CER when localIDs is non-nil (RFC 6733 §5.3.2).
+func (cea *CEA) ParseWithApplicationIDs(m *diam.Message, localRole Role, localIDs []uint32) (err error) {
 	// RFC 6733 §§5.3.2 and 7.1.5: a non-strict decoder preserves an
 	// invalid Address as Unknown. Identify its original AVP before reflection
 	// loses that context. The CEA is an answer, so this error is returned to
@@ -74,7 +80,7 @@ func (cea *CEA) Parse(m *diam.Message, localRole Role) (err error) {
 		AuthApplicationID:           cea.AuthApplicationID,
 		VendorSpecificApplicationID: cea.VendorSpecificApplicationID,
 	}
-	if _, err := app.Parse(m.Dictionary(), localRole); err != nil {
+	if _, err := app.ParseWithApplicationIDs(m.Dictionary(), localRole, localIDs); err != nil {
 		return err
 	}
 	cea.appID = app.ID()

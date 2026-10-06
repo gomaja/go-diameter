@@ -22,7 +22,7 @@ func (sm *StateMachine) handleUnsupportedCommand(c diam.Conn, request *diam.Mess
 	// are protocol errors on a request; an answer never causes another answer.
 	if isRequest {
 		resultCode := uint32(diam.CommandUnsupported)
-		if !sm.supportsApplication(request.Header.ApplicationID) {
+		if !sm.supportsApplicationOn(c, request.Header.ApplicationID) {
 			resultCode = diam.ApplicationUnsupported
 		}
 		if err := sm.HandleMessageError(c, request, &diam.MessageError{ResultCode: resultCode}); err != nil {
@@ -46,12 +46,34 @@ func (sm *StateMachine) supportsApplication(appID uint32) bool {
 	if appID == 0 {
 		return true
 	}
-	for _, app := range sm.supportedApps {
-		if app.ID == appID || app.ID == relayApplicationID {
+	for _, advertised := range sm.advertised {
+		if advertised == appID || advertised == relayApplicationID {
 			return true
 		}
 	}
 	return false
+}
+
+type advertisedAppsKey struct{}
+
+// supportsApplicationOn uses a client's explicit per-connection offer when
+// present. Inbound connections use this state machine's Settings advertisement
+// (RFC 6733 §§5.3, 5.6).
+func (sm *StateMachine) supportsApplicationOn(c diam.Conn, appID uint32) bool {
+	if appID == 0 {
+		return true
+	}
+	if c != nil && c.Context() != nil {
+		if local, ok := c.Context().Value(advertisedAppsKey{}).([]uint32); ok {
+			for _, advertised := range local {
+				if advertised == appID || advertised == relayApplicationID {
+					return true
+				}
+			}
+			return false
+		}
+	}
+	return sm.supportsApplication(appID)
 }
 
 // relayApplicationID is the Relay Application-Id (RFC 6733 §2.4).

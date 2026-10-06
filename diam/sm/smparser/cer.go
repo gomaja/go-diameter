@@ -49,6 +49,12 @@ func (cer *CER) ParseWithSecurity(m *diam.Message, localRole Role, tlsActive boo
 // used to advertise local applications (RFC 6733 §5.3). A nil dictionary uses
 // the message dictionary.
 func (cer *CER) ParseWithSecurityAndDictionary(m *diam.Message, localRole Role, tlsActive bool, dictionary *dict.Parser) (failedAVP *diam.AVP, err error) {
+	return cer.ParseWithSecurityAndApplications(m, localRole, tlsActive, dictionary, nil)
+}
+
+// ParseWithSecurityAndApplications intersects the CER with the locally
+// advertised application IDs (RFC 6733 §5.3.1).
+func (cer *CER) ParseWithSecurityAndApplications(m *diam.Message, localRole Role, tlsActive bool, dictionary *dict.Parser, localIDs []uint32) (failedAVP *diam.AVP, err error) {
 	parsed := &base.CER{
 		HostIPAddresses:             cer.HostIPAddresses,
 		OriginHost:                  cer.OriginHost,
@@ -59,7 +65,7 @@ func (cer *CER) ParseWithSecurityAndDictionary(m *diam.Message, localRole Role, 
 		AuthApplicationID:           cer.AuthApplicationID,
 		VendorSpecificApplicationID: cer.VendorSpecificApplicationID,
 	}
-	failedAVP, err = parsed.ParseWithSecurityAndDictionary(m, base.Role(localRole), tlsActive, dictionary)
+	failedAVP, err = parsed.ParseWithSecurityAndApplications(m, base.Role(localRole), tlsActive, dictionary, localIDs)
 	cer.HostIPAddresses = parsed.HostIPAddresses
 	cer.OriginHost = parsed.OriginHost
 	cer.OriginRealm = parsed.OriginRealm

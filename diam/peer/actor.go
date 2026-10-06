@@ -370,7 +370,7 @@ func (a *actor) onWire(e event) {
 				return
 			}
 			cea := new(smparser.CEA)
-			if err := cea.Parse(msg, smparser.Client); err != nil {
+			if err := cea.ParseWithApplicationIDs(msg, smparser.Client, base.AdvertisedApplicationIDs(a.m.baseSettings(s.c))); err != nil {
 				a.fail(fmt.Errorf("peer: invalid CEA: %w", err))
 				return
 			}
@@ -673,7 +673,7 @@ func (a *actor) sendCEA(s *session) {
 	}
 	answer, err := base.BuildCEA(msg, a.m.baseSettings(s.c), diam.Success)
 	if err != nil {
-		a.fail(err)
+		a.fail(fmt.Errorf("peer: build CEA: %w", err))
 		return
 	}
 	if !s.send(answer, false) {

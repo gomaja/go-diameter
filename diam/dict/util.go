@@ -19,6 +19,11 @@ import (
 // Parent cycles are rejected during lookup and dictionary loading.
 // Snapshots are indexed from it, so it must not change while Parsers are in use.
 var parentAppIds map[uint32]uint32 = map[uint32]uint32{
+	// TS 29.229 V19.1.0 §§6.3.13, 6.3.53-55 reuse NAS framed-address AVPs;
+	// their current definitions are RFC 7155 §§4.4.10.5.1, 4.4.10.5.5-6.
+	16777216: 1,
+	// TS 29.329 V19.1.0 §§6.3.9, 6.3.11-15, 6.3.19-21 reuse Cx AVPs.
+	16777217: 16777216,
 	// 3GPP TS 29.338 V19.3.0 §§5.3.3.1, 6.3.3.1, Tables 5.3.3.1/2, 6.3.3.1/2.
 	16777312: 4,
 	16777313: 16777312,
@@ -202,7 +207,11 @@ func (p *Parser) FindAVPByCode(appid, code, vendorID uint32) (*AVP, error) {
 // If the AVP code is not found for the given appid it tries with appid=0
 // before returning an error.
 // Code can be either the AVP code (int, uint32) or name (string).
-// It is FindAVPWithVendor without a vendor filter.
+// It is FindAVPWithVendor without a vendor filter. If loaded AVPs share a
+// code across vendors, this lookup is ambiguous: use FindAVPWithVendor or
+// FindAVPByCode with an explicit vendor to identify the AVP (RFC 6733 §4.1).
+// An application's own loaded code takes precedence over inherited codes;
+// among inherited definitions, the nearest ancestor takes precedence.
 func (s *Snapshot) FindAVP(appid uint32, code interface{}) (*AVP, error) {
 	return s.FindAVPWithVendor(appid, code, UndefinedVendorID)
 }

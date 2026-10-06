@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/gomaja/go-diameter/diam"
-	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/dict"
 	"github.com/gomaja/go-diameter/diam/internal/base"
@@ -146,12 +145,9 @@ func New(cfg Config) (*Manager, error) {
 		cfg.Limits.PendingPerPeer = 1024
 	}
 	m := &Manager{cfg: cfg, peers: make(map[string]*actor), sessions: make(map[diam.Conn]*session), done: make(chan struct{}), closed: make(chan struct{}), callbackQ: make(chan PeerEvent, cfg.Limits.Events), errors: diam.NewServeMux(), pending: make(map[*session]map[uint32]*pendingRequest), controls: make(map[*session]map[uint32]struct{}), localApps: make(map[uint32]struct{})}
-	localDict := cfg.Settings.Dict
-	if localDict == nil {
-		localDict = dict.Default
-	}
-	for _, app := range sm.PrepareSupportedApps(localDict) {
-		m.localApps[app.ID] = struct{}{}
+	localCapabilities := m.baseSettings(nil)
+	for _, id := range base.AdvertisedApplicationIDs(localCapabilities) {
+		m.localApps[id] = struct{}{}
 	}
 	if err := m.endToEnd.init(); err != nil {
 		return nil, err
@@ -498,7 +494,8 @@ func (m *Manager) processDIAM(s *session, msg *diam.Message) {
 				return
 			}
 			cer := new(smparser.CER)
-			_, err := cer.ParseWithSecurity(msg, smparser.Server, c.TLS() != nil)
+			local := m.baseSettings(c)
+			_, err := cer.ParseWithSecurityAndApplications(msg, smparser.Server, c.TLS() != nil, msg.Dictionary(), base.AdvertisedApplicationIDs(local))
 			if err != nil {
 				code := uint32(diam.UnableToComply)
 				if errors.Is(err, base.ErrNoCommonApplication) {
@@ -525,22 +522,19 @@ func (m *Manager) processDIAM(s *session, msg *diam.Message) {
 }
 func (m *Manager) rejectCER(s *session, msg *diam.Message, code uint32, reason error) {
 	cfg := m.baseSettings(s.c)
-	answer, err := base.BuildCEA(msg, cfg, code)
+	var answer *diam.Message
+	var err error
+	var messageErr *diam.MessageError
+	if errors.As(reason, &messageErr) {
+		// RFC 6733 §7.1.5, Verified Erratum 4615: one Failed-AVP.
+		answer, err = base.BuildErrorAnswer(msg, cfg, messageErr.ResultCode, []*diam.AVP{messageErr.FailedAVP}, false)
+	} else {
+		answer, err = base.BuildCEA(msg, cfg, code)
+	}
 	if err != nil {
 		m.report(s, msg, err)
 		s.close()
 		return
-	}
-	var messageErr *diam.MessageError
-	if errors.As(reason, &messageErr) {
-		// RFC 6733 §7.1.5, Verified Erratum 4615: one Failed-AVP.
-		var err error
-		answer, err = base.BuildErrorAnswer(msg, cfg, messageErr.ResultCode, []*diam.AVP{messageErr.FailedAVP}, false)
-		if err != nil {
-			m.report(s, msg, err)
-			s.close()
-			return
-		}
 	}
 	m.report(s, msg, reason)
 	if !s.send(answer, true) {
@@ -548,7 +542,7 @@ func (m *Manager) rejectCER(s *session, msg *diam.Message, code uint32, reason e
 	}
 }
 func (m *Manager) baseSettings(c diam.Conn) base.Settings {
-	cfg := base.Settings{OriginHost: m.cfg.Settings.OriginHost, OriginRealm: m.cfg.Settings.OriginRealm, VendorID: m.cfg.Settings.VendorID, ProductName: m.cfg.Settings.ProductName, OriginStateID: m.cfg.Settings.OriginStateID, FirmwareRevision: m.cfg.Settings.FirmwareRevision, HostIPAddresses: base.CloneAddresses(m.cfg.Settings.HostIPAddresses)}
+	cfg := base.Settings{OriginHost: m.cfg.Settings.OriginHost, OriginRealm: m.cfg.Settings.OriginRealm, VendorID: m.cfg.Settings.VendorID, ProductName: m.cfg.Settings.ProductName, OriginStateID: m.cfg.Settings.OriginStateID, FirmwareRevision: m.cfg.Settings.FirmwareRevision, HostIPAddresses: base.CloneAddresses(m.cfg.Settings.HostIPAddresses), SupportedVendorID: m.cfg.Settings.SupportedVendorID, AuthApplicationID: m.cfg.Settings.AuthApplicationID, AcctApplicationID: m.cfg.Settings.AcctApplicationID, VendorSpecificApplicationID: m.cfg.Settings.VendorSpecificApplicationID}
 	if len(cfg.HostIPAddresses) == 0 && c != nil {
 		switch addr := c.LocalAddr().(type) {
 		case *net.TCPAddr:
@@ -571,19 +565,7 @@ func (m *Manager) baseSettings(c diam.Conn) base.Settings {
 		dictionary = dict.Default
 	}
 	for _, app := range sm.PrepareSupportedApps(dictionary) {
-		cfg.Applications = append(cfg.Applications, base.LocalApplication{ID: app.ID, AppType: app.AppType, Vendor: app.Vendor})
-		id := diam.NewAVP(avp.AuthApplicationID, avp.Mbit, 0, datatype.Unsigned32(app.ID))
-		if app.AppType == "acct" {
-			id = diam.NewAVP(avp.AcctApplicationID, avp.Mbit, 0, datatype.Unsigned32(app.ID))
-		}
-		if app.Vendor != 0 {
-			group := &diam.GroupedAVP{AVP: []*diam.AVP{diam.NewAVP(avp.VendorID, avp.Mbit, 0, datatype.Unsigned32(app.Vendor)), id}}
-			cfg.VendorSpecificApplicationID = append(cfg.VendorSpecificApplicationID, diam.NewAVP(avp.VendorSpecificApplicationID, avp.Mbit, 0, group))
-		} else if app.AppType == "acct" {
-			cfg.AcctApplicationID = append(cfg.AcctApplicationID, id)
-		} else {
-			cfg.AuthApplicationID = append(cfg.AuthApplicationID, id)
-		}
+		cfg.Applications = append(cfg.Applications, base.LocalApplication{ID: app.ID, AppType: app.AppType, Vendor: app.Vendor, SupportedVendors: app.SupportedVendors})
 	}
 	return cfg
 }
