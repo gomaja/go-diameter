@@ -36,6 +36,10 @@ func (sm *StateMachine) handleUnsupportedCommand(c diam.Conn, request *diam.Mess
 // HandleMessageError implements diam.MessageErrorHandler. RFC 6733 §§7.1-7.2
 // reserve E for protocol errors; answers never receive answers.
 func (sm *StateMachine) HandleMessageError(c diam.Conn, request *diam.Message, messageErr *diam.MessageError) error {
+	if !sm.preCERMessageAllowed(c, request) {
+		c.Close()
+		return nil
+	}
 	if request == nil || request.Header == nil || request.Header.CommandFlags&diam.RequestFlag == 0 {
 		return nil
 	}

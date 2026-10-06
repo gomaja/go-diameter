@@ -224,3 +224,39 @@ func handleCEA(errc chan error, wait chan struct{}) diam.HandlerFunc {
 		c.Close()
 	}
 }
+
+type acceptObserver struct {
+	diam.Handler
+	accepted diam.Conn
+	cleaned  bool
+}
+
+func (h *acceptObserver) HandleAccept(c diam.Conn) func() {
+	h.accepted = c
+	return func() { h.cleaned = true }
+}
+
+func TestTracerForwardsAcceptLifecycle(t *testing.T) {
+	wrapped := &acceptObserver{}
+	tracer, ok := NewTracer(wrapped).(diam.AcceptHandler)
+	if !ok {
+		t.Fatal("Tracer does not forward AcceptHandler")
+	}
+	// An opaque connection verifies that the wrapper passes the original value.
+	c := &struct{ diam.Conn }{}
+	cleanup := tracer.HandleAccept(c)
+	if wrapped.accepted != c {
+		t.Fatal("wrapped handler did not receive accepted connection")
+	}
+	if cleanup == nil {
+		t.Fatal("wrapped cleanup was lost")
+	}
+	cleanup()
+	if !wrapped.cleaned {
+		t.Fatal("wrapped cleanup was not called")
+	}
+	plain := NewTracer(diam.HandlerFunc(func(diam.Conn, *diam.Message) {})).(diam.AcceptHandler)
+	if plain.HandleAccept(c) != nil {
+		t.Fatal("plain handler returned an accept cleanup")
+	}
+}

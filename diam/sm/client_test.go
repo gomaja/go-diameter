@@ -552,17 +552,12 @@ func TestClient_Conn_LocalAddresses_SCTPMultihomed(t *testing.T) {
 }
 
 func TestClient_InbandSecurityID_Default(t *testing.T) {
-	// Verify that the default (zero value) sends Inband-Security-Id=0 in CER.
-	var received uint32
+	// RFC 6733 §6.10: the default zero value is omitted from CER.
+	received := make(chan bool, 1)
 	mux := diam.NewServeMux()
 	mux.HandleFunc("CER", func(c diam.Conn, m *diam.Message) {
 		a, err := m.FindAVP(avp.InbandSecurityID, 0)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if a != nil {
-			received = uint32(a.Data.(datatype.Unsigned32))
-		}
+		received <- err == nil && a != nil
 		// Send a valid CEA back.
 		cea := m.Answer(diam.Success)
 		mustSMClientAVP(t, cea, avp.OriginHost, avp.Mbit, 0, serverSettings.OriginHost)
@@ -586,14 +581,14 @@ func TestClient_InbandSecurityID_Default(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer c.Close()
-	if received != 0 {
-		t.Fatalf("Expected Inband-Security-Id=0, got %d", received)
+	if <-received {
+		t.Fatal("default CER includes Inband-Security-Id")
 	}
 }
 
 func TestClient_InbandSecurityID_TLS(t *testing.T) {
 	// Verify that setting InbandSecurityID=1 sends that value in CER.
-	var received uint32
+	received := make(chan uint32, 1)
 	mux := diam.NewServeMux()
 	mux.HandleFunc("CER", func(c diam.Conn, m *diam.Message) {
 		a, err := m.FindAVP(avp.InbandSecurityID, 0)
@@ -601,7 +596,7 @@ func TestClient_InbandSecurityID_TLS(t *testing.T) {
 			t.Fatal(err)
 		}
 		if a != nil {
-			received = uint32(a.Data.(datatype.Unsigned32))
+			received <- uint32(a.Data.(datatype.Unsigned32))
 		}
 		cea := m.Answer(diam.Success)
 		mustSMClientAVP(t, cea, avp.OriginHost, avp.Mbit, 0, serverSettings.OriginHost)
@@ -612,7 +607,8 @@ func TestClient_InbandSecurityID_TLS(t *testing.T) {
 		mustSMClientAVP(t, cea, avp.AcctApplicationID, avp.Mbit, 0, datatype.Unsigned32(3))
 		mustWriteSMClientMessage(t, cea, c)
 	})
-	srv := diamtest.NewServer(mux, dict.Default)
+	srv := diamtest.NewUnstartedServer(mux, dict.Default)
+	srv.StartTLS()
 	defer srv.Close()
 	cli := &Client{
 		Handler: New(clientSettings),
@@ -620,13 +616,14 @@ func TestClient_InbandSecurityID_TLS(t *testing.T) {
 			diam.NewAVP(avp.AcctApplicationID, avp.Mbit, 0, datatype.Unsigned32(3)),
 		},
 		InbandSecurityID: 1,
+		TLSConfig:        &tls.Config{InsecureSkipVerify: true}, // #nosec G402 -- test server certificate
 	}
-	c, err := cli.Dial(srv.Addr)
+	c, err := cli.DialTLS(srv.Addr, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer c.Close()
-	if received != 1 {
-		t.Fatalf("Expected Inband-Security-Id=1, got %d", received)
+	if got := <-received; got != 1 {
+		t.Fatalf("Expected Inband-Security-Id=1, got %d", got)
 	}
 }
