@@ -14,19 +14,19 @@ import (
 	"github.com/gomaja/go-diameter/diam/dict"
 )
 
-// parseAvpTag return the avp_name and omitempty option
+// parseAvpTag returns the AVP name in an avp struct tag and whether its
+// omitempty option is set. Options follow the name as a comma-separated list
+// and match exactly, as in encoding/json.
 func parseAvpTag(tag reflect.StructTag) (string, bool) {
-	avpTagValue := tag.Get("avp")
-
-	avpName := avpTagValue
-	omitempty := false
-
-	if index := strings.Index(avpTagValue, ","); index != -1 {
-		avpName = avpTagValue[:index]
-		omitempty = strings.Contains(avpTagValue[index+1:], "omitempty")
+	avpName, opts, _ := strings.Cut(tag.Get("avp"), ",")
+	for opts != "" {
+		var opt string
+		opt, opts, _ = strings.Cut(opts, ",")
+		if opt == "omitempty" {
+			return avpName, true
+		}
 	}
-
-	return avpName, omitempty
+	return avpName, false
 }
 
 func isEmptyValue(v reflect.Value) bool {

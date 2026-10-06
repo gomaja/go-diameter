@@ -7,12 +7,34 @@ package diam
 import (
 	"bytes"
 	"net"
+	"reflect"
 	"testing"
 	"time"
 
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/dict"
 )
+
+func TestParseAvpTag(t *testing.T) {
+	for _, tc := range []struct {
+		tag       reflect.StructTag
+		name      string
+		omitempty bool
+	}{
+		{`avp:"Session-Id"`, "Session-Id", false},
+		{`avp:"Session-Id,omitempty"`, "Session-Id", true},
+		{`avp:"Session-Id,other,omitempty"`, "Session-Id", true},
+		{`avp:"Session-Id,notomitempty"`, "Session-Id", false},
+		{`avp:"Session-Id,omitemptyx"`, "Session-Id", false},
+		{`avp:"Session-Id,"`, "Session-Id", false},
+		{`json:"omitempty"`, "", false},
+	} {
+		name, omitempty := parseAvpTag(tc.tag)
+		if name != tc.name || omitempty != tc.omitempty {
+			t.Errorf("parseAvpTag(%s) = %q, %t; want %q, %t", tc.tag, name, omitempty, tc.name, tc.omitempty)
+		}
+	}
+}
 
 func TestUnmarshalAVP(t *testing.T) {
 	m, _ := ReadMessage(bytes.NewReader(testMessage), dict.Default)
