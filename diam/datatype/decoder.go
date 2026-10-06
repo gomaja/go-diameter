@@ -10,6 +10,10 @@ import (
 )
 
 // DecoderFunc is an adapter to decode a byte array to an AVP data type.
+//
+// A DecoderFunc must not retain its argument after it returns: ReadMessage
+// decodes from a pooled buffer that the next message overwrites. Copy any
+// bytes the result keeps, as the built-in decoders do.
 type DecoderFunc func([]byte) (Type, error)
 
 // Decoder is a map of AVP data types indexed by TypeID.

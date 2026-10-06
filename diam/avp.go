@@ -24,7 +24,18 @@ var (
 	errAVPDataTooShort     = errors.New("not enough data to decode AVP")
 	errAVPVendorTooShort   = errors.New("not enough data to decode AVP with Vendor-ID")
 	errAVPSerializeNilData = errors.New("failed to serialize AVP: Data is nil")
+	errGroupedTooDeep      = errors.New("grouped AVP nesting exceeds limit")
 )
+
+// maxGroupedDepth returns how many Grouped AVPs may enclose one another when
+// decoding with d: d.MaxGroupedDepth, or dict.DefaultMaxGroupedDepth if that
+// is not positive.
+func maxGroupedDepth(d *dict.Parser) int {
+	if d != nil && d.MaxGroupedDepth > 0 {
+		return d.MaxGroupedDepth
+	}
+	return dict.DefaultMaxGroupedDepth
+}
 
 // AVP is a Diameter attribute-value-pair.
 type AVP struct {
@@ -52,9 +63,20 @@ func NewAVP(code uint32, flags uint8, vendor uint32, data datatype.Type) *AVP {
 
 // DecodeAVP decodes the bytes of a Diameter AVP.
 // It uses the given application id and dictionary for decoding the bytes.
+//
+// Grouped AVPs are decoded at most dictionary.MaxGroupedDepth levels deep
+// (dict.DefaultMaxGroupedDepth unless set), counting the outermost Grouped
+// AVP as level 1. A Grouped AVP nested deeper keeps its payload undecoded as
+// datatype.Unknown and a DecodeError is returned, as for any Grouped AVP
+// whose members fail to decode.
 func DecodeAVP(data []byte, application uint32, dictionary *dict.Parser) (*AVP, error) {
+	return decodeAVP(data, application, dictionary, 0)
+}
+
+// decodeAVP is DecodeAVP for an AVP enclosed by depth Grouped AVPs.
+func decodeAVP(data []byte, application uint32, dictionary *dict.Parser, depth int) (*AVP, error) {
 	a := &AVP{}
-	if err := a.DecodeFromBytes(data, application, dictionary); err != nil {
+	if err := a.decodeFromBytes(data, application, dictionary, depth); err != nil {
 		var lengthErr *avpLengthError
 		if errors.As(err, &lengthErr) {
 			return a, lengthErr
@@ -71,7 +93,15 @@ func DecodeAVP(data []byte, application uint32, dictionary *dict.Parser) (*AVP, 
 
 // DecodeFromBytes decodes the bytes of a Diameter AVP.
 // It uses the given application id and dictionary for decoding the bytes.
+// Grouped AVP nesting is limited as described for DecodeAVP.
 func (a *AVP) DecodeFromBytes(data []byte, application uint32, dictionary *dict.Parser) error {
+	return a.decodeFromBytes(data, application, dictionary, 0)
+}
+
+// decodeFromBytes is DecodeFromBytes for an AVP enclosed by depth Grouped
+// AVPs. A Grouped AVP at depth maxGroupedDepth(dictionary) is not descended
+// into: its payload is kept as datatype.Unknown and a DecodeError is returned.
+func (a *AVP) decodeFromBytes(data []byte, application uint32, dictionary *dict.Parser, depth int) error {
 	if len(data) < 8 {
 		return fmt.Errorf("%w: have %d need %d", errAVPHeaderTooShort, len(data), 8)
 	}
@@ -111,18 +141,25 @@ func (a *AVP) DecodeFromBytes(data []byte, application uint32, dictionary *dict.
 	}
 	// Handle grouped AVPs directly to avoid an intermediate copy.
 	if dictAVP.Data.Type == datatype.GroupedType {
-		g, groupErr := DecodeGroupedFromBytes(payload[:bodyLen], application, dictionary)
+		// Command rules are not enforced while decoding, so a peer can nest a
+		// Grouped AVP inside itself; each level costs a walk of everything
+		// beneath it. The limit bounds that work for untrusted input.
+		if depth >= maxGroupedDepth(dictionary) {
+			a.Data = fallbackData(payload[:bodyLen], depth)
+			return DecodeError(fmt.Errorf("%s(%d): %w", dictAVP.Name, dictAVP.Code, errGroupedTooDeep))
+		}
+		g, groupErr := decodeGroupedFromBytes(payload[:bodyLen], application, dictionary, depth+1)
 		if groupErr != nil {
 			var lengthErr *avpLengthError
 			if errors.As(groupErr, &lengthErr) {
 				// Preserve the complete outer AVP bytes for callers that need its
 				// wire length, while the error separately carries a bounded
 				// Failed-AVP hierarchy for RFC 6733 Sections 7.1.5 and 7.5.
-				a.Data = datatype.Unknown(payload[:bodyLen])
+				a.Data = fallbackData(payload[:bodyLen], depth)
 				return lengthErr.withGroupedParent(a)
 			}
 			// Preserve raw bytes to prevent offset misalignment in the parent parse loop.
-			a.Data = datatype.Unknown(payload[:bodyLen])
+			a.Data = fallbackData(payload[:bodyLen], depth)
 			return DecodeError(fmt.Errorf("%s(%d): Grouped{%v}", dictAVP.Name, dictAVP.Code, groupErr))
 		}
 		a.Data = g
@@ -133,7 +170,7 @@ func (a *AVP) DecodeFromBytes(data []byte, application uint32, dictionary *dict.
 			if decodeErr == nil {
 				decodeErr = fmt.Errorf("size mismatch: %s expects %d bytes, wire has %d", dictAVP.Data.TypeName, decoded.Len(), bodyLen)
 			}
-			a.Data = datatype.Unknown(payload[:bodyLen])
+			a.Data = fallbackData(payload[:bodyLen], depth)
 			return DecodeError(fmt.Errorf("%s(%d): %v", dictAVP.Name, dictAVP.Code, decodeErr))
 		}
 		a.Data = decoded
@@ -211,4 +248,34 @@ func (a *AVP) String() string {
 		a.VendorID,
 		a.Data,
 	)
+}
+
+// fallbackData keeps the payload of an AVP that failed to decode, enclosed by
+// depth Grouped AVPs. Callers keep only the outermost AVP, so it owns a copy
+// that stays valid after ReadMessage returns its pooled buffer. A failed
+// member makes its enclosing Grouped AVP fall back too and discard its
+// members, so a member's payload may alias the input: copying at every level
+// multiplied the work by the nesting depth, 33 times the message size for an
+// over-deep 16 MB message. Members that leave the decoder through a Failed-AVP
+// or DecodeGroupedFromBytes are copied there by ownAVPData.
+func fallbackData(payload []byte, depth int) datatype.Unknown {
+	if depth > 0 {
+		return datatype.Unknown(payload)
+	}
+	return unknownCopy(payload)
+}
+
+// ownAVPData gives a decoded Grouped member that leaves the decoder its own
+// copy of fallback bytes. An AVP that decoded without error holds no input
+// bytes: the datatype decoders copy theirs, and a Grouped AVP decodes only
+// when all of its members do.
+func ownAVPData(a *AVP) {
+	if u, ok := a.Data.(datatype.Unknown); ok {
+		a.Data = unknownCopy(u)
+	}
+}
+
+// unknownCopy returns b as a datatype.Unknown with its own backing array.
+func unknownCopy(b []byte) datatype.Unknown {
+	return datatype.Unknown(append([]byte(nil), b...))
 }
