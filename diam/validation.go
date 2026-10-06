@@ -46,16 +46,37 @@ var genericErrorRules = []*dict.Rule{
 // Validate checks the message against its request or answer command grammar
 // and each known Grouped AVP grammar. It does not mutate the message.
 // RFC 6733 §§3.1-3.2, 4.1, 4.4-4.5, 7.1 and 7.5 define these checks.
-// Applications may call Validate before sending; receive validation is opt-in.
+// Receive validation is opt-in. Use ValidateOutgoing for locally built messages;
+// Validate does not enforce dictionary M/P sending rules on understood AVPs.
 // The whole message is checked against one dict.Snapshot of its dictionary.
 func (m *Message) Validate() *ValidationError {
+	return m.validate(false)
+}
+
+// ValidateOutgoing checks the message grammar and outgoing flag rules against
+// one dictionary snapshot. RFC 6733 §§3, 4.1 and 4.5 require senders to clear
+// reserved bits and follow the application's AVP flag definitions. Unknown
+// AVPs have no dictionary M/P rules to check. Per §7.5, Failed-AVP contents
+// retain the offending flags as evidence; only their container is checked.
+func (m *Message) ValidateOutgoing() *ValidationError {
+	return m.validate(true)
+}
+
+func (m *Message) validate(outgoing bool) *ValidationError {
 	if m == nil || m.Header == nil {
 		return &ValidationError{ResultCode: InvalidHDRBits, Reason: "missing Diameter header"}
 	}
 	dictionary := m.Dictionary().Snapshot()
 	h := m.Header
-	if h.CommandFlags&0x0f != 0 || h.CommandFlags&RequestFlag != 0 && h.CommandFlags&ErrorFlag != 0 || h.CommandFlags&RequestFlag == 0 && h.CommandFlags&RetransmittedFlag != 0 {
+	// RFC 6733 §3: reserved command bits are zero on send and ignored on
+	// receipt. The defined R/E and R/T combinations remain constrained.
+	if outgoing && h.CommandFlags&0x0f != 0 || h.CommandFlags&RequestFlag != 0 && h.CommandFlags&ErrorFlag != 0 || h.CommandFlags&RequestFlag == 0 && h.CommandFlags&RetransmittedFlag != 0 {
 		return &ValidationError{ResultCode: InvalidHDRBits, Reason: "invalid command header flags"}
+	}
+	if outgoing {
+		if err := validateOutgoingFlags(m.AVP, h.ApplicationID, dictionary); err != nil {
+			return err
+		}
 	}
 	// RFC 6733 §7.2: E-bit answers use the generic error grammar, not the
 	// application-specific answer CCF. Only protocol errors use E here.
@@ -294,19 +315,72 @@ func requiredFlags(definition *dict.AVP) uint8 {
 }
 
 func invalidAVPFlags(flags uint8, definition *dict.AVP) bool {
-	if flags&0x1f != 0 {
-		return true
-	}
-	for _, item := range []struct {
-		name string
-		bit  uint8
-	}{{"M", avp.Mbit}, {"V", avp.Vbit}, {"P", avp.Pbit}} {
-		set := flags&item.bit != 0
-		if set && flagListed(definition.MustNot, item.name) || !set && flagListed(definition.Must, item.name) {
-			return true
+	// RFC 6733 §4.1: M requires understanding, not agreement with the
+	// dictionary's sending rule. This AVP is known; unknown mandatory AVPs
+	// are handled separately by UnknownMandatoryAVPs. See also 3GPP TS 29.272
+	// V19.6.0, Tables 7.3.1/1 and 7.3.1/2, NOTE 2 (ignore understood M).
+	// P is reserved for future security use (senders SHOULD clear it);
+	// reserved R bits SHOULD be ignored on receipt. Neither P nor R is
+	// rejected here.
+	// RFC 6733 §§4.1-4.1.1: V changes the AVP's identity and header layout,
+	// and a present Vendor-Id cannot be zero, so V must remain consistent.
+	set := flags&avp.Vbit != 0
+	return set != (definition.VendorID != 0)
+}
+
+func validateOutgoingFlags(items []*AVP, appID uint32, dictionary *dict.Snapshot) *ValidationError {
+	return walkOutgoingFlags(items, appID, dictionary, make(map[*GroupedAVP]bool))
+}
+
+func walkOutgoingFlags(items []*AVP, appID uint32, dictionary *dict.Snapshot, ancestors map[*GroupedAVP]bool) *ValidationError {
+	for _, a := range items {
+		if a == nil {
+			return &ValidationError{ResultCode: AVPNotAllowed, Reason: "nil outgoing AVP"}
+		}
+		// RFC 6733 §§4.1-4.1.1 also govern unknown AVPs' reserved bits and
+		// Vendor-Id presence. Only dictionary-specific M/P checks need lookup.
+		invalid := a.Flags&0x1f != 0 || (a.Flags&avp.Vbit != 0) != (a.VendorID != 0)
+		if definition, err := dictionary.FindAVPByCode(appID, a.Code, a.VendorID); err == nil {
+			for _, flag := range []struct {
+				name string
+				bit  uint8
+			}{{"M", avp.Mbit}, {"P", avp.Pbit}} {
+				set := a.Flags&flag.bit != 0
+				invalid = invalid || set && flagListed(definition.MustNot, flag.name) || !set && flagListed(definition.Must, flag.name)
+			}
+		}
+		if invalid {
+			return &ValidationError{ResultCode: InvalidAVPBits, FailedAVP: a, Reason: fmt.Sprintf("outgoing AVP %d/%d flags violate sending rules", a.Code, a.VendorID)}
+		}
+		// RFC 6733 §7.5: preserve erroneous AVPs, including Grouped ancestry,
+		// inside the base Failed-AVP. A vendor's code 279 is a different AVP.
+		if a.Code == avp.FailedAVP && a.VendorID == 0 {
+			continue
+		}
+		if group, ok := a.Data.(*GroupedAVP); ok {
+			if group == nil {
+				return &ValidationError{ResultCode: InvalidAVPValue, FailedAVP: a, Reason: "nil outgoing Grouped AVP"}
+			}
+			if ancestors[group] {
+				return &ValidationError{ResultCode: InvalidAVPValue, FailedAVP: a, Reason: "cyclic outgoing Grouped AVP"}
+			}
+			ancestors[group] = true
+			err := walkOutgoingFlags(group.AVP, appID, dictionary, ancestors)
+			delete(ancestors, group)
+			if err != nil {
+				if err.FailedAVP == nil {
+					err.FailedAVP = a
+				} else {
+					// Do not measure a malformed child's payload while reporting it.
+					parent := *a
+					parent.Data = &GroupedAVP{AVP: []*AVP{err.FailedAVP}}
+					err.FailedAVP = &parent
+				}
+				return err
+			}
 		}
 	}
-	return false
+	return nil
 }
 
 // flagListed reports whether a dictionary flag rule such as "M,V" names flag.
