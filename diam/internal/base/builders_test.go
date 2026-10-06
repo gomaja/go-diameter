@@ -117,3 +117,17 @@ func TestBuildErrorCEAResolvesAddressesAtBuildTime(t *testing.T) {
 		t.Fatalf("CEA addresses = %v, error = %v", addresses, err)
 	}
 }
+
+func TestBuildErrorAnswerDoesNotReuseUndecodedSessionID(t *testing.T) {
+	request := diam.NewRequest(diam.CreditControl, diam.CHARGING_CONTROL_APP_ID, dict.Default)
+	request.Header.CommandFlags |= diam.ProxiableFlag
+	malformed := diam.NewAVP(avp.SessionID, avp.Mbit, 0, datatype.Unknown([]byte("undecoded")))
+	request.AddAVP(malformed)
+	answer, err := base.BuildErrorAnswer(request, fixtureSettings(), diam.InvalidAVPValue, []*diam.AVP{malformed}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(answer.AVP) == 0 || answer.AVP[0].Code != avp.SessionID || answer.AVP[0].Data != datatype.UTF8String("") {
+		t.Fatalf("answer reused undecoded Session-Id: %v", answer)
+	}
+}

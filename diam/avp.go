@@ -70,13 +70,13 @@ func NewAVP(code uint32, flags uint8, vendor uint32, data datatype.Type) *AVP {
 // datatype.Unknown and a DecodeError is returned, as for any Grouped AVP
 // whose members fail to decode.
 func DecodeAVP(data []byte, application uint32, dictionary *dict.Parser) (*AVP, error) {
-	return decodeAVP(data, application, dictionary, 0)
+	return decodeAVP(data, application, dictionary, 0, false)
 }
 
 // decodeAVP is DecodeAVP for an AVP enclosed by depth Grouped AVPs.
-func decodeAVP(data []byte, application uint32, dictionary *dict.Parser, depth int) (*AVP, error) {
+func decodeAVP(data []byte, application uint32, dictionary *dict.Parser, depth int, failedAVP bool) (*AVP, error) {
 	a := &AVP{}
-	if err := a.decodeFromBytes(data, application, dictionary, depth); err != nil {
+	if err := a.decodeFromBytes(data, application, dictionary, depth, failedAVP); err != nil {
 		var lengthErr *avpLengthError
 		if errors.As(err, &lengthErr) {
 			return a, lengthErr
@@ -95,13 +95,13 @@ func decodeAVP(data []byte, application uint32, dictionary *dict.Parser, depth i
 // It uses the given application id and dictionary for decoding the bytes.
 // Grouped AVP nesting is limited as described for DecodeAVP.
 func (a *AVP) DecodeFromBytes(data []byte, application uint32, dictionary *dict.Parser) error {
-	return a.decodeFromBytes(data, application, dictionary, 0)
+	return a.decodeFromBytes(data, application, dictionary, 0, false)
 }
 
 // decodeFromBytes is DecodeFromBytes for an AVP enclosed by depth Grouped
 // AVPs. A Grouped AVP at depth maxGroupedDepth(dictionary) is not descended
 // into: its payload is kept as datatype.Unknown and a DecodeError is returned.
-func (a *AVP) decodeFromBytes(data []byte, application uint32, dictionary *dict.Parser, depth int) error {
+func (a *AVP) decodeFromBytes(data []byte, application uint32, dictionary *dict.Parser, depth int, failedAVP bool) error {
 	if len(data) < 8 {
 		return fmt.Errorf("%w: have %d need %d", errAVPHeaderTooShort, len(data), 8)
 	}
@@ -146,9 +146,13 @@ func (a *AVP) decodeFromBytes(data []byte, application uint32, dictionary *dict.
 		// beneath it. The limit bounds that work for untrusted input.
 		if depth >= maxGroupedDepth(dictionary) {
 			a.Data = fallbackData(payload[:bodyLen], depth)
-			return DecodeError(fmt.Errorf("%s(%d): %w", dictAVP.Name, dictAVP.Code, errGroupedTooDeep))
+			return newAVPDecodeError(a, dictAVP.Data.Type, fmt.Errorf("%s(%d): %w", dictAVP.Name, dictAVP.Code, errGroupedTooDeep))
 		}
-		g, groupErr := decodeGroupedFromBytes(payload[:bodyLen], application, dictionary, depth+1)
+		// RFC 6733 §7.5: Failed-AVP carries erroneous values as evidence.
+		// Its members and their Grouped descendants may retain undecodable
+		// payloads; framing and nesting limits still apply.
+		failedAVP = failedAVP || (a.Code == avp.FailedAVP && a.VendorID == 0)
+		g, groupErr := decodeGroupedFromBytes(payload[:bodyLen], application, dictionary, depth+1, failedAVP)
 		if groupErr != nil {
 			var lengthErr *avpLengthError
 			if errors.As(groupErr, &lengthErr) {
@@ -160,7 +164,12 @@ func (a *AVP) decodeFromBytes(data []byte, application uint32, dictionary *dict.
 			}
 			// Preserve raw bytes to prevent offset misalignment in the parent parse loop.
 			a.Data = fallbackData(payload[:bodyLen], depth)
-			return DecodeError(fmt.Errorf("%s(%d): Grouped{%v}", dictAVP.Name, dictAVP.Code, groupErr))
+			err := fmt.Errorf("%s(%d): Grouped{%w}", dictAVP.Name, dictAVP.Code, groupErr)
+			var decodeErr *avpDecodeError
+			if errors.As(groupErr, &decodeErr) {
+				return decodeErr.withGroupedParent(a, err)
+			}
+			return DecodeError(err)
 		}
 		a.Data = g
 	} else {
@@ -171,7 +180,7 @@ func (a *AVP) decodeFromBytes(data []byte, application uint32, dictionary *dict.
 				decodeErr = fmt.Errorf("size mismatch: %s expects %d bytes, wire has %d", dictAVP.Data.TypeName, decoded.Len(), bodyLen)
 			}
 			a.Data = fallbackData(payload[:bodyLen], depth)
-			return DecodeError(fmt.Errorf("%s(%d): %v", dictAVP.Name, dictAVP.Code, decodeErr))
+			return newAVPDecodeError(a, dictAVP.Data.Type, fmt.Errorf("%s(%d): %w", dictAVP.Name, dictAVP.Code, decodeErr))
 		}
 		a.Data = decoded
 	}
@@ -267,8 +276,8 @@ func fallbackData(payload []byte, depth int) datatype.Unknown {
 
 // ownAVPData gives a decoded Grouped member that leaves the decoder its own
 // copy of fallback bytes. An AVP that decoded without error holds no input
-// bytes: the datatype decoders copy theirs, and a Grouped AVP decodes only
-// when all of its members do.
+// bytes: the datatype decoders copy theirs, and a Grouped AVP owns any
+// failed members it retains inside Failed-AVP.
 func ownAVPData(a *AVP) {
 	if u, ok := a.Data.(datatype.Unknown); ok {
 		a.Data = unknownCopy(u)

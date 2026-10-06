@@ -596,6 +596,12 @@ func (m *Manager) HandleMessageError(c diam.Conn, msg *diam.Message, me *diam.Me
 	if s == nil {
 		return nil
 	}
+	// RFC 6733 §7.1.5 and Verified Erratum 4615: carry the offending
+	// AVP in one Failed-AVP container for payload and framing failures.
+	var failed []*diam.AVP
+	if me != nil && me.FailedAVP != nil {
+		failed = []*diam.AVP{me.FailedAVP}
+	}
 	s.firstMu.Lock()
 	preCER := s.inbound && !s.first
 	if preCER {
@@ -614,7 +620,7 @@ func (m *Manager) HandleMessageError(c diam.Conn, msg *diam.Message, me *diam.Me
 			s.close()
 			return nil
 		}
-		answer, err := base.BuildErrorAnswer(msg, m.baseSettings(c), me.ResultCode, nil, me.ResultCode >= 3000 && me.ResultCode < 4000)
+		answer, err := base.BuildErrorAnswer(msg, m.baseSettings(c), me.ResultCode, failed, me.ResultCode >= 3000 && me.ResultCode < 4000)
 		if err != nil {
 			s.close()
 			return err
@@ -631,7 +637,7 @@ func (m *Manager) HandleMessageError(c diam.Conn, msg *diam.Message, me *diam.Me
 	if msg.Header.CommandFlags&diam.RequestFlag == 0 {
 		return nil
 	}
-	answer, err := base.BuildErrorAnswer(msg, m.baseSettings(c), me.ResultCode, nil, me.ResultCode >= 3000 && me.ResultCode < 4000)
+	answer, err := base.BuildErrorAnswer(msg, m.baseSettings(c), me.ResultCode, failed, me.ResultCode >= 3000 && me.ResultCode < 4000)
 	if err != nil {
 		return err
 	}

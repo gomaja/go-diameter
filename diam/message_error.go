@@ -7,6 +7,7 @@ package diam
 import (
 	"encoding/binary"
 	"fmt"
+	"strings"
 
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
@@ -116,3 +117,67 @@ func minimumAVPPayloadLength(typeID datatype.TypeID) int {
 		return 0
 	}
 }
+
+// avpDecodeError records a recoverable payload failure. Framing failures use
+// avpLengthError instead and take precedence even in a non-strict dictionary.
+type avpDecodeError struct {
+	resultCode uint32
+	failedAVP  *AVP
+	err        error
+}
+
+func (e *avpDecodeError) Error() string { return e.err.Error() }
+func (e *avpDecodeError) Unwrap() error { return e.err }
+
+func (e *avpDecodeError) withGroupedParent(parent *AVP, err error) *avpDecodeError {
+	// RFC 6733 §7.5 permits retaining the hierarchy leading to the offending AVP.
+	return &avpDecodeError{
+		resultCode: e.resultCode,
+		failedAVP:  NewAVP(parent.Code, parent.Flags, parent.VendorID, &GroupedAVP{AVP: []*AVP{e.failedAVP}}),
+		err:        err,
+	}
+}
+
+func newAVPDecodeError(a *AVP, typeID datatype.TypeID, err error) *avpDecodeError {
+	resultCode := uint32(InvalidAVPValue)
+	minimum := minimumAVPPayloadLength(typeID)
+	data := a.Data
+	switch {
+	case minimum > 0 && (a.Data.Len() < minimum || (typeID != datatype.AddressType && a.Data.Len() != minimum)):
+		// RFC 6733 §§4.2, 4.3.1 and 7.1.5: fixed-size payloads must have
+		// exactly their declared type's size; Address needs its family prefix.
+		resultCode = InvalidAVPLength
+	case typeID == datatype.GroupedType:
+		// RFC 6733 §7.1.5: the Grouped header identifies the rejected AVP.
+		// Never echo the payload that exceeded the decoder's nesting limit.
+		data = datatype.Unknown(nil)
+	}
+	// RFC 6733 §7.5: an in-bounds payload failure retains the entire AVP,
+	// including its original length and bytes. Only framing errors use a
+	// minimum zero-filled payload. This leaf holds at most its own bytes;
+	// an over-deep Grouped leaf is empty. Each ancestor adds only its
+	// 8/12-byte header, never siblings or another payload copy.
+	failed := NewAVP(a.Code, a.Flags, a.VendorID, data)
+	if typeID != datatype.GroupedType {
+		ownAVPData(failed) // A nested fallback may still alias the input.
+	}
+	return &avpDecodeError{resultCode: resultCode, failedAVP: failed, err: err}
+}
+
+// decodeErrors keeps the historical joined text and the first failure's
+// cause. RFC 6733 §7.5 normally reports the first AVP processing error.
+type decodeErrors struct {
+	messages []string
+	first    error
+}
+
+func (e *decodeErrors) add(err error) *decodeErrors {
+	if e == nil {
+		e = &decodeErrors{first: err}
+	}
+	e.messages = append(e.messages, err.Error())
+	return e
+}
+
+func (e *decodeErrors) Error() string { return strings.Join(e.messages, "; ") }
+func (e *decodeErrors) Unwrap() error { return e.first }
