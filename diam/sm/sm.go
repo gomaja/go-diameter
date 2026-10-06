@@ -6,6 +6,7 @@ package sm
 
 import (
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/gomaja/go-diameter/diam"
@@ -68,7 +69,9 @@ type Settings struct {
 	// Deprecated: HostIPAddress is depreciated, use HostIPAddresses instead
 	HostIPAddress datatype.Address
 
-	// Dict is an optional dictionary parser. If nil, dict.Default is used.
+	// Dict governs advertised applications and CER application validation
+	// (RFC 6733 §5.3). If nil, advertising uses dict.Default and validation
+	// uses the received message's dictionary.
 	Dict *dict.Parser
 
 	// OnCER, if non-nil, is invoked when a CER is received, before the
@@ -108,7 +111,18 @@ type Settings struct {
 	// DPRCloseTimeout bounds the receiver's Closing state (RFC 6733 §5.6).
 	// Zero uses 5 seconds.
 	DPRCloseTimeout time.Duration
+
+	// HandshakeTimeout bounds the CER/CEA exchange on accepted connections
+	// (RFC 6733 §5.6.1). Zero uses DefaultHandshakeTimeout; a negative
+	// value disables the limit. It starts after the transport handshake.
+	// Dialed connections are unaffected. Wrappers must forward diam.AcceptHandler;
+	// otherwise both the pre-CER message gate and this timeout are disabled.
+	HandshakeTimeout time.Duration
 }
+
+// DefaultHandshakeTimeout applies when Settings.HandshakeTimeout is zero.
+// RFC 6733 §5.6.1 permits an implementation-defined pre-CER timeout.
+const DefaultHandshakeTimeout = 30 * time.Second
 
 var (
 	baseCERIdx = diam.CommandIndex{AppID: 0, Code: diam.CapabilitiesExchange, Request: true}
@@ -128,11 +142,20 @@ type StateMachine struct {
 	mux           *diam.ServeMux
 	hsNotifyc     chan diam.Conn // handshake notifier
 	supportedApps []*SupportedApp
+	dictionary    *dict.Parser
 	disconnects   disconnectState
+	accepted      sync.Map // diam.Conn -> *acceptedHandshake
+}
+
+type acceptedHandshake struct {
+	mu       sync.Mutex
+	complete bool
+	timedOut bool
+	timer    *time.Timer
 }
 
 // New creates and initializes a new StateMachine for clients or servers.
-// If settings.Dict is nil, dict.Default is used.
+// See Settings.Dict for the advertising and validation dictionaries.
 func New(settings *Settings) *StateMachine {
 	if len(settings.HostIPAddresses) == 0 && len(settings.HostIPAddress) > 0 {
 		settings.HostIPAddresses = []datatype.Address{settings.HostIPAddress}
@@ -146,6 +169,7 @@ func New(settings *Settings) *StateMachine {
 		mux:           diam.NewServeMux(),
 		hsNotifyc:     make(chan diam.Conn, 1000),
 		supportedApps: PrepareSupportedApps(dp),
+		dictionary:    settings.Dict,
 	}
 	cerHandler := chainPreHook(settings.OnCER, handleCER(sm))
 	dwrHandler := chainPreHook(settings.OnDWR, handleDWR(sm))
@@ -181,6 +205,10 @@ func (sm *StateMachine) Settings() *Settings {
 
 // ServeDIAM implements the diam.Handler interface.
 func (sm *StateMachine) ServeDIAM(c diam.Conn, m *diam.Message) {
+	if !sm.preCERMessageAllowed(c, m) {
+		c.Close()
+		return
+	}
 	if sm.cfg.RejectUnknownMandatoryAVPs && m.Header.CommandFlags&diam.RequestFlag != 0 {
 		if failed := m.UnknownMandatoryAVPs(); len(failed) != 0 {
 			// RFC 6733 §7.1.5, Verified Erratum 4615: one Failed-AVP
@@ -207,6 +235,66 @@ func (sm *StateMachine) ServeDIAM(c diam.Conn, m *diam.Message) {
 		}
 	}
 	sm.mux.ServeDIAM(c, m)
+}
+
+func (sm *StateMachine) preCERMessageAllowed(c diam.Conn, m *diam.Message) bool {
+	value, ok := sm.accepted.Load(c)
+	if !ok {
+		return true // dialed connection
+	}
+	state := value.(*acceptedHandshake)
+	state.mu.Lock()
+	complete := state.complete
+	state.mu.Unlock()
+	// RFC 6733 §5.6.1: discard all non-CER traffic before CER/CEA succeeds.
+	return complete || m != nil && m.Header != nil &&
+		m.Header.CommandCode == diam.CapabilitiesExchange && m.Header.CommandFlags&diam.RequestFlag != 0
+}
+
+// HandleAccept implements diam.AcceptHandler for RFC 6733 §5.6.1 admission.
+// The returned cleanup stops the timer and releases the connection on close.
+func (sm *StateMachine) HandleAccept(c diam.Conn) func() {
+	state := new(acceptedHandshake)
+	sm.accepted.Store(c, state)
+	d := sm.cfg.HandshakeTimeout
+	if d == 0 {
+		d = DefaultHandshakeTimeout
+	}
+	if d > 0 {
+		state.timer = time.AfterFunc(d, func() {
+			state.mu.Lock()
+			complete := state.complete
+			if !complete {
+				state.timedOut = true
+			}
+			state.mu.Unlock()
+			if !complete {
+				c.Close()
+			}
+		})
+	}
+	return func() {
+		if state.timer != nil {
+			state.timer.Stop()
+		}
+		sm.accepted.Delete(c)
+	}
+}
+
+func (sm *StateMachine) completeAcceptedHandshake(c diam.Conn) bool {
+	if value, ok := sm.accepted.Load(c); ok {
+		state := value.(*acceptedHandshake)
+		state.mu.Lock()
+		defer state.mu.Unlock()
+		if state.timedOut {
+			return false
+		}
+		state.complete = true
+		if state.timer != nil {
+			state.timer.Stop()
+		}
+	}
+	return true
 }
 
 // Handle implements the diam.Handler interface.

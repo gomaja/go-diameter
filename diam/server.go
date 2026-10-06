@@ -60,6 +60,17 @@ type CloseNotifier interface {
 	CloseNotify() <-chan struct{}
 }
 
+// AcceptHandler observes connections accepted by Server.Serve before any
+// Diameter message is read (RFC 6733 §5.6.1). HandleAccept runs after the
+// transport handshake, once on the accepted connection's goroutine, and must
+// not block. Its returned function is called once when the connection closes.
+// The hook runs after TLS because Server.TLSHandshakeTimeout separately bounds
+// the TLS handshake. Wrappers must forward this method; otherwise a wrapped
+// sm.StateMachine's pre-CER message gate and handshake timeout are disabled.
+type AcceptHandler interface {
+	HandleAccept(c Conn) (onClose func())
+}
+
 // A liveSwitchReader is a switchReader that's safe for concurrent
 // reads and switches, if its mutex is held.
 type liveSwitchReader struct {
@@ -221,6 +232,7 @@ func (c *conn) readMessage() (m *Message, err error) {
 
 // Serve a new connection.
 func (c *conn) serve() {
+	var onClose func()
 	defer func() {
 		if err := recover(); err != nil {
 			buf := make([]byte, 4096)
@@ -236,6 +248,9 @@ func (c *conn) serve() {
 		if err := c.rwc.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
 			log.Printf("diam: close connection: %v", err)
 		}
+		if onClose != nil {
+			onClose()
+		}
 		c.notifyClientGone()
 		c.server.untrackConn(c)
 		close(c.done)
@@ -248,6 +263,17 @@ func (c *conn) serve() {
 		}
 		c.tlsState = &tls.ConnectionState{}
 		*c.tlsState = tlsConn.ConnectionState()
+	}
+	if c.accepted {
+		h := c.server.Handler
+		if h == nil {
+			h = DefaultServeMux
+		}
+		// TLS is already bounded by Server.TLSHandshakeTimeout; admission
+		// starts after that handshake so its timer covers CER/CEA only.
+		if ah, ok := h.(AcceptHandler); ok {
+			onClose = ah.HandleAccept(c.writer)
+		}
 	}
 	if cb := c.server.OnNewConnection; cb != nil {
 		cb(c.writer)

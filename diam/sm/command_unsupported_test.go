@@ -28,6 +28,7 @@ func testUnsupportedCommandAnswerTCP(t *testing.T, command uint32) {
 		t.Fatal(err)
 	}
 	defer func() { _ = conn.Close() }()
+	completeUnsupportedTestCER(t, conn)
 	request := diam.NewMessage(command, diam.RequestFlag|diam.ProxiableFlag|diam.RetransmittedFlag, 0, 0x1234, 0x5678, dict.Default)
 	if _, err := request.WriteTo(conn); err != nil {
 		t.Fatal(err)
@@ -65,6 +66,7 @@ func TestUnsupportedCommandNeverAnswersAnswer(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _ = conn.Close() }()
+	completeUnsupportedTestCER(t, conn)
 	answer := diam.NewMessage(0xfedc, 0, 0, 0x1234, 0x5678, dict.Default)
 	if _, err := answer.WriteTo(conn); err != nil {
 		t.Fatal(err)
@@ -129,6 +131,7 @@ func TestUnsupportedCommandStillReported(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _ = conn.Close() }()
+	completeUnsupportedTestCER(t, conn)
 	waitReport := func(want string) {
 		t.Helper()
 		deadline := time.After(time.Second)
@@ -159,4 +162,16 @@ func TestUnsupportedCommandStillReported(t *testing.T) {
 		t.Fatal(err)
 	}
 	waitReport("Code:65244 Request:false")
+}
+
+func completeUnsupportedTestCER(t *testing.T, conn net.Conn) {
+	t.Helper()
+	writeValidSMErrorCER(t, conn)
+	if err := conn.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	answer, err := diam.ReadMessage(conn, dict.Default)
+	if err != nil || !testResultCode(answer, diam.Success) {
+		t.Fatalf("CER answer = %v, %v", answer, err)
+	}
 }

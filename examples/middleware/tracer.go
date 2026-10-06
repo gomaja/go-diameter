@@ -37,6 +37,14 @@ func (t *Tracer) ServeDIAM(c diam.Conn, m *diam.Message) {
 	t.h.ServeDIAM(c, m)
 }
 
+// HandleAccept preserves the wrapped handler's RFC 6733 §5.6.1 admission lifecycle.
+func (t *Tracer) HandleAccept(c diam.Conn) func() {
+	if h, ok := t.h.(diam.AcceptHandler); ok {
+		return h.HandleAccept(c)
+	}
+	return nil
+}
+
 func NewTracer(h diam.Handler) diam.Handler {
 	return &Tracer{
 		h: h,

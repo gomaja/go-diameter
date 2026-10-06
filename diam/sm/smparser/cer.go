@@ -7,6 +7,7 @@ package smparser
 import (
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/datatype"
+	"github.com/gomaja/go-diameter/diam/dict"
 	"github.com/gomaja/go-diameter/diam/internal/base"
 )
 
@@ -40,6 +41,13 @@ func (cer *CER) Parse(m *diam.Message, localRole Role) (failedAVP *diam.AVP, err
 // the transport is already secured — per RFC 6733 §5.3.1 the peer is
 // simply declaring its TLS capability which is already satisfied.
 func (cer *CER) ParseWithSecurity(m *diam.Message, localRole Role, tlsActive bool) (failedAVP *diam.AVP, err error) {
+	return cer.ParseWithSecurityAndDictionary(m, localRole, tlsActive, m.Dictionary())
+}
+
+// ParseWithSecurityAndDictionary validates capabilities against the dictionary
+// used to advertise local applications (RFC 6733 §5.3). A nil dictionary uses
+// the message dictionary.
+func (cer *CER) ParseWithSecurityAndDictionary(m *diam.Message, localRole Role, tlsActive bool, dictionary *dict.Parser) (failedAVP *diam.AVP, err error) {
 	parsed := &base.CER{
 		OriginHost:                  cer.OriginHost,
 		OriginRealm:                 cer.OriginRealm,
@@ -49,7 +57,7 @@ func (cer *CER) ParseWithSecurity(m *diam.Message, localRole Role, tlsActive boo
 		AuthApplicationID:           cer.AuthApplicationID,
 		VendorSpecificApplicationID: cer.VendorSpecificApplicationID,
 	}
-	failedAVP, err = parsed.ParseWithSecurity(m, base.Role(localRole), tlsActive)
+	failedAVP, err = parsed.ParseWithSecurityAndDictionary(m, base.Role(localRole), tlsActive, dictionary)
 	cer.OriginHost = parsed.OriginHost
 	cer.OriginRealm = parsed.OriginRealm
 	cer.OriginStateID = parsed.OriginStateID

@@ -12,3 +12,8 @@ func TestHandleCER_VS_AuthSCTP(t *testing.T) {
 	requireSCTP(t)
 	testHandleCER_VS_Auth(t, "sctp")
 }
+
+func TestClientRefusesInbandTLSOnPlainSCTP(t *testing.T) {
+	requireSCTP(t)
+	testClientRefusesInbandTLSOnPlaintext(t, "sctp")
+}
