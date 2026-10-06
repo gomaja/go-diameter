@@ -58,6 +58,7 @@ func TestValidateDictionaryRules(t *testing.T) {
 		{"forbidden V", func(m *Message) { m.AVP[0].Flags |= avp.Vbit }, InvalidAVPBits, 1},
 		{"request E", func(m *Message) { m.Header.CommandFlags |= ErrorFlag }, InvalidHDRBits, 0},
 		{"missing P", func(m *Message) { m.Header.CommandFlags &^= ProxiableFlag }, InvalidHDRBits, 0},
+		{"unknown command", func(m *Message) { m.Header.CommandCode = 0xfedc }, CommandUnsupported, 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			m, _ := validationFixture(t)

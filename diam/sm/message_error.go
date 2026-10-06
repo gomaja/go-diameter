@@ -17,10 +17,15 @@ import (
 // registration replaces it, preserving ServeMux dispatch precedence.
 func (sm *StateMachine) handleUnsupportedCommand(c diam.Conn, request *diam.Message) {
 	isRequest := request.Header.CommandFlags&diam.RequestFlag != 0
-	// RFC 6733 §§7.1.3 and 7.2: 3001 is a protocol error on a request;
-	// an answer must never cause another answer.
+	// RFC 6733 §§7.1.3 and 7.2: 3007 for an application this node does not
+	// support, 3001 for a command it does not support in one it does. Both
+	// are protocol errors on a request; an answer never causes another answer.
 	if isRequest {
-		if err := sm.HandleMessageError(c, request, &diam.MessageError{ResultCode: diam.CommandUnsupported}); err != nil {
+		resultCode := uint32(diam.CommandUnsupported)
+		if !sm.supportsApplication(request.Header.ApplicationID) {
+			resultCode = diam.ApplicationUnsupported
+		}
+		if err := sm.HandleMessageError(c, request, &diam.MessageError{ResultCode: resultCode}); err != nil {
 			sm.Error(&diam.ErrorReport{Conn: c, Message: request, Error: err})
 		}
 	}
@@ -33,6 +38,24 @@ func (sm *StateMachine) handleUnsupportedCommand(c diam.Conn, request *diam.Mess
 			Request: isRequest,
 		})})
 }
+
+// supportsApplication reports whether appID is the base application or one
+// this state machine advertises in CER/CEA. Advertising the relay
+// application (RFC 6733 §2.4) covers every application.
+func (sm *StateMachine) supportsApplication(appID uint32) bool {
+	if appID == 0 {
+		return true
+	}
+	for _, app := range sm.supportedApps {
+		if app.ID == appID || app.ID == relayApplicationID {
+			return true
+		}
+	}
+	return false
+}
+
+// relayApplicationID is the Relay Application-Id (RFC 6733 §2.4).
+const relayApplicationID = 0xffffffff
 
 // HandleMessageError implements diam.MessageErrorHandler. RFC 6733 §§7.1-7.2
 // reserve E for protocol errors; answers never receive answers.

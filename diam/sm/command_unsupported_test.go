@@ -3,23 +3,44 @@ package sm
 import (
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/gomaja/go-diameter/diam"
+	"github.com/gomaja/go-diameter/diam/avp"
+	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/diamtest"
 	"github.com/gomaja/go-diameter/diam/dict"
 )
 
 func TestUnsupportedCommandAnswerTCP(t *testing.T) {
 	for _, command := range []uint32{0xfedc, diam.ReAuth} {
-		t.Run(fmt.Sprint(command), func(t *testing.T) { testUnsupportedCommandAnswerTCP(t, command) })
+		t.Run(fmt.Sprint(command), func(t *testing.T) {
+			testUnsupportedCommandAnswerTCP(t, command, 0, diam.CommandUnsupported)
+		})
 	}
 }
 
-func testUnsupportedCommandAnswerTCP(t *testing.T, command uint32) {
+// TestUnsupportedApplicationAnswerTCP checks RFC 6733 §7.1.3: 3007 for an
+// application this node does not advertise, 3001 for an unknown command in
+// one it does.
+func TestUnsupportedApplicationAnswerTCP(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		appID uint32
+		want  uint32
+	}{
+		{"unknown application", 0x00abcdef, diam.ApplicationUnsupported},
+		{"unknown command in a supported application", diam.CHARGING_CONTROL_APP_ID, diam.CommandUnsupported},
+	} {
+		t.Run(tc.name, func(t *testing.T) { testUnsupportedCommandAnswerTCP(t, 0xfedc, tc.appID, tc.want) })
+	}
+}
+
+func testUnsupportedCommandAnswerTCP(t *testing.T, command, appID, want uint32) {
 	sm := New(testMessageErrorSettings())
 	srv := diamtest.NewServer(sm, dict.Default)
 	defer srv.Close()
@@ -29,7 +50,7 @@ func testUnsupportedCommandAnswerTCP(t *testing.T, command uint32) {
 	}
 	defer func() { _ = conn.Close() }()
 	completeUnsupportedTestCER(t, conn)
-	request := diam.NewMessage(command, diam.RequestFlag|diam.ProxiableFlag|diam.RetransmittedFlag, 0, 0x1234, 0x5678, dict.Default)
+	request := diam.NewMessage(command, diam.RequestFlag|diam.ProxiableFlag|diam.RetransmittedFlag, appID, 0x1234, 0x5678, dict.Default)
 	if _, err := request.WriteTo(conn); err != nil {
 		t.Fatal(err)
 	}
@@ -46,8 +67,8 @@ func testUnsupportedCommandAnswerTCP(t *testing.T, command uint32) {
 	if answer.Header.CommandFlags != diam.ErrorFlag|diam.ProxiableFlag {
 		t.Fatalf("answer flags = %#x", answer.Header.CommandFlags)
 	}
-	if !testResultCode(answer, diam.CommandUnsupported) {
-		t.Fatalf("answer result code: %v", answer)
+	if !testResultCode(answer, want) {
+		t.Fatalf("answer result code, want %d: %v", want, answer)
 	}
 	if got := answer.AVP[0].Data; got != testMessageErrorSettings().OriginHost {
 		t.Fatalf("Origin-Host = %v", got)
@@ -173,5 +194,147 @@ func completeUnsupportedTestCER(t *testing.T, conn net.Conn) {
 	answer, err := diam.ReadMessage(conn, dict.Default)
 	if err != nil || !testResultCode(answer, diam.Success) {
 		t.Fatalf("CER answer = %v, %v", answer, err)
+	}
+}
+
+// TestSupportsApplication covers the base application, an advertised one, an
+// unknown one, and the relay application covering all (RFC 6733 §2.4).
+func TestSupportsApplication(t *testing.T) {
+	sm := New(testMessageErrorSettings())
+	for appID, want := range map[uint32]bool{0: true, diam.CHARGING_CONTROL_APP_ID: true, 0x00abcdef: false} {
+		if got := sm.supportsApplication(appID); got != want {
+			t.Errorf("supportsApplication(%d) = %t, want %t", appID, got, want)
+		}
+	}
+	relay, err := dict.NewParser("../dict/testdata/base.xml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = relay.Load(strings.NewReader(`<diameter><application id="4294967295" type="auth" name="Relay"></application></diameter>`)); err != nil {
+		t.Fatal(err)
+	}
+	settings := testMessageErrorSettings()
+	settings.Dict = relay
+	if !New(settings).supportsApplication(0x00abcdef) {
+		t.Error("a relay must support every application")
+	}
+}
+
+// TestValidateRequestsUsesAdvertisedApplications checks that request
+// validation decides 3007 from the applications the state machine
+// advertises, not from the dictionary that decoded the message (RFC 6733
+// §7.1.3). An unknown command in an advertised application stays 3001.
+func TestValidateRequestsUsesAdvertisedApplications(t *testing.T) {
+	baseOnly := func(t *testing.T) *dict.Parser {
+		t.Helper()
+		p, err := dict.NewParser("../dict/testdata/base.xml")
+		if err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+	relay := func(t *testing.T) *dict.Parser {
+		t.Helper()
+		p := baseOnly(t)
+		if err := p.Load(strings.NewReader(`<diameter><application id="4294967295" type="auth" name="Relay"></application></diameter>`)); err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+	for _, tc := range []struct {
+		name               string
+		advertised, onWire func(*testing.T) *dict.Parser
+		appID, want        uint32
+	}{
+		{"advertised, unknown to the decoding dictionary", func(*testing.T) *dict.Parser { return dict.Default }, baseOnly, diam.CHARGING_CONTROL_APP_ID, diam.CommandUnsupported},
+		{"relay advertised", relay, baseOnly, 77, diam.CommandUnsupported},
+		{"known to the decoding dictionary, not advertised", baseOnly, func(*testing.T) *dict.Parser { return dict.Default }, diam.CHARGING_CONTROL_APP_ID, diam.ApplicationUnsupported},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			settings := testMessageErrorSettings()
+			settings.Dict = tc.advertised(t)
+			settings.ValidateRequests = true
+			wire := tc.onWire(t)
+			srv := diamtest.NewServer(New(settings), wire)
+			defer srv.Close()
+			conn, err := net.DialTimeout("tcp", srv.Addr, time.Second)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() { _ = conn.Close() }()
+			if err := conn.SetDeadline(time.Now().Add(2 * time.Second)); err != nil {
+				t.Fatal(err)
+			}
+			// Base accounting is common to every dictionary here (RFC 6733 §5.3).
+			cer := diam.NewRequest(diam.CapabilitiesExchange, 0, wire)
+			mustSMClientAVP(t, cer, avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("peer.example"))
+			mustSMClientAVP(t, cer, avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("example"))
+			mustSMClientAVP(t, cer, avp.HostIPAddress, avp.Mbit, 0, datatype.Address(net.ParseIP("127.0.0.1")))
+			mustSMClientAVP(t, cer, avp.VendorID, avp.Mbit, 0, datatype.Unsigned32(13))
+			mustSMClientAVP(t, cer, avp.ProductName, 0, 0, datatype.UTF8String("peer"))
+			mustSMClientAVP(t, cer, avp.AcctApplicationID, avp.Mbit, 0, datatype.Unsigned32(3))
+			if _, err := cer.WriteTo(conn); err != nil {
+				t.Fatal(err)
+			}
+			if cea, err := diam.ReadMessage(conn, wire); err != nil || !testResultCode(cea, diam.Success) {
+				t.Fatalf("CEA = %v, %v", cea, err)
+			}
+			request := diam.NewMessage(0xfedc, diam.RequestFlag|diam.ProxiableFlag, tc.appID, 0x1234, 0x5678, wire)
+			if _, err := request.WriteTo(conn); err != nil {
+				t.Fatal(err)
+			}
+			answer, err := diam.ReadMessage(conn, wire)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if answer.Header.CommandFlags&diam.ErrorFlag == 0 || !testResultCode(answer, tc.want) {
+				t.Fatalf("want E-bit %d: %v", tc.want, answer)
+			}
+		})
+	}
+}
+
+// TestValidateRequestsClosesCERForUnsupportedApplication checks that a CER
+// rejected with 3007 because its header names an application this node does
+// not advertise also closes the connection (RFC 6733 §§5.3, 5.6.1).
+func TestValidateRequestsClosesCERForUnsupportedApplication(t *testing.T) {
+	baseOnly, err := dict.NewParser("../dict/testdata/base.xml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	settings := testMessageErrorSettings()
+	settings.Dict = baseOnly
+	settings.ValidateRequests = true
+	srv := diamtest.NewServer(New(settings), dict.Default)
+	defer srv.Close()
+	conn, err := net.DialTimeout("tcp", srv.Addr, time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = conn.Close() }()
+	if err := conn.SetDeadline(time.Now().Add(2 * time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	cer := diam.NewMessage(diam.CapabilitiesExchange, diam.RequestFlag, diam.CHARGING_CONTROL_APP_ID, 0x1234, 0x5678, dict.Default)
+	mustSMClientAVP(t, cer, avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("peer.example"))
+	mustSMClientAVP(t, cer, avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("example"))
+	mustSMClientAVP(t, cer, avp.HostIPAddress, avp.Mbit, 0, datatype.Address(net.ParseIP("127.0.0.1")))
+	mustSMClientAVP(t, cer, avp.VendorID, avp.Mbit, 0, datatype.Unsigned32(13))
+	mustSMClientAVP(t, cer, avp.ProductName, 0, 0, datatype.UTF8String("peer"))
+	mustSMClientAVP(t, cer, avp.AcctApplicationID, avp.Mbit, 0, datatype.Unsigned32(3))
+	if _, err := cer.WriteTo(conn); err != nil {
+		t.Fatal(err)
+	}
+	answer, err := diam.ReadMessage(conn, dict.Default)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if answer.Header.CommandFlags&diam.ErrorFlag == 0 || !testResultCode(answer, diam.ApplicationUnsupported) {
+		t.Fatalf("want E-bit 3007: %v", answer)
+	}
+	if extra, err := diam.ReadMessage(conn, dict.Default); err == nil {
+		t.Fatalf("connection stayed open after the rejected CER: %v", extra)
+	} else if !errors.Is(err, io.EOF) {
+		t.Fatalf("read after the rejected CER: %v, want EOF", err)
 	}
 }

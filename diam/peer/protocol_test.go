@@ -610,6 +610,65 @@ func TestFakeTransportDPAIdentifiersAndPeer(t *testing.T) {
 	}
 }
 
+func TestManagerSupportsApplication(t *testing.T) {
+	m, e := New(Config{Settings: testSettings("local.example.net")})
+	if e != nil {
+		t.Fatal(e)
+	}
+	defer closeManager(t, m, nil)
+	for appID, want := range map[uint32]bool{0: true, diam.CHARGING_CONTROL_APP_ID: true, 0x00abcdef: false} {
+		if got := m.supportsApplication(appID); got != want {
+			t.Errorf("supportsApplication(%d) = %t, want %t", appID, got, want)
+		}
+	}
+	m.localApps[0xffffffff] = struct{}{} // RFC 6733 §2.4: a relay supports every application.
+	if !m.supportsApplication(0x00abcdef) {
+		t.Error("a relay must support every application")
+	}
+}
+
+// TestManagedUnsupportedApplication checks RFC 6733 §7.1.3: a request for an
+// application the manager does not advertise gets an E-bit 3007, not 3001.
+func TestManagedUnsupportedApplication(t *testing.T) {
+	m, e := New(Config{Settings: testSettings("local.example.net")})
+	if e != nil {
+		t.Fatal(e)
+	}
+	if e = m.AddPeer(PeerConfig{Host: "known.example.net"}); e != nil {
+		t.Fatal(e)
+	}
+	l, srv := startReceiver(t, m)
+	defer closeManager(t, m, srv)
+	c, e := net.Dial("tcp", l.Addr().String())
+	if e != nil {
+		t.Fatal(e)
+	}
+	defer func() { _ = c.Close() }()
+	cer, e := base.BuildCER(dict.Default, testBase("known.example.net"))
+	if e != nil {
+		t.Fatal(e)
+	}
+	write(t, c, cer)
+	if cea := read(t, c); code(t, cea) != diam.Success {
+		t.Fatalf("CEA %d", code(t, cea))
+	}
+	awaitState(t, m, ROpen)
+	for _, tc := range []struct {
+		appID uint32
+		want  uint32
+	}{
+		{0x00abcdef, diam.ApplicationUnsupported},
+		{diam.CHARGING_CONTROL_APP_ID, diam.CommandUnsupported},
+	} {
+		req := diam.NewMessage(999, diam.RequestFlag, tc.appID, 0x1234, 0x5678, dict.Default)
+		write(t, c, req)
+		ans := read(t, c)
+		if ans.Header.CommandFlags&diam.ErrorFlag == 0 || code(t, ans) != tc.want {
+			t.Fatalf("application %d: answer %+v, Result-Code %d, want E-bit %d", tc.appID, ans.Header, code(t, ans), tc.want)
+		}
+	}
+}
+
 func TestManagedControlAndUnsupported(t *testing.T) {
 	m, e := New(Config{Settings: testSettings("local.example.net")})
 	if e != nil {

@@ -578,10 +578,31 @@ func (m *Manager) baseSettings(c diam.Conn) base.Settings {
 	}
 	return cfg
 }
+
+// supportsApplication reports whether appID is the base application or one
+// the manager advertises. Advertising the relay application (RFC 6733 §2.4)
+// covers every application.
+func (m *Manager) supportsApplication(appID uint32) bool {
+	if appID == 0 {
+		return true
+	}
+	_, ok := m.localApps[appID]
+	if !ok {
+		_, ok = m.localApps[0xffffffff]
+	}
+	return ok
+}
+
 func (m *Manager) unsupported(s *session, msg *diam.Message) {
-	// RFC 6733 §§7.1.3, 7.2: unsupported requests receive E-bit 3001; answers are reported and discarded.
+	// RFC 6733 §§7.1.3, 7.2: unsupported requests receive an E-bit 3007 for
+	// an application this node does not support, otherwise 3001; answers are
+	// reported and discarded.
 	if msg.Header.CommandFlags&diam.RequestFlag != 0 {
-		answer, err := base.BuildErrorAnswer(msg, m.baseSettings(s.c), diam.CommandUnsupported, nil, true)
+		resultCode := uint32(diam.CommandUnsupported)
+		if !m.supportsApplication(msg.Header.ApplicationID) {
+			resultCode = diam.ApplicationUnsupported
+		}
+		answer, err := base.BuildErrorAnswer(msg, m.baseSettings(s.c), resultCode, nil, true)
 		if err == nil {
 			if !s.send(answer, false) {
 				err = errors.New("peer: write queue full")
