@@ -62,7 +62,7 @@ func newULR(cfg *S6aProxyConfig, meta *smpeer.Metadata, sid string, req *protos.
 	if err := addAVP(m, avp.DestinationHost, avp.Mbit, 0, meta.OriginHost); err != nil {
 		return nil, err
 	}
-	if err := addAVP(m, avp.UserName, avp.Mbit, 0, datatype.UTF8String(req.UserName)); err != nil {
+	if err := addAVP(m, avp.UserName, avp.Mbit, 0, datatype.UTF8String(req.GetUserName())); err != nil {
 		return nil, err
 	}
 	if err := addAVP(m, avp.AuthSessionState, avp.Mbit, 0, datatype.Enumerated(1)); err != nil {
@@ -74,7 +74,7 @@ func newULR(cfg *S6aProxyConfig, meta *smpeer.Metadata, sid string, req *protos.
 	if err := addAVP(m, avp.ULRFlags, avp.Vbit|avp.Mbit, VENDOR_3GPP, datatype.Unsigned32(ULR_FLAGS)); err != nil {
 		return nil, err
 	}
-	if err := addAVP(m, avp.VisitedPLMNID, avp.Vbit|avp.Mbit, VENDOR_3GPP, datatype.OctetString(req.VisitedPlmn)); err != nil {
+	if err := addAVP(m, avp.VisitedPLMNID, avp.Vbit|avp.Mbit, VENDOR_3GPP, datatype.OctetString(req.GetVisitedPlmn())); err != nil {
 		return nil, err
 	}
 	if err := m.Validate(); err != nil {

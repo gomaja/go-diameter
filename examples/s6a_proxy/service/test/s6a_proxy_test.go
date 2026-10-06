@@ -100,12 +100,12 @@ func TestS6aProxyService(t *testing.T) {
 			t.Logf("GRPC AIR Error: %v", err)
 			return
 		}
-		t.Logf("GRPC AIA: %#+v", *r)
-		if r.ErrorCode != protos.ErrorCode_UNDEFINED {
-			t.Errorf("Unexpected AIA Error Code: %d", r.ErrorCode)
+		t.Logf("GRPC AIA: %#+v", r)
+		if r.GetErrorCode() != protos.ErrorCode_UNDEFINED {
+			t.Errorf("Unexpected AIA Error Code: %d", r.GetErrorCode())
 		}
-		if len(r.EutranVectors) != 3 {
-			t.Errorf("Unexpected Number of EutranVectors: %d, Expected: 3", len(r.EutranVectors))
+		if len(r.GetEutranVectors()) != 3 {
+			t.Errorf("Unexpected Number of EutranVectors: %d, Expected: 3", len(r.GetEutranVectors()))
 		}
 		ulReq := &protos.UpdateLocationRequest{
 			UserName:           TEST_IMSI,
@@ -120,9 +120,9 @@ func TestS6aProxyService(t *testing.T) {
 			t.Errorf("GRPC ULR Error: %v", err)
 			return
 		}
-		t.Logf("GRPC ULA: %#+v", *ulResp)
-		if r.ErrorCode != protos.ErrorCode_UNDEFINED {
-			t.Errorf("Unexpected AIA Error Code: %d", r.ErrorCode)
+		t.Logf("GRPC ULA: %#+v", ulResp)
+		if ulResp.GetErrorCode() != protos.ErrorCode_UNDEFINED {
+			t.Errorf("Unexpected ULA Error Code: %d", ulResp.GetErrorCode())
 		}
 		complChan <- nil
 		t.Logf("Test Routine ID: %d -- END", id)
@@ -132,7 +132,7 @@ func TestS6aProxyService(t *testing.T) {
 	select {
 	case testErr := <-complChan:
 		if testErr != nil {
-			t.Fatal(err)
+			t.Fatal(testErr)
 			return
 		}
 	case <-time.After(time.Second):
@@ -148,7 +148,7 @@ func TestS6aProxyService(t *testing.T) {
 		select {
 		case testErr := <-complChan:
 			if testErr != nil {
-				t.Fatal(err)
+				t.Fatal(testErr)
 				return
 			}
 		case <-time.After(time.Second * 20):
