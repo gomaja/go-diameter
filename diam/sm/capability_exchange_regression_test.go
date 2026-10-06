@@ -75,7 +75,7 @@ func regressionClosed(t *testing.T, c net.Conn) {
 func TestAcceptedConnectionRejectsMessagesBeforeCER(t *testing.T) {
 	for _, command := range []uint32{diam.DeviceWatchdog, 0xfedc} {
 		t.Run(fmt.Sprint(command), func(t *testing.T) {
-			srv := diamtest.NewServer(New(testMessageErrorSettings()), dict.Default)
+			srv := diamtest.NewServer(mustNewStateMachine(t, testMessageErrorSettings()), dict.Default)
 			defer srv.Close()
 			c, err := net.DialTimeout("tcp", srv.Addr, time.Second)
 			if err != nil {
@@ -96,7 +96,7 @@ func TestAcceptedConnectionRejectsMessagesBeforeCER(t *testing.T) {
 func TestCERAcceptsAnyCommonSecurityValue(t *testing.T) {
 	for _, values := range [][]uint32{nil, {0}, {0, 1}, {1, 0}, {1}, {2}} {
 		t.Run(fmt.Sprint(values), func(t *testing.T) {
-			srv := diamtest.NewServer(New(serverSettings), dict.Default)
+			srv := diamtest.NewServer(mustNewStateMachine(t, serverSettings), dict.Default)
 			defer srv.Close()
 			request := regressionCER(t, dict.Default, 1001)
 			for _, v := range values {
@@ -130,7 +130,7 @@ func TestCERMalformedInbandSecurityReturnsFailedAVP(t *testing.T) {
 			observed <- uint32(code.Data.(datatype.Unsigned32))
 		}
 	}
-	srv := diamtest.NewServer(New(&settings), dictionary)
+	srv := diamtest.NewServer(mustNewStateMachine(t, &settings), dictionary)
 	defer srv.Close()
 	request := regressionCER(t, dictionary, 1001)
 	wire, err := request.Serialize()
@@ -206,7 +206,7 @@ func TestCERUsesSettingsDictionaryForApplications(t *testing.T) {
 	}
 	settings := *serverSettings
 	settings.Dict = narrow
-	srv := diamtest.NewServer(New(&settings), dict.Default)
+	srv := diamtest.NewServer(mustNewStateMachine(t, &settings), dict.Default)
 	defer srv.Close()
 	request := regressionCER(t, dict.Default, 1001)
 	for _, a := range request.AVP {
@@ -256,7 +256,7 @@ func testClientRefusesInbandTLSOnPlaintext(t *testing.T, network string) {
 	srv.Config.OnNewConnection = func(c diam.Conn) { opened <- c }
 	srv.Start()
 	defer srv.Close()
-	cli := &Client{Handler: New(clientSettings), InbandSecurityID: 1, RetransmitInterval: 100 * time.Millisecond,
+	cli := &Client{Handler: mustNewStateMachine(t, clientSettings), InbandSecurityID: 1, RetransmitInterval: 100 * time.Millisecond,
 		AcctApplicationID: []*diam.AVP{diam.NewAVP(avp.AcctApplicationID, avp.Mbit, 0, datatype.Unsigned32(3))}}
 	c, err := cli.DialNetwork(network, srv.Addr)
 	if c != nil {
@@ -288,7 +288,7 @@ func TestHandshakeTimeoutClosesSilentAcceptedConnections(t *testing.T) {
 		t.Run(fmt.Sprint(useTLS), func(t *testing.T) {
 			settings := *serverSettings
 			settings.HandshakeTimeout = 150 * time.Millisecond
-			srv := diamtest.NewUnstartedServer(New(&settings), dict.Default)
+			srv := diamtest.NewUnstartedServer(mustNewStateMachine(t, &settings), dict.Default)
 			if useTLS {
 				srv.StartTLS()
 			} else {
@@ -314,7 +314,7 @@ func TestHandshakeTimeoutClosesSilentAcceptedConnections(t *testing.T) {
 func TestHandshakeTimeoutStopsAfterCER(t *testing.T) {
 	settings := *serverSettings
 	settings.HandshakeTimeout = 100 * time.Millisecond
-	srv := diamtest.NewServer(New(&settings), dict.Default)
+	srv := diamtest.NewServer(mustNewStateMachine(t, &settings), dict.Default)
 	defer srv.Close()
 	answer, c := regressionExchange(t, srv, regressionCER(t, dict.Default, 1001), dict.Default)
 	if !testResultCode(answer, diam.Success) {
@@ -348,7 +348,7 @@ func TestHandshakeTimeoutStopsAfterCER(t *testing.T) {
 func TestNegativeHandshakeTimeoutLeavesSilentConnectionOpen(t *testing.T) {
 	settings := *serverSettings
 	settings.HandshakeTimeout = -1
-	srv := diamtest.NewServer(New(&settings), dict.Default)
+	srv := diamtest.NewServer(mustNewStateMachine(t, &settings), dict.Default)
 	defer srv.Close()
 	c, err := net.DialTimeout("tcp", srv.Addr, time.Second)
 	if err != nil {
@@ -366,7 +366,7 @@ func TestNegativeHandshakeTimeoutLeavesSilentConnectionOpen(t *testing.T) {
 }
 
 func TestAcceptedConnectionRejectsMalformedNonCERWithoutAnswer(t *testing.T) {
-	srv := diamtest.NewServer(New(testMessageErrorSettings()), dict.Default)
+	srv := diamtest.NewServer(mustNewStateMachine(t, testMessageErrorSettings()), dict.Default)
 	defer srv.Close()
 	c, err := net.DialTimeout("tcp", srv.Addr, time.Second)
 	if err != nil {

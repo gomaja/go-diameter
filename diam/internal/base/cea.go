@@ -8,12 +8,14 @@ import (
 	"fmt"
 
 	"github.com/gomaja/go-diameter/diam"
+	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
 )
 
 // CEA is a Capabilities-Exchange-Answer message.
 // See RFC 6733 section 5.3.2 for details.
 type CEA struct {
+	HostIPAddresses             []datatype.Address        `avp:"Host-IP-Address"`
 	ResultCode                  uint32                    `avp:"Result-Code"`
 	OriginHost                  datatype.DiameterIdentity `avp:"Origin-Host"`
 	OriginRealm                 datatype.DiameterIdentity `avp:"Origin-Realm"`
@@ -42,6 +44,22 @@ func (e ErrFailedResultCode) Error() string {
 
 // Parse parses and validates the given message.
 func (cea *CEA) Parse(m *diam.Message, localRole Role) (err error) {
+	// RFC 6733 §§5.3.2 and 7.1.5: a non-strict decoder preserves an
+	// invalid Address as Unknown. Identify its original AVP before reflection
+	// loses that context. The CEA is an answer, so this error is returned to
+	// the initiating client; it must not generate another answer.
+	for _, a := range m.AVP {
+		if a.Code != avp.HostIPAddress || a.VendorID != 0 {
+			continue
+		}
+		if _, raw := a.Data.(datatype.Unknown); raw {
+			result := uint32(diam.InvalidAVPValue)
+			if a.Data.Len() < 2 {
+				result = diam.InvalidAVPLength
+			}
+			return &diam.MessageError{ResultCode: result, FailedAVP: a, Err: fmt.Errorf("invalid CEA Host-IP-Address: not a valid Address")}
+		}
+	}
 	if err = m.Unmarshal(cea); err != nil {
 		return err
 	}

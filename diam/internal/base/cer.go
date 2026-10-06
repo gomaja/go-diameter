@@ -16,6 +16,7 @@ import (
 // CER is a Capabilities-Exchange-Request message.
 // See RFC 6733 section 5.3.1 for details.
 type CER struct {
+	HostIPAddresses             []datatype.Address        `avp:"Host-IP-Address"`
 	OriginHost                  datatype.DiameterIdentity `avp:"Origin-Host"`
 	OriginRealm                 datatype.DiameterIdentity `avp:"Origin-Realm"`
 	OriginStateID               *diam.AVP                 `avp:"Origin-State-Id"`
@@ -50,6 +51,22 @@ func (cer *CER) ParseWithSecurity(m *diam.Message, localRole Role, tlsActive boo
 // used to advertise local applications (RFC 6733 §5.3). A nil dictionary uses
 // the message dictionary.
 func (cer *CER) ParseWithSecurityAndDictionary(m *diam.Message, localRole Role, tlsActive bool, dictionary *dict.Parser) (failedAVP *diam.AVP, err error) {
+	// A non-strict dictionary retains an undecodable Address payload as
+	// Unknown. Classify it before reflection requires datatype.Address, so
+	// RFC 6733 §§4.3.1 and 7.1.5 can identify the original AVP in the
+	// error answer (RFC 6733 §7.5, Verified Erratum 4615).
+	for _, a := range m.AVP {
+		if a.Code != avp.HostIPAddress || a.VendorID != 0 {
+			continue
+		}
+		if _, raw := a.Data.(datatype.Unknown); raw {
+			result := uint32(diam.InvalidAVPValue)
+			if a.Data.Len() < 2 {
+				result = diam.InvalidAVPLength
+			}
+			return a, &diam.MessageError{ResultCode: result, FailedAVP: a, Err: fmt.Errorf("Host-IP-Address is not a valid Address")}
+		}
+	}
 	if err = m.Unmarshal(cer); err != nil {
 		return nil, err
 	}

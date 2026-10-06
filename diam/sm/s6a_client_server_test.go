@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"io"
 	"math/rand"
-	"net"
+	"net/netip"
 	"strconv"
 	"sync/atomic"
 	"testing"
@@ -63,7 +63,7 @@ func testS6aClientServer(network string, t *testing.T) {
 	results := make(chan error, CONCURENT_CLIENTS*2)
 
 	// Create the state machine (mux) and set its message handlers.
-	mux := New(settings)
+	mux := mustNewStateMachine(t, settings)
 
 	mux.HandleIdx(
 		diam.CommandIndex{AppID: diam.TGPP_S6A_APP_ID, Code: diam.AuthenticationInformation, Request: true},
@@ -100,11 +100,11 @@ func testS6aClientServer(network string, t *testing.T) {
 		ProductName:      "go-diameter-s6a",
 		OriginStateID:    datatype.Unsigned32(time.Now().Unix()),
 		FirmwareRevision: 1,
-		HostIPAddresses:  []datatype.Address{datatype.Address(net.ParseIP("127.0.0.1"))},
+		HostIPAddresses:  []datatype.Address{datatype.AddressFromIP(netip.MustParseAddr("127.0.0.1"))},
 	}
 
 	// Create the state machine (it's a diam.ServeMux) and client.
-	cmux := New(cfg)
+	cmux := mustNewStateMachine(t, cfg)
 
 	cli := &Client{
 		Dict:               dict.Default,

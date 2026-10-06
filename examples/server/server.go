@@ -58,7 +58,10 @@ func main() {
 	}
 
 	// Create the state machine (mux) and set its message handlers.
-	mux := sm.New(settings)
+	mux, err := sm.New(settings)
+	if err != nil {
+		log.Fatal(err)
+	}
 	mux.Handle("HMR", handleHMR(*silent))
 	mux.Handle("ACR", handleACR(*silent))
 	mux.HandleFunc("ALL", handleALL) // Catch all.

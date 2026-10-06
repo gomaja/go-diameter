@@ -50,7 +50,7 @@ func TestPeerDPRAnsweredAndWaitsForPeerClose(t *testing.T) {
 	cfg.DPRCloseTimeout = 80 * time.Millisecond
 	causes := make(chan DisconnectCause, 1)
 	cfg.OnDPR = func(_ diam.Conn, cause DisconnectCause) { causes <- cause }
-	sm := New(&cfg)
+	sm := mustNewStateMachine(t, &cfg)
 	srv := diamtest.NewServer(sm, dict.Default)
 	defer srv.Close()
 	answers := make(chan *diam.Message, 1)
@@ -131,7 +131,7 @@ func TestValidateDPRRequiredAVPs(t *testing.T) {
 }
 
 func TestPeerDPRBeforeHandshakeGetsNoDPA(t *testing.T) {
-	sm := New(serverSettings)
+	sm := mustNewStateMachine(t, serverSettings)
 	srv := diamtest.NewServer(sm, dict.Default)
 	defer srv.Close()
 	answers := make(chan *diam.Message, 1)

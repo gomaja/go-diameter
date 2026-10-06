@@ -9,7 +9,7 @@ import (
 	"context"
 	"encoding/hex"
 	"io"
-	"net"
+	"net/netip"
 	"reflect"
 	"testing"
 
@@ -225,7 +225,7 @@ func TestNewMessage(t *testing.T) {
 	m := NewMessage(CapabilitiesExchange, RequestFlag, 0, 0xa8cc407d, 0xa8c1b2b4, dict.Default)
 	mustMessageAVP(t, m, avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("test"))
 	mustMessageAVP(t, m, avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("localhost"))
-	mustMessageAVP(t, m, avp.HostIPAddress, avp.Mbit, 0, datatype.Address(net.ParseIP("10.1.0.1")))
+	mustMessageAVP(t, m, avp.HostIPAddress, avp.Mbit, 0, datatype.AddressFromIP(netip.MustParseAddr("10.1.0.1")))
 	mustMessageAVP(t, m, avp.VendorID, avp.Mbit, 0, datatype.Unsigned32(13))
 	mustMessageAVP(t, m, avp.ProductName, 0, 0, datatype.UTF8String("go-diameter"))
 	mustMessageAVP(t, m, avp.OriginStateID, avp.Mbit, 0, datatype.Unsigned32(1397760650))

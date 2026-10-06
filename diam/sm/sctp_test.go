@@ -49,7 +49,7 @@ func TestStateMachineSCTP(t *testing.T) {
 func TestStateMachineMessageErrorSCTPStream(t *testing.T) {
 	requireSCTP(t)
 	settings := testMessageErrorSettings()
-	server := diamtest.NewServerNetwork("sctp", New(settings), dict.Default)
+	server := diamtest.NewServerNetwork("sctp", mustNewStateMachine(t, settings), dict.Default)
 	defer server.Close()
 
 	answers := make(chan *diam.Message, 1)

@@ -113,7 +113,7 @@ func TestUnmarshalNetIP(t *testing.T) {
 	if err := m.Unmarshal(&d); err != nil {
 		t.Fatal(err)
 	}
-	if v := d.HostIP1.Data.(datatype.Address); net.IP(v).String() != "10.1.0.1" {
+	if v := d.HostIP1.Data.(datatype.Address); net.IP(v.Value).String() != "10.1.0.1" {
 		t.Fatalf("Unexpected value. Want 10.1.0.1, have %s", v)
 	}
 	if v := d.HostIP2.String(); v != "10.1.0.1" {

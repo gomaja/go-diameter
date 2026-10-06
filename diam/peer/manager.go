@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/netip"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -100,10 +101,13 @@ type Manager struct {
 }
 
 func New(cfg Config) (*Manager, error) {
+	if err := cfg.Settings.Validate(); err != nil {
+		return nil, fmt.Errorf("peer: %w", err)
+	}
 	if len(cfg.Settings.OriginHost) == 0 || len(cfg.Settings.OriginRealm) == 0 {
 		return nil, errors.New("peer: Origin-Host and Origin-Realm are required")
 	}
-	cfg.Settings.HostIPAddresses = append([]datatype.Address(nil), cfg.Settings.HostIPAddresses...)
+	cfg.Settings.HostIPAddresses = base.CloneAddresses(cfg.Settings.HostIPAddresses)
 	if cfg.Clock == nil {
 		cfg.Clock = realClock{}
 	}
@@ -521,7 +525,12 @@ func (m *Manager) processDIAM(s *session, msg *diam.Message) {
 }
 func (m *Manager) rejectCER(s *session, msg *diam.Message, code uint32, reason error) {
 	cfg := m.baseSettings(s.c)
-	answer := base.BuildCEA(msg, cfg, code)
+	answer, err := base.BuildCEA(msg, cfg, code)
+	if err != nil {
+		m.report(s, msg, err)
+		s.close()
+		return
+	}
 	var messageErr *diam.MessageError
 	if errors.As(reason, &messageErr) {
 		// RFC 6733 §7.1.5, Verified Erratum 4615: one Failed-AVP.
@@ -539,23 +548,23 @@ func (m *Manager) rejectCER(s *session, msg *diam.Message, code uint32, reason e
 	}
 }
 func (m *Manager) baseSettings(c diam.Conn) base.Settings {
-	cfg := base.Settings{OriginHost: m.cfg.Settings.OriginHost, OriginRealm: m.cfg.Settings.OriginRealm, VendorID: m.cfg.Settings.VendorID, ProductName: m.cfg.Settings.ProductName, OriginStateID: m.cfg.Settings.OriginStateID, FirmwareRevision: m.cfg.Settings.FirmwareRevision, HostIPAddresses: append([]datatype.Address(nil), m.cfg.Settings.HostIPAddresses...)}
+	cfg := base.Settings{OriginHost: m.cfg.Settings.OriginHost, OriginRealm: m.cfg.Settings.OriginRealm, VendorID: m.cfg.Settings.VendorID, ProductName: m.cfg.Settings.ProductName, OriginStateID: m.cfg.Settings.OriginStateID, FirmwareRevision: m.cfg.Settings.FirmwareRevision, HostIPAddresses: base.CloneAddresses(m.cfg.Settings.HostIPAddresses)}
 	if len(cfg.HostIPAddresses) == 0 && c != nil {
 		switch addr := c.LocalAddr().(type) {
 		case *net.TCPAddr:
 			if addr != nil && addr.IP != nil {
-				cfg.HostIPAddresses = []datatype.Address{datatype.Address(addr.IP)}
+				cfg.HostIPAddresses = []datatype.Address{datatype.AddressFromIP(addr.AddrPort().Addr())}
 			}
 		case *sctp.Addr:
 			if addr != nil {
 				for _, ip := range addr.IPs {
-					cfg.HostIPAddresses = append(cfg.HostIPAddresses, datatype.Address(net.IP(ip.AsSlice())))
+					cfg.HostIPAddresses = append(cfg.HostIPAddresses, datatype.AddressFromIP(ip))
 				}
 			}
 		}
 	}
 	if len(cfg.HostIPAddresses) == 0 {
-		cfg.HostIPAddresses = []datatype.Address{datatype.Address(net.IPv4(127, 0, 0, 1))}
+		cfg.HostIPAddresses = []datatype.Address{datatype.AddressFromIP(netip.MustParseAddr("127.0.0.1"))}
 	}
 	dictionary := m.cfg.Settings.Dict
 	if dictionary == nil {

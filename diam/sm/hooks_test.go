@@ -29,7 +29,7 @@ func TestOnCERHook(t *testing.T) {
 		atomic.AddInt32(&onCERCalls, 1)
 	}
 
-	sm := New(&settings)
+	sm := mustNewStateMachine(t, &settings)
 	srv := diamtest.NewServer(sm, dict.Default)
 	defer srv.Close()
 
@@ -75,7 +75,7 @@ func TestOnDWRHook(t *testing.T) {
 		onDWR <- struct{}{}
 	}
 
-	sm := New(&settings)
+	sm := mustNewStateMachine(t, &settings)
 	srv := diamtest.NewServer(sm, dict.Default)
 	defer srv.Close()
 
@@ -135,7 +135,7 @@ func TestOnCEAHook(t *testing.T) {
 		atomic.AddInt32(&onCEACalls, 1)
 	}
 
-	sm := New(&settings)
+	sm := mustNewStateMachine(t, &settings)
 	srv := diamtest.NewServer(sm, dict.Default)
 	defer srv.Close()
 
@@ -194,7 +194,7 @@ func TestOnCEAHookErrorCEA(t *testing.T) {
 		}
 	}
 
-	sm := New(&settings)
+	sm := mustNewStateMachine(t, &settings)
 	srv := diamtest.NewServer(sm, dict.Default)
 	defer srv.Close()
 
@@ -260,7 +260,7 @@ func TestOnDWAHook(t *testing.T) {
 		}
 	}
 
-	sm := New(&settings)
+	sm := mustNewStateMachine(t, &settings)
 	srv := diamtest.NewServer(sm, dict.Default)
 	defer srv.Close()
 

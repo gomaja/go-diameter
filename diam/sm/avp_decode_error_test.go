@@ -33,7 +33,7 @@ func TestStateMachineAnswersUndecodableAVPs(t *testing.T) {
 	} {
 		for _, stage := range []string{"CER", "after CER"} {
 			t.Run(tc.name+"/"+stage, func(t *testing.T) {
-				stateMachine := New(testMessageErrorSettings())
+				stateMachine := mustNewStateMachine(t, testMessageErrorSettings())
 				server := diamtest.NewServer(stateMachine, dict.Default)
 				defer server.Close()
 				conn, err := net.DialTimeout("tcp", server.Addr, time.Second)
@@ -132,7 +132,7 @@ func TestStateMachineAnswersUndecodableAVPs(t *testing.T) {
 func TestStateMachineErrorAnswerDoesNotEchoMalformedRequiredAVP(t *testing.T) {
 	for _, badCode := range []uint32{avp.CCRequestType, avp.CCRequestNumber} {
 		t.Run(fmt.Sprint(badCode), func(t *testing.T) {
-			server := diamtest.NewServer(New(testMessageErrorSettings()), dict.Default)
+			server := diamtest.NewServer(mustNewStateMachine(t, testMessageErrorSettings()), dict.Default)
 			defer server.Close()
 			conn, err := net.DialTimeout("tcp", server.Addr, time.Second)
 			if err != nil {
@@ -218,10 +218,10 @@ func TestStrictClientReceivesPayloadErrorAnswer(t *testing.T) {
 		{"5004", avp.HostIPAddress, []byte{255, 255, 1}, diam.InvalidAVPValue},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			server := diamtest.NewServer(New(testMessageErrorSettings()), dict.Default)
+			server := diamtest.NewServer(mustNewStateMachine(t, testMessageErrorSettings()), dict.Default)
 			defer server.Close()
 			cfg := &Settings{OriginHost: "peer.example", OriginRealm: "example", VendorID: 13, ProductName: "test"}
-			clientSM := New(cfg)
+			clientSM := mustNewStateMachine(t, cfg)
 			got := make(chan *diam.Message, 1)
 			clientSM.HandleFunc("DWA", func(_ diam.Conn, m *diam.Message) { got <- m })
 			client := &Client{Handler: clientSM, Dict: dict.Default, AcctApplicationID: []*diam.AVP{diam.NewAVP(avp.AcctApplicationID, avp.Mbit, 0, datatype.Unsigned32(1001))}}

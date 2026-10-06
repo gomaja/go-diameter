@@ -22,7 +22,10 @@ func TestManagedSendPeerClosesAfterRequestTCP(t *testing.T) {
 		}
 		t.Run(name, func(t *testing.T) {
 			settings := testSettings("server.example.net")
-			serverSM := sm.New(&settings)
+			serverSM, err := sm.New(&settings)
+			if err != nil {
+				t.Fatal(err)
+			}
 			serverSM.HandleIdx(diam.CommandIndex{AppID: 4, Code: 272, Request: true}, diam.HandlerFunc(func(c diam.Conn, request *diam.Message) {
 				if answerFirst {
 					answer := request.Answer(diam.Success)
@@ -76,7 +79,10 @@ func TestManagedSendPeerClosesAfterRequestTCP(t *testing.T) {
 
 func TestManagedSendTCPToSMServer(t *testing.T) {
 	settings := testSettings("server.example.net")
-	serverSM := sm.New(&settings)
+	serverSM, err := sm.New(&settings)
+	if err != nil {
+		t.Fatal(err)
+	}
 	serverSM.HandleIdx(diam.CommandIndex{AppID: 4, Code: 272, Request: true}, diam.HandlerFunc(func(c diam.Conn, request *diam.Message) {
 		answer := request.Answer(diam.Success)
 		_, _ = answer.NewAVP(avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("server.example.net"))

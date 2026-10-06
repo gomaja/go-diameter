@@ -105,7 +105,11 @@ func errorCEA(sm *StateMachine, c diam.Conn, m *diam.Message, errMessage error) 
 			return err
 		}
 	} else {
-		a = base.BuildCEA(m, cfg, resultCode)
+		var err error
+		a, err = base.BuildCEA(m, cfg, resultCode)
+		if err != nil {
+			return err
+		}
 	}
 	if sm.cfg.OnCEA != nil {
 		sm.cfg.OnCEA(c, a)
@@ -147,5 +151,5 @@ func buildSuccessCEA(sm *StateMachine, c diam.Conn, m *diam.Message) (*diam.Mess
 		})
 	}
 	// The caller runs OnCEA only once the CEA will be sent.
-	return base.BuildCEA(m, cfg, diam.Success), nil
+	return base.BuildCEA(m, cfg, diam.Success)
 }

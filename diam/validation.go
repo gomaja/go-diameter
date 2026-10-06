@@ -216,7 +216,7 @@ func missingAVPExample(definition *dict.AVP, appID uint32, dictionary *dict.Snap
 	key := validationKey{definition.Code, definition.VendorID}
 	switch definition.Data.Type {
 	case datatype.AddressType:
-		return NewAVP(key.code, flags, key.vendor, datatype.Address([]byte{0, 0, 0, 0}))
+		return NewAVP(key.code, flags, key.vendor, datatype.Unknown(make([]byte, minimumAVPPayloadLength(datatype.AddressType))))
 	case datatype.GroupedType:
 		group := &GroupedAVP{}
 		if !seen[key] {

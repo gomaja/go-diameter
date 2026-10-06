@@ -33,7 +33,7 @@ func TestConcurrentClientDialsRouteCEAToTheirOwnHandshake(t *testing.T) {
 	for i := 0; i < peers; i++ {
 		gate := make(chan struct{})
 		entered := make(chan struct{}, 1)
-		serverSM := New(serverSettings)
+		serverSM := mustNewStateMachine(t, serverSettings)
 		mux := diam.NewServeMux()
 		peer := i
 		mux.HandleFunc("CER", func(c diam.Conn, m *diam.Message) {
@@ -58,7 +58,7 @@ func TestConcurrentClientDialsRouteCEAToTheirOwnHandshake(t *testing.T) {
 		seen = append(seen, entered)
 	}
 
-	cli := newLivenessClient()
+	cli := newLivenessClient(t)
 	cli.EnableWatchdog = false
 	cli.RetransmitInterval = 2 * time.Second
 	for i, srv := range servers {
@@ -104,9 +104,9 @@ func TestConcurrentClientDialsRouteCEAToTheirOwnHandshake(t *testing.T) {
 }
 
 func TestConcurrentClientDialsWithDefaultSettings(t *testing.T) {
-	srv := diamtest.NewServer(New(serverSettings), dict.Default)
+	srv := diamtest.NewServer(mustNewStateMachine(t, serverSettings), dict.Default)
 	defer srv.Close()
-	cli := newLivenessClient()
+	cli := newLivenessClient(t)
 	cli.EnableWatchdog = false
 	cli.Dict = nil
 	cli.RetransmitInterval = 0

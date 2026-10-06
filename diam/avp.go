@@ -48,8 +48,16 @@ type AVP struct {
 	Data     datatype.Type // Data of this AVP (payload)
 }
 
-// NewAVP creates and initializes a new AVP.
+// NewAVP creates and initializes a new AVP. Address pointers are stored as
+// values; a nil Address pointer becomes the invalid zero Address. Message
+// serialization rejects invalid Addresses, including Grouped descendants.
 func NewAVP(code uint32, flags uint8, vendor uint32, data datatype.Type) *AVP {
+	if address, ok := data.(*datatype.Address); ok {
+		data = datatype.Address{}
+		if address != nil {
+			data = *address
+		}
+	}
 	a := &AVP{
 		Code:     code,
 		Flags:    flags,
@@ -210,12 +218,30 @@ func (a *AVP) SerializeTo(b []byte) error {
 	if a.Data == nil {
 		return errAVPSerializeNilData
 	}
-	binary.BigEndian.PutUint32(b[0:4], a.Code)
-	b[4] = a.Flags
-	hl := a.headerLen()
-	putUint24(b[5:8], uint32(hl+a.Data.Len()))
-	if a.Flags&avp.Vbit == avp.Vbit {
-		binary.BigEndian.PutUint32(b[8:12], a.VendorID)
+	// RFC 6733 §4.3.1: validate at serialization, even for unchecked constructors.
+	switch data := a.Data.(type) {
+	case datatype.Address:
+		if err := data.Valid(); err != nil {
+			return err
+		}
+	case *datatype.Address:
+		if data == nil {
+			return errors.New("nil Address")
+		}
+		if err := data.Valid(); err != nil {
+			return err
+		}
+	}
+	hl := a.serializeHeaderTo(b, a.Data.Len())
+	if group, ok := a.Data.(*GroupedAVP); ok {
+		offset := hl
+		for _, child := range group.AVP {
+			if err := child.SerializeTo(b[offset:]); err != nil {
+				return err
+			}
+			offset += child.Len()
+		}
+		return nil
 	}
 	payload := a.Data.Serialize()
 	copy(b[hl:], payload)
@@ -227,8 +253,23 @@ func (a *AVP) SerializeTo(b []byte) error {
 	return nil
 }
 
+func (a *AVP) serializeHeaderTo(b []byte, payloadLen int) int {
+	binary.BigEndian.PutUint32(b[0:4], a.Code)
+	b[4] = a.Flags
+	hl := a.headerLen()
+	putUint24(b[5:8], uint32(hl+payloadLen))
+	if a.Flags&avp.Vbit == avp.Vbit {
+		binary.BigEndian.PutUint32(b[8:12], a.VendorID)
+	}
+	return hl
+}
+
 // Len returns the length of this AVP in bytes with padding.
 func (a *AVP) Len() int {
+	// A manually assigned nil Address is rejected by SerializeTo.
+	if address, ok := a.Data.(*datatype.Address); ok && address == nil {
+		return a.headerLen()
+	}
 	if a.Data == nil {
 		length := a.Length
 		if headerLen := a.headerLen(); length < headerLen {

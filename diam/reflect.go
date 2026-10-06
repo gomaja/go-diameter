@@ -6,6 +6,9 @@ package diam
 
 import (
 	"errors"
+	"fmt"
+	"net"
+	"net/netip"
 	"reflect"
 	"strings"
 
@@ -30,6 +33,15 @@ func parseAvpTag(tag reflect.StructTag) (string, bool) {
 }
 
 func isEmptyValue(v reflect.Value) bool {
+	if v.CanInterface() {
+		switch {
+		case v.Type().ConvertibleTo(reflect.TypeFor[datatype.Address]()):
+			address := v.Convert(reflect.TypeFor[datatype.Address]()).Interface().(datatype.Address)
+			return address.Family == 0 && len(address.Value) == 0
+		case v.Type().ConvertibleTo(reflect.TypeFor[netip.Addr]()):
+			return !v.Convert(reflect.TypeFor[netip.Addr]()).Interface().(netip.Addr).IsValid()
+		}
+	}
 	switch v.Kind() {
 	case reflect.Array, reflect.Map, reflect.Slice, reflect.String:
 		return v.Len() == 0
@@ -47,7 +59,8 @@ func isEmptyValue(v reflect.Value) bool {
 	return false
 }
 
-// Marshal encodes struct into AVPs
+// Marshal encodes struct into AVPs. Address fields support datatype.Address,
+// net.IP, netip.Addr, and named types with the same underlying types.
 func (m *Message) Marshal(src interface{}) error {
 	v := reflect.ValueOf(src)
 	if v.Kind() != reflect.Pointer {
@@ -118,7 +131,7 @@ func marshal(m *Message, field reflect.Value, fieldAVP *dict.AVP) ([]*AVP, error
 	case reflect.Slice:
 		// 1. []byte
 		//  (1) dicttype.Grouped
-		//  (2) other basic type which can be a Slice. for example eg. datatype.AddressType = net.IP = []byte
+		//  (2) other basic types represented by byte slices, including net.IP
 		// if fieldType == reflect.TypeOf(([]byte)(nil))
 		if fieldType.Elem().Kind() == reflect.Uint8 {
 			goto BASIC_TYPE
@@ -151,7 +164,11 @@ func marshal(m *Message, field reflect.Value, fieldAVP *dict.AVP) ([]*AVP, error
 BASIC_TYPE:
 	switch fieldAVP.Data.Type {
 	case datatype.AddressType:
-		t = reflect.TypeOf((*datatype.Address)(nil)).Elem() // get Type of datatype.Address
+		address, err := marshalAddress(field)
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", fieldAVP.Name, err)
+		}
+		data = address
 	case datatype.DiameterIdentityType:
 		t = reflect.TypeOf((*datatype.DiameterIdentity)(nil)).Elem()
 	case datatype.DiameterURIType:
@@ -304,7 +321,10 @@ BASIC_TYPE:
 //
 // Slices have the same principles of other types. If they're of type
 // []*AVP it'll store references in the struct, while []AVP makes
-// copies and []int (or []string, etc) decodes the AVP data for you.
+// shallow copies and []int (or []string, etc) decodes the AVP data for you.
+// Raw AVP fields accept any Data, including undecoded datatype.Unknown values.
+// Pointer fields refer to the original AVPs for every data type; value fields
+// copy the AVP struct but share its Data storage.
 //
 // Grouped AVPs:
 //
@@ -325,7 +345,12 @@ BASIC_TYPE:
 //	var d CER
 //	err := m.Unmarshal(&d)
 //
-// Other types are supported as well, such as net.IP and time.Time where
+// Address AVPs require valid datatype.Address data. Address fields support
+// datatype.Address, net.IP, netip.Addr, and named types with the same underlying
+// types. Named byte slices are interpreted as IP addresses; unnamed []byte and
+// other unsupported field types return an error.
+//
+// Other types are supported as well, such as net.IP, netip.Addr and time.Time where
 // applicable. See the format sub-package for details. Usually, you want
 // to decode values to their native Go type when the AVPs don't have to be
 // re-used in an answer, such as Origin-Host and friends. The ones that are
@@ -392,15 +417,25 @@ func scanStruct(m *Message, field reflect.Value, avps []*AVP) error {
 			continue
 		}
 		//log.Println("Handling", f, bt)
-		if err := unmarshal(m, f, avps); err != nil {
+		if err := unmarshal(m, f, avps, d.Data.Type); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func unmarshal(m *Message, f reflect.Value, avps []*AVP) error {
+func unmarshal(m *Message, f reflect.Value, avps []*AVP, expected datatype.TypeID) error {
 	fieldType := f.Type()
+	if !f.CanSet() {
+		return fmt.Errorf("cannot set AVP field %s", fieldType)
+	}
+	if unmarshalRawAVP(f, avps) {
+		return nil
+	}
+	_, addressData := avps[0].Data.(datatype.Address)
+	if expected == datatype.AddressType || addressData || fieldType.ConvertibleTo(reflect.TypeFor[datatype.Address]()) {
+		return unmarshalAddress(f, avps)
+	}
 	switch f.Kind() {
 	case reflect.Slice:
 		// Copy byte arrays.
@@ -414,7 +449,7 @@ func unmarshal(m *Message, f reflect.Value, avps []*AVP) error {
 		f.Set(reflect.MakeSlice(fieldType, len(avps), len(avps)))
 		// TODO: optimize?
 		for n := 0; n < len(avps); n++ {
-			if err := unmarshal(m, f.Index(n), avps[n:]); err != nil {
+			if err := unmarshal(m, f.Index(n), avps[n:], expected); err != nil {
 				return err
 			}
 		}
@@ -423,22 +458,9 @@ func unmarshal(m *Message, f reflect.Value, avps []*AVP) error {
 		if f.IsNil() {
 			f.Set(reflect.New(fieldType.Elem()))
 		}
-		return unmarshal(m, f.Elem(), avps)
+		return unmarshal(m, f.Elem(), avps, expected)
 
 	case reflect.Struct:
-		// Test for *AVP
-		at := reflect.TypeOf(avps[0])
-		if fieldType.AssignableTo(at) {
-			f.Set(reflect.ValueOf(avps[0]))
-			break
-		}
-		// Test for AVP
-		at = reflect.TypeOf(*avps[0])
-		if fieldType.ConvertibleTo(at) {
-			f.Set(reflect.ValueOf(*avps[0]))
-			break
-		}
-
 		// Used for unmarshalling time datatype
 		if fieldType.AssignableTo(reflect.TypeOf(avps[0].Data)) {
 			f.Set(reflect.ValueOf(avps[0].Data))
@@ -463,6 +485,114 @@ func unmarshal(m *Message, f reflect.Value, avps []*AVP) error {
 		if dv.Type().ConvertibleTo(fieldType) {
 			f.Set(dv.Convert(fieldType))
 		}
+	}
+	return nil
+}
+
+// Raw AVP fields preserve undecoded data, including Failed-AVP evidence.
+func unmarshalRawAVP(f reflect.Value, avps []*AVP) bool {
+	switch f.Type() {
+	case reflect.TypeFor[AVP]():
+		f.Set(reflect.ValueOf(*avps[0]))
+	case reflect.TypeFor[*AVP]():
+		f.Set(reflect.ValueOf(avps[0]))
+	case reflect.TypeFor[[]AVP](), reflect.TypeFor[[]*AVP]():
+		values := reflect.MakeSlice(f.Type(), len(avps), len(avps))
+		for i := range avps {
+			unmarshalRawAVP(values.Index(i), avps[i:i+1])
+		}
+		f.Set(values)
+	default:
+		return false
+	}
+	return true
+}
+
+// Named byte slices (including net.IP) represent IP addresses. An unnamed
+// []byte is deliberately not an Address field: it would lose the family.
+func isAddressIPType(t reflect.Type) bool {
+	return t.Name() != "" && t.Kind() == reflect.Slice && t.ConvertibleTo(reflect.TypeFor[net.IP]())
+}
+
+func marshalAddress(field reflect.Value) (datatype.Address, error) {
+	t := field.Type()
+	if t.ConvertibleTo(reflect.TypeFor[datatype.Address]()) {
+		address := field.Convert(reflect.TypeFor[datatype.Address]()).Interface().(datatype.Address)
+		if err := address.Valid(); err != nil {
+			return datatype.Address{}, err
+		}
+		return address.Clone(), nil
+	}
+	var ip netip.Addr
+	switch {
+	case t.ConvertibleTo(reflect.TypeFor[netip.Addr]()):
+		ip = field.Convert(reflect.TypeFor[netip.Addr]()).Interface().(netip.Addr)
+	case isAddressIPType(t):
+		ip, _ = netip.AddrFromSlice(field.Convert(reflect.TypeFor[net.IP]()).Interface().(net.IP))
+	default:
+		return datatype.Address{}, fmt.Errorf("cannot marshal %s as Address", t)
+	}
+	if !ip.IsValid() {
+		return datatype.Address{}, errors.New("invalid IP address")
+	}
+	return datatype.AddressFromIP(ip), nil
+}
+
+func unmarshalAddress(f reflect.Value, avps []*AVP) error {
+	t := f.Type()
+	if !f.CanSet() {
+		return fmt.Errorf("cannot set Address field %s", t)
+	}
+	if unmarshalRawAVP(f, avps) {
+		return nil
+	}
+	seen := make(map[reflect.Type]bool)
+	for leaf := t; leaf.Kind() == reflect.Pointer || (leaf.Kind() == reflect.Slice && leaf.Elem().Kind() != reflect.Uint8); leaf = leaf.Elem() {
+		if seen[leaf] {
+			return fmt.Errorf("cannot unmarshal Address into recursive type %s", t)
+		}
+		seen[leaf] = true
+	}
+	if t.Kind() == reflect.Slice && t.Elem().Kind() != reflect.Uint8 {
+		values := reflect.MakeSlice(t, len(avps), len(avps))
+		for i := range avps {
+			if err := unmarshalAddress(values.Index(i), avps[i:i+1]); err != nil {
+				return err
+			}
+		}
+		f.Set(values)
+		return nil
+	}
+	address, ok := avps[0].Data.(datatype.Address)
+	if !ok {
+		return fmt.Errorf("cannot unmarshal %T as Address into %s", avps[0].Data, t)
+	}
+	if err := address.Valid(); err != nil {
+		return err
+	}
+	if t.Kind() == reflect.Pointer {
+		value := reflect.New(t.Elem())
+		if err := unmarshalAddress(value.Elem(), avps); err != nil {
+			return err
+		}
+		f.Set(value)
+		return nil
+	}
+	switch {
+	case t.ConvertibleTo(reflect.TypeFor[datatype.Address]()):
+		f.Set(reflect.ValueOf(address.Clone()).Convert(t))
+	case isAddressIPType(t), t.ConvertibleTo(reflect.TypeFor[netip.Addr]()):
+		ip, valid := address.IP()
+		if !valid {
+			return fmt.Errorf("cannot unmarshal Address family %d into %s", address.Family, t)
+		}
+		if isAddressIPType(t) {
+			f.Set(reflect.ValueOf(net.IP(ip.AsSlice())).Convert(t))
+		} else {
+			f.Set(reflect.ValueOf(ip).Convert(t))
+		}
+	default:
+		return fmt.Errorf("cannot unmarshal Address into %s", t)
 	}
 	return nil
 }

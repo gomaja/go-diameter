@@ -127,6 +127,10 @@ func TestDecodeAVPsRejectsMissingPadding(t *testing.T) {
 }
 
 func FuzzReadMessage(f *testing.F) {
+	for _, digits := range []string{"12", "12345678901234"} {
+		payload := rawAVP(avp.HostIPAddress, append([]byte{0, 8}, []byte(digits)...))
+		f.Add(append(testMessageHeader(1, uint32(HeaderLength+len(payload)), RequestFlag), payload...))
+	}
 	for _, payload := range payloadFailureSeeds() {
 		f.Add(append(testMessageHeader(1, uint32(HeaderLength+len(payload)), RequestFlag), payload...))
 		f.Add(append(testMessageHeader(1, uint32(HeaderLength+len(payload)), 0), payload...))

@@ -176,7 +176,7 @@ func TestReadMessagePayloadErrorText(t *testing.T) {
 	body = rawAVP(avp.VendorSpecificApplicationID, body)
 	m, err := ReadMessage(bytes.NewReader(testFramedMessage(t, RequestFlag, body)), dict.Default)
 	_ = requirePayloadMessageError(t, m, err, InvalidAVPLength)
-	want := "failed to decode one or more AVPs: {Vendor-Specific-Application-Id(260): Grouped{Inband-Security-Id(299): size mismatch: Unsigned32 expects 4 bytes, wire has 2; Host-IP-Address(257): invalid address type received}}"
+	want := "failed to decode one or more AVPs: {Vendor-Specific-Application-Id(260): Grouped{Inband-Security-Id(299): size mismatch: Unsigned32 expects 4 bytes, wire has 2; Host-IP-Address(257): invalid address family received}}"
 	if m.DecodeErr.Error() != want {
 		t.Fatalf("DecodeErr = %q, want %q", m.DecodeErr, want)
 	}

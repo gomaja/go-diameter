@@ -671,7 +671,12 @@ func (a *actor) sendCEA(s *session) {
 		a.fail(errors.New("peer: missing CER"))
 		return
 	}
-	if !s.send(base.BuildCEA(msg, a.m.baseSettings(s.c), diam.Success), false) {
+	answer, err := base.BuildCEA(msg, a.m.baseSettings(s.c), diam.Success)
+	if err != nil {
+		a.fail(err)
+		return
+	}
+	if !s.send(answer, false) {
 		a.fail(errors.New("peer: send CEA queue full"))
 	}
 }

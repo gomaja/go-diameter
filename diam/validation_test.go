@@ -1,6 +1,7 @@
 package diam
 
 import (
+	"net/netip"
 	"strings"
 	"testing"
 
@@ -130,7 +131,7 @@ func TestValidateVendorApplicationChoice(t *testing.T) {
 			for _, a := range []*AVP{
 				NewAVP(264, avp.Mbit, 0, datatype.DiameterIdentity("peer.example")),
 				NewAVP(296, avp.Mbit, 0, datatype.DiameterIdentity("example")),
-				NewAVP(257, avp.Mbit, 0, datatype.Address{127, 0, 0, 1}),
+				NewAVP(257, avp.Mbit, 0, datatype.AddressFromIP(netip.MustParseAddr("127.0.0.1"))),
 				NewAVP(266, avp.Mbit, 0, datatype.Unsigned32(1)),
 				NewAVP(269, 0, 0, datatype.UTF8String("product")),
 				NewAVP(260, avp.Mbit, 0, &GroupedAVP{AVP: tc.children}),

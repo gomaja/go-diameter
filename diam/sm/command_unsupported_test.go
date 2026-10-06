@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/netip"
 	"strings"
 	"testing"
 	"time"
@@ -41,7 +42,7 @@ func TestUnsupportedApplicationAnswerTCP(t *testing.T) {
 }
 
 func testUnsupportedCommandAnswerTCP(t *testing.T, command, appID, want uint32) {
-	sm := New(testMessageErrorSettings())
+	sm := mustNewStateMachine(t, testMessageErrorSettings())
 	srv := diamtest.NewServer(sm, dict.Default)
 	defer srv.Close()
 	conn, err := net.DialTimeout("tcp", srv.Addr, time.Second)
@@ -79,7 +80,7 @@ func testUnsupportedCommandAnswerTCP(t *testing.T, command, appID, want uint32) 
 }
 
 func TestUnsupportedCommandNeverAnswersAnswer(t *testing.T) {
-	sm := New(testMessageErrorSettings())
+	sm := mustNewStateMachine(t, testMessageErrorSettings())
 	srv := diamtest.NewServer(sm, dict.Default)
 	defer srv.Close()
 	conn, err := net.DialTimeout("tcp", srv.Addr, time.Second)
@@ -103,7 +104,7 @@ func TestUnsupportedCommandNeverAnswersAnswer(t *testing.T) {
 }
 
 func TestUnsupportedCommandHonorsAllHandler(t *testing.T) {
-	sm := New(testMessageErrorSettings())
+	sm := mustNewStateMachine(t, testMessageErrorSettings())
 	seen := make(chan struct{}, 1)
 	sm.HandleFunc("ALL", func(_ diam.Conn, _ *diam.Message) { seen <- struct{}{} })
 	srv := diamtest.NewServer(sm, dict.Default)
@@ -144,7 +145,7 @@ func TestUnsupportedCommandHonorsAllHandler(t *testing.T) {
 // request is answered with 3001 and reported, and an unhandled answer is
 // reported rather than dropped silently.
 func TestUnsupportedCommandStillReported(t *testing.T) {
-	sm := New(testMessageErrorSettings())
+	sm := mustNewStateMachine(t, testMessageErrorSettings())
 	srv := diamtest.NewServer(sm, dict.Default)
 	defer srv.Close()
 	conn, err := net.DialTimeout("tcp", srv.Addr, time.Second)
@@ -200,7 +201,7 @@ func completeUnsupportedTestCER(t *testing.T, conn net.Conn) {
 // TestSupportsApplication covers the base application, an advertised one, an
 // unknown one, and the relay application covering all (RFC 6733 §2.4).
 func TestSupportsApplication(t *testing.T) {
-	sm := New(testMessageErrorSettings())
+	sm := mustNewStateMachine(t, testMessageErrorSettings())
 	for appID, want := range map[uint32]bool{0: true, diam.CHARGING_CONTROL_APP_ID: true, 0x00abcdef: false} {
 		if got := sm.supportsApplication(appID); got != want {
 			t.Errorf("supportsApplication(%d) = %t, want %t", appID, got, want)
@@ -212,7 +213,7 @@ func TestSupportsApplication(t *testing.T) {
 	}
 	settings := testMessageErrorSettings()
 	settings.Dict = relay
-	if !New(settings).supportsApplication(0x00abcdef) {
+	if !mustNewStateMachine(t, settings).supportsApplication(0x00abcdef) {
 		t.Error("a relay must support every application")
 	}
 }
@@ -249,7 +250,7 @@ func TestValidateRequestsUsesAdvertisedApplications(t *testing.T) {
 			settings.Dict = tc.advertised(t)
 			settings.ValidateRequests = true
 			wire := tc.onWire(t)
-			srv := diamtest.NewServer(New(settings), wire)
+			srv := diamtest.NewServer(mustNewStateMachine(t, settings), wire)
 			defer srv.Close()
 			conn, err := net.DialTimeout("tcp", srv.Addr, time.Second)
 			if err != nil {
@@ -263,7 +264,7 @@ func TestValidateRequestsUsesAdvertisedApplications(t *testing.T) {
 			cer := diam.NewRequest(diam.CapabilitiesExchange, 0, wire)
 			mustSMClientAVP(t, cer, avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("peer.example"))
 			mustSMClientAVP(t, cer, avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("example"))
-			mustSMClientAVP(t, cer, avp.HostIPAddress, avp.Mbit, 0, datatype.Address(net.ParseIP("127.0.0.1")))
+			mustSMClientAVP(t, cer, avp.HostIPAddress, avp.Mbit, 0, datatype.AddressFromIP(netip.MustParseAddr("127.0.0.1")))
 			mustSMClientAVP(t, cer, avp.VendorID, avp.Mbit, 0, datatype.Unsigned32(13))
 			mustSMClientAVP(t, cer, avp.ProductName, 0, 0, datatype.UTF8String("peer"))
 			mustSMClientAVP(t, cer, avp.AcctApplicationID, avp.Mbit, 0, datatype.Unsigned32(3))
@@ -296,7 +297,7 @@ func TestValidateRequestsClosesCERForUnsupportedApplication(t *testing.T) {
 	settings := testMessageErrorSettings()
 	settings.Dict = baseOnly
 	settings.ValidateRequests = true
-	srv := diamtest.NewServer(New(settings), dict.Default)
+	srv := diamtest.NewServer(mustNewStateMachine(t, settings), dict.Default)
 	defer srv.Close()
 	conn, err := net.DialTimeout("tcp", srv.Addr, time.Second)
 	if err != nil {
@@ -309,7 +310,7 @@ func TestValidateRequestsClosesCERForUnsupportedApplication(t *testing.T) {
 	cer := diam.NewMessage(diam.CapabilitiesExchange, diam.RequestFlag, diam.CHARGING_CONTROL_APP_ID, 0x1234, 0x5678, dict.Default)
 	mustSMClientAVP(t, cer, avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("peer.example"))
 	mustSMClientAVP(t, cer, avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("example"))
-	mustSMClientAVP(t, cer, avp.HostIPAddress, avp.Mbit, 0, datatype.Address(net.ParseIP("127.0.0.1")))
+	mustSMClientAVP(t, cer, avp.HostIPAddress, avp.Mbit, 0, datatype.AddressFromIP(netip.MustParseAddr("127.0.0.1")))
 	mustSMClientAVP(t, cer, avp.VendorID, avp.Mbit, 0, datatype.Unsigned32(13))
 	mustSMClientAVP(t, cer, avp.ProductName, 0, 0, datatype.UTF8String("peer"))
 	mustSMClientAVP(t, cer, avp.AcctApplicationID, avp.Mbit, 0, datatype.Unsigned32(3))

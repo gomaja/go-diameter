@@ -22,7 +22,7 @@ func TestWatchdogIntervalValidation(t *testing.T) {
 		{6*time.Second - time.Nanosecond, 0, true},
 		{-time.Second, 0, true},
 	} {
-		cli := &Client{Handler: New(clientSettings), EnableWatchdog: true, WatchdogInterval: tc.interval}
+		cli := &Client{Handler: mustNewStateMachine(t, clientSettings), EnableWatchdog: true, WatchdogInterval: tc.interval}
 		err := cli.validate()
 		if tc.invalid {
 			if err == nil || !strings.Contains(err.Error(), "minimum") {
@@ -34,11 +34,11 @@ func TestWatchdogIntervalValidation(t *testing.T) {
 	}
 	// The minimum governs the watchdog only; a disabled watchdog never sends
 	// DWRs, so a short leftover interval must not fail validation.
-	disabled := &Client{Handler: New(clientSettings), WatchdogInterval: time.Second}
+	disabled := &Client{Handler: mustNewStateMachine(t, clientSettings), WatchdogInterval: time.Second}
 	if err := disabled.validate(); err != nil {
 		t.Fatalf("disabled watchdog with 1s interval rejected: %v", err)
 	}
-	cli := &Client{Handler: New(clientSettings), EnableWatchdog: true, WatchdogInterval: 50 * time.Millisecond,
+	cli := &Client{Handler: mustNewStateMachine(t, clientSettings), EnableWatchdog: true, WatchdogInterval: 50 * time.Millisecond,
 		watchdogTiming: &watchdogTiming{floor: time.Millisecond}}
 	if err := cli.validate(); err != nil {
 		t.Fatalf("private test timing override rejected: %v", err)
@@ -64,10 +64,10 @@ func TestWatchdogTrafficSuppressesDWRAndIdleSendsIt(t *testing.T) {
 	dwr := make(chan struct{}, 4)
 	settings := *serverSettings
 	settings.OnDWR = func(diam.Conn, *diam.Message) { dwr <- struct{}{} }
-	ssm := New(&settings)
+	ssm := mustNewStateMachine(t, &settings)
 	srv := diamtest.NewServer(ssm, dict.Default)
 	defer srv.Close()
-	cli := newLivenessClient()
+	cli := newLivenessClient(t)
 	cli.WatchdogInterval = 120 * time.Millisecond
 	c, err := cli.Dial(srv.Addr)
 	if err != nil {

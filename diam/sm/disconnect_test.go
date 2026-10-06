@@ -38,7 +38,7 @@ func (c *blockingDisconnectConn) SetContext(context.Context) {}
 func (c *blockingDisconnectConn) Connection() net.Conn       { return nil }
 
 func TestDisconnectTimeoutBoundsBlockedWrite(t *testing.T) {
-	sm := New(serverSettings)
+	sm := mustNewStateMachine(t, serverSettings)
 	c := &blockingDisconnectConn{closed: make(chan struct{})}
 	result := make(chan error, 1)
 	go func() { result <- sm.Disconnect(c, DisconnectBusy, 40*time.Millisecond) }()
@@ -68,7 +68,7 @@ func writeTestDPA(t *testing.T, m *diam.Message, c diam.Conn) {
 }
 
 func TestDisconnectReceivesDPAAndCloses(t *testing.T) {
-	sm := New(serverSettings)
+	sm := mustNewStateMachine(t, serverSettings)
 	srv := diamtest.NewServer(sm, dict.Default)
 	defer srv.Close()
 	received := make(chan *diam.Message, 1)
@@ -109,7 +109,7 @@ func TestDisconnectReceivesDPAAndCloses(t *testing.T) {
 }
 
 func TestDisconnectTimesOutAndCloses(t *testing.T) {
-	sm := New(serverSettings)
+	sm := mustNewStateMachine(t, serverSettings)
 	srv := diamtest.NewServer(sm, dict.Default)
 	defer srv.Close()
 	received := make(chan struct{}, 1)
@@ -142,7 +142,7 @@ func TestDisconnectTimesOutAndCloses(t *testing.T) {
 }
 
 func TestDisconnectClosedConnectionReturnsError(t *testing.T) {
-	sm := New(serverSettings)
+	sm := mustNewStateMachine(t, serverSettings)
 	srv := diamtest.NewServer(sm, dict.Default)
 	defer srv.Close()
 	client := dialHandshakeForDPR(t, "", nil, srv.Addr)
@@ -159,7 +159,7 @@ func TestDisconnectClosedConnectionReturnsError(t *testing.T) {
 }
 
 func TestDisconnectIgnoresWrongHopID(t *testing.T) {
-	sm := New(serverSettings)
+	sm := mustNewStateMachine(t, serverSettings)
 	srv := diamtest.NewServer(sm, dict.Default)
 	defer srv.Close()
 	received := make(chan struct{}, 1)
@@ -195,7 +195,7 @@ func TestDisconnectIgnoresWrongHopID(t *testing.T) {
 }
 
 func TestDisconnectRejectsMalformedDPA(t *testing.T) {
-	sm := New(serverSettings)
+	sm := mustNewStateMachine(t, serverSettings)
 	srv := diamtest.NewServer(sm, dict.Default)
 	defer srv.Close()
 	received := make(chan struct{}, 1)
@@ -229,7 +229,7 @@ func TestDisconnectRejectsMalformedDPA(t *testing.T) {
 }
 
 func TestDisconnectIgnoresDPAOnAnotherConnection(t *testing.T) {
-	sm := New(serverSettings)
+	sm := mustNewStateMachine(t, serverSettings)
 	srv := diamtest.NewServer(sm, dict.Default)
 	defer srv.Close()
 	received := make(chan struct{}, 1)

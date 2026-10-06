@@ -99,6 +99,7 @@ func failedAVPFromWire(data []byte, application uint32, dictionary *dict.Snapsho
 func minimumAVPPayloadLength(typeID datatype.TypeID) int {
 	switch typeID {
 	case datatype.AddressType:
+		// RFC 6733 §4.3.1: only the family prefix has a fixed minimum.
 		return 2
 	case datatype.EnumeratedType,
 		datatype.Float32Type,

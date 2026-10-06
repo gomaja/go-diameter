@@ -25,7 +25,7 @@ func TestCEAOriginStateIDBelongsToServer(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			settings := *serverSettings
 			settings.OriginStateID = tc.state
-			sm := New(&settings)
+			sm := mustNewStateMachine(t, &settings)
 			srv := diamtest.NewServer(sm, dict.Default)
 			defer srv.Close()
 			answers := make(chan *diam.Message, 1)

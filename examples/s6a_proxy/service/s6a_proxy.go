@@ -4,7 +4,7 @@ package service
 
 import (
 	"context"
-	"net"
+	"net/netip"
 	"sync"
 	"time"
 
@@ -45,7 +45,7 @@ func NewS6aProxy(cfg *S6aProxyConfig) (*s6aProxy, error) {
 	}
 	cfg = cfg.CloneWithDefaults()
 
-	mux := sm.New(&sm.Settings{
+	mux, err := sm.New(&sm.Settings{
 		OriginHost:       datatype.DiameterIdentity(cfg.Host),
 		OriginRealm:      datatype.DiameterIdentity(cfg.Realm),
 		VendorID:         datatype.Unsigned32(VENDOR_3GPP),
@@ -53,10 +53,13 @@ func NewS6aProxy(cfg *S6aProxyConfig) (*s6aProxy, error) {
 		OriginStateID:    datatype.Unsigned32(time.Now().Unix()),
 		FirmwareRevision: 1,
 		HostIPAddresses: []datatype.Address{
-			datatype.Address(net.ParseIP("127.0.0.1")),
+			datatype.AddressFromIP(netip.MustParseAddr("127.0.0.1")),
 		},
 	})
 
+	if err != nil {
+		return nil, err
+	}
 	mux.HandleFunc("ALL", func(diam.Conn, *diam.Message) {}) // Catch all.
 
 	proxy := &s6aProxy{

@@ -31,7 +31,10 @@ func StartTestS6aServer(network, addr string) error {
 	}
 	// Create the state machine (mux) and set its message handlers.
 	results := make(chan error, 2)
-	mux := sm.New(settings)
+	mux, err := sm.New(settings)
+	if err != nil {
+		return err
+	}
 
 	mux.HandleIdx(
 		diam.CommandIndex{AppID: diam.TGPP_S6A_APP_ID, Code: diam.AuthenticationInformation, Request: true},
@@ -56,7 +59,7 @@ func StartTestS6aServer(network, addr string) error {
 			results <- err
 		}
 	}()
-	err := <-results
+	err = <-results
 	if err != nil {
 		return err
 	}

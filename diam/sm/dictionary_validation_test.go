@@ -36,7 +36,7 @@ func TestDictionaryValidationTCP(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			settings := testMessageErrorSettings()
 			settings.ValidateRequests = tc.enabled
-			sm := New(settings)
+			sm := mustNewStateMachine(t, settings)
 			seen := make(chan struct{}, 1)
 			sm.HandleFunc("RAR", func(_ diam.Conn, _ *diam.Message) { seen <- struct{}{} })
 			srv := diamtest.NewServer(sm, dict.Default)
@@ -96,7 +96,7 @@ func TestDictionaryValidationTCP(t *testing.T) {
 func TestDictionaryValidationNeverAnswersAnswer(t *testing.T) {
 	settings := testMessageErrorSettings()
 	settings.ValidateRequests = true
-	sm := New(settings)
+	sm := mustNewStateMachine(t, settings)
 	srv := diamtest.NewServer(sm, dict.Default)
 	defer srv.Close()
 	conn := dialHandshakeUnknownTest(t, srv.Addr)
@@ -119,7 +119,7 @@ func TestDictionaryValidationKeepsUnknownMandatoryResult(t *testing.T) {
 	settings := testMessageErrorSettings()
 	settings.ValidateRequests = true
 	settings.RejectUnknownMandatoryAVPs = true
-	sm := New(settings)
+	sm := mustNewStateMachine(t, settings)
 	srv := diamtest.NewServer(sm, dict.Default)
 	defer srv.Close()
 	conn := dialHandshakeUnknownTest(t, srv.Addr)
@@ -146,7 +146,7 @@ func TestDictionaryValidationKeepsUnknownMandatoryResult(t *testing.T) {
 func TestDictionaryValidationCreditControlAnswerTCP(t *testing.T) {
 	settings := testMessageErrorSettings()
 	settings.ValidateRequests = true
-	sm := New(settings)
+	sm := mustNewStateMachine(t, settings)
 	seen := make(chan struct{}, 1)
 	sm.HandleFunc("CCR", func(_ diam.Conn, _ *diam.Message) { seen <- struct{}{} })
 	srv := diamtest.NewServer(sm, dict.Default)

@@ -23,13 +23,13 @@ func TestClientWatchdogRoutesAnswersPerConnection(t *testing.T) {
 		}
 	}()
 
-	cli := newLivenessClient()
+	cli := newLivenessClient(t)
 	cli.WatchdogInterval = 30 * time.Millisecond
 	for i := 0; i < peers; i++ {
 		dwr := make(chan struct{}, 16)
 		settings := *serverSettings
 		settings.OnDWR = func(diam.Conn, *diam.Message) { dwr <- struct{}{} }
-		srv := diamtest.NewServer(New(&settings), dict.Default)
+		srv := diamtest.NewServer(mustNewStateMachine(t, &settings), dict.Default)
 		servers = append(servers, srv)
 		requests = append(requests, dwr)
 		c, err := cli.Dial(srv.Addr)
@@ -60,14 +60,14 @@ func TestClientWatchdogRoutesAnswersPerConnection(t *testing.T) {
 }
 
 func TestClientWatchdogDoesNotCreditAnotherPeersAnswer(t *testing.T) {
-	healthy := diamtest.NewServer(New(serverSettings), dict.Default)
+	healthy := diamtest.NewServer(mustNewStateMachine(t, serverSettings), dict.Default)
 	defer healthy.Close()
-	silentSM := New(serverSettings)
+	silentSM := mustNewStateMachine(t, serverSettings)
 	silentSM.mux.HandleIdx(baseDWRIdx, handshakeOK(func(diam.Conn, *diam.Message) {}))
 	silent := diamtest.NewServer(silentSM, dict.Default)
 	defer silent.Close()
 
-	cli := newLivenessClient()
+	cli := newLivenessClient(t)
 	cli.WatchdogInterval = 30 * time.Millisecond
 	healthyConn, err := cli.Dial(healthy.Addr)
 	if err != nil {
@@ -93,9 +93,9 @@ func TestClientWatchdogDoesNotCreditAnotherPeersAnswer(t *testing.T) {
 }
 
 func TestClientWatchdogConnectionEventAttribution(t *testing.T) {
-	healthy := diamtest.NewServer(New(serverSettings), dict.Default)
+	healthy := diamtest.NewServer(mustNewStateMachine(t, serverSettings), dict.Default)
 	defer healthy.Close()
-	silentSM := New(serverSettings)
+	silentSM := mustNewStateMachine(t, serverSettings)
 	silentSM.mux.HandleIdx(baseDWRIdx, handshakeOK(func(diam.Conn, *diam.Message) {}))
 	silent := diamtest.NewServer(silentSM, dict.Default)
 	defer silent.Close()
@@ -106,7 +106,7 @@ func TestClientWatchdogConnectionEventAttribution(t *testing.T) {
 	}
 	connEvents := make(chan connEvent, 32)
 	legacyEvents := make(chan WatchdogEvent, 32)
-	cli := newLivenessClient()
+	cli := newLivenessClient(t)
 	cli.WatchdogInterval = 30 * time.Millisecond
 	cli.OnWatchdogEvent = func(event WatchdogEvent) { legacyEvents <- event }
 	cli.OnWatchdogConnEvent = func(c diam.Conn, event WatchdogEvent) {

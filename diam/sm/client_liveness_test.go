@@ -24,10 +24,10 @@ import (
 
 // newLivenessClient returns a watchdog-enabled client for the acct
 // application the shared test dictionary declares.
-func newLivenessClient() *Client {
+func newLivenessClient(t *testing.T) *Client {
 	return &Client{
 		Dict:               dict.Default,
-		Handler:            New(clientSettings),
+		Handler:            mustNewStateMachine(t, clientSettings),
 		MaxRetransmits:     0,
 		RetransmitInterval: 50 * time.Millisecond,
 		EnableWatchdog:     true,
@@ -46,7 +46,7 @@ func newLivenessClient() *Client {
 // reported as an error, so the wake-up has to come from CloseNotify.
 func TestCleanEOFWakesSupervisor(t *testing.T) {
 	handshake := make(chan diam.Conn, 8)
-	ssm := New(serverSettings)
+	ssm := mustNewStateMachine(t, serverSettings)
 	ssm.mux.HandleFunc("ALL", func(diam.Conn, *diam.Message) {})
 	go func() {
 		for c := range ssm.HandshakeNotify() {
@@ -57,7 +57,7 @@ func TestCleanEOFWakesSupervisor(t *testing.T) {
 	srv := diamtest.NewServer(ssm, dict.Default)
 	defer srv.Close()
 
-	cli := newLivenessClient()
+	cli := newLivenessClient(t)
 	conn, err := cli.Dial(srv.Addr)
 	if err != nil {
 		t.Fatal(err)
@@ -94,7 +94,7 @@ func TestCleanEOFWakesSupervisor(t *testing.T) {
 // when it is scheduled late.
 func TestCloseNotifyAfterPeerGone(t *testing.T) {
 	handshake := make(chan diam.Conn, 8)
-	ssm := New(serverSettings)
+	ssm := mustNewStateMachine(t, serverSettings)
 	ssm.mux.HandleFunc("ALL", func(diam.Conn, *diam.Message) {})
 	go func() {
 		for c := range ssm.HandshakeNotify() {
@@ -106,7 +106,7 @@ func TestCloseNotifyAfterPeerGone(t *testing.T) {
 	defer srv.Close()
 
 	// Watchdog disabled so nothing registers CloseNotify before we do.
-	cli := newLivenessClient()
+	cli := newLivenessClient(t)
 	cli.EnableWatchdog = false
 
 	conn, err := cli.Dial(srv.Addr)
@@ -189,7 +189,7 @@ func (c *errWriteConn) Connection() net.Conn         { return nil }
 // disconnects and reports, instead of returning silently and leaving the
 // outer watchdog loop to retry the failed send on every interval forever.
 func TestWatchdogReportsWriteError(t *testing.T) {
-	cli := newLivenessClient()
+	cli := newLivenessClient(t)
 	events := make(chan WatchdogEvent, 2)
 	cli.OnWatchdogEvent = func(event WatchdogEvent) { events <- event }
 	c := newErrWriteConn()
@@ -244,7 +244,7 @@ func TestWatchdogReportsWriteError(t *testing.T) {
 // on a write error rather than spinning failed sends indefinitely. Without a
 // disconnect, watchdog re-arms its interval timer and tries again forever.
 func TestWatchdogWriteErrorStopsRetrying(t *testing.T) {
-	cli := newLivenessClient()
+	cli := newLivenessClient(t)
 	c := newErrWriteConn()
 
 	done := make(chan struct{})
@@ -269,12 +269,12 @@ func TestWatchdogWriteErrorStopsRetrying(t *testing.T) {
 // WriteTimeout reach the connection, so a client can bound its I/O the way a
 // raw diam.Server dialer already can.
 func TestClientTimeoutsArePlumbed(t *testing.T) {
-	ssm := New(serverSettings)
+	ssm := mustNewStateMachine(t, serverSettings)
 	ssm.mux.HandleFunc("ALL", func(diam.Conn, *diam.Message) {})
 	srv := diamtest.NewServer(ssm, dict.Default)
 	defer srv.Close()
 
-	cli := newLivenessClient()
+	cli := newLivenessClient(t)
 	cli.EnableWatchdog = false
 	// A short read deadline on an otherwise idle connection is directly
 	// observable: once it reaches the socket the read loop times out and
@@ -303,12 +303,12 @@ func TestClientTimeoutsArePlumbed(t *testing.T) {
 // with no timeouts configured an idle connection must stay open, so the
 // timeout test above cannot pass for some unrelated reason.
 func TestClientWithoutTimeoutsIsUnbounded(t *testing.T) {
-	ssm := New(serverSettings)
+	ssm := mustNewStateMachine(t, serverSettings)
 	ssm.mux.HandleFunc("ALL", func(diam.Conn, *diam.Message) {})
 	srv := diamtest.NewServer(ssm, dict.Default)
 	defer srv.Close()
 
-	cli := newLivenessClient()
+	cli := newLivenessClient(t)
 	cli.EnableWatchdog = false
 
 	conn, err := cli.Dial(srv.Addr)

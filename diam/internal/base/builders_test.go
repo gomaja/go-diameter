@@ -1,7 +1,8 @@
 package base_test
 
 import (
-	"net"
+	"bytes"
+	"net/netip"
 	"testing"
 
 	"github.com/gomaja/go-diameter/diam"
@@ -15,7 +16,7 @@ func fixtureSettings() base.Settings {
 	return base.Settings{
 		OriginHost: "local.example.net", OriginRealm: "example.net",
 		VendorID: 42, ProductName: "base-test", OriginStateID: 123456,
-		HostIPAddresses:   []datatype.Address{datatype.Address(net.ParseIP("127.0.0.1"))},
+		HostIPAddresses:   []datatype.Address{datatype.AddressFromIP(netip.MustParseAddr("127.0.0.1"))},
 		AcctApplicationID: []*diam.AVP{diam.NewAVP(avp.AcctApplicationID, avp.Mbit, 0, datatype.Unsigned32(0xffffffff))},
 		Applications:      []base.LocalApplication{{ID: 0xffffffff, AppType: "acct"}},
 	}
@@ -59,7 +60,7 @@ func TestBuildBaseAnswersPreservesRequestIDs(t *testing.T) {
 		var err error
 		switch command {
 		case diam.CapabilitiesExchange:
-			answer = base.BuildCEA(request, cfg, diam.Success)
+			answer, err = base.BuildCEA(request, cfg, diam.Success)
 		case diam.DeviceWatchdog:
 			answer, err = base.BuildDWA(request, cfg)
 		case diam.DisconnectPeer:
@@ -102,7 +103,7 @@ func TestBuildErrorCEAResolvesAddressesAtBuildTime(t *testing.T) {
 	called := false
 	cfg.ResolveHostIPAddresses = func() ([]datatype.Address, error) {
 		called = true
-		return []datatype.Address{datatype.Address(net.ParseIP("127.0.0.3"))}, nil
+		return []datatype.Address{datatype.AddressFromIP(netip.MustParseAddr("127.0.0.3"))}, nil
 	}
 	request := diam.NewMessage(diam.CapabilitiesExchange, diam.RequestFlag, 0, 5, 6, dict.Default)
 	answer, err := base.BuildErrorAnswer(request, cfg, diam.AVPUnsupported, nil, false)
@@ -129,5 +130,45 @@ func TestBuildErrorAnswerDoesNotReuseUndecodedSessionID(t *testing.T) {
 	}
 	if len(answer.AVP) == 0 || answer.AVP[0].Code != avp.SessionID || answer.AVP[0].Data != datatype.UTF8String("") {
 		t.Fatalf("answer reused undecoded Session-Id: %v", answer)
+	}
+}
+
+func TestCapabilityBuildersRejectInvalidAddresses(t *testing.T) {
+	for _, addr := range []datatype.Address{{}, {Family: datatype.AddressFamilyIPv4, Value: make([]byte, 16)}, {Value: []byte{192, 0, 2, 1}}} {
+		cfg := fixtureSettings()
+		cfg.HostIPAddresses = append(cfg.HostIPAddresses, addr)
+		if m, err := base.BuildCER(dict.Default, cfg); err == nil || m != nil {
+			t.Errorf("BuildCER accepted invalid Address %v", addr)
+		}
+		request := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
+		for _, code := range []uint32{diam.Success, diam.NoCommonApplication} {
+			if m, err := base.BuildCEA(request, cfg, code); err == nil || m != nil {
+				t.Errorf("BuildCEA(%d) accepted invalid Address %v", code, addr)
+			}
+		}
+	}
+}
+
+func TestCapabilityBuildersPreserveMappedFamily(t *testing.T) {
+	cfg := fixtureSettings()
+	address := datatype.Address{Family: datatype.AddressFamilyIPv6, Value: netip.MustParseAddr("::ffff:192.0.2.1").AsSlice()}
+	cfg.HostIPAddresses = []datatype.Address{address}
+	request, err := base.BuildCER(dict.Default, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	answer, err := base.BuildCEA(request, cfg, diam.Success)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, m := range []*diam.Message{request, answer} {
+		a, err := m.FindAVP(avp.HostIPAddress, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got, ok := a.Data.(datatype.Address)
+		if !ok || got.Family != address.Family || !bytes.Equal(got.Value, address.Value) {
+			t.Fatalf("builder changed mapped wire family: %v", a.Data)
+		}
 	}
 }
