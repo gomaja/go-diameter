@@ -1,19 +1,26 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!--
+  A private application. Every Diameter application has an IANA-assigned
+  Application-Id (RFC 6733 §2.4), and a vendor-specific one comes from the
+  First Come First Served range 16777216-4294967294 of the IANA Application
+  IDs registry: 16777999 stands in for yours. Vendor 32473 is the Enterprise
+  Number reserved for documentation (RFC 5612). The first vendor names the
+  application's author, and the AVPs use that vendor's own code space (RFC
+  6733 §§6.11, 11.1.1).
+-->
 <diameter>
-  <vendor id="1234" name="Test1"/>
-  <vendor id="5678" name="Test2"/>
+  <application id="16777999" type="auth" name="Example">
+    <vendor id="32473" name="Example"/>
 
-  <application id="999"> <!-- My custom application -->
-
-    <avp name="My-Custom-AVP1" code="99901">
+    <avp name="My-Custom-AVP1" code="99901" must="V" vendor-id="32473">
       <data type="OctetString"/>
     </avp>
 
-    <avp name="My-Custom-AVP2" code="99902">
+    <avp name="My-Custom-AVP2" code="99902" must="V" vendor-id="32473">
       <data type="Unsigned32"/>
     </avp>
 
-    <avp name="My-Custom-Group" code="99903">
+    <avp name="My-Custom-Group" code="99903" must="V" vendor-id="32473">
       <data type="Grouped">
         <rule avp="My-Custom-AVP1" required="true" min="2"/>
         <rule avp="My-Custom-AVP2" required="false" max="5"/>

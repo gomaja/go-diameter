@@ -150,8 +150,20 @@ func parseFileNamed(filename string) (*File, error) {
 // lets readers use the File without synchronization afterwards.
 func parseFile(r io.Reader) (*File, error) {
 	f := new(File)
-	if err := xml.NewDecoder(r).Decode(f); err != nil {
+	d := xml.NewTokenDecoder(&strictDictionaryXML{source: xml.NewDecoder(r)})
+	if err := d.Decode(f); err != nil {
 		return nil, err
+	}
+	// Decode stops at the closing root. Read the rest so a second document,
+	// malformed trailing XML, or an I/O error cannot be ignored by Load.
+	for {
+		_, err := d.Token()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
 	}
 	for _, app := range f.App {
 		for _, avp := range app.AVP {

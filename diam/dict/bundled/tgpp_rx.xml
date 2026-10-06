@@ -584,7 +584,7 @@
 		<avp name="MA-Information" code="570" vendor-id="10415" must="V" may-encrypt="Y">
 			<data type="Grouped">
 				<rule avp="IP-CAN-Type" required="false" max="1"/>
-				<rule avp="RAT-Type" required="false" mmax="1"/>
+				<rule avp="RAT-Type" required="false" max="1"/>
 				<rule avp="MA-Information-Action" required="false" max="1"/>
 				<rule avp="AVP" required="false"/>
 			</data>
@@ -929,11 +929,13 @@
             		</data>
         	</avp>
 		
+		<!-- TS 29.229 V19.1.0 §6.3.29. -->
 		<avp name="Supported-Features" code="628" vendor-id="10415" must="V" may="M" may-encrypt="N">
 			<data type="Grouped">
 				<rule avp="Vendor-Id" required="true" max="1"/>
 				<rule avp="Feature-List-ID" required="true" max="1"/>
 				<rule avp="Feature-List" required="true" max="1"/>
+				<rule avp="AVP" required="false"/>
 			</data>
 		</avp>
 		
@@ -941,7 +943,7 @@
             		<data type="Unsigned32"/>
         	</avp>
 	
-		<avp name="Feature-List-ID" code="629" must="V" must_not="M" may-encrypt="N" vendor-id="10415">
+		<avp name="Feature-List-ID" code="629" must="V" must-not="M" may-encrypt="N" vendor-id="10415">
 			<data type="Unsigned32"/>
 		</avp>
 		<avp name="Feature-List" code="630" must="V" must-not="M" may-encrypt="N" vendor-id="10415">

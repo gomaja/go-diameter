@@ -439,18 +439,21 @@
 			<data type="Unsigned32"/>
 		</avp>
 
-		<avp name="CSG-Access-Mode" code="2317" must="V,M" may="P" must-not="-" may-encrypt="N" vendor-id="10415">
+		<!-- TS 32.299 V19.0.0 §7.2.46A; transitive via User-CSG-Information reused in TS 29.272 V19.6.0 Table 7.3.1/2. -->
+		<avp name="CSG-Access-Mode" code="2317" vendor-id="10415" must="M,V">
 			<data type="Enumerated">
 				<item code="0" name="Closed mode"/>
 				<item code="1" name="Hybrid Mode"/>
 			</data>
 		</avp>
 
-		<avp name="CSG-Id" code="1437" must="V,M" may="P" must-not="-" may-encrypt="N" vendor-id="10415">
+		<!-- TS 29.272 V19.6.0 §7.3.79. -->
+		<avp name="CSG-Id" code="1437" vendor-id="10415" must="M,V" may-encrypt="N">
 			<data type="Unsigned32"/>
 		</avp>
 
-		<avp name="CSG-Membership-Indication" code="2318" must="V,M" may="P" must-not="-" may-encrypt="N" vendor-id="10415">
+		<!-- TS 32.299 V19.0.0 §7.2.46B; transitive via User-CSG-Information reused in TS 29.272 V19.6.0 Table 7.3.1/2. -->
+		<avp name="CSG-Membership-Indication" code="2318" vendor-id="10415" must="M,V">
 			<data type="Enumerated">
 				<item code="0" name="Not CSG member"/>
 				<item code="1" name="CSG Member"/>
@@ -1339,7 +1342,8 @@
 			<data type="Unsigned32"/>
 		</avp>
 
-		<avp name="PDP-Address" code="1227" must="V,M" may="P" must-not="-" may-encrypt="Y" vendor-id="10415">
+		<!-- TS 32.299 V19.0.0 §7.2.137; TS 29.272 V19.6.0 Table 7.3.1/2. -->
+		<avp name="PDP-Address" code="1227" vendor-id="10415" must="M,V">
 			<data type="Address"/>
 		</avp>
 
@@ -1612,7 +1616,8 @@
 			</data>
 		</avp>
 
-		<avp name="QoS-Class-Identifier" code="1028" must="V,M"	may="P" must-not="-" may-encrypt="Y" vendor-id="10415">
+		<!-- TS 29.212 V20.0.0 §5.3.17; TS 29.272 V19.6.0 Table 7.3.1/2. -->
+		<avp name="QoS-Class-Identifier" code="1028" vendor-id="10415" must="M,V" may="P" may-encrypt="Y">
 			<data type="Enumerated">
 				<item code="1" name="QCI_1"/>
 				<item code="2" name="QCI_2"/>
@@ -1625,10 +1630,21 @@
 				<item code="9" name="QCI_9"/>
 				<item code="65" name="QCI_65"/>
 				<item code="66" name="QCI_66"/>
+				<item code="67" name="QCI_67"/>
 				<item code="69" name="QCI_69"/>
 				<item code="70" name="QCI_70"/>
+				<item code="71" name="QCI_71"/>
+				<item code="72" name="QCI_72"/>
+				<item code="73" name="QCI_73"/>
+				<item code="74" name="QCI_74"/>
 				<item code="75" name="QCI_75"/>
+				<item code="76" name="QCI_76"/>
 				<item code="79" name="QCI_79"/>
+				<item code="80" name="QCI_80"/>
+				<item code="82" name="QCI_82"/>
+				<item code="83" name="QCI_83"/>
+				<item code="84" name="QCI_84"/>
+				<item code="85" name="QCI_85"/>
 			</data>
 		</avp>
 
@@ -2244,7 +2260,8 @@
 			<data type="OctetString"/>
 		</avp>
 
-		<avp name="Terminal-Information" code="1401" must="V,M"	may="-" must-not="-" may-encrypt="N" vendor-id="10415">
+		<!-- TS 29.272 V19.6.0 §7.3.3. -->
+		<avp name="Terminal-Information" code="1401" vendor-id="10415" must="M,V" may-encrypt="N">
 			<data type="Grouped">
 				<rule avp="IMEI" required="false" max="1"/>
 				<rule avp="3GPP2-MEID" required="false" max="1"/>
@@ -2491,123 +2508,125 @@
 			<data type="Address"/>
 		</avp>
 
-    <avp name="Supported-Features" code="628" vendor-id="10415" must="V" may="M" may-encrypt="N">
-      <data type="Grouped">
-        <rule avp="Vendor-Id" required="true" max="1"/>
-        <rule avp="Feature-List-ID" required="true" max="1"/>
-        <rule avp="Feature-List" required="true" max="1"/>
-      </data>
-    </avp>
+		<!-- TS 29.229 V19.1.0 §6.3.29. -->
+		<avp name="Supported-Features" code="628" vendor-id="10415" must="V" may="M" may-encrypt="N">
+			<data type="Grouped">
+				<rule avp="Vendor-Id" required="true" max="1"/>
+				<rule avp="Feature-List-ID" required="true" max="1"/>
+				<rule avp="Feature-List" required="true" max="1"/>
+				<rule avp="AVP" required="false"/>
+			</data>
+		</avp>
 
-    <avp name="Feature-List-ID" code="629" must="V" must_not="M" may-encrypt="N" vendor-id="10415">
-      <data type="Unsigned32"/>
-    </avp>
+		<avp name="Feature-List-ID" code="629" must="V" must-not="M" may-encrypt="N" vendor-id="10415">
+			<data type="Unsigned32"/>
+		</avp>
 
-    <avp name="Feature-List" code="630" must="V" must-not="M" may-encrypt="N" vendor-id="10415">
-      <data type="Unsigned32"/>
-    </avp>
+		<avp name="Feature-List" code="630" must="V" must-not="M" may-encrypt="N" vendor-id="10415">
+			<data type="Unsigned32"/>
+		</avp>
 
-    <avp name="APN-Aggregate-Max-Bitrate-DL" code="1040" must="V" must-not="M" may-encrypt="Y" vendor-id="10415">
-      <data type="Unsigned32"/>
-    </avp>
+		<avp name="APN-Aggregate-Max-Bitrate-DL" code="1040" must="V" must-not="M" may-encrypt="Y" vendor-id="10415">
+			<data type="Unsigned32"/>
+		</avp>
 
-    <avp name="APN-Aggregate-Max-Bitrate-UL" code="1041" must="V" must-not="M" may-encrypt="Y" vendor-id="10415">
-      <data type="Unsigned32"/>
-    </avp>
+		<avp name="APN-Aggregate-Max-Bitrate-UL" code="1041" must="V" must-not="M" may-encrypt="Y" vendor-id="10415">
+			<data type="Unsigned32"/>
+		</avp>
 
-    <avp name="Extended-APN-AMBR-DL" code="2848" must="V" must-not="M" may= "P" may-encrypt="Y" vendor-id="10415">
-      <data type="Unsigned32"/>
-    </avp>
+		<avp name="Extended-APN-AMBR-DL" code="2848" must="V" must-not="M" may= "P" may-encrypt="Y" vendor-id="10415">
+			<data type="Unsigned32"/>
+		</avp>
 
-    <avp name="Extended-APN-AMBR-UL" code="2849" must="V" must-not="M" may="P" may-encrypt="Y" vendor-id="10415">
-      <data type="Unsigned32"/>
-    </avp>
+		<avp name="Extended-APN-AMBR-UL" code="2849" must="V" must-not="M" may="P" may-encrypt="Y" vendor-id="10415">
+			<data type="Unsigned32"/>
+		</avp>
 
-        <!-- 3GPP TS 29.212 V20.0.0 §5.3.105. -->
-        <avp name="Conditional-APN-Aggregate-Max-Bitrate" code="2818" vendor-id="10415" must="V" must-not="M" may-encrypt="Y">
-            <data type="Grouped">
-                <rule avp="APN-Aggregate-Max-Bitrate-UL" required="false" max="1"/>
-                <rule avp="APN-Aggregate-Max-Bitrate-DL" required="false" max="1"/>
-                <rule avp="Extended-APN-AMBR-UL" required="false" max="1"/>
-                <rule avp="Extended-APN-AMBR-DL" required="false" max="1"/>
-                <rule avp="IP-CAN-Type" required="false"/>
-                <rule avp="RAT-Type" required="false"/>
-                <rule avp="AVP"/>
-            </data>
-        </avp>
+		<!-- 3GPP TS 29.212 V20.0.0 §5.3.105. -->
+		<avp name="Conditional-APN-Aggregate-Max-Bitrate" code="2818" vendor-id="10415" must="V" must-not="M" may-encrypt="Y">
+			<data type="Grouped">
+				<rule avp="APN-Aggregate-Max-Bitrate-UL" required="false" max="1"/>
+				<rule avp="APN-Aggregate-Max-Bitrate-DL" required="false" max="1"/>
+				<rule avp="Extended-APN-AMBR-UL" required="false" max="1"/>
+				<rule avp="Extended-APN-AMBR-DL" required="false" max="1"/>
+				<rule avp="IP-CAN-Type" required="false"/>
+				<rule avp="RAT-Type" required="false"/>
+				<rule avp="AVP"/>
+			</data>
+		</avp>
 
-        <!-- OMA-DDS-Charging_Data V1.0 20110201-A §8.5.5; 3GPP TS 32.299 V19.0.0 §7.2.50. -->
-        <avp name="DCD-Information" code="2115" vendor-id="10415" must="V,M" may="P" may-encrypt="N">
-            <data type="Grouped">
-                <rule avp="Content-Id" required="false" max="1"/>
-                <rule avp="Content-Provider-Id" required="false" max="1"/>
-            </data>
-        </avp>
+		<!-- OMA-DDS-Charging_Data V1.0 20110201-A §8.5.5; 3GPP TS 32.299 V19.0.0 §7.2.50. -->
+		<avp name="DCD-Information" code="2115" vendor-id="10415" must="V,M" may="P" may-encrypt="N">
+			<data type="Grouped">
+				<rule avp="Content-Id" required="false" max="1"/>
+				<rule avp="Content-Provider-Id" required="false" max="1"/>
+			</data>
+		</avp>
 
-        <!-- OMA-DDS-Charging_Data V1.0 20110201-A §8.5.6; 3GPP TS 32.299 V19.0.0 §7.2.69. -->
-        <avp name="IM-Information" code="2110" vendor-id="10415" must="V,M" may="P" may-encrypt="N">
-            <data type="Grouped">
-                <rule avp="Total-Number-Of-Messages-Sent" required="false" max="1"/>
-                <rule avp="Total-Number-Of-Messages-Exploded" required="false" max="1"/>
-                <rule avp="Number-Of-Messages-Successfully-Sent" required="false" max="1"/>
-                <rule avp="Number-Of-Messages-Successfully-Exploded" required="false" max="1"/>
-            </data>
-        </avp>
+		<!-- OMA-DDS-Charging_Data V1.0 20110201-A §8.5.6; 3GPP TS 32.299 V19.0.0 §7.2.69. -->
+		<avp name="IM-Information" code="2110" vendor-id="10415" must="V,M" may="P" may-encrypt="N">
+			<data type="Grouped">
+				<rule avp="Total-Number-Of-Messages-Sent" required="false" max="1"/>
+				<rule avp="Total-Number-Of-Messages-Exploded" required="false" max="1"/>
+				<rule avp="Number-Of-Messages-Successfully-Sent" required="false" max="1"/>
+				<rule avp="Number-Of-Messages-Successfully-Exploded" required="false" max="1"/>
+			</data>
+		</avp>
 
-        <!-- OMA-DDS-Charging_Data V1.0 20110201-A §8.5.10; 3GPP TS 32.299 V19.0.0 §7.2.191. -->
-        <avp name="Service-Generic-Information" code="1256" vendor-id="10415" must="V,M" may="P" may-encrypt="N">
-            <data type="Grouped">
-                <rule avp="Application-Server-Id" required="false" max="1"/>
-                <rule avp="Application-Service-Type" required="false" max="1"/>
-                <rule avp="Application-Session-Id" required="false" max="1"/>
-                <rule avp="Delivery-Status" required="false" max="1"/>
-            </data>
-        </avp>
+		<!-- OMA-DDS-Charging_Data V1.0 20110201-A §8.5.10; 3GPP TS 32.299 V19.0.0 §7.2.191. -->
+		<avp name="Service-Generic-Information" code="1256" vendor-id="10415" must="V,M" may="P" may-encrypt="N">
+			<data type="Grouped">
+				<rule avp="Application-Server-Id" required="false" max="1"/>
+				<rule avp="Application-Service-Type" required="false" max="1"/>
+				<rule avp="Application-Session-Id" required="false" max="1"/>
+				<rule avp="Delivery-Status" required="false" max="1"/>
+			</data>
+		</avp>
 
-        <!-- OMA-DDS-Charging_Data V1.0 20110201-A AVP table; 3GPP TS 32.299 V19.0.0 §7.2.0. -->
-        <avp name="Application-Service-Type" code="2102" vendor-id="10415" must="V,M" may="P" may-encrypt="N"><data type="Enumerated"/></avp>
+		<!-- OMA-DDS-Charging_Data V1.0 20110201-A AVP table; 3GPP TS 32.299 V19.0.0 §7.2.0. -->
+		<avp name="Application-Service-Type" code="2102" vendor-id="10415" must="V,M" may="P" may-encrypt="N"><data type="Enumerated"/></avp>
 
-        <!-- 3GPP TS 29.212 V20.0.0 §5.3.27. The Gx scope defines the same code separately. -->
-        <avp name="IP-CAN-Type" code="1027" vendor-id="10415" must="V,M" may="P" may-encrypt="Y">
-            <data type="Enumerated">
-                <item code="0" name="3GPP-GPRS"/>
-                <item code="1" name="DOCSIS"/>
-                <item code="2" name="xDSL"/>
-                <item code="3" name="WiMAX"/>
-                <item code="4" name="3GPP2"/>
-                <item code="5" name="3GPP-EPS"/>
-                <item code="6" name="Non-3GPP-EPS"/>
-                <item code="7" name="FBA"/>
-                <item code="8" name="3GPP-5GS"/>
-                <item code="9" name="Non-3GPP-5GS"/>
-            </data>
-        </avp>
+		<!-- 3GPP TS 29.212 V20.0.0 §5.3.27. The Gx scope defines the same code separately. -->
+		<avp name="IP-CAN-Type" code="1027" vendor-id="10415" must="V,M" may="P" may-encrypt="Y">
+			<data type="Enumerated">
+				<item code="0" name="3GPP-GPRS"/>
+				<item code="1" name="DOCSIS"/>
+				<item code="2" name="xDSL"/>
+				<item code="3" name="WiMAX"/>
+				<item code="4" name="3GPP2"/>
+				<item code="5" name="3GPP-EPS"/>
+				<item code="6" name="Non-3GPP-EPS"/>
+				<item code="7" name="FBA"/>
+				<item code="8" name="3GPP-5GS"/>
+				<item code="9" name="Non-3GPP-5GS"/>
+			</data>
+		</avp>
 
-        <!-- 3GPP TS 29.214 V20.0.0 §§5.3.9, 5.3.17. The Rx scope defines the same codes separately. -->
-        <avp name="Flow-Number" code="509" vendor-id="10415" must="V,M" may-encrypt="Y"><data type="Unsigned32"/></avp>
-        <!-- 3GPP TS 29.214 V20.0.0 §5.3.17. -->
-        <avp name="Media-Component-Number" code="518" vendor-id="10415" must="V,M" may-encrypt="Y"><data type="Unsigned32"/></avp>
+		<!-- 3GPP TS 29.214 V20.0.0 §§5.3.9, 5.3.17. The Rx scope defines the same codes separately. -->
+		<avp name="Flow-Number" code="509" vendor-id="10415" must="V,M" may-encrypt="Y"><data type="Unsigned32"/></avp>
+		<!-- 3GPP TS 29.214 V20.0.0 §5.3.17. -->
+		<avp name="Media-Component-Number" code="518" vendor-id="10415" must="V,M" may-encrypt="Y"><data type="Unsigned32"/></avp>
 
-        <!-- ETSI ES 283 034 V2.2.0 §7.3 and 3GPP TS 32.299 V19.0.0 §7.4. -->
-        <avp name="Logical-Access-ID" code="302" vendor-id="13019" must="V" may="M" may-encrypt="Y"><data type="OctetString"/></avp>
-        <!-- ETSI ES 283 034 V2.2.0 §7.3.14 and 3GPP TS 32.299 V19.0.0 §7.4. -->
-        <avp name="Physical-Access-ID" code="313" vendor-id="13019" must="V" may="M" may-encrypt="Y"><data type="UTF8String"/></avp>
+		<!-- ETSI ES 283 034 V2.2.0 §7.3 and 3GPP TS 32.299 V19.0.0 §7.4. -->
+		<avp name="Logical-Access-ID" code="302" vendor-id="13019" must="V" may="M" may-encrypt="Y"><data type="OctetString"/></avp>
+		<!-- ETSI ES 283 034 V2.2.0 §7.3.14 and 3GPP TS 32.299 V19.0.0 §7.4. -->
+		<avp name="Physical-Access-ID" code="313" vendor-id="13019" must="V" may="M" may-encrypt="Y"><data type="UTF8String"/></avp>
 
-        <!-- 3GPP TS 29.212 V20.0.0 §5.3.107. -->
-        <avp name="Presence-Reporting-Area-Elements-List" code="2820" vendor-id="10415" must="V" must-not="M" may-encrypt="Y"><data type="OctetString"/></avp>
+		<!-- 3GPP TS 29.212 V20.0.0 §5.3.107. -->
+		<avp name="Presence-Reporting-Area-Elements-List" code="2820" vendor-id="10415" must="V" must-not="M" may-encrypt="Y"><data type="OctetString"/></avp>
 
-        <!-- 3GPP2 X.S0057-0 v2.0 §5.6.2.1.1 and 3GPP TS 32.299 V19.0.0 §7.3. -->
-        <avp name="3GPP2-BSID" code="9010" vendor-id="5535" must="V,M" may="P" may-encrypt="N"><data type="UTF8String"/></avp>
+		<!-- 3GPP2 X.S0057-0 v2.0 §5.6.2.1.1 and 3GPP TS 32.299 V19.0.0 §7.3. -->
+		<avp name="3GPP2-BSID" code="9010" vendor-id="5535" must="V,M" may="P" may-encrypt="N"><data type="UTF8String"/></avp>
 
-        <!-- 3GPP TS 29.272 V19.5.0 §7.3.6. -->
-        <avp name="3GPP2-MEID" code="1471" vendor-id="10415" must="V,M" may-encrypt="N"><data type="OctetString"/></avp>
+		<!-- 3GPP TS 29.272 V19.6.0 §7.3.6. -->
+		<avp name="3GPP2-MEID" code="1471" vendor-id="10415" must="V,M" may-encrypt="N"><data type="OctetString"/></avp>
 
-        <!-- 3GPP TS 29.338 V19.3.0 §5.3.3.1/2; defining TS 29.173 V19.0.0 §§6.4.5, 6.4.13, 6.4.14. -->
-        <avp name="MSC-Number" code="2403" vendor-id="10415" must="V,M" may-encrypt="N"><data type="OctetString"/></avp>
-        <!-- 3GPP TS 29.173 V19.0.0 §6.4.13. -->
-        <avp name="SGSN-Name" code="2409" vendor-id="10415" must="V" must-not="M" may-encrypt="N"><data type="DiameterIdentity"/></avp>
-        <!-- 3GPP TS 29.173 V19.0.0 §6.4.14. -->
-        <avp name="SGSN-Realm" code="2410" vendor-id="10415" must="V" must-not="M" may-encrypt="N"><data type="DiameterIdentity"/></avp>
+		<!-- 3GPP TS 29.338 V19.3.0 §5.3.3.1/2; defining TS 29.173 V19.0.0 §§6.4.5, 6.4.13, 6.4.14. -->
+		<avp name="MSC-Number" code="2403" vendor-id="10415" must="V,M" may-encrypt="N"><data type="OctetString"/></avp>
+		<!-- 3GPP TS 29.173 V19.0.0 §6.4.13. -->
+		<avp name="SGSN-Name" code="2409" vendor-id="10415" must="V" must-not="M" may-encrypt="N"><data type="DiameterIdentity"/></avp>
+		<!-- 3GPP TS 29.173 V19.0.0 §6.4.14. -->
+		<avp name="SGSN-Realm" code="2410" vendor-id="10415" must="V" must-not="M" may-encrypt="N"><data type="DiameterIdentity"/></avp>
 
 	</application>
 </diameter>

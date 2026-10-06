@@ -92,7 +92,7 @@ type AVP struct {
 	MayEncrypt string `xml:"may-encrypt,attr"`
 	VendorID   uint32 `xml:"vendor-id,attr"`
 	Data       Data   `xml:"data"`
-	App        *App   `xml:"none"` // Link back to diameter application
+	App        *App   `xml:"-"` // Link back to diameter application
 }
 
 // Data of an AVP can be EnumItem or a Parser of multiple AVPs.
@@ -121,6 +121,28 @@ type Rule struct {
 	MaxSet bool `xml:"-"`
 	// Fixed marks an AVP that must occur in the command or group prefix.
 	Fixed bool `xml:"fixed,attr"`
+}
+
+// MarshalXML writes only the attributes that differ from their defaults, and
+// max only for a rule with a maximum, so that UnmarshalXML reads back the
+// same rule. encoding/xml alone would write an unbounded rule as max="0", an
+// explicit maximum of zero. An invalid negative bound is written as it is.
+// The value receiver covers both Rule and *Rule.
+func (r Rule) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
+	start.Attr = append(start.Attr, xml.Attr{Name: xml.Name{Local: "avp"}, Value: r.AVP})
+	if r.Required {
+		start.Attr = append(start.Attr, xml.Attr{Name: xml.Name{Local: "required"}, Value: "true"})
+	}
+	if r.Min != 0 {
+		start.Attr = append(start.Attr, xml.Attr{Name: xml.Name{Local: "min"}, Value: strconv.Itoa(r.Min)})
+	}
+	if r.MaxSet || r.Max != 0 {
+		start.Attr = append(start.Attr, xml.Attr{Name: xml.Name{Local: "max"}, Value: strconv.Itoa(r.Max)})
+	}
+	if r.Fixed {
+		start.Attr = append(start.Attr, xml.Attr{Name: xml.Name{Local: "fixed"}, Value: "true"})
+	}
+	return e.EncodeElement(struct{}{}, start)
 }
 
 func (r *Rule) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {

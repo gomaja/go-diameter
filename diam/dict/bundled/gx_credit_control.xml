@@ -147,7 +147,7 @@
             <data type="OctetString"/>
         </avp>
 
-        <avp name="Event-Trigger" code="1006" must="M,V" map="P" may-encrypt="Y" vendor-id="10415">
+        <avp name="Event-Trigger" code="1006" must="M,V" may="P" may-encrypt="Y" vendor-id="10415">
             <!-- 3GPP 29.212 Section 5.3.7 -->
             <data type="Enumerated">
                 <item code="0" name="SGSN_CHANGE"/>
@@ -197,7 +197,7 @@
             <data type="Unsigned32"/>
         </avp>
 
-        <avp name="IP-CAN-Type" code="1027" must="M,V" map="P" may-encrypt="Y" vendor-id="10415">
+        <avp name="IP-CAN-Type" code="1027" must="M,V" may="P" may-encrypt="Y" vendor-id="10415">
             <!-- 3GPP 29.212 Section 5.3.27 -->
             <data type="Enumerated">
                 <item code="0" name="3GPP-GPRS"/>
@@ -233,7 +233,7 @@
             <data type="OctetString"/>
         </avp>
 
-        <avp name="Flow-Information" code="1058" must="V" must-not="M" may="P" may-encryp="y" vendor-id="10415">
+        <avp name="Flow-Information" code="1058" must="V" must-not="M" may="P" may-encrypt="Y" vendor-id="10415">
             <!-- 3GPP 29.212 Section 5.3.53 -->
             <data type="Grouped">
                 <rule avp="Flow-Description" required="false" max="1"/>
@@ -290,14 +290,14 @@
             </data>
         </avp>
 
-        <avp name="Packet-Filter-Usage" code="1072" must="V" must-not="M" map="P" may-encrypt="Y" vendor-id="10415">
+        <avp name="Packet-Filter-Usage" code="1072" must="V" must-not="M" may="P" may-encrypt="Y" vendor-id="10415">
             <!-- 3GPP 29.212 Section 5.3.66 -->
             <data type="Enumerated">
                 <item code="1" name="SEND_TO_UE"/>
             </data>
         </avp>
 
-        <avp name="Flow-Direction" code="1080" must="V" must-not="M" map="P" may-encrypt="Y" vendor-id="10415">
+        <avp name="Flow-Direction" code="1080" must="V" must-not="M" may="P" may-encrypt="Y" vendor-id="10415">
             <!-- 3GPP 29.212 Section 5.3.65 -->
             <data type="Enumerated">
                 <item code="0" name="UNSPECIFIED"/>
