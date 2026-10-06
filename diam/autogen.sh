@@ -3,7 +3,8 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 #
-# Generate Diameter constants from our dictionaries.
+# Generate Diameter constants from our bundled dictionaries
+# (dict/bundled/*.xml, which package dict embeds as they are).
 #
 # Run `sh autogen.sh` to re-generate these files after changing
 # dictionary XML files.
@@ -27,7 +28,7 @@ if [ -z "$SORT_FLAG_IGNORE_CASE" ]; then
 	fi
 fi
 
-dict=dict/testdata/*.xml
+dict=dict/bundled/*.xml
 
 ## Generate commands.go
 src=commands.go
@@ -113,69 +114,5 @@ cat $dict | "$SED" \
 	| LC_COLLATE=C sort -u $SORT_FLAG_IGNORE_CASE >> $src
 
 printf ')\n' >> $src
-
-go fmt $src
-
-
-## Generate dict/default.go
-src=dict/default.go
-
-cat << EOF > $src
-// Copyright 2013-2015 go-diameter authors. All rights reserved.
-// Use of this source code is governed by a BSD-style license that can be
-// found in the LICENSE file.
-
-// This file is auto-generated from our dictionaries.
-
-package dict
-
-import (
-	"bytes"
-	"fmt"
-)
-
-// Default is a Parser object with pre-loaded standard dictionaries.
-var Default *Parser
-
-func init() {
-	var dictionaries = []struct{ name, xml string }{
-		{"Base", baseXML},
-		{"Credit Control", creditcontrolXML},
-		{"Diameter Sy", diametersyXML},
-		{"Gx Charging Control", gxcreditcontrolXML},
-		{"Network Access Server", networkaccessserverXML},
-		{"TGPP", tgpprorfXML},
-		{"TGPP_Rx", tgpprxXML},
-		{"TGPP_S6a", tgpps6aXML},
-		{"TGPP_S6c", tgpps6cXML},
-		{"TGPP_SGd", tgppsgdXML},
-		{"TGPP_S13", tgpps13XML},
-		{"TGPP_Swx", tgppswxXML},
-	}
-	var err error
-	Default, err = NewParser()
-	if err != nil {
-		panic(err)
-	}
-	for _, dict := range dictionaries {
-		err = Default.Load(bytes.NewReader([]byte(dict.xml)))
-		if err != nil {
-			panic(fmt.Sprintf("Cannot load %s dictionary: %s", dict.name, err))
-		}
-	}
-}
-
-EOF
-
-for f in $dict
-do
-
-var=`basename $f | "$SED" -e 's/\.xml/XML/g' -e 's/_//g'`
-cat << EOF >> $src
-var $var=\``cat $f`\`
-
-EOF
-
-done
 
 go fmt $src

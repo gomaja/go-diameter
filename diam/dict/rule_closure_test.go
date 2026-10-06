@@ -38,7 +38,7 @@ func TestDefaultRuleClosure(t *testing.T) {
 				check(cmd.Name+" answer", cmd.Answer.Rule)
 			}
 			// Include inherited groups even when no command in this app names them.
-			for idx, avp := range Default.avpname {
+			for idx, avp := range Default.Snapshot().avpname {
 				if idx.appID != app.ID || idx.vendorID != UndefinedVendorID {
 					continue
 				}

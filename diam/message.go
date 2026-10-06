@@ -63,7 +63,7 @@ func (m *Message) UnknownMandatoryAVPs() []*AVP {
 	return append([]*AVP(nil), m.unknownMandatoryAVPs...)
 }
 
-func unknownMandatoryHierarchy(a *AVP, appID uint32, dictionary *dict.Parser) *AVP {
+func unknownMandatoryHierarchy(a *AVP, appID uint32, dictionary *dict.Snapshot) *AVP {
 	// RFC 6733 §4.1: an AVP is unsupported only on a dictionary miss.
 	// Raw data from a known but undecodable AVP is not an unknown AVP.
 	if a.Flags&avp.Mbit != 0 {
@@ -120,14 +120,20 @@ func readerBufferSlice(buf *bytes.Buffer, l int) []byte {
 // invalid lengths, 5004 for invalid values; RFC 6733 §7.1.5). A non-strict
 // dictionary leaves the failure in Message.DecodeErr and returns no error.
 // Strict answers with payload failures outside Failed-AVP return Message.DecodeErr.
+//
+// The whole message, its command and every AVP, is decoded against the
+// dict.Snapshot of dictionary current when ReadMessage starts, including its
+// strictness, so a dictionary change made meanwhile applies to all of the
+// message or to none of it. A nil dictionary means dict.Default.
 func ReadMessage(reader io.Reader, dictionary *dict.Parser) (*Message, error) {
 	buf := newReaderBuffer()
 	// Safe to pool: the built-in datatype decoders copy their bytes, and an
 	// AVP that fails to decode keeps a copy (fallbackData). A decoder
 	// registered with datatype.RegisterDecoder must copy as well.
 	defer putReaderBuffer(buf)
+	snapshot := decodingSnapshot(dictionary)
 	m := &Message{dictionary: dictionary}
-	cmd, stream, err := m.readHeader(reader, buf)
+	cmd, stream, err := m.readHeader(reader, buf, snapshot)
 	m.stream = stream
 	if err != nil {
 		if m.Header == nil {
@@ -135,10 +141,10 @@ func ReadMessage(reader io.Reader, dictionary *dict.Parser) (*Message, error) {
 		}
 		return m, err
 	}
-	if err = m.readBody(reader, buf, cmd, stream); err != nil {
+	if err = m.readBody(reader, buf, cmd, stream, snapshot); err != nil {
 		return m, err
 	}
-	if dictionary.Strict && m.DecodeErr != nil {
+	if snapshot.Strict() && m.DecodeErr != nil {
 		var decodeErr *avpDecodeError
 		if m.Header.CommandFlags&RequestFlag != 0 && errors.As(m.DecodeErr, &decodeErr) {
 			return m, &MessageError{
@@ -157,7 +163,7 @@ func (m *Message) MessageStream() uint {
 	return m.stream
 }
 
-func (m *Message) readHeader(r io.Reader, buf *bytes.Buffer) (cmd *dict.Command, stream uint, err error) {
+func (m *Message) readHeader(r io.Reader, buf *bytes.Buffer, dictionary *dict.Snapshot) (cmd *dict.Command, stream uint, err error) {
 	b := buf.Bytes()[:HeaderLength]
 	msr, isMulti := r.(MultistreamReader)
 	if isMulti {
@@ -176,7 +182,7 @@ func (m *Message) readHeader(r io.Reader, buf *bytes.Buffer) (cmd *dict.Command,
 	if err != nil {
 		return nil, stream, err
 	}
-	cmd, err = m.Dictionary().FindCommand(
+	cmd, err = dictionary.FindCommand(
 		m.Header.ApplicationID,
 		m.Header.CommandCode,
 	)
@@ -188,7 +194,7 @@ func (m *Message) readHeader(r io.Reader, buf *bytes.Buffer) (cmd *dict.Command,
 	return cmd, stream, nil
 }
 
-func (m *Message) readBody(r io.Reader, buf *bytes.Buffer, cmd *dict.Command, stream uint) error {
+func (m *Message) readBody(r io.Reader, buf *bytes.Buffer, cmd *dict.Command, stream uint, dictionary *dict.Snapshot) error {
 	var err error
 	var n int
 	b := readerBufferSlice(buf, int(m.Header.MessageLength-HeaderLength))
@@ -210,7 +216,7 @@ func (m *Message) readBody(r io.Reader, buf *bytes.Buffer, cmd *dict.Command, st
 	}
 	// Pre-allocate max # of AVPs for this message.
 	m.AVP = make([]*AVP, 0, n)
-	if err = m.decodeAVPs(b); err != nil {
+	if err = m.decodeAVPs(b, dictionary); err != nil {
 		return err
 	}
 	return nil
@@ -223,12 +229,12 @@ func (m *Message) maxAVPsFor(cmd *dict.Command) int {
 	return len(cmd.Answer.Rule)
 }
 
-func (m *Message) decodeAVPs(b []byte) error {
+func (m *Message) decodeAVPs(b []byte, dictionary *dict.Snapshot) error {
 	var a *AVP
 	var decodeErrs *decodeErrors
 	var err error
 	for n := 0; n < len(b); {
-		a, err = DecodeAVP(b[n:], m.Header.ApplicationID, m.Dictionary())
+		a, err = decodeAVP(b[n:], m.Header.ApplicationID, dictionary, 0, false)
 		if err != nil {
 			var lengthErr *avpLengthError
 			if errors.As(err, &lengthErr) {
@@ -259,7 +265,7 @@ func (m *Message) decodeAVPs(b []byte) error {
 			}
 		}
 		m.AVP = append(m.AVP, a)
-		if failed := unknownMandatoryHierarchy(a, m.Header.ApplicationID, m.Dictionary()); failed != nil {
+		if failed := unknownMandatoryHierarchy(a, m.Header.ApplicationID, dictionary); failed != nil {
 			m.unknownMandatoryAVPs = append(m.unknownMandatoryAVPs, failed)
 		}
 		n += advance

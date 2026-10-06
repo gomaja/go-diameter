@@ -67,7 +67,10 @@ the answer.
 - `diam/avp`: Diameter AVP codes and flags.
 - `diam/datatype`: Diameter AVP data types such as `UTF8String`,
   `Unsigned32`, `DiameterIdentity`, `Address`, and grouped values.
-- `diam/dict`: XML dictionary parser and embedded default dictionaries.
+- `diam/dict`: XML dictionary parser, embedded dictionaries that can be
+  selected one by one (`dict.New(dict.Base, dict.Gx)`), and AVP
+  registration at runtime. Dictionaries can change while messages are
+  decoded.
 - `diam/sm`: peer state machines for CER/CEA and DWR/DWA handling.
 - `diam/sm/smparser`: helpers for parsing state-machine messages.
 - `diam/sm/smpeer`: peer metadata attached to accepted connections.
@@ -187,14 +190,16 @@ Keep changes small, standards-linked, and testable.
 
 When adding or changing AVPs:
 
-1. Update the XML dictionaries under `diam/dict/testdata`.
-2. Regenerate dictionary code:
+1. Update the XML dictionaries under `diam/dict/bundled`. Package `dict`
+   embeds them as they are. A new dictionary file also needs its named
+   `dict.Bundled` constant in `diam/dict/bundled.go`.
+2. Regenerate the command, application and AVP code constants:
 
    ```sh
    make gen_diam
    ```
 
-3. Review the generated changes under `diam/dict`.
+3. Review the generated changes under `diam`.
 
 For Go code changes, run the full local validation set before opening a pull
 request:

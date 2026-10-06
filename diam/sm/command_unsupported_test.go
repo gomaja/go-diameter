@@ -206,11 +206,8 @@ func TestSupportsApplication(t *testing.T) {
 			t.Errorf("supportsApplication(%d) = %t, want %t", appID, got, want)
 		}
 	}
-	relay, err := dict.NewParser("../dict/testdata/base.xml")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = relay.Load(strings.NewReader(`<diameter><application id="4294967295" type="auth" name="Relay"></application></diameter>`)); err != nil {
+	relay := dict.New(dict.Base)
+	if err := relay.Load(strings.NewReader(`<diameter><application id="4294967295" type="auth" name="Relay"></application></diameter>`)); err != nil {
 		t.Fatal(err)
 	}
 	settings := testMessageErrorSettings()
@@ -227,10 +224,7 @@ func TestSupportsApplication(t *testing.T) {
 func TestValidateRequestsUsesAdvertisedApplications(t *testing.T) {
 	baseOnly := func(t *testing.T) *dict.Parser {
 		t.Helper()
-		p, err := dict.NewParser("../dict/testdata/base.xml")
-		if err != nil {
-			t.Fatal(err)
-		}
+		p := dict.New(dict.Base)
 		return p
 	}
 	relay := func(t *testing.T) *dict.Parser {
@@ -298,10 +292,7 @@ func TestValidateRequestsUsesAdvertisedApplications(t *testing.T) {
 // rejected with 3007 because its header names an application this node does
 // not advertise also closes the connection (RFC 6733 §§5.3, 5.6.1).
 func TestValidateRequestsClosesCERForUnsupportedApplication(t *testing.T) {
-	baseOnly, err := dict.NewParser("../dict/testdata/base.xml")
-	if err != nil {
-		t.Fatal(err)
-	}
+	baseOnly := dict.New(dict.Base)
 	settings := testMessageErrorSettings()
 	settings.Dict = baseOnly
 	settings.ValidateRequests = true

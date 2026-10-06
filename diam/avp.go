@@ -27,14 +27,16 @@ var (
 	errGroupedTooDeep      = errors.New("grouped AVP nesting exceeds limit")
 )
 
-// maxGroupedDepth returns how many Grouped AVPs may enclose one another when
-// decoding with d: d.MaxGroupedDepth, or dict.DefaultMaxGroupedDepth if that
-// is not positive.
-func maxGroupedDepth(d *dict.Parser) int {
-	if d != nil && d.MaxGroupedDepth > 0 {
-		return d.MaxGroupedDepth
+// decodingSnapshot returns the dictionary state a decode uses throughout:
+// d's current Snapshot, or dict.Default's when d is nil, as for
+// Message.Dictionary. Resolving every AVP of a message against one Snapshot
+// means a dictionary change made meanwhile applies to the whole message or
+// to none of it.
+func decodingSnapshot(d *dict.Parser) *dict.Snapshot {
+	if d == nil {
+		d = dict.Default
 	}
-	return dict.DefaultMaxGroupedDepth
+	return d.Snapshot()
 }
 
 // AVP is a Diameter attribute-value-pair.
@@ -64,17 +66,18 @@ func NewAVP(code uint32, flags uint8, vendor uint32, data datatype.Type) *AVP {
 // DecodeAVP decodes the bytes of a Diameter AVP.
 // It uses the given application id and dictionary for decoding the bytes.
 //
-// Grouped AVPs are decoded at most dictionary.MaxGroupedDepth levels deep
+// Grouped AVPs are decoded at most dictionary.MaxGroupedDepth() levels deep
 // (dict.DefaultMaxGroupedDepth unless set), counting the outermost Grouped
 // AVP as level 1. A Grouped AVP nested deeper keeps its payload undecoded as
 // datatype.Unknown and a DecodeError is returned, as for any Grouped AVP
-// whose members fail to decode.
+// whose members fail to decode. The AVP and its members are resolved against
+// one dict.Snapshot of dictionary; a nil dictionary means dict.Default.
 func DecodeAVP(data []byte, application uint32, dictionary *dict.Parser) (*AVP, error) {
-	return decodeAVP(data, application, dictionary, 0, false)
+	return decodeAVP(data, application, decodingSnapshot(dictionary), 0, false)
 }
 
 // decodeAVP is DecodeAVP for an AVP enclosed by depth Grouped AVPs.
-func decodeAVP(data []byte, application uint32, dictionary *dict.Parser, depth int, failedAVP bool) (*AVP, error) {
+func decodeAVP(data []byte, application uint32, dictionary *dict.Snapshot, depth int, failedAVP bool) (*AVP, error) {
 	a := &AVP{}
 	if err := a.decodeFromBytes(data, application, dictionary, depth, failedAVP); err != nil {
 		var lengthErr *avpLengthError
@@ -93,15 +96,16 @@ func decodeAVP(data []byte, application uint32, dictionary *dict.Parser, depth i
 
 // DecodeFromBytes decodes the bytes of a Diameter AVP.
 // It uses the given application id and dictionary for decoding the bytes.
-// Grouped AVP nesting is limited as described for DecodeAVP.
+// Grouped AVP nesting is limited, and dictionary used, as described for
+// DecodeAVP.
 func (a *AVP) DecodeFromBytes(data []byte, application uint32, dictionary *dict.Parser) error {
-	return a.decodeFromBytes(data, application, dictionary, 0, false)
+	return a.decodeFromBytes(data, application, decodingSnapshot(dictionary), 0, false)
 }
 
 // decodeFromBytes is DecodeFromBytes for an AVP enclosed by depth Grouped
-// AVPs. A Grouped AVP at depth maxGroupedDepth(dictionary) is not descended
+// AVPs. A Grouped AVP at depth dictionary.MaxGroupedDepth() is not descended
 // into: its payload is kept as datatype.Unknown and a DecodeError is returned.
-func (a *AVP) decodeFromBytes(data []byte, application uint32, dictionary *dict.Parser, depth int, failedAVP bool) error {
+func (a *AVP) decodeFromBytes(data []byte, application uint32, dictionary *dict.Snapshot, depth int, failedAVP bool) error {
 	if len(data) < 8 {
 		return fmt.Errorf("%w: have %d need %d", errAVPHeaderTooShort, len(data), 8)
 	}
@@ -144,7 +148,7 @@ func (a *AVP) decodeFromBytes(data []byte, application uint32, dictionary *dict.
 		// Command rules are not enforced while decoding, so a peer can nest a
 		// Grouped AVP inside itself; each level costs a walk of everything
 		// beneath it. The limit bounds that work for untrusted input.
-		if depth >= maxGroupedDepth(dictionary) {
+		if depth >= dictionary.MaxGroupedDepth() {
 			a.Data = fallbackData(payload[:bodyLen], depth)
 			return newAVPDecodeError(a, dictAVP.Data.Type, fmt.Errorf("%s(%d): %w", dictAVP.Name, dictAVP.Code, errGroupedTooDeep))
 		}

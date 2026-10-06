@@ -121,11 +121,8 @@ func TestCERAcceptsAnyCommonSecurityValue(t *testing.T) {
 }
 
 func TestCERMalformedInbandSecurityReturnsFailedAVP(t *testing.T) {
-	dictionary, err := dict.NewParser("../dict/testdata/base.xml", "../dict/testdata/credit_control.xml")
-	if err != nil {
-		t.Fatal(err)
-	}
-	dictionary.Strict = false
+	dictionary := dict.New(dict.Base, dict.CreditControl)
+	dictionary.SetStrict(false)
 	settings := *serverSettings
 	observed := make(chan uint32, 2)
 	settings.OnCEA = func(_ diam.Conn, answer *diam.Message) {
@@ -203,11 +200,8 @@ func TestCERMalformedInbandSecurityReturnsFailedAVP(t *testing.T) {
 }
 
 func TestCERUsesSettingsDictionaryForApplications(t *testing.T) {
-	narrow, err := dict.NewParser("../dict/testdata/base.xml")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = narrow.Load(bytes.NewReader([]byte(acctDictionary))); err != nil {
+	narrow := dict.New(dict.Base)
+	if err := narrow.Load(bytes.NewReader([]byte(acctDictionary))); err != nil {
 		t.Fatal(err)
 	}
 	settings := *serverSettings

@@ -6,62 +6,34 @@ package dict
 
 import (
 	"bytes"
+	"slices"
 	"testing"
 
 	"github.com/gomaja/go-diameter/diam/datatype"
 )
 
 func TestApps(t *testing.T) {
-	apps := Default.Apps()
-	if len(apps) != 13 {
-		t.Fatalf("Unexpected # of apps. Want 13, have %d", len(apps))
+	// Default loads the bundled dictionaries in file name order.
+	want := []uint32{
+		0, 3, // Base protocol and Base Accounting (base.xml)
+		4,        // Credit-Control (credit_control.xml)
+		16777302, // Diameter Sy (diameter_sy.xml)
+		16777238, // 3GPP Gx (gx_credit_control.xml)
+		1,        // NASREQ (network_access_server.xml)
+		4,        // 3GPP Ro/Rf charging AVPs (tgpp_ro_rf.xml)
+		16777236, // 3GPP Rx (tgpp_rx.xml)
+		16777252, // 3GPP S13 (tgpp_s13.xml)
+		16777251, // 3GPP S6a (tgpp_s6a.xml)
+		16777312, // 3GPP S6c (tgpp_s6c.xml)
+		16777313, // 3GPP SGd (tgpp_sgd.xml)
+		16777265, // 3GPP SWx (tgpp_swx.xml)
 	}
-	// Base protocol.
-	if apps[0].ID != 0 {
-		t.Fatalf("Unexpected app.ID. Want 0, have %d", apps[0].ID)
+	var have []uint32
+	for _, app := range Default.Apps() {
+		have = append(have, app.ID)
 	}
-	// Base accounting
-	if apps[1].ID != 3 {
-		t.Fatalf("Unexpected app.ID. Want 3, have %d", apps[1].ID)
-	}
-	// Credit-Control applications.
-	if apps[2].ID != 4 {
-		t.Fatalf("Unexpected app.ID. Want 4, have %d", apps[2].ID)
-	}
-	// Diameter Sy application.
-	if apps[3].ID != 16777302 {
-		t.Fatalf("Unexpected app.ID. Want 16777302, have %d", apps[3].ID)
-	}
-	// 3GPP Gx Charging Control applications
-	if apps[4].ID != 16777238 {
-		t.Fatalf("Unexpected app.ID. Want 16777238, have %d", apps[4].ID)
-	}
-	// NASREQ applications
-	if apps[5].ID != 1 {
-		t.Fatalf("Unexpected app.ID. Want 1, have %d", apps[5].ID)
-	}
-	// 3GPP Rx applications
-	if apps[7].ID != 16777236 {
-		t.Fatalf("Unexpected app.ID. Want 16777236, have %d", apps[7].ID)
-	}
-	// 3GPP S6a applications
-	if apps[8].ID != 16777251 {
-		t.Fatalf("Unexpected app.ID. Want 16777251, have %d", apps[8].ID)
-	}
-	// 3GPP S6c application.
-	if apps[9].ID != 16777312 {
-		t.Fatalf("Unexpected app.ID. Want 16777312, have %d", apps[9].ID)
-	}
-	// 3GPP SGd application.
-	if apps[10].ID != 16777313 {
-		t.Fatalf("Unexpected app.ID. Want 16777313, have %d", apps[10].ID)
-	}
-	// 3GPP S13 application
-	if apps[11].ID != 16777252 {
-		t.Fatalf("Unexpected app.ID. Want 16777252, have %d", apps[11].ID)
-	}
-	if apps[12].ID != 16777265 {
-		t.Fatalf("Unexpected app.ID. Want 16777265, have %d", apps[12].ID)
+	if !slices.Equal(have, want) {
+		t.Fatalf("Default applications = %v, want %v", have, want)
 	}
 }
 
@@ -80,8 +52,8 @@ func TestApp(t *testing.T) {
 	}
 }
 
-func findAVPCodeTest(t *testing.T, app uint32, codeStr string, vendor, expectedCode uint32) {
-	if avp, err := Default.FindAVPWithVendor(app, codeStr, vendor); err != nil {
+func findAVPCodeTest(t *testing.T, p *Parser, app uint32, codeStr string, vendor, expectedCode uint32) {
+	if avp, err := p.FindAVPWithVendor(app, codeStr, vendor); err != nil {
 		t.Fatalf("FindAVP error: %v for app %d & %s AVP", err, app, codeStr)
 	} else if avp.Code != expectedCode {
 		t.Fatalf(
@@ -100,30 +72,31 @@ func TestFindAVPWithVendor(t *testing.T) {
     </avp>
   </application>
 </diameter>`
-	if err := Default.Load(bytes.NewReader([]byte(nokiaXML))); err != nil {
+	p := New(AllBundled()...)
+	if err := p.Load(bytes.NewReader([]byte(nokiaXML))); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := Default.FindAVPWithVendor(4, 999, UndefinedVendorID); err == nil {
+	if _, err := p.FindAVPWithVendor(4, 999, UndefinedVendorID); err == nil {
 		t.Error("Should get not found")
 	}
-	findAVPCodeTest(t, 4, "Session-Id", UndefinedVendorID, 263)
-	findAVPCodeTest(t, 43, "Session-Start-Indicator", 94, 5105)
-	findAVPCodeTest(t, 43, "Session-Start-Indicator", UndefinedVendorID, 5105)
+	findAVPCodeTest(t, p, 4, "Session-Id", UndefinedVendorID, 263)
+	findAVPCodeTest(t, p, 43, "Session-Start-Indicator", 94, 5105)
+	findAVPCodeTest(t, p, 43, "Session-Start-Indicator", UndefinedVendorID, 5105)
 
-	if _, err := Default.FindAVPWithVendor(4, "Session-Start-Indicator", 0); err == nil {
+	if _, err := p.FindAVPWithVendor(4, "Session-Start-Indicator", 0); err == nil {
 		t.Error("Should get not found")
 	}
-	findAVPCodeTest(t, 16777251, "Supported-Features", UndefinedVendorID, 628)
+	findAVPCodeTest(t, p, 16777251, "Supported-Features", UndefinedVendorID, 628)
 
 	// Test 'parent' AVP find - S6a app ID, tgpp_ro_rf dictionary
-	findAVPCodeTest(t, 16777251, "GMLC-Address", UndefinedVendorID, 2405)
+	findAVPCodeTest(t, p, 16777251, "GMLC-Address", UndefinedVendorID, 2405)
 
-	if _, err := Default.FindAVPWithVendor(43, "User-Password", UndefinedVendorID); err == nil {
+	if _, err := p.FindAVPWithVendor(43, "User-Password", UndefinedVendorID); err == nil {
 		t.Error("User-Password Should not be found for app 43")
 	}
-	findAVPCodeTest(t, 1, "User-Password", UndefinedVendorID, 2)
-	findAVPCodeTest(t, 4, "User-Password", UndefinedVendorID, 2)
-	findAVPCodeTest(t, 16777251, "User-Password", UndefinedVendorID, 2)
+	findAVPCodeTest(t, p, 1, "User-Password", UndefinedVendorID, 2)
+	findAVPCodeTest(t, p, 4, "User-Password", UndefinedVendorID, 2)
+	findAVPCodeTest(t, p, 16777251, "User-Password", UndefinedVendorID, 2)
 }
 
 func TestFindAVP(t *testing.T) {

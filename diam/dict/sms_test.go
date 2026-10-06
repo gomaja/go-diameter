@@ -114,12 +114,7 @@ func TestSMSServingNodeReferences(t *testing.T) {
 }
 
 func TestSMSFlagRuleFormat(t *testing.T) {
-	// Parse source XML so the check fails before code generation too.
-	p, err := NewParser("testdata/tgpp_s6c.xml")
-	if err != nil {
-		t.Fatal(err)
-	}
-	app, err := p.App(16777312)
+	app, err := New(S6c).App(16777312)
 	if err != nil {
 		t.Fatal(err)
 	}
