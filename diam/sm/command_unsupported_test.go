@@ -59,11 +59,13 @@ func testClientOverrideControlsConnectionApplications(t *testing.T, validateRequ
 	serverCfg.AuthApplicationID = []*diam.AVP{application}
 	serverCfg.ValidateRequests = validateRequests
 	serverSM := mustNew(&serverCfg)
+	serverAnswers := capabilityAnswerHandler(serverSM)
 	server := diamtest.NewServer(serverSM, dict.Default)
 	defer server.Close()
 	clientCfg := *clientSettings
 	clientCfg.ValidateRequests = validateRequests
 	clientSM := mustNew(&clientCfg)
+	clientAnswers := capabilityAnswerHandler(clientSM)
 	client := &Client{Handler: clientSM, AuthApplicationID: []*diam.AVP{application}}
 	conn, err := client.Dial(server.Addr)
 	if err != nil {
@@ -86,7 +88,7 @@ func testClientOverrideControlsConnectionApplications(t *testing.T, validateRequ
 		if _, err := request.WriteTo(serverConn); err != nil {
 			t.Fatal(err)
 		}
-		awaitCapabilityAnswerReport(t, serverSM.ErrorReports(), tc.app, tc.result)
+		awaitCapabilityAnswer(t, serverAnswers, request, tc.result)
 	}
 	for _, tc := range []struct {
 		app, result uint32
@@ -95,26 +97,41 @@ func testClientOverrideControlsConnectionApplications(t *testing.T, validateRequ
 		if _, err := request.WriteTo(conn); err != nil {
 			t.Fatal(err)
 		}
-		awaitCapabilityAnswerReport(t, clientSM.ErrorReports(), tc.app, tc.result)
+		awaitCapabilityAnswer(t, clientAnswers, request, tc.result)
 	}
 }
 
-func awaitCapabilityAnswerReport(t *testing.T, reports <-chan *diam.ErrorReport, app, result uint32) {
-	t.Helper()
-	deadline := time.After(time.Second)
-	for {
-		select {
-		case report := <-reports:
-			if report.Message == nil || report.Message.Header.CommandFlags&diam.RequestFlag != 0 {
-				continue
-			}
-			if report.Message.Header.ApplicationID != app || !testResultCode(report.Message, result) {
-				t.Fatalf("application %d answer report = %v; want %d", app, report, result)
-			}
+func capabilityAnswerHandler(sm *StateMachine) <-chan *diam.Message {
+	// ErrorReports is a lossy diagnostic channel: an earlier unhandled
+	// request can fill its buffer and cause the answer report to be dropped.
+	// Register before connecting and collect answers independently. There is
+	// only one outstanding request per direction, so one buffered slot suffices.
+	answers := make(chan *diam.Message, 1)
+	sm.HandleFunc("ALL", func(c diam.Conn, m *diam.Message) {
+		if m.Header.CommandFlags&diam.RequestFlag != 0 {
+			// Keep exercising the production unsupported-command fallback.
+			sm.handleUnsupportedCommand(c, m)
 			return
-		case <-deadline:
-			t.Fatalf("application %d answer timed out", app)
 		}
+		answers <- m
+	})
+	return answers
+}
+
+func awaitCapabilityAnswer(t *testing.T, answers <-chan *diam.Message, request *diam.Message, result uint32) {
+	t.Helper()
+	select {
+	case answer := <-answers:
+		// RFC 6733 §§6.2 and 7.2: correlate the error answer with its request.
+		if answer.Header.ApplicationID != request.Header.ApplicationID ||
+			answer.Header.CommandCode != request.Header.CommandCode ||
+			answer.Header.HopByHopID != request.Header.HopByHopID ||
+			answer.Header.EndToEndID != request.Header.EndToEndID ||
+			answer.Header.CommandFlags != diam.ErrorFlag || !testResultCode(answer, result) {
+			t.Fatalf("application %d answer = %v; want matching error answer with result %d", request.Header.ApplicationID, answer, result)
+		}
+	case <-time.After(time.Second):
+		t.Fatalf("application %d answer timed out", request.Header.ApplicationID)
 	}
 }
 
