@@ -18,11 +18,7 @@ func newTestConn(t *testing.T) (*conn, net.Conn) {
 	t.Helper()
 	local, remote := net.Pipe()
 	srv := &Server{Handler: NewServeMux()}
-	c, err := srv.newConn(local)
-	if err != nil {
-		t.Fatalf("newConn: %v", err)
-	}
-	return c, remote
+	return srv.newConn(local), remote
 }
 
 func closeRemote(t *testing.T, remote net.Conn) {

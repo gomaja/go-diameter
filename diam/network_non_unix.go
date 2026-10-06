@@ -8,6 +8,8 @@ package diam
 
 import "syscall"
 
+// setReuseTcpAddr leaves the socket unchanged on platforms without the
+// Unix SO_REUSEADDR semantics network_unix.go relies on.
 func setReuseTcpAddr(network, address string, c syscall.RawConn) error {
 	return nil
 }

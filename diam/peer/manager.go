@@ -7,8 +7,10 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/netip"
+	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -61,7 +63,12 @@ type Config struct {
 	// OnPeerEvent is observational. Calling Close from this callback is safe.
 	// Events are dropped when its bounded queue is full; Peers returns the
 	// current state independently.
-	OnPeerEvent    func(PeerEvent)
+	OnPeerEvent func(PeerEvent)
+	// Logger receives the records of the connections the Manager dials, as
+	// diam.Server.Logger does, and a panic recovered from OnPeerEvent (Error,
+	// with the panic value and stack). Nil uses slog.Default. A server given
+	// to BindServer keeps its own Logger.
+	Logger         *slog.Logger
 	watchdogTiming *watchdogTiming // test-only short Tw and deterministic jitter
 }
 type PeerSnapshot struct {
@@ -386,12 +393,39 @@ func (m *Manager) deliverEvents() {
 		select {
 		case e := <-m.callbackQ:
 			if m.cfg.OnPeerEvent != nil {
-				func() { defer func() { _ = recover() }(); m.cfg.OnPeerEvent(e) }()
+				m.deliverEvent(e)
 			}
 		case <-m.done:
 			return
 		}
 	}
+}
+
+// deliverEvent runs OnPeerEvent and contains a panic in it, so a faulty
+// observer neither stops event delivery nor goes unreported.
+func (m *Manager) deliverEvent(e PeerEvent) {
+	defer func() {
+		if v := recover(); v != nil {
+			stack := make([]byte, panicStackSize)
+			stack = stack[:runtime.Stack(stack, false)]
+			m.logger().LogAttrs(context.Background(), slog.LevelError, "peer: panic in OnPeerEvent",
+				slog.String("peer_host", string(e.Peer.Host)), slog.Any("panic", v),
+				slog.String("stack", string(stack)))
+		}
+	}()
+	m.cfg.OnPeerEvent(e)
+}
+
+// panicStackSize bounds the stack recorded with a recovered panic, as
+// diam.Server does.
+const panicStackSize = 64 << 10
+
+// logger returns Config.Logger, or slog.Default when it is nil.
+func (m *Manager) logger() *slog.Logger {
+	if m.cfg.Logger != nil {
+		return m.cfg.Logger
+	}
+	return slog.Default()
 }
 func (m *Manager) notify(e PeerEvent) {
 	select {

@@ -10,7 +10,7 @@
 //	func handleXYZ(c diam.Conn, m *diam.Message) {
 //		meta, ok := smpeer.FromContext(c.Context())
 //		if ok {
-//			log.Println(meta)
+//			slog.InfoContext(c.Context(), "peer", "origin_host", meta.OriginHost)
 //		}
 //	}
 //
