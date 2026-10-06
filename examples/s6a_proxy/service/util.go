@@ -104,14 +104,14 @@ func (s *s6aProxy) cleanupConn(c diam.Conn) {
 // TranslateBaseDiamResultCode maps Base Diameter Result Code to GRPC Status Error and returns it,
 // Diam success codes will result in nil error returned
 func TranslateBaseDiamResultCode(diamResult uint32) error {
-	if diamResult == uint32(protos.ErrorCode_UNDEFINED) { // diamResult was not set (default will be 0)
+	if diamResult == uint32(protos.BaseResultCode_BASE_UNDEFINED) { // diamResult was not set (default will be 0)
 		return nil
 	}
-	// diam result code is 2xxx
-	if diamResult >= uint32(protos.ErrorCode_SUCCESS) && diamResult < uint32(protos.ErrorCode_COMMAND_UNSUPORTED) {
+	// RFC 6733 section 7.1: the thousands digit identifies the result class.
+	if diamResult >= 2000 && diamResult < 3000 {
 		return nil
 	}
-	errName, ok := protos.ErrorCode_name[int32(diamResult)]
+	errName, ok := protos.BaseResultCode_name[int32(diamResult)]
 	if !ok {
 		errName = "BASE_DIAMETER"
 	}

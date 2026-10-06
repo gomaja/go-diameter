@@ -27,6 +27,8 @@ const (
 )
 
 type s6aProxy struct {
+	protos.UnimplementedS6AProxyServer
+
 	mu         sync.RWMutex
 	cfg        *S6aProxyConfig
 	smClient   *sm.Client

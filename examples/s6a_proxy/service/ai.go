@@ -70,7 +70,7 @@ func (s *s6aProxy) sendAIR(sid string, req *protos.AuthenticationInformationRequ
 // dictionary's AIR grammar.
 func newAIR(cfg *S6aProxyConfig, meta *smpeer.Metadata, sid string, req *protos.AuthenticationInformationRequest) (*diam.Message, error) {
 	var irp uint32
-	if req.ImmediateResponsePreferred {
+	if req.GetImmediateResponsePreferred() {
 		irp = 1
 	}
 	// NewRequest sets R and P, as the AIR's "REQ, PXY" header requires.
@@ -90,13 +90,13 @@ func newAIR(cfg *S6aProxyConfig, meta *smpeer.Metadata, sid string, req *protos.
 	if err := addAVP(m, avp.DestinationHost, avp.Mbit, 0, meta.OriginHost); err != nil {
 		return nil, err
 	}
-	if err := addAVP(m, avp.UserName, avp.Mbit, 0, datatype.UTF8String(req.UserName)); err != nil {
+	if err := addAVP(m, avp.UserName, avp.Mbit, 0, datatype.UTF8String(req.GetUserName())); err != nil {
 		return nil, err
 	}
 	if err := addAVP(m, avp.AuthSessionState, avp.Mbit, 0, datatype.Enumerated(1)); err != nil {
 		return nil, err
 	}
-	if err := addAVP(m, avp.VisitedPLMNID, avp.Vbit|avp.Mbit, VENDOR_3GPP, datatype.OctetString(req.VisitedPlmn)); err != nil {
+	if err := addAVP(m, avp.VisitedPLMNID, avp.Vbit|avp.Mbit, VENDOR_3GPP, datatype.OctetString(req.GetVisitedPlmn())); err != nil {
 		return nil, err
 	}
 	authInfo := &diam.GroupedAVP{
@@ -105,14 +105,14 @@ func newAIR(cfg *S6aProxyConfig, meta *smpeer.Metadata, sid string, req *protos.
 				avp.NumberOfRequestedVectors,
 				avp.Vbit|avp.Mbit,
 				VENDOR_3GPP,
-				datatype.Unsigned32(req.NumRequestedEutranVectors)),
+				datatype.Unsigned32(req.GetNumRequestedEutranVectors())),
 			diam.NewAVP(
 				avp.ImmediateResponsePreferred, avp.Vbit|avp.Mbit, VENDOR_3GPP, datatype.Unsigned32(irp)),
 		},
 	}
-	if len(req.ResyncInfo) > 0 {
+	if len(req.GetResyncInfo()) > 0 {
 		resyncInfo := diam.NewAVP(avp.ResynchronizationInfo, avp.Vbit|avp.Mbit, VENDOR_3GPP,
-			datatype.OctetString(req.ResyncInfo))
+			datatype.OctetString(req.GetResyncInfo()))
 		authInfo.AddAVP(resyncInfo)
 	}
 	if err := addAVP(m, avp.RequestedEUTRANAuthenticationInfo, avp.Vbit|avp.Mbit, VENDOR_3GPP, authInfo); err != nil {
