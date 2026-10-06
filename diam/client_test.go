@@ -13,9 +13,9 @@ import (
 )
 
 // TestServerDialWriteTimeout verifies that Server.WriteTimeout is honored on
-// the client side when dialing via (*Server).Dial. Regression test for #218:
-// client writes to a stalled peer should unblock with a timeout error instead
-// of piling up on the write mutex.
+// the client side when dialing via (*Server).Dial: client writes to a
+// stalled peer must unblock with a timeout error instead of piling up on the
+// write mutex.
 func TestServerDialWriteTimeout(t *testing.T) {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {

@@ -15,7 +15,6 @@ import (
 
 // TestServerClose verifies Server.Close unblocks Accept, makes Serve return
 // ErrServerClosed, and releases the listening port so it can be rebound.
-// Regression test for #183.
 func TestServerClose(t *testing.T) {
 	for _, network := range []string{"tcp", "sctp"} {
 		t.Run(network, func(t *testing.T) {

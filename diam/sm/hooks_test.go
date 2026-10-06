@@ -18,7 +18,7 @@ import (
 
 // TestOnCERHook verifies that Settings.OnCER fires on a received CER before
 // the state machine's default handler, and that the default handshake still
-// completes. Regression test for #150.
+// completes.
 func TestOnCERHook(t *testing.T) {
 	var onCERCalls int32
 	settings := *serverSettings
