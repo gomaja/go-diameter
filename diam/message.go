@@ -119,8 +119,9 @@ func readerBufferSlice(buf *bytes.Buffer, l int) []byte {
 // dictionary to parse it.
 func ReadMessage(reader io.Reader, dictionary *dict.Parser) (*Message, error) {
 	buf := newReaderBuffer()
-	// Safe to pool: all datatype decoders (OctetString, Address, Grouped, etc.)
-	// copy their bytes out of the buffer before it is returned to the pool.
+	// Safe to pool: the built-in datatype decoders copy their bytes, and an
+	// AVP that fails to decode keeps a copy (fallbackData). A decoder
+	// registered with datatype.RegisterDecoder must copy as well.
 	defer putReaderBuffer(buf)
 	m := &Message{dictionary: dictionary}
 	cmd, stream, err := m.readHeader(reader, buf)
