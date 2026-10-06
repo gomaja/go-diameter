@@ -19,12 +19,16 @@ import (
 )
 
 // Handshake writes and closes can be paused after their externally visible effect.
+// afterWrite receives the write's sequence number, taken before the bytes are
+// published, so the order it sees is the order of the writes even when a
+// writer is preempted between publishing and the hook.
 type handshakeConn struct {
 	*messageErrorCaptureConn
 	mu         sync.Mutex
 	ctx        context.Context
 	writes     chan []byte
-	afterWrite func()
+	writeSeq   atomic.Int32
+	afterWrite func(seq int32)
 	afterClose func()
 	closed     atomic.Bool
 	writeErr   error
@@ -39,9 +43,10 @@ func (c *handshakeConn) Write(b []byte) (int, error) {
 	if c.writeErr != nil {
 		return 0, c.writeErr
 	}
+	seq := c.writeSeq.Add(1)
 	c.writes <- append([]byte(nil), b...)
 	if c.afterWrite != nil {
-		c.afterWrite()
+		c.afterWrite(seq)
 	}
 	return len(b), nil
 }
@@ -65,9 +70,8 @@ func TestAcceptedHandshakePublishedBeforeCEA(t *testing.T) {
 		sm := New(testMessageErrorSettings())
 		c := newHandshakeConn()
 		release := make(chan struct{})
-		var writes atomic.Int32
-		c.afterWrite = func() {
-			if writes.Add(1) == 1 {
+		c.afterWrite = func(seq int32) {
+			if seq == 1 { // Hold only the CEA, the first write.
 				<-release
 			}
 		}
