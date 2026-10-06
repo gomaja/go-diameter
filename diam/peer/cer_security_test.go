@@ -70,9 +70,15 @@ func TestCERMalformedSecurityReturnsFailedAVP(t *testing.T) {
 			continue
 		}
 		count++
-		raw, ok := a.Data.(datatype.Unknown)
-		if !ok || !bytes.Equal(raw, expected) {
-			t.Fatalf("Failed-AVP=%v, want malformed Inband-Security-Id", a)
+		// Failed-AVP members decode leniently (RFC 6733 §7.5), so the
+		// malformed child keeps its received bytes.
+		group, ok := a.Data.(*diam.GroupedAVP)
+		if !ok || len(group.AVP) != 1 {
+			t.Fatalf("Failed-AVP=%v, want one member", a)
+		}
+		child, err := group.AVP[0].Serialize()
+		if err != nil || !bytes.Equal(child, expected) {
+			t.Fatalf("Failed-AVP member=% x (%v), want malformed Inband-Security-Id % x", child, err, expected)
 		}
 	}
 	if count != 1 || answer.Header.CommandFlags != 0 {

@@ -86,7 +86,12 @@ func BuildErrorAnswer(request *diam.Message, cfg Settings, resultCode uint32, fa
 	if sessionID, err := request.FindAVP(avp.SessionID, 0); err == nil &&
 		answer.Len()+sessionID.Len() <= diam.MaxMessageLength {
 		// Do not echo malformed flag bits from the rejected request.
-		answer.InsertAVP(diam.NewAVP(avp.SessionID, avp.Mbit, 0, sessionID.Data))
+		data := sessionID.Data
+		if _, raw := data.(datatype.Unknown); raw {
+			// RFC 6733 §7.5: use the minimum example, not undecoded bytes.
+			data = datatype.UTF8String("")
+		}
+		answer.InsertAVP(diam.NewAVP(avp.SessionID, avp.Mbit, 0, data))
 	}
 	// RFC 6733 §§3.2 and 7.1.5: permanent errors keep the application
 	// answer grammar. If the request omitted a field also required in that
@@ -106,6 +111,11 @@ func BuildErrorAnswer(request *diam.Message, cfg Settings, resultCode uint32, fa
 			// to RFC 6733 §7.5's zero-filled missing-AVP example.
 			for _, received := range request.AVP {
 				if received != nil && received.Code == missing.Code && received.VendorID == missing.VendorID && received.Data != nil {
+					// RFC 6733 §§7.1.5 and 7.5: malformed payloads belong
+					// only in Failed-AVP, not in the answer's required fields.
+					if _, raw := received.Data.(datatype.Unknown); raw {
+						continue
+					}
 					missing = diam.NewAVP(missing.Code, missing.Flags, missing.VendorID, received.Data)
 					break
 				}

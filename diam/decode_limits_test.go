@@ -8,6 +8,8 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"fmt"
+	"io"
 	"runtime"
 	"strings"
 	"testing"
@@ -46,6 +48,20 @@ func TestDecodeFallbackDoesNotAliasInput(t *testing.T) {
 			data: rawAVP(avp.CCRequestNumber, badU32),
 			decode: func(a *AVP, b []byte) error {
 				return a.DecodeFromBytes(b, CHARGING_CONTROL_APP_ID, dict.Default)
+			},
+		},
+		{
+			name: "scalar invalid value",
+			data: rawAVP(avp.HostIPAddress, []byte{255, 255, 0x11}),
+			decode: func(a *AVP, b []byte) error {
+				return a.DecodeFromBytes(b, 0, dict.Default)
+			},
+		},
+		{
+			name: "grouped invalid value",
+			data: rawAVP(avp.VendorSpecificApplicationID, rawAVP(avp.HostIPAddress, []byte{255, 255, 0x11})),
+			decode: func(a *AVP, b []byte) error {
+				return a.DecodeFromBytes(b, 0, dict.Default)
 			},
 		},
 		{
@@ -93,8 +109,8 @@ func TestDecodeFallbackDoesNotAliasInput(t *testing.T) {
 
 // TestDecodedMembersDoNotAliasInput checks the Grouped members that leave the
 // decoder: those DecodeGroupedFromBytes returns, and a Failed-AVP built from a
-// member that overruns its parent. Members inside the decoder may alias the
-// input, because a failed member discards its enclosing Grouped AVP's members.
+// member with a framing or payload error. Failed-AVP also retains undecodable
+// members on a successful decode; those members must own their payloads.
 func TestDecodedMembersDoNotAliasInput(t *testing.T) {
 	badU32 := []byte{0x11, 0x11, 0x11, 0x11, 0x11} // 5 bytes for an Unsigned32
 	owned := func(t *testing.T, buf []byte, data datatype.Type) {
@@ -121,6 +137,58 @@ func TestDecodedMembersDoNotAliasInput(t *testing.T) {
 		owned(t, buf, g.AVP[1].Data)
 	})
 
+	for _, mode := range []string{"DecodeAVP", "DecodeFromBytes", "DecodeGroupedFromBytes", "ReadMessage"} {
+		for _, nested := range []bool{false, true} {
+			t.Run("decoded Failed-AVP members/"+mode+fmt.Sprint(nested), func(t *testing.T) {
+				payload := append(rawAVP(avp.InbandSecurityID, []byte{0x11, 0x22}), rawAVP(avp.HostIPAddress, []byte{255, 255, 0x33})...)
+				if nested {
+					payload = rawAVP(avp.VendorSpecificApplicationID, payload)
+				}
+				buf := rawAVP(avp.FailedAVP, payload)
+				want := append([]byte(nil), buf...)
+				inputs := [][]byte{buf}
+				var a *AVP
+				var err error
+				switch mode {
+				case "DecodeAVP":
+					a, err = DecodeAVP(buf, 0, dict.Default)
+				case "DecodeFromBytes":
+					a = &AVP{}
+					err = a.DecodeFromBytes(buf, 0, dict.Default)
+				case "DecodeGroupedFromBytes":
+					var g *GroupedAVP
+					g, err = DecodeGroupedFromBytes(buf, 0, dict.Default)
+					if err == nil {
+						a = g.AVP[0]
+					}
+				case "ReadMessage":
+					reader := &decodeInputReader{Reader: bytes.NewReader(testFramedMessage(t, 0, buf))}
+					var m *Message
+					m, err = ReadMessage(reader, dict.Default)
+					if err == nil {
+						a = m.AVP[0]
+					}
+					inputs = reader.inputs
+				}
+				if err != nil {
+					t.Fatalf("Failed-AVP decode: %v", err)
+				}
+				for _, input := range inputs {
+					for i := range input {
+						input[i] = 0xee
+					}
+				}
+				got, err := a.Serialize()
+				if err != nil {
+					t.Fatal(err)
+				}
+				if !bytes.Equal(got, want) {
+					t.Fatalf("decoded Failed-AVP aliases input: got %x, want %x", got, want)
+				}
+			})
+		}
+	}
+
 	t.Run("Failed-AVP of an overrunning member", func(t *testing.T) {
 		// The member declares 13 bytes, so it fails to decode as an
 		// Unsigned32 and its padding runs 3 bytes past the parent payload.
@@ -141,6 +209,47 @@ func TestDecodedMembersDoNotAliasInput(t *testing.T) {
 		}
 		owned(t, buf, failed.AVP[0].Data)
 	})
+	for _, tc := range []struct {
+		name   string
+		leaf   []byte
+		depth  int
+		result uint32
+	}{
+		{"length", rawAVP(avp.InbandSecurityID, []byte{0x11, 0x11}), 0, InvalidAVPLength},
+		{"value", rawAVP(avp.HostIPAddress, []byte{255, 255, 0x11}), 0, InvalidAVPValue},
+		{"nested length", rawAVP(avp.InbandSecurityID, []byte{0x11, 0x11}), 3, InvalidAVPLength},
+		{"nested value", rawAVP(avp.HostIPAddress, []byte{255, 255, 0x11}), 3, InvalidAVPValue},
+		{"nesting limit", rawAVP(avp.VendorSpecificApplicationID, rawAVP(avp.OriginHost, []byte("ignored"))), dict.DefaultMaxGroupedDepth, InvalidAVPValue},
+	} {
+		t.Run("Failed-AVP payload "+tc.name, func(t *testing.T) {
+			buf := append([]byte(nil), tc.leaf...)
+			for range tc.depth {
+				buf = rawAVP(avp.VendorSpecificApplicationID, buf)
+			}
+			reader := &decodeInputReader{Reader: bytes.NewReader(testFramedMessage(t, RequestFlag, buf))}
+			m, err := ReadMessage(reader, dict.Default)
+			me := requirePayloadMessageError(t, m, err, tc.result)
+			want, err := me.FailedAVP.Serialize()
+			if err != nil {
+				t.Fatal(err)
+			}
+			// Overwrite the actual destination buffers supplied to the reader,
+			// not its source bytes; these are the pooled decoder inputs.
+			for _, input := range reader.inputs {
+				for i := range input {
+					input[i] = 0xee
+				}
+			}
+			got, err := me.FailedAVP.Serialize()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !bytes.Equal(got, want) {
+				t.Fatalf("Failed-AVP changed after input reuse: got %x, want %x", got, want)
+			}
+		})
+	}
+
 }
 
 // TestDecodeGroupedNestingLimitBoundsAllocation checks that an over-deep
@@ -341,4 +450,17 @@ func TestDecodeGroupedNestingLimitDirectEntryPoints(t *testing.T) {
 	if _, err := DecodeGrouped(datatype.Grouped(nested(limit)[8:]), CHARGING_CONTROL_APP_ID, dict.Default); err != nil {
 		t.Fatalf("DecodeGrouped at the limit: %v", err)
 	}
+}
+
+// decodeInputReader retains the buffers passed to Read so ownership tests can
+// simulate pool reuse after ReadMessage returns without relying on sync.Pool.
+type decodeInputReader struct {
+	io.Reader
+	inputs [][]byte
+}
+
+func (r *decodeInputReader) Read(b []byte) (int, error) {
+	n, err := r.Reader.Read(b)
+	r.inputs = append(r.inputs, b[:n])
+	return n, err
 }

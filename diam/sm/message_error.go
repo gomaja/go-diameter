@@ -10,6 +10,7 @@ import (
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/internal/base"
+	"github.com/gomaja/go-diameter/diam/sm/smpeer"
 )
 
 // handleUnsupportedCommand is the default ALL handler. A caller's ALL
@@ -50,10 +51,17 @@ func (sm *StateMachine) HandleMessageError(c diam.Conn, request *diam.Message, m
 		return fmt.Errorf("diameter result code %d requires Failed-AVP", messageErr.ResultCode)
 	}
 	protocolError := messageErr.ResultCode >= 3000 && messageErr.ResultCode < 4000
+	var failedAVPs []*diam.AVP
 	if messageErr.FailedAVP != nil {
-		return sm.writeErrorAnswer(c, request, messageErr.ResultCode, []*diam.AVP{messageErr.FailedAVP}, protocolError)
+		failedAVPs = []*diam.AVP{messageErr.FailedAVP}
 	}
-	return sm.writeErrorAnswer(c, request, messageErr.ResultCode, nil, protocolError)
+	err := sm.writeErrorAnswer(c, request, messageErr.ResultCode, failedAVPs, protocolError)
+	if request.Header.CommandCode == diam.CapabilitiesExchange && !admittedPeer(c) {
+		// RFC 6733 §§5.3 and 5.6.1: a rejected CER admits no peer, and the
+		// transport connection is closed, as handleCER does.
+		c.Close()
+	}
+	return err
 }
 
 func (sm *StateMachine) writeErrorAnswer(c diam.Conn, request *diam.Message, resultCode uint32, failedAVPs []*diam.AVP, protocolError bool) error {
@@ -67,4 +75,14 @@ func (sm *StateMachine) writeErrorAnswer(c diam.Conn, request *diam.Message, res
 		return fmt.Errorf("write Diameter error answer: %w", err)
 	}
 	return nil
+}
+
+// admittedPeer reports whether a successful CER/CEA stored peer metadata on c.
+func admittedPeer(c diam.Conn) bool {
+	ctx := c.Context()
+	if ctx == nil {
+		return false
+	}
+	_, ok := smpeer.FromContext(ctx)
+	return ok
 }
