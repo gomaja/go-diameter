@@ -92,6 +92,9 @@ func decodeGroupedFromBytes(b []byte, application uint32, dictionary *dict.Snaps
 // Serialize implements the datatype.Type interface without validating values.
 // Message serialization validates Address members before writing to the wire.
 func (g *GroupedAVP) Serialize() []byte {
+	if g == nil {
+		return []byte{}
+	}
 	b := make([]byte, g.Len())
 	var n int
 	for _, a := range g.AVP {
@@ -114,6 +117,9 @@ func (g *GroupedAVP) Serialize() []byte {
 
 // Len implements the datatype.Type interface.
 func (g *GroupedAVP) Len() int {
+	if g == nil {
+		return 0
+	}
 	var l int
 	for _, a := range g.AVP {
 		l += a.Len()
@@ -133,6 +139,9 @@ func (g *GroupedAVP) Type() datatype.TypeID {
 
 // String implements the datatype.Type interface.
 func (g *GroupedAVP) String() string {
+	if g == nil {
+		return ""
+	}
 	var b bytes.Buffer
 	for n, a := range g.AVP {
 		if n > 0 {

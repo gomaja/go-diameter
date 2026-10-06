@@ -25,35 +25,8 @@ func (s *s6aProxy) sendULR(sid string, req *protos.UpdateLocationRequest) error 
 	if !ok {
 		return Errorf(codes.Internal, "peer metadata unavailable for ULR")
 	}
-	m := diam.NewRequest(diam.UpdateLocation, diam.TGPP_S6A_APP_ID, dict.Default)
-	if err := addAVP(m, avp.SessionID, avp.Mbit, 0, datatype.UTF8String(sid)); err != nil {
-		return err
-	}
-	if err := addAVP(m, avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity(s.cfg.Host)); err != nil {
-		return err
-	}
-	if err := addAVP(m, avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity(s.cfg.Realm)); err != nil {
-		return err
-	}
-	if err := addAVP(m, avp.DestinationRealm, avp.Mbit, 0, meta.OriginRealm); err != nil {
-		return err
-	}
-	if err := addAVP(m, avp.DestinationHost, avp.Mbit, 0, meta.OriginHost); err != nil {
-		return err
-	}
-	if err := addAVP(m, avp.UserName, avp.Mbit, 0, datatype.UTF8String(req.UserName)); err != nil {
-		return err
-	}
-	if err := addAVP(m, avp.AuthSessionState, avp.Mbit, 0, datatype.Enumerated(1)); err != nil {
-		return err
-	}
-	if err := addAVP(m, avp.RATType, avp.Mbit, VENDOR_3GPP, datatype.Enumerated(ULR_RAT_TYPE)); err != nil {
-		return err
-	}
-	if err := addAVP(m, avp.ULRFlags, avp.Vbit|avp.Mbit, VENDOR_3GPP, datatype.Unsigned32(ULR_FLAGS)); err != nil {
-		return err
-	}
-	if err := addAVP(m, avp.VisitedPLMNID, avp.Vbit|avp.Mbit, VENDOR_3GPP, datatype.OctetString(req.VisitedPlmn)); err != nil {
+	m, err := newULR(s.cfg, meta, sid, req)
+	if err != nil {
 		return err
 	}
 
@@ -61,11 +34,53 @@ func (s *s6aProxy) sendULR(sid string, req *protos.UpdateLocationRequest) error 
 	stream := uint(rand.Int31n(diam.MaxOutboundSCTPStreams - 2))
 	s.airSendLocks[stream].Lock()
 	defer s.airSendLocks[stream].Unlock()
-	_, err := m.WriteToStream(c, stream)
+	_, err = m.WriteToStream(c, stream)
 	if err != nil {
 		err = Error(codes.DataLoss, err)
 	}
 	return err
+}
+
+// newULR builds the Update-Location-Request for req, with Session ID sid,
+// to the HSS that meta describes, and checks it against the dictionary's
+// ULR grammar.
+func newULR(cfg *S6aProxyConfig, meta *smpeer.Metadata, sid string, req *protos.UpdateLocationRequest) (*diam.Message, error) {
+	// NewRequest sets R and P, as the ULR's "REQ, PXY" header requires.
+	m := diam.NewRequest(diam.UpdateLocation, diam.TGPP_S6A_APP_ID, dict.Default)
+	if err := addAVP(m, avp.SessionID, avp.Mbit, 0, datatype.UTF8String(sid)); err != nil {
+		return nil, err
+	}
+	if err := addAVP(m, avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity(cfg.Host)); err != nil {
+		return nil, err
+	}
+	if err := addAVP(m, avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity(cfg.Realm)); err != nil {
+		return nil, err
+	}
+	if err := addAVP(m, avp.DestinationRealm, avp.Mbit, 0, meta.OriginRealm); err != nil {
+		return nil, err
+	}
+	if err := addAVP(m, avp.DestinationHost, avp.Mbit, 0, meta.OriginHost); err != nil {
+		return nil, err
+	}
+	if err := addAVP(m, avp.UserName, avp.Mbit, 0, datatype.UTF8String(req.UserName)); err != nil {
+		return nil, err
+	}
+	if err := addAVP(m, avp.AuthSessionState, avp.Mbit, 0, datatype.Enumerated(1)); err != nil {
+		return nil, err
+	}
+	if err := addAVP(m, avp.RATType, avp.Mbit, VENDOR_3GPP, datatype.Enumerated(ULR_RAT_TYPE)); err != nil {
+		return nil, err
+	}
+	if err := addAVP(m, avp.ULRFlags, avp.Vbit|avp.Mbit, VENDOR_3GPP, datatype.Unsigned32(ULR_FLAGS)); err != nil {
+		return nil, err
+	}
+	if err := addAVP(m, avp.VisitedPLMNID, avp.Vbit|avp.Mbit, VENDOR_3GPP, datatype.OctetString(req.VisitedPlmn)); err != nil {
+		return nil, err
+	}
+	if err := m.Validate(); err != nil {
+		return nil, Error(codes.Internal, err)
+	}
+	return m, nil
 }
 
 // S6a ULA

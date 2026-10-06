@@ -2,10 +2,11 @@
 <diameter>
     <!-- 3GPP TS 29.338 V19.3.0 §4.1, §6.3.2.2, Table 6.3.2.2/1. -->
     <application id="16777313" type="auth" name="TGPP SGd">
+        <!-- proxiable: each request CCF is "REQ, PXY", each answer "PXY" (3GPP TS 29.338 V19.3.0 §§6.3.2.3-6.3.2.6). -->
         <vendor id="10415" name="TGPP"/>
         <!-- 3GPP TS 29.338 V19.3.0 §§6.3.2.3-6.3.2.4, Table 6.3.2.2/1. -->
         <command code="8388645" short="OF" name="MO-Forward-Short-Message">
-          <request>
+          <request proxiable="true">
             <rule avp="Session-Id" required="true" max="1"/>
             <rule avp="DRMP" required="false" max="1"/>
             <rule avp="Vendor-Specific-Application-Id" required="false" max="1"/>
@@ -28,7 +29,7 @@
             <rule avp="Proxy-Info" required="false"/>
             <rule avp="Route-Record" required="false"/>
           </request>
-          <answer>
+          <answer proxiable="true">
             <rule avp="Session-Id" required="true" max="1"/>
             <rule avp="DRMP" required="false" max="1"/>
             <rule avp="Vendor-Specific-Application-Id" required="false" max="1"/>
@@ -49,7 +50,7 @@
         </command>
         <!-- 3GPP TS 29.338 V19.3.0 §§6.3.2.5-6.3.2.6, Table 6.3.2.2/1. -->
         <command code="8388646" short="TF" name="MT-Forward-Short-Message">
-          <request>
+          <request proxiable="true">
             <rule avp="Session-Id" required="true" max="1"/>
             <rule avp="DRMP" required="false" max="1"/>
             <rule avp="Vendor-Specific-Application-Id" required="false" max="1"/>
@@ -75,7 +76,7 @@
             <rule avp="Proxy-Info" required="false"/>
             <rule avp="Route-Record" required="false"/>
           </request>
-          <answer>
+          <answer proxiable="true">
             <rule avp="Session-Id" required="true" max="1"/>
             <rule avp="DRMP" required="false" max="1"/>
             <rule avp="Vendor-Specific-Application-Id" required="false" max="1"/>

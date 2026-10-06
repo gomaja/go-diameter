@@ -2,10 +2,11 @@
 <diameter>
     <!-- 3GPP TS 29.338 V19.3.0 §4.1, §5.3.2.2, Table 5.3.2.2/1. -->
     <application id="16777312" type="auth" name="TGPP S6c">
+        <!-- proxiable: each request CCF is "REQ, PXY", each answer "PXY" (3GPP TS 29.338 V19.3.0 §§5.3.2.3-5.3.2.8). -->
         <vendor id="10415" name="TGPP"/>
         <!-- 3GPP TS 29.338 V19.3.0 §§5.3.2.3-5.3.2.4, Table 5.3.2.2/1. -->
         <command code="8388647" short="SR" name="Send-Routing-Info-for-SM">
-          <request>
+          <request proxiable="true">
             <rule avp="Session-Id" required="true" max="1"/>
             <rule avp="DRMP" required="false" max="1"/>
             <rule avp="Vendor-Specific-Application-Id" required="false" max="1"/>
@@ -27,7 +28,7 @@
             <rule avp="Proxy-Info" required="false"/>
             <rule avp="Route-Record" required="false"/>
           </request>
-          <answer>
+          <answer proxiable="true">
             <rule avp="Session-Id" required="true" max="1"/>
             <rule avp="DRMP" required="false" max="1"/>
             <rule avp="Vendor-Specific-Application-Id" required="false" max="1"/>
@@ -59,7 +60,7 @@
         </command>
         <!-- 3GPP TS 29.338 V19.3.0 §§5.3.2.5-5.3.2.6, Table 5.3.2.2/1. -->
         <command code="8388648" short="AL" name="Alert-Service-Centre">
-          <request>
+          <request proxiable="true">
             <rule avp="Session-Id" required="true" max="1"/>
             <rule avp="DRMP" required="false" max="1"/>
             <rule avp="Vendor-Specific-Application-Id" required="false" max="1"/>
@@ -79,7 +80,7 @@
             <rule avp="Proxy-Info" required="false"/>
             <rule avp="Route-Record" required="false"/>
           </request>
-          <answer>
+          <answer proxiable="true">
             <rule avp="Session-Id" required="true" max="1"/>
             <rule avp="DRMP" required="false" max="1"/>
             <rule avp="Vendor-Specific-Application-Id" required="false" max="1"/>
@@ -97,7 +98,7 @@
         </command>
         <!-- 3GPP TS 29.338 V19.3.0 §§5.3.2.7-5.3.2.8, Table 5.3.2.2/1. -->
         <command code="8388649" short="RD" name="Report-SM-Delivery-Status">
-          <request>
+          <request proxiable="true">
             <rule avp="Session-Id" required="true" max="1"/>
             <rule avp="DRMP" required="false" max="1"/>
             <rule avp="Vendor-Specific-Application-Id" required="false" max="1"/>
@@ -120,7 +121,7 @@
             <rule avp="Proxy-Info" required="false"/>
             <rule avp="Route-Record" required="false"/>
           </request>
-          <answer>
+          <answer proxiable="true">
             <rule avp="Session-Id" required="true" max="1"/>
             <rule avp="DRMP" required="false" max="1"/>
             <rule avp="Vendor-Specific-Application-Id" required="false" max="1"/>

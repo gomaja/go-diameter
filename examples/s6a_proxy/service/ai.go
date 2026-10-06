@@ -28,58 +28,14 @@ func (s *s6aProxy) sendAIR(sid string, req *protos.AuthenticationInformationRequ
 	if !ok {
 		return Errorf(codes.Internal, "peer metadata unavailable for AIR")
 	}
-	var irp uint32
-	if req.ImmediateResponsePreferred {
-		irp = 1
-	}
 	// randomize stream of first message and append it to SID to test SCTP multi-streaming support
 	stream := uint(rand.Int31n(diam.MaxOutboundSCTPStreams - 2))
 	sid = fmt.Sprintf("%s;stream:%d", sid, stream)
 	for i := stream; i > 0; i-- {
 		sid += " " // variable len
 	}
-	m := diam.NewRequest(diam.AuthenticationInformation, diam.TGPP_S6A_APP_ID, dict.Default)
-	if err := addAVP(m, avp.SessionID, avp.Mbit, 0, datatype.UTF8String(sid)); err != nil {
-		return err
-	}
-	if err := addAVP(m, avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity(s.cfg.Host)); err != nil {
-		return err
-	}
-	if err := addAVP(m, avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity(s.cfg.Realm)); err != nil {
-		return err
-	}
-	if err := addAVP(m, avp.DestinationRealm, avp.Mbit, 0, meta.OriginRealm); err != nil {
-		return err
-	}
-	if err := addAVP(m, avp.DestinationHost, avp.Mbit, 0, meta.OriginHost); err != nil {
-		return err
-	}
-	if err := addAVP(m, avp.UserName, avp.Mbit, 0, datatype.UTF8String(req.UserName)); err != nil {
-		return err
-	}
-	if err := addAVP(m, avp.AuthSessionState, avp.Mbit, 0, datatype.Enumerated(1)); err != nil {
-		return err
-	}
-	if err := addAVP(m, avp.VisitedPLMNID, avp.Vbit|avp.Mbit, VENDOR_3GPP, datatype.OctetString(req.VisitedPlmn)); err != nil {
-		return err
-	}
-	authInfo := &diam.GroupedAVP{
-		AVP: []*diam.AVP{
-			diam.NewAVP(
-				avp.NumberOfRequestedVectors,
-				avp.Vbit|avp.Mbit,
-				VENDOR_3GPP,
-				datatype.Unsigned32(req.NumRequestedEutranVectors)),
-			diam.NewAVP(
-				avp.ImmediateResponsePreferred, avp.Vbit|avp.Mbit, VENDOR_3GPP, datatype.Unsigned32(irp)),
-		},
-	}
-	if len(req.ResyncInfo) > 0 {
-		resyncInfo := diam.NewAVP(avp.ResynchronizationInfo, avp.Vbit|avp.Mbit, VENDOR_3GPP,
-			datatype.OctetString(req.ResyncInfo))
-		authInfo.AddAVP(resyncInfo)
-	}
-	if err := addAVP(m, avp.RequestedEUTRANAuthenticationInfo, avp.Vbit|avp.Mbit, VENDOR_3GPP, authInfo); err != nil {
+	m, err := newAIR(s.cfg, meta, sid, req)
+	if err != nil {
 		return err
 	}
 
@@ -108,6 +64,65 @@ func (s *s6aProxy) sendAIR(sid string, req *protos.AuthenticationInformationRequ
 		return Error(codes.DataLoss, err)
 	}
 	return nil
+}
+
+// newAIR builds the Authentication-Information-Request for req, with Session
+// ID sid, to the HSS that meta describes, and checks it against the
+// dictionary's AIR grammar.
+func newAIR(cfg *S6aProxyConfig, meta *smpeer.Metadata, sid string, req *protos.AuthenticationInformationRequest) (*diam.Message, error) {
+	var irp uint32
+	if req.ImmediateResponsePreferred {
+		irp = 1
+	}
+	// NewRequest sets R and P, as the AIR's "REQ, PXY" header requires.
+	m := diam.NewRequest(diam.AuthenticationInformation, diam.TGPP_S6A_APP_ID, dict.Default)
+	if err := addAVP(m, avp.SessionID, avp.Mbit, 0, datatype.UTF8String(sid)); err != nil {
+		return nil, err
+	}
+	if err := addAVP(m, avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity(cfg.Host)); err != nil {
+		return nil, err
+	}
+	if err := addAVP(m, avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity(cfg.Realm)); err != nil {
+		return nil, err
+	}
+	if err := addAVP(m, avp.DestinationRealm, avp.Mbit, 0, meta.OriginRealm); err != nil {
+		return nil, err
+	}
+	if err := addAVP(m, avp.DestinationHost, avp.Mbit, 0, meta.OriginHost); err != nil {
+		return nil, err
+	}
+	if err := addAVP(m, avp.UserName, avp.Mbit, 0, datatype.UTF8String(req.UserName)); err != nil {
+		return nil, err
+	}
+	if err := addAVP(m, avp.AuthSessionState, avp.Mbit, 0, datatype.Enumerated(1)); err != nil {
+		return nil, err
+	}
+	if err := addAVP(m, avp.VisitedPLMNID, avp.Vbit|avp.Mbit, VENDOR_3GPP, datatype.OctetString(req.VisitedPlmn)); err != nil {
+		return nil, err
+	}
+	authInfo := &diam.GroupedAVP{
+		AVP: []*diam.AVP{
+			diam.NewAVP(
+				avp.NumberOfRequestedVectors,
+				avp.Vbit|avp.Mbit,
+				VENDOR_3GPP,
+				datatype.Unsigned32(req.NumRequestedEutranVectors)),
+			diam.NewAVP(
+				avp.ImmediateResponsePreferred, avp.Vbit|avp.Mbit, VENDOR_3GPP, datatype.Unsigned32(irp)),
+		},
+	}
+	if len(req.ResyncInfo) > 0 {
+		resyncInfo := diam.NewAVP(avp.ResynchronizationInfo, avp.Vbit|avp.Mbit, VENDOR_3GPP,
+			datatype.OctetString(req.ResyncInfo))
+		authInfo.AddAVP(resyncInfo)
+	}
+	if err := addAVP(m, avp.RequestedEUTRANAuthenticationInfo, avp.Vbit|avp.Mbit, VENDOR_3GPP, authInfo); err != nil {
+		return nil, err
+	}
+	if err := m.Validate(); err != nil {
+		return nil, Error(codes.Internal, err)
+	}
+	return m, nil
 }
 
 // S6a AIA

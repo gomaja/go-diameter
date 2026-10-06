@@ -475,8 +475,8 @@ func unmarshal(m *Message, f reflect.Value, avps []*AVP, expected datatype.TypeI
 		}
 
 		// Handle grouped AVPs.
-		if group, ok := avps[0].Data.(*GroupedAVP); ok {
-			return scanStruct(m, f, group.AVP)
+		if _, ok := avps[0].Data.(*GroupedAVP); ok {
+			return scanStruct(m, f, members(avps[0]))
 		}
 
 	default:

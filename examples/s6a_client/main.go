@@ -163,31 +163,44 @@ func sendAIR(c diam.Conn, cfg *sm.Settings) error {
 	if !ok {
 		return errors.New("peer metadata unavailable")
 	}
+	m, err := newAIR(cfg, meta)
+	if err != nil {
+		return err
+	}
+	log.Printf("\nSending AIR to %s\n%s\n", c.RemoteAddr(), m)
+	_, err = m.WriteTo(c)
+	return err
+}
+
+// newAIR builds an Authentication-Information-Request for the HSS that meta
+// describes and checks it against the dictionary's AIR grammar.
+func newAIR(cfg *sm.Settings, meta *smpeer.Metadata) (*diam.Message, error) {
 	sid := "session;" + strconv.Itoa(int(rand.Uint32()))
+	// NewRequest sets R and P, as the AIR's "REQ, PXY" header requires.
 	m := diam.NewRequest(diam.AuthenticationInformation, diam.TGPP_S6A_APP_ID, dict.Default)
 	if err := addAVP(m, avp.SessionID, avp.Mbit, 0, datatype.UTF8String(sid)); err != nil {
-		return err
+		return nil, err
 	}
 	if err := addAVP(m, avp.OriginHost, avp.Mbit, 0, cfg.OriginHost); err != nil {
-		return err
+		return nil, err
 	}
 	if err := addAVP(m, avp.OriginRealm, avp.Mbit, 0, cfg.OriginRealm); err != nil {
-		return err
+		return nil, err
 	}
 	if err := addAVP(m, avp.DestinationRealm, avp.Mbit, 0, meta.OriginRealm); err != nil {
-		return err
+		return nil, err
 	}
 	if err := addAVP(m, avp.DestinationHost, avp.Mbit, 0, meta.OriginHost); err != nil {
-		return err
+		return nil, err
 	}
 	if err := addAVP(m, avp.UserName, avp.Mbit, 0, datatype.UTF8String(*ueIMSI)); err != nil {
-		return err
+		return nil, err
 	}
 	if err := addAVP(m, avp.AuthSessionState, avp.Mbit, 0, datatype.Enumerated(0)); err != nil {
-		return err
+		return nil, err
 	}
 	if err := addAVP(m, avp.VisitedPLMNID, avp.Vbit|avp.Mbit, uint32(*vendorID), datatype.OctetString(*plmnID)); err != nil {
-		return err
+		return nil, err
 	}
 	if err := addAVP(m, avp.RequestedEUTRANAuthenticationInfo, avp.Vbit|avp.Mbit, uint32(*vendorID), &diam.GroupedAVP{
 		AVP: []*diam.AVP{
@@ -197,11 +210,12 @@ func sendAIR(c diam.Conn, cfg *sm.Settings) error {
 				avp.ImmediateResponsePreferred, avp.Vbit|avp.Mbit, uint32(*vendorID), datatype.Unsigned32(0)),
 		},
 	}); err != nil {
-		return err
+		return nil, err
 	}
-	log.Printf("\nSending AIR to %s\n%s\n", c.RemoteAddr(), m)
-	_, err := m.WriteTo(c)
-	return err
+	if err := m.Validate(); err != nil {
+		return nil, err
+	}
+	return m, nil
 }
 
 func addAVP(m *diam.Message, code interface{}, flags uint8, vendor uint32, data datatype.Type) error {
@@ -293,41 +307,55 @@ func sendULR(c diam.Conn, cfg *sm.Settings) error {
 	if !ok {
 		return errors.New("peer metadata unavailable")
 	}
-	sid := "session;" + strconv.Itoa(int(rand.Uint32()))
-	m := diam.NewRequest(diam.UpdateLocation, diam.TGPP_S6A_APP_ID, dict.Default)
-	if err := addAVP(m, avp.SessionID, avp.Mbit, 0, datatype.UTF8String(sid)); err != nil {
-		return err
-	}
-	if err := addAVP(m, avp.OriginHost, avp.Mbit, 0, cfg.OriginHost); err != nil {
-		return err
-	}
-	if err := addAVP(m, avp.OriginRealm, avp.Mbit, 0, cfg.OriginRealm); err != nil {
-		return err
-	}
-	if err := addAVP(m, avp.DestinationRealm, avp.Mbit, 0, meta.OriginRealm); err != nil {
-		return err
-	}
-	if err := addAVP(m, avp.DestinationHost, avp.Mbit, 0, meta.OriginHost); err != nil {
-		return err
-	}
-	if err := addAVP(m, avp.UserName, avp.Mbit, 0, datatype.UTF8String(*ueIMSI)); err != nil {
-		return err
-	}
-	if err := addAVP(m, avp.AuthSessionState, avp.Mbit, 0, datatype.Enumerated(0)); err != nil {
-		return err
-	}
-	if err := addAVP(m, avp.RATType, avp.Mbit, uint32(*vendorID), datatype.Enumerated(1004)); err != nil {
-		return err
-	}
-	if err := addAVP(m, avp.ULRFlags, avp.Vbit|avp.Mbit, uint32(*vendorID), datatype.Unsigned32(ULR_FLAGS)); err != nil {
-		return err
-	}
-	if err := addAVP(m, avp.VisitedPLMNID, avp.Vbit|avp.Mbit, uint32(*vendorID), datatype.OctetString(*plmnID)); err != nil {
+	m, err := newULR(cfg, meta)
+	if err != nil {
 		return err
 	}
 	log.Printf("\nSending ULR to %s\n%s\n", c.RemoteAddr(), m)
-	_, err := m.WriteTo(c)
+	_, err = m.WriteTo(c)
 	return err
+}
+
+// newULR builds an Update-Location-Request for the HSS that meta describes
+// and checks it against the dictionary's ULR grammar.
+func newULR(cfg *sm.Settings, meta *smpeer.Metadata) (*diam.Message, error) {
+	sid := "session;" + strconv.Itoa(int(rand.Uint32()))
+	// NewRequest sets R and P, as the ULR's "REQ, PXY" header requires.
+	m := diam.NewRequest(diam.UpdateLocation, diam.TGPP_S6A_APP_ID, dict.Default)
+	if err := addAVP(m, avp.SessionID, avp.Mbit, 0, datatype.UTF8String(sid)); err != nil {
+		return nil, err
+	}
+	if err := addAVP(m, avp.OriginHost, avp.Mbit, 0, cfg.OriginHost); err != nil {
+		return nil, err
+	}
+	if err := addAVP(m, avp.OriginRealm, avp.Mbit, 0, cfg.OriginRealm); err != nil {
+		return nil, err
+	}
+	if err := addAVP(m, avp.DestinationRealm, avp.Mbit, 0, meta.OriginRealm); err != nil {
+		return nil, err
+	}
+	if err := addAVP(m, avp.DestinationHost, avp.Mbit, 0, meta.OriginHost); err != nil {
+		return nil, err
+	}
+	if err := addAVP(m, avp.UserName, avp.Mbit, 0, datatype.UTF8String(*ueIMSI)); err != nil {
+		return nil, err
+	}
+	if err := addAVP(m, avp.AuthSessionState, avp.Mbit, 0, datatype.Enumerated(0)); err != nil {
+		return nil, err
+	}
+	if err := addAVP(m, avp.RATType, avp.Mbit, uint32(*vendorID), datatype.Enumerated(1004)); err != nil {
+		return nil, err
+	}
+	if err := addAVP(m, avp.ULRFlags, avp.Vbit|avp.Mbit, uint32(*vendorID), datatype.Unsigned32(ULR_FLAGS)); err != nil {
+		return nil, err
+	}
+	if err := addAVP(m, avp.VisitedPLMNID, avp.Vbit|avp.Mbit, uint32(*vendorID), datatype.OctetString(*plmnID)); err != nil {
+		return nil, err
+	}
+	if err := m.Validate(); err != nil {
+		return nil, err
+	}
+	return m, nil
 }
 
 func handleAuthenticationInformationAnswer(done chan struct{}) diam.HandlerFunc {

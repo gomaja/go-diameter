@@ -6,9 +6,10 @@
 		<vendor id="10415" name="TGPP"/>
 		<!-- Diameter Credit Control Application -->
 		<!-- https://www.rfc-editor.org/rfc/rfc8506 -->
+		<!-- proxiable: the request CCF is "REQ, PXY", the answer "PXY" (3GPP TS 29.219 V19.0.0 §§5.6.2-5.6.3). -->
 
 		<command code="8388635" short="SL" name="Spending-Limit">
-			<request>
+			<request proxiable="true">
 				<!-- https://www.rfc-editor.org/rfc/rfc8506#section-3.1 -->
 				<rule avp="Session-Id" required="true" max="1"/>
 				<rule avp="Auth-Application-Id" required="true" max="1"/>
@@ -24,7 +25,7 @@
 				<rule avp="Route-Record" required="false" max="1"/>
 				<rule avp="Service-Information" required="false" max="1"/>
 			</request>
-			<answer>
+			<answer proxiable="true">
 				<!-- https://www.rfc-editor.org/rfc/rfc8506#section-3.2 -->
 				<rule avp="Session-Id" required="true" max="1"/>
 				<rule avp="Result-Code" required="true" max="1"/>

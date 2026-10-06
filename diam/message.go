@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"math/rand"
 	"net"
 	"sync"
@@ -73,12 +74,11 @@ func unknownMandatoryHierarchy(a *AVP, appID uint32, dictionary *dict.Snapshot) 
 			}
 		}
 	}
-	group, ok := a.Data.(*GroupedAVP)
-	if !ok {
+	if _, ok := a.Data.(*GroupedAVP); !ok {
 		return nil
 	}
 	var children []*AVP
-	for _, child := range group.AVP {
+	for _, child := range members(a) {
 		if failed := unknownMandatoryHierarchy(child, appID, dictionary); failed != nil {
 			children = append(children, failed)
 		}
@@ -300,9 +300,24 @@ func NewMessage(cmd uint32, flags uint8, appid, hopbyhop, endtoend uint32, dicti
 	}
 }
 
-// NewRequest creates a new Message with the Request bit set.
+// NewRequest creates a request for command cmd of application appid, with
+// the command flags its definition in dictionary requires: R, and P when
+// the request's Command Code Format carries PXY (RFC 6733 §3 and §3.2), as
+// recorded by the definition's proxiable attribute. The definition is the
+// one Message.Validate checks the request against, so the flags pass its
+// check. A command that dictionary does not define, or whose definition
+// does not state the P bit, gets R alone. A nil dictionary means
+// dict.Default.
+//
+// Use NewMessage to choose every flag.
 func NewRequest(cmd uint32, appid uint32, dictionary *dict.Parser) *Message {
-	return NewMessage(cmd, RequestFlag, appid, 0, 0, dictionary)
+	m := NewMessage(cmd, RequestFlag, appid, 0, 0, dictionary)
+	if command, err := m.Dictionary().Snapshot().FindCommand(appid, cmd); err == nil {
+		if proxiable := command.Request.Proxiable; proxiable != nil && *proxiable {
+			m.Header.CommandFlags |= ProxiableFlag
+		}
+	}
+	return m
 }
 
 // Dictionary returns the dictionary parser object associated with this
@@ -544,122 +559,174 @@ func (m *Message) Len() int {
 	return l
 }
 
-func findFromAVP(avps []*AVP, code uint32, findMultiple bool) ([]*AVP, error) {
-	var avpResult []*AVP
-	for _, a := range avps {
-
-		if a.Code == code {
-			avpResult = append(avpResult, a)
-			if !findMultiple {
-				return avpResult, nil
-			}
-		}
-
-		if a.Data.Type() == GroupedAVPType {
-			groupedAVP := a.Data
-			result, err := findFromAVP(groupedAVP.(*GroupedAVP).AVP, code, findMultiple)
-			if err == nil {
-				avpResult = append(avpResult, result...)
-				if !findMultiple {
-					return avpResult, nil
-				}
-			}
-		}
-	}
-
-	if len(avpResult) == 0 {
-		return nil, errors.New("avp not found")
-	}
-
-	return avpResult, nil
+// AVPRef identifies an AVP as Message.NewAVP takes one: Code is the AVP
+// code (int or uint32) or the AVP's dictionary name (string), and VendorID
+// is its Vendor-Id, 0 for an AVP of the IETF space. An AVP is identified by
+// its code and its Vendor-Id together (RFC 6733 §4.1): one code denotes
+// different AVPs in different vendors' spaces.
+type AVPRef struct {
+	Code     any
+	VendorID uint32
 }
 
-// Strict path search (eg: in case of groups)
-// Can be also used to search AVPs as findFromAVP
-func avpsWithPath(avps []*AVP, path []uint32) []*AVP {
+// lookupKey resolves an AVP reference to the code and Vendor-Id the AVP
+// carries. A name is looked up, with its vendor, in the message's
+// application in dictionary.
+func (m *Message) lookupKey(dictionary *dict.Snapshot, ref AVPRef) (avpKey, error) {
+	// dict.UndefinedVendorID asks the dictionary for any vendor's AVP; here
+	// the vendor is part of what is matched, so it must be a Vendor-Id.
+	if ref.VendorID == dict.UndefinedVendorID {
+		return avpKey{}, errors.New("AVP lookup needs a Vendor-Id; 0 is the IETF space")
+	}
+	switch code := ref.Code.(type) {
+	case uint32:
+		return avpKey{code, ref.VendorID}, nil
+	case int:
+		if code < 0 || uint64(code) > math.MaxUint32 {
+			return avpKey{}, fmt.Errorf("AVP code %d out of range", code)
+		}
+		return avpKey{uint32(code), ref.VendorID}, nil
+	case string:
+		definition, err := dictionary.FindAVPWithVendor(m.Header.ApplicationID, code, ref.VendorID)
+		if err != nil {
+			return avpKey{}, err
+		}
+		return avpKey{definition.Code, definition.VendorID}, nil
+	default:
+		return avpKey{}, fmt.Errorf("unsupported AVP code type %T", ref.Code)
+	}
+}
+
+// members returns the members of a Grouped AVP: none when a is nil or not
+// Grouped, including when its Data is a nil *GroupedAVP.
+func members(a *AVP) []*AVP {
+	if group, ok := a.Data.(*GroupedAVP); ok && group != nil {
+		return group.AVP
+	}
+	return nil
+}
+
+// findAVPs appends to found the AVPs among avps, and inside their Grouped
+// AVPs at any depth, that carry key's code and Vendor-Id, in depth-first
+// order. With first, it stops at the first one.
+func findAVPs(found, avps []*AVP, key avpKey, first bool) []*AVP {
+	for _, a := range avps {
+		if a == nil {
+			continue
+		}
+		if a.Code == key.Code && a.VendorID == key.VendorID {
+			found = append(found, a)
+			if first {
+				return found
+			}
+		}
+		if group := members(a); len(group) > 0 {
+			n := len(found)
+			found = findAVPs(found, group, key, first)
+			if first && len(found) > n {
+				return found
+			}
+		}
+	}
+	return found
+}
+
+// avpsWithPath returns the AVPs at the end of path, where path[0] is among
+// avps and each following element is a member of the Grouped AVP before it.
+func avpsWithPath(avps []*AVP, path []avpKey) []*AVP {
 	if len(path) == 0 {
 		return avps
 	}
-	var avsOnPath []*AVP
-	for _, avp := range avps {
-		if avp.Code != path[0] {
+	var found []*AVP
+	for _, a := range avps {
+		if a == nil || a.Code != path[0].Code || a.VendorID != path[0].VendorID {
 			continue
 		}
-		if len(path) == 1 { // Reached end
-			avsOnPath = append(avsOnPath, avp)
+		if len(path) == 1 {
+			found = append(found, a)
 			continue
 		}
-		if avp.Data.Type() != GroupedAVPType {
-			continue
-		}
-		avpsOnSubpath := avpsWithPath(avp.Data.(*GroupedAVP).AVP, path[1:])
-		if len(avpsOnSubpath) != 0 {
-			avsOnPath = append(avsOnPath, avpsOnSubpath...)
-		}
+		found = append(found, avpsWithPath(members(a), path[1:])...)
 	}
-	return avsOnPath
+	return found
 }
 
-// FindAVPs searches the Message for all avps that match the search criteria.
-// The code can be either the AVP code (int, uint32) or name (string).
-//
-// Example:
-//
-//	avps, err := m.FindAVPs(264)
-//	avps, err := m.FindAVPs(avp.OriginHost)
-//	avps, err := m.FindAVPs("Origin-Host")
-func (m *Message) FindAVPs(code interface{}, vendorID uint32) ([]*AVP, error) {
-	dictAVP, err := m.Dictionary().FindAVPWithVendor(m.Header.ApplicationID, code, vendorID)
-
+// findAVP is FindAVP and, with all, FindAVPs.
+func (m *Message) findAVP(code any, vendorID uint32, all bool) ([]*AVP, error) {
+	key, err := m.lookupKey(m.Dictionary().Snapshot(), AVPRef{code, vendorID})
 	if err != nil {
 		return nil, err
 	}
-
-	return findFromAVP(m.AVP, dictAVP.Code, true)
+	found := findAVPs(nil, m.AVP, key, !all)
+	if len(found) == 0 {
+		return nil, fmt.Errorf("AVP %d of vendor %d not found", key.Code, key.VendorID)
+	}
+	return found, nil
 }
 
-// FindAVP searches the Message for a specific AVP.
-// The code can be either the AVP code (int, uint32) or name (string).
+// FindAVPs returns every AVP of the Message, at the top level and inside
+// Grouped AVPs at any depth, depth-first, whose code and Vendor-Id are
+// those of code and vendorID. It returns an error when there is none.
+//
+// The code is the AVP code (int, uint32) or the AVP's dictionary name
+// (string). vendorID is the AVP's Vendor-Id, 0 for an IETF AVP, and is
+// always matched (RFC 6733 §4.1); for a name it also selects that vendor's
+// definition of the name, in the message's dictionary and application. A
+// code needs no dictionary. dict.UndefinedVendorID is not a Vendor-Id and
+// is refused.
 //
 // Example:
 //
-//	avp, err := m.FindAVP(264)
-//	avp, err := m.FindAVP(avp.OriginHost)
-//	avp, err := m.FindAVP("Origin-Host")
-func (m *Message) FindAVP(code interface{}, vendorID uint32) (*AVP, error) {
-	dictAVP, err := m.Dictionary().FindAVPWithVendor(m.Header.ApplicationID, code, vendorID)
+//	avps, err := m.FindAVPs(avp.SupportedVendorID, 0)
+//	avps, err := m.FindAVPs("Supported-Vendor-Id", 0)
+//	avps, err := m.FindAVPs(avp.SubscriptionData, 10415)
+func (m *Message) FindAVPs(code any, vendorID uint32) ([]*AVP, error) {
+	return m.findAVP(code, vendorID, true)
+}
 
+// FindAVP returns the first AVP that FindAVPs would return.
+//
+// Example:
+//
+//	a, err := m.FindAVP(avp.OriginHost, 0)
+//	a, err := m.FindAVP("Origin-Host", 0)
+//	a, err := m.FindAVP(avp.VisitedPLMNID, 10415)
+func (m *Message) FindAVP(code any, vendorID uint32) (*AVP, error) {
+	found, err := m.findAVP(code, vendorID, false)
 	if err != nil {
 		return nil, err
 	}
-
-	result, err := findFromAVP(m.AVP, dictAVP.Code, false)
-
-	if err == nil {
-		return result[0], err
-	}
-	return nil, err
+	return found[0], nil
 }
 
-// FindAVPsWithPath searches the Message for AVPs on specific path.
-// Used for example on group hierarchies.
-// The path elements can be either AVP code (int, uint32), name (string) or combination of them.
+// FindAVPsWithPath returns the AVPs reached by path through the Grouped
+// AVP hierarchy: path[0] is an AVP at the top level of the Message and
+// each following element a member of the Grouped AVP before it. Each
+// element is matched by its own code and Vendor-Id, as in FindAVPs, since
+// the members of a vendor's Grouped AVP can belong to another vendor's
+// space. Names are resolved against one dict.Snapshot of the message's
+// dictionary. An empty path returns the top-level AVPs; a path that leads
+// nowhere returns none and no error.
 //
 // Example:
 //
-//	avp, err := m.FindAVPsWithPath([]interface{}{264})
-//	avp, err := m.FindAVPsWithPath([]interface{}{avp.OriginHost})
-//	avp, err := m.FindAVPsWithPath([]interface{}{"Origin-Host"})
-func (m *Message) FindAVPsWithPath(path []interface{}, vendorID uint32) ([]*AVP, error) {
-	pathCodes := make([]uint32, len(path))
-	for i, pathCode := range path {
-		dictAVP, err := m.Dictionary().FindAVPWithVendor(m.Header.ApplicationID, pathCode, vendorID)
+//	avps, err := m.FindAVPsWithPath(
+//		diam.AVPRef{Code: avp.SubscriptionData, VendorID: 10415},
+//		diam.AVPRef{Code: avp.APNConfigurationProfile, VendorID: 10415},
+//		diam.AVPRef{Code: avp.APNConfiguration, VendorID: 10415},
+//		diam.AVPRef{Code: "Service-Selection"},
+//	)
+func (m *Message) FindAVPsWithPath(path ...AVPRef) ([]*AVP, error) {
+	dictionary := m.Dictionary().Snapshot()
+	keys := make([]avpKey, len(path))
+	for i, ref := range path {
+		key, err := m.lookupKey(dictionary, ref)
 		if err != nil {
 			return nil, err
 		}
-		pathCodes[i] = dictAVP.Code
+		keys[i] = key
 	}
-	return avpsWithPath(m.AVP, pathCodes), nil
+	return avpsWithPath(m.AVP, keys), nil
 }
 
 // Answer creates an answer for the current Message
@@ -735,7 +802,7 @@ func printGrouped(prefix string, m *Message, a *AVP, indent int) string {
 		a.Len(),
 		a.VendorID,
 	)
-	for _, ga := range a.Data.(*GroupedAVP).AVP {
+	for _, ga := range members(a) {
 		if dictAVP, err := m.Dictionary().FindAVPWithVendor(
 			m.Header.ApplicationID,
 			ga.Code,

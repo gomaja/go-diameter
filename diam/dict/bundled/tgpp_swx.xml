@@ -5,9 +5,10 @@
         https://www.3gpp.org/dynareport/29273.htm
     -->
     <application id="16777265" type="auth" name="TGPP SWX">
+        <!-- proxiable: each request CCF is "REQ, PXY", each answer "PXY" (3GPP TS 29.273 V19.2.0 §§8.2.2.1, 8.2.2.3, 8.2.2.4). -->
         <vendor id="10415" name="TGPP"/>
         <command code="303" short="MA" name="Multimedia-Auth">
-            <request>
+            <request proxiable="true">
                 <!-- https://www.3gpp.org/dynareport/29273.htm Section 8.2.2.1 -->
                 <rule avp="Session-Id" required="true" max="1"/>
                 <rule avp="Vendor-Specific-Application-Id" required="true" max="1"/>
@@ -26,7 +27,7 @@
                 <rule avp="Supported-Features" required="false"/>
                 <rule avp="AVP" required="false"/>
             </request>
-            <answer>
+            <answer proxiable="true">
                 <!-- https://www.3gpp.org/dynareport/29273.htm Section 8.2.2.1 -->
                 <rule avp="Session-Id" required="true" max="1"/>
                 <rule avp="Vendor-Specific-Application-Id" required="true" max="1"/>
@@ -44,7 +45,7 @@
             </answer>
         </command>
         <command code="301" short="SA" name="Server-Assignment">
-            <request>
+            <request proxiable="true">
                 <!-- https://www.3gpp.org/dynareport/29273.htm Section 8.2.2.3 -->
                 <rule avp="Session-Id" required="true" max="1"/>
                 <rule avp="Vendor-Specific-Application-Id" required="true" max="1"/>
@@ -62,7 +63,7 @@
                 <rule avp="Supported-Features" required="false"/>
                 <rule avp="AVP" required="false"/>
             </request>
-            <answer>
+            <answer proxiable="true">
                 <!-- https://www.3gpp.org/dynareport/29273.htm Section 8.2.2.3 -->
                 <rule avp="Session-Id" required="true" max="1"/>
                 <rule avp="Vendor-Specific-Application-Id" required="true" max="1"/>
@@ -79,7 +80,7 @@
             </answer>
         </command>
         <command code="304" short="RT" name="Registration-Termination">
-            <request>
+            <request proxiable="true">
                 <!-- https://www.3gpp.org/dynareport/29273.htm Section 8.2.2.4 -->
                 <rule avp="Session-Id" required="true" max="1"/>
                 <rule avp="DRMP" required="false" max="1" />
@@ -94,7 +95,7 @@
                 <rule avp="Supported-Features" required="false"/>
                 <rule avp="AVP" required="false"/>
             </request>
-            <answer>
+            <answer proxiable="true">
                 <!-- https://www.3gpp.org/dynareport/29273.htm Section 8.2.2.4 -->
                 <rule avp="Session-Id" required="true" max="1"/>
                 <rule avp="DRMP" required="false" max="1" />
@@ -109,8 +110,10 @@
             </answer>
         </command>
 
-        <avp name="RAT-Type" code="1032" must="M,V" may="P" may-encrypt="Y" vendor-id="10415">
-            <!-- https://www.3gpp.org/dynareport/29273.htm Section 5.2.3.6 -->
+        <!-- TS 29.273 V19.2.0 §8.2.3.5 and Table 8.2.3.0/2 (NOTE 1): reused TS 29.212 AVP with a blank M-bit
+             override, so TS 29.212 V20.0.0 Table 5.3.0.1 applies: V must, P may, M must not. The "M,V" of
+             TS 29.273 §5.2.3.6 is the STa rule. Defined here so SWx does not inherit the S6a override. -->
+        <avp name="RAT-Type" code="1032" must="V" may="P" must-not="M" may-encrypt="Y" vendor-id="10415">
             <data type="Enumerated">
                 <item code="0" name="WLAN"/>
                 <item code="1" name="VIRTUAL"/>

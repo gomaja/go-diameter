@@ -183,13 +183,13 @@ func validateAVPs(items []*AVP, rules []*dict.Rule, appID uint32, dictionary *di
 			return &ValidationError{ResultCode: code, FailedAVP: a, Reason: "AVP exceeds maximum occurrences"}
 		}
 		if known == nil && definition.Data.Type == datatype.GroupedType && a.Code != avp.FailedAVP && len(definition.Data.Rule) > 0 {
-			if group, ok := a.Data.(*GroupedAVP); ok {
-				if childErr := validateAVPs(group.AVP, definition.Data.Rule, appID, dictionary); childErr != nil {
+			if _, ok := a.Data.(*GroupedAVP); ok {
+				if childErr := validateAVPs(members(a), definition.Data.Rule, appID, dictionary); childErr != nil {
 					childErr.FailedAVP = NewAVP(a.Code, a.Flags, a.VendorID, &GroupedAVP{AVP: []*AVP{childErr.FailedAVP}})
 					return childErr
 				}
 				if definition.Code == avp.VendorSpecificApplicationID && definition.VendorID == 0 {
-					if choiceErr := validateVendorApplicationChoice(a, group); choiceErr != nil {
+					if choiceErr := validateVendorApplicationChoice(a, members(a)); choiceErr != nil {
 						return choiceErr
 					}
 				}
@@ -243,9 +243,9 @@ func missingAVPExample(definition *dict.AVP, appID uint32, dictionary *dict.Snap
 
 // RFC 6733 §6.11 requires exactly one authentication or accounting
 // application ID. The ordinary independent count rules cannot express XOR.
-func validateVendorApplicationChoice(parent *AVP, group *GroupedAVP) *ValidationError {
+func validateVendorApplicationChoice(parent *AVP, children []*AVP) *ValidationError {
 	var choices []*AVP
-	for _, child := range group.AVP {
+	for _, child := range children {
 		if child != nil && child.VendorID == 0 && (child.Code == avp.AuthApplicationID || child.Code == avp.AcctApplicationID) {
 			choices = append(choices, child)
 		}
