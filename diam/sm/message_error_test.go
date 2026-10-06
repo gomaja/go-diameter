@@ -229,6 +229,14 @@ func TestStateMachineDoesNotAnswerMalformedAnswer(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _ = conn.Close() }()
+	writeValidSMErrorCER(t, conn)
+	if err := conn.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	cea, err := diam.ReadMessage(conn, dict.Default)
+	if err != nil || !testResultCode(cea, diam.Success) {
+		t.Fatalf("initial CEA = %v, %v", cea, err)
+	}
 
 	malformedAnswer := testSMErrorMessage(t, 0, []byte{
 		0x00, 0x00, 0x01, 0x02,
@@ -246,17 +254,15 @@ func TestStateMachineDoesNotAnswerMalformedAnswer(t *testing.T) {
 	} else if netErr, ok := err.(net.Error); !ok || !netErr.Timeout() {
 		t.Fatalf("read after malformed answer = %v, want timeout with no bytes", err)
 	}
-	if err := conn.SetReadDeadline(time.Time{}); err != nil {
+	if err := conn.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
 		t.Fatal(err)
 	}
-
-	writeValidSMErrorCER(t, conn)
-	cea, err := diam.ReadMessage(conn, dict.Default)
-	if err != nil {
-		t.Fatalf("read CEA after malformed answer: %v", err)
+	if _, err := regressionDWR(t).WriteTo(conn); err != nil {
+		t.Fatal(err)
 	}
-	if !testResultCode(cea, diam.Success) {
-		t.Fatalf("CEA after malformed answer has wrong result:\n%s", cea)
+	dwa, err := diam.ReadMessage(conn, dict.Default)
+	if err != nil || dwa.Header.CommandCode != diam.DeviceWatchdog || !testResultCode(dwa, diam.Success) {
+		t.Fatalf("DWA after malformed answer = %v, %v", dwa, err)
 	}
 }
 

@@ -66,8 +66,11 @@ func BuildCER(dictionary *dict.Parser, cfg Settings) (*diam.Message, error) {
 	for _, a := range cfg.AuthApplicationID {
 		m.AddAVP(a)
 	}
-	if _, err := m.NewAVP(avp.InbandSecurityID, avp.Mbit, 0, datatype.Unsigned32(cfg.InbandSecurityID)); err != nil {
-		return nil, err
+	// RFC 6733 §6.10: zero is the omitted default in a CER.
+	if cfg.InbandSecurityID != 0 {
+		if _, err := m.NewAVP(avp.InbandSecurityID, avp.Mbit, 0, datatype.Unsigned32(cfg.InbandSecurityID)); err != nil {
+			return nil, err
+		}
 	}
 	for _, a := range cfg.AcctApplicationID {
 		m.AddAVP(a)

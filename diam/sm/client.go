@@ -67,7 +67,7 @@ type Client struct {
 	AcctApplicationID           []*diam.AVP   // Acct applications
 	AuthApplicationID           []*diam.AVP   // Auth applications
 	VendorSpecificApplicationID []*diam.AVP   // Vendor specific applications
-	InbandSecurityID            uint32        // Inband-Security-Id for CER: 0=NO_INBAND_SECURITY (default), 1=TLS (RFC 6733 §5.3.1)
+	InbandSecurityID            uint32        // Inband-Security-Id for CER: 0=omitted default, 1=TLS on an already secured connection (RFC 6733 §§5.3.1, 6.10)
 	TLSConfig                   *tls.Config   // Optional TLS config used by DialTLS methods.
 
 	// ReadTimeout is the maximum duration for reading a message from the
@@ -341,6 +341,19 @@ func (cli *Client) validate() error {
 }
 
 func (cli *Client) handshake(c diam.Conn, activity *watchdogActivity) (diam.Conn, error) {
+	// RFC 6733 §§5.3 and 6.10: this client cannot upgrade plaintext
+	// to in-band TLS after CER/CEA, so it must not offer TLS on that path.
+	if cli.InbandSecurityID == 1 {
+		tlsConn, ok := c.Connection().(*tls.Conn)
+		if !ok {
+			c.Close()
+			return nil, fmt.Errorf("Inband-Security-Id=1 requires an already established TLS connection")
+		}
+		if err := tlsConn.Handshake(); err != nil {
+			c.Close()
+			return nil, fmt.Errorf("TLS handshake before CER: %w", err)
+		}
+	}
 	var (
 		hostAddresses []datatype.Address
 		err           error

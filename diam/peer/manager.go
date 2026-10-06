@@ -522,6 +522,17 @@ func (m *Manager) processDIAM(s *session, msg *diam.Message) {
 func (m *Manager) rejectCER(s *session, msg *diam.Message, code uint32, reason error) {
 	cfg := m.baseSettings(s.c)
 	answer := base.BuildCEA(msg, cfg, code)
+	var messageErr *diam.MessageError
+	if errors.As(reason, &messageErr) {
+		// RFC 6733 §7.1.5, Verified Erratum 4615: one Failed-AVP.
+		var err error
+		answer, err = base.BuildErrorAnswer(msg, cfg, messageErr.ResultCode, []*diam.AVP{messageErr.FailedAVP}, false)
+		if err != nil {
+			m.report(s, msg, err)
+			s.close()
+			return
+		}
+	}
 	m.report(s, msg, reason)
 	if !s.send(answer, true) {
 		s.close()

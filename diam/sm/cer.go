@@ -5,6 +5,7 @@
 package sm
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/gomaja/go-diameter/diam"
@@ -27,7 +28,7 @@ func handleCER(sm *StateMachine) diam.HandlerFunc {
 			return
 		}
 		cer := new(smparser.CER)
-		_, err := cer.ParseWithSecurity(m, smparser.Server, c.TLS() != nil)
+		_, err := cer.ParseWithSecurityAndDictionary(m, smparser.Server, c.TLS() != nil, sm.dictionary)
 		if err != nil {
 			err = errorCEA(sm, c, m, err)
 			if err != nil {
@@ -40,18 +41,31 @@ func handleCER(sm *StateMachine) diam.HandlerFunc {
 			c.Close()
 			return
 		}
-		err = successCEA(sm, c, m)
-
+		a, err := buildSuccessCEA(sm, c, m)
+		if err == nil {
+			meta := smpeer.FromCER(cer)
+			c.SetContext(smpeer.NewContext(ctx, meta))
+			// Publish admission before the peer can respond to the CEA (RFC 6733 §5.6.1).
+			if !sm.completeAcceptedHandshake(c) {
+				// The handshake timer won: no peer was admitted and no CEA is sent.
+				c.SetContext(ctx)
+				c.Close()
+				return
+			}
+			if sm.cfg.OnCEA != nil {
+				sm.cfg.OnCEA(c, a)
+			}
+			_, err = a.WriteTo(c)
+		}
 		if err != nil {
 			sm.Error(&diam.ErrorReport{
 				Conn:    c,
 				Message: m,
 				Error:   err,
 			})
+			c.Close()
 			return
 		}
-		meta := smpeer.FromCER(cer)
-		c.SetContext(smpeer.NewContext(ctx, meta))
 		// Notify about peer passing the handshake.
 		select {
 		case sm.hsNotifyc <- c:
@@ -81,7 +95,18 @@ func errorCEA(sm *StateMachine, c diam.Conn, m *diam.Message, errMessage error) 
 	}
 	cfg := baseSettings(sm.cfg)
 	cfg.HostIPAddresses = hostAddresses
-	a := base.BuildCEA(m, cfg, resultCode)
+	var a *diam.Message
+	var messageErr *diam.MessageError
+	if errors.As(errMessage, &messageErr) {
+		// RFC 6733 §7.1.5, Verified Erratum 4615: one Failed-AVP.
+		var err error
+		a, err = base.BuildErrorAnswer(m, cfg, messageErr.ResultCode, []*diam.AVP{messageErr.FailedAVP}, false)
+		if err != nil {
+			return err
+		}
+	} else {
+		a = base.BuildCEA(m, cfg, resultCode)
+	}
 	if sm.cfg.OnCEA != nil {
 		sm.cfg.OnCEA(c, a)
 	}
@@ -94,12 +119,24 @@ func errorCEA(sm *StateMachine, c diam.Conn, m *diam.Message, errMessage error) 
 
 // successCEA sends the legacy capability success answer (RFC 6733 §5.3.2).
 func successCEA(sm *StateMachine, c diam.Conn, m *diam.Message) error {
+	a, err := buildSuccessCEA(sm, c, m)
+	if err != nil {
+		return err
+	}
+	if sm.cfg.OnCEA != nil {
+		sm.cfg.OnCEA(c, a)
+	}
+	_, err = a.WriteTo(c)
+	return err
+}
+
+func buildSuccessCEA(sm *StateMachine, c diam.Conn, m *diam.Message) (*diam.Message, error) {
 	hostAddresses := sm.cfg.HostIPAddresses
 	if len(hostAddresses) == 0 {
 		var err error
 		hostAddresses, err = getLocalAddresses(c)
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
 	cfg := baseSettings(sm.cfg)
@@ -109,10 +146,6 @@ func successCEA(sm *StateMachine, c diam.Conn, m *diam.Message) error {
 			ID: app.ID, AppType: app.AppType, Vendor: app.Vendor,
 		})
 	}
-	a := base.BuildCEA(m, cfg, diam.Success)
-	if sm.cfg.OnCEA != nil {
-		sm.cfg.OnCEA(c, a)
-	}
-	_, err := a.WriteTo(c)
-	return err
+	// The caller runs OnCEA only once the CEA will be sent.
+	return base.BuildCEA(m, cfg, diam.Success), nil
 }
