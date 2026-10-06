@@ -523,6 +523,36 @@ func TestTracerSurvivesPanickingLogger(t *testing.T) {
 	}
 }
 
+// panickingSpanProcessor panics when a span ends, as a synchronous exporter
+// that fails might.
+type panickingSpanProcessor struct{}
+
+func (panickingSpanProcessor) OnStart(context.Context, sdktrace.ReadWriteSpan) {}
+func (panickingSpanProcessor) OnEnd(sdktrace.ReadOnlySpan)                     { panic("export failure") }
+func (panickingSpanProcessor) Shutdown(context.Context) error                  { return nil }
+func (panickingSpanProcessor) ForceFlush(context.Context) error                { return nil }
+
+// TestTracerSurvivesPanickingSpanPipeline checks that a span pipeline that
+// panics in span.End cannot replace the handler's panic value.
+func TestTracerSurvivesPanickingSpanPipeline(t *testing.T) {
+	sr := tracetest.NewSpanRecorder()
+	tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(sr),
+		sdktrace.WithSpanProcessor(panickingSpanProcessor{}))
+	t.Cleanup(func() { _ = tp.Shutdown(context.Background()) })
+	h := NewTracer(diam.HandlerFunc(func(diam.Conn, *diam.Message) { panic("boom") }), WithTracerProvider(tp))
+	var recovered any
+	func() {
+		defer func() { recovered = recover() }()
+		h.ServeDIAM(nil, diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default))
+	}()
+	if recovered != "boom" {
+		t.Errorf("panic value after the tracer = %v, want boom", recovered)
+	}
+	if span := endedSpans(t, sr, 1)[0]; span.Status().Code != codes.Error {
+		t.Errorf("span status = %+v, want Error", span.Status())
+	}
+}
+
 // TestTracerEndsSpanOnGoexit checks a handler that ends its goroutine with
 // runtime.Goexit, as t.FailNow does: nothing panicked, so the span ends
 // without a failure and nothing is logged.

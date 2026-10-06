@@ -119,28 +119,36 @@ func TracerFunc(f diam.HandlerFunc, opts ...Option) diam.HandlerFunc {
 // recover and log.
 //
 // The span is ended here rather than by a deferred span.End, whose recover
-// would record the panic as a span event in the Go SDK. Nothing done here
-// can replace the panic value or leave the span open: the application code
-// it runs, the panic value's Error or String method and its classification,
-// is contained (fmt recovers a panicking Error or String method itself), and
-// so is the logging pipeline.
+// would record the panic as a span event in the Go SDK. While a panic is
+// handled, nothing done here can replace its value or leave the span open:
+// the application code it runs, the panic value's Error or String method and
+// its classification, is contained (fmt recovers a panicking Error or String
+// method itself), and so are the logging pipeline and the span pipeline that
+// span.End runs, such as a synchronous exporter.
 func (t *Tracer) ServeDIAM(c diam.Conn, m *diam.Message) {
 	ctx, span := t.start(c, m)
 	defer func() {
 		v := recover()
-		if v != nil {
-			message := fmt.Sprint(v)
-			span.SetAttributes(semconv.ErrorTypeKey.String(classify(v)))
-			span.SetStatus(codes.Error, message)
-			t.logException(ctx, v, message)
+		if v == nil {
+			span.End()
+			return
 		}
-		span.End()
-		if v != nil {
-			panic(v)
-		}
+		message := fmt.Sprint(v)
+		span.SetAttributes(semconv.ErrorTypeKey.String(classify(v)))
+		span.SetStatus(codes.Error, message)
+		t.logException(ctx, v, message)
+		endSpan(span)
+		panic(v)
 	}()
 	m.SetContext(ctx)
 	t.h.ServeDIAM(c, m)
+}
+
+// endSpan ends span while a handler panic is handled. A panic from the span
+// pipeline is dropped, so that it cannot replace the handler's panic value.
+func endSpan(span trace.Span) {
+	defer func() { _ = recover() }()
+	span.End()
 }
 
 // exceptionEventName is the event name of the exception log record. The
