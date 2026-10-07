@@ -13,6 +13,7 @@ import (
 
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/diamtest"
+	"github.com/gomaja/go-diameter/diam/internal/testutil"
 )
 
 func requireSCTP(t *testing.T) {
@@ -40,7 +41,7 @@ func TestCapabilitiesExchangeSCTP(t *testing.T) {
 	cmux := diam.NewServeMux()
 	cmux.Handle("CEA", handleCEA(errc, wait))
 
-	cli, err := diam.DialNetwork("sctp", srv.Addr, cmux, nil)
+	cli, err := diam.DialNetworkTimeout("sctp", srv.Addr, cmux, nil, testutil.SCTPTimeout)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,7 +54,7 @@ func TestCapabilitiesExchangeSCTP(t *testing.T) {
 	case <-wait:
 	case err := <-errc:
 		t.Fatal(err)
-	case <-time.After(time.Second):
+	case <-time.After(testutil.SCTPTimeout):
 		t.Fatal("Timed out: no CER or CEA received")
 	}
 }
@@ -67,7 +68,7 @@ func TestCapabilitiesExchangeSCTP_TLS(t *testing.T) {
 	smux.Handle("CER", handleCER(errc, true))
 
 	srv := diamtest.NewUnstartedServerNetwork("sctp", smux, nil)
-	tm := 100 * time.Millisecond
+	tm := testutil.SCTPTimeout
 	srv.Config.ReadTimeout = tm
 	srv.Config.WriteTimeout = tm
 	srv.TLS = &tls.Config{
@@ -101,7 +102,7 @@ func TestCapabilitiesExchangeSCTP_TLS(t *testing.T) {
 	case <-wait:
 	case err := <-errc:
 		t.Fatal(err)
-	case <-time.After(time.Second):
+	case <-time.After(testutil.SCTPTimeout):
 		t.Fatal("Timed out: no CER or CEA received")
 	}
 }

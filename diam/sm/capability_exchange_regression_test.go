@@ -16,6 +16,7 @@ import (
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/diamtest"
 	"github.com/gomaja/go-diameter/diam/dict"
+	"github.com/gomaja/go-diameter/diam/internal/testutil"
 )
 
 func regressionCER(t *testing.T, dictionary *dict.Parser, app uint32) *diam.Message {
@@ -268,12 +269,12 @@ func testClientRefusesInbandTLSOnPlaintext(t *testing.T, network string) {
 	var peer diam.Conn
 	select {
 	case peer = <-opened:
-	case <-time.After(time.Second):
+	case <-time.After(testutil.NetworkTimeout(network, time.Second)):
 		t.Fatal("server did not accept dial")
 	}
 	select {
 	case <-mustConnAs[interface{ DispatchDone() <-chan struct{} }](t, peer).DispatchDone():
-	case <-time.After(time.Second):
+	case <-time.After(testutil.NetworkTimeout(network, time.Second)):
 		t.Fatal("rejected connection did not close")
 	}
 	select {

@@ -22,6 +22,7 @@ import (
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/diamtest"
 	"github.com/gomaja/go-diameter/diam/dict"
+	"github.com/gomaja/go-diameter/diam/internal/testutil"
 	"github.com/gomaja/go-diameter/diam/sm/smparser"
 	"github.com/gomaja/go-sctp"
 )
@@ -128,7 +129,7 @@ func testClient_Handshake_CustomIP(t *testing.T, network string) {
 	srv := diamtest.NewServerNetwork(network, mustNewStateMachine(t, serverSettings), dict.Default)
 	defer srv.Close()
 	cli := &Client{
-		RetransmitInterval: time.Second * 3,
+		RetransmitInterval: testutil.NetworkTimeout(network, 3*time.Second),
 		Handler:            mustNewStateMachine(t, clientSettings2),
 		SupportedVendorID: []*diam.AVP{
 			diam.NewAVP(avp.SupportedVendorID, avp.Mbit, 0, clientSettings.VendorID),

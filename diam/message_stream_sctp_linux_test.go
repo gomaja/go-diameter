@@ -5,6 +5,8 @@ import (
 	"net"
 	"testing"
 	"time"
+
+	"github.com/gomaja/go-diameter/diam/internal/testutil"
 )
 
 func TestMessageStreamSCTP(t *testing.T) {
@@ -34,7 +36,7 @@ func TestMessageStreamSCTP(t *testing.T) {
 			}
 			acceptedc := make(chan accepted, 1)
 			go func() { c, err := l.Accept(); acceptedc <- accepted{c, err} }()
-			client, err := getMultistreamDialer("sctp", time.Second, nil).Dial("sctp", l.Addr().String())
+			client, err := getMultistreamDialer("sctp", testutil.SCTPTimeout, nil).Dial("sctp", l.Addr().String())
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -46,11 +48,11 @@ func TestMessageStreamSCTP(t *testing.T) {
 					t.Fatal(a.err)
 				}
 				peer = a.c
-			case <-time.After(2 * time.Second):
+			case <-time.After(testutil.SCTPTimeout):
 				t.Fatal("accept timed out")
 			}
 			defer func() { _ = peer.Close() }()
-			if err := peer.SetReadDeadline(time.Now().Add(2 * time.Second)); err != nil {
+			if err := peer.SetReadDeadline(time.Now().Add(testutil.SCTPTimeout)); err != nil {
 				t.Fatal(err)
 			}
 			transport := client.(*SCTPConn)

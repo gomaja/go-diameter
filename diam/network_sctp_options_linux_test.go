@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/internal/testutil"
 	"github.com/gomaja/go-sctp"
 )
 
@@ -54,7 +55,7 @@ func TestSCTPConnsCarryLatencyOptionsWithoutReapplying(t *testing.T) {
 		}
 		accepted <- c
 	}()
-	dialed, err := getMultistreamDialer("sctp", time.Second, nil).Dial("sctp", l.Addr().String())
+	dialed, err := getMultistreamDialer("sctp", testutil.SCTPTimeout, nil).Dial("sctp", l.Addr().String())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,7 +65,7 @@ func TestSCTPConnsCarryLatencyOptionsWithoutReapplying(t *testing.T) {
 	case server = <-accepted:
 	case err := <-acceptErr:
 		t.Fatal(err)
-	case <-time.After(2 * time.Second):
+	case <-time.After(testutil.SCTPTimeout):
 		t.Fatal("no association accepted")
 	}
 	defer func() { _ = server.Close() }()
@@ -90,7 +91,7 @@ func TestNewSCTPConnAppliesLatencyOptions(t *testing.T) {
 			_, _, _ = c.RecvMsg(buf)
 		}
 	}()
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.SCTPTimeout)
 	defer cancel()
 	c, err := (&sctp.Config{}).Dial(ctx, "sctp", nil, l.Addr().(*sctp.Addr))
 	if err != nil {
@@ -119,7 +120,7 @@ func TestNewSCTPConnReturnsOptionFailure(t *testing.T) {
 		t.Skipf("SCTP unavailable: %v", err)
 	}
 	defer func() { _ = l.Close() }()
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.SCTPTimeout)
 	defer cancel()
 	c, err := diameterSCTPConfig().Dial(ctx, "sctp", nil, l.Addr().(*sctp.Addr))
 	if err != nil {

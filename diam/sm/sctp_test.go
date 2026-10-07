@@ -15,6 +15,7 @@ import (
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/diamtest"
 	"github.com/gomaja/go-diameter/diam/dict"
+	"github.com/gomaja/go-diameter/diam/internal/testutil"
 )
 
 func requireSCTP(t *testing.T) {
@@ -57,7 +58,7 @@ func TestStateMachineMessageErrorSCTPStream(t *testing.T) {
 	handler.Handle("CEA", diam.HandlerFunc(func(_ diam.Conn, message *diam.Message) {
 		answers <- message
 	}))
-	client, err := diam.DialNetwork("sctp", server.Addr, handler, dict.Default)
+	client, err := diam.DialNetworkTimeout("sctp", server.Addr, handler, dict.Default, testutil.SCTPTimeout)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -83,7 +84,7 @@ func TestStateMachineMessageErrorSCTPStream(t *testing.T) {
 		if validationErr := answer.Validate(); validationErr != nil {
 			t.Fatalf("SCTP error answer violates dictionary: %v", validationErr)
 		}
-	case <-time.After(time.Second):
+	case <-time.After(testutil.SCTPTimeout):
 		t.Fatal("timed out waiting for SCTP message error answer")
 	}
 }

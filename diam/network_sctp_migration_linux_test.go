@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/internal/testutil"
 	"github.com/gomaja/go-sctp"
 )
 
@@ -69,7 +70,7 @@ func TestResponseWriteStreamDeadline(t *testing.T) {
 			accepted <- peer
 		}
 	}()
-	client, err := getMultistreamDialer("sctp", time.Second, nil).Dial("sctp", listener.Addr().String())
+	client, err := getMultistreamDialer("sctp", testutil.SCTPTimeout, nil).Dial("sctp", listener.Addr().String())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -77,7 +78,7 @@ func TestResponseWriteStreamDeadline(t *testing.T) {
 	var peer net.Conn
 	select {
 	case peer = <-accepted:
-	case <-time.After(time.Second):
+	case <-time.After(testutil.SCTPTimeout):
 		t.Fatal("listener did not accept")
 	}
 	defer func() { _ = peer.(*SCTPConn).Abort() }()
@@ -165,7 +166,7 @@ func TestSCTPWirePPID(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer func() { _ = client.Abort() }()
-			if err := client.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
+			if err := client.SetReadDeadline(time.Now().Add(testutil.SCTPTimeout)); err != nil {
 				t.Fatal(err)
 			}
 			buf := make([]byte, 64)
