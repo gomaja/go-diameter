@@ -52,7 +52,7 @@ func TestClientWatchdogRoutesAnswersPerConnection(t *testing.T) {
 	}
 	for i, c := range connections {
 		select {
-		case <-c.(diam.CloseNotifier).CloseNotify():
+		case <-mustConnAs[diam.CloseNotifier](t, c).CloseNotify():
 			t.Fatalf("peer %d closed despite answering its watchdog", i)
 		default:
 		}
@@ -81,12 +81,12 @@ func TestClientWatchdogDoesNotCreditAnotherPeersAnswer(t *testing.T) {
 	defer silentConn.Close()
 
 	select {
-	case <-silentConn.(diam.CloseNotifier).CloseNotify():
+	case <-mustConnAs[diam.CloseNotifier](t, silentConn).CloseNotify():
 	case <-time.After(time.Second):
 		t.Fatal("unanswered peer remained up")
 	}
 	select {
-	case <-healthyConn.(diam.CloseNotifier).CloseNotify():
+	case <-mustConnAs[diam.CloseNotifier](t, healthyConn).CloseNotify():
 		t.Fatal("answering peer closed while another peer was silent")
 	default:
 	}
@@ -151,12 +151,12 @@ func TestClientWatchdogConnectionEventAttribution(t *testing.T) {
 		t.Fatal("healthy peer's DWA was not attributed")
 	}
 	select {
-	case <-silentConn.(diam.CloseNotifier).CloseNotify():
+	case <-mustConnAs[diam.CloseNotifier](t, silentConn).CloseNotify():
 	case <-time.After(time.Second):
 		t.Fatal("silent peer was not closed")
 	}
 	select {
-	case <-healthyConn.(diam.CloseNotifier).CloseNotify():
+	case <-mustConnAs[diam.CloseNotifier](t, healthyConn).CloseNotify():
 		t.Fatal("healthy peer was closed")
 	default:
 	}

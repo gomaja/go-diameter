@@ -255,7 +255,7 @@ func TestConnLogsCloseFailureAtDebug(t *testing.T) {
 			// Both the caller's Close and the read loop's final Close fail.
 			c.Close()
 			select {
-			case <-c.(interface{ DispatchDone() <-chan struct{} }).DispatchDone():
+			case <-mustConnAs[interface{ DispatchDone() <-chan struct{} }](t, c).DispatchDone():
 			case <-time.After(2 * time.Second):
 				t.Fatal("read loop did not end after Close")
 			}
@@ -393,7 +393,7 @@ func TestServerNilLoggerUsesSlogDefault(t *testing.T) {
 		t.Fatal(err)
 	}
 	c.Close()
-	<-c.(interface{ DispatchDone() <-chan struct{} }).DispatchDone()
+	<-mustConnAs[interface{ DispatchDone() <-chan struct{} }](t, c).DispatchDone()
 	var found bool
 	for _, rec := range logs.records(t) {
 		if rec["msg"] == "diam: close connection" && rec[logKeyError] == "close failed" {

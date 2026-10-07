@@ -172,7 +172,7 @@ func TestServerLocalCloseIsQuiet(t *testing.T) {
 			}
 			c := <-accepted
 			select {
-			case <-c.(interface{ DispatchDone() <-chan struct{} }).DispatchDone():
+			case <-mustConnAs[interface{ DispatchDone() <-chan struct{} }](t, c).DispatchDone():
 			case <-time.After(5 * time.Second):
 				t.Fatal("local close did not finish dispatch")
 			}

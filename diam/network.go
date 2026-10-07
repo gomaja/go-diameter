@@ -43,10 +43,10 @@ type MultistreamWriter interface {
 	WriteStream(b []byte, stream uint) (n int, err error)
 	// CurrentWriterStream returns the stream that the next call to Write adaptor will be used for writing
 	CurrentWriterStream() uint
-	// ResetWriterStream resets current read stream so the next Write adaptor call
+	// ResetWriterStream resets current write stream so the next Write adaptor call
 	// will use either the current Read stream (if set) or the protocol specific default stream
 	ResetWriterStream()
-	// SetWriterStream sets current write stream so the next Write adaptor call will be forced to read from this stream
+	// SetWriterStream sets current write stream so the next Write adaptor call will be forced to write to this stream
 	SetWriterStream(uint) uint
 }
 

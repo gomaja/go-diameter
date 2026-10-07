@@ -46,6 +46,13 @@ type Handler interface {
 }
 
 // Conn interface is used by a handler to send diameter messages.
+//
+// A wrapper should expose Unwrap() Conn so ConnAs can discover optional
+// interfaces such as CloseNotifier and DispatchDone() <-chan struct{}.
+// These calls bypass an Unwrap-only wrapper. A wrapper implementing an optional
+// interface intercepts it and can delegate with ConnAs on its wrapped connection.
+// A wrapper without Unwrap hides its wrapped connection's optional interfaces.
+// Successive Unwrap calls must terminate.
 type Conn interface {
 	// Logger returns the owning Server or Client logger, with network,
 	// local_addr and remote_addr attributes. A nil configured logger resolves
@@ -542,7 +549,7 @@ func (w *response) CurrentWriterStream() uint {
 // ResetWriterStream of MultistreamWriter interface
 func (w *response) ResetWriterStream() {
 	if msc, isMulti := w.conn.rwc.(MultistreamConn); isMulti {
-		msc.CurrentWriterStream()
+		msc.ResetWriterStream()
 	}
 }
 
@@ -863,13 +870,17 @@ type Server struct {
 	// after the transport is fully established (TLS handshake complete, if
 	// applicable) and before the read loop starts. It runs in the
 	// connection's serve goroutine, so long-running work will delay message
-	// processing on that connection. Type-assert to CloseNotifier to detect
+	// processing on that connection. Use ConnAs[CloseNotifier] to detect
 	// disconnection:
 	//
 	//	srv.OnNewConnection = func(c diam.Conn) {
 	//		slog.Info("peer connected", "remote_addr", c.RemoteAddr())
+	//		notifier, ok := diam.ConnAs[diam.CloseNotifier](c)
+	//		if !ok {
+	//			return
+	//		}
 	//		go func() {
-	//			<-c.(diam.CloseNotifier).CloseNotify()
+	//			<-notifier.CloseNotify()
 	//			slog.Info("peer disconnected", "remote_addr", c.RemoteAddr())
 	//		}()
 	//	}
@@ -1163,6 +1174,7 @@ func (srv *Server) ListenAndServe() (err error) {
 // new service goroutine for each. The service goroutines read requests and
 // then call srv.Handler to reply to them.
 // The caller is responsible for closing l when Serve returns.
+// Serve retries transient accept errors with a capped exponential backoff.
 // Serve returns ErrServerClosed after srv.Close is called.
 func (srv *Server) Serve(l net.Listener) error {
 	if !srv.trackListener(l, true) {
@@ -1176,7 +1188,7 @@ func (srv *Server) Serve(l net.Listener) error {
 			if srv.isClosed() {
 				return ErrServerClosed
 			}
-			if ne, ok := e.(net.Error); ok && ne.Timeout() {
+			if retryAcceptError(e) {
 				if tempDelay == 0 {
 					tempDelay = 5 * time.Millisecond
 				} else {

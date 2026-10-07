@@ -144,7 +144,7 @@ func testSendAIA(w io.Writer, m *diam.Message, vectors int) (int64, error) {
 			return 0, err
 		}
 	}
-	n, err := m.WriteToStream(w.(diam.MultistreamWriter), m.MessageStream())
+	n, err := m.WriteToStream(w, m.MessageStream())
 	return int64(n), err
 }
 
@@ -254,7 +254,7 @@ func testSendULA(settings *sm.Settings, w io.Writer, m *diam.Message) (int64, er
 		return 0, err
 	}
 
-	n, err := m.WriteToStream(w.(diam.MultistreamWriter), m.MessageStream())
+	n, err := m.WriteToStream(w, m.MessageStream())
 	return int64(n), err
 }
 

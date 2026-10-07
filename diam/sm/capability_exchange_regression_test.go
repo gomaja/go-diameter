@@ -272,7 +272,7 @@ func testClientRefusesInbandTLSOnPlaintext(t *testing.T, network string) {
 		t.Fatal("server did not accept dial")
 	}
 	select {
-	case <-peer.(interface{ DispatchDone() <-chan struct{} }).DispatchDone():
+	case <-mustConnAs[interface{ DispatchDone() <-chan struct{} }](t, peer).DispatchDone():
 	case <-time.After(time.Second):
 		t.Fatal("rejected connection did not close")
 	}

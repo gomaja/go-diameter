@@ -57,7 +57,7 @@ func TestServerOnNewConnection(t *testing.T) {
 		t.Fatal("conn RemoteAddr is nil")
 	}
 
-	cn, ok := c.(diam.CloseNotifier)
+	cn, ok := diam.ConnAs[diam.CloseNotifier](c)
 	if !ok {
 		t.Fatal("Conn does not implement CloseNotifier")
 	}

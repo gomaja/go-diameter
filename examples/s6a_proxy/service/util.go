@@ -66,16 +66,23 @@ func (s *s6aProxy) acquireConnection() (diam.Conn, error) {
 		if s.conn == nil {
 			s.conn, err = s.smClient.DialNetwork(s.cfg.Protocol, s.cfg.HssAddr)
 			if err == nil && s.conn != nil {
-				closeChan := s.conn.(diam.CloseNotifier).CloseNotify()
-				go func() {
-					<-closeChan
-					s.mu.Lock()
-					if s.conn != nil {
-						s.conn.Close()
-					}
+				notifier, ok := diam.ConnAs[diam.CloseNotifier](s.conn)
+				if !ok {
+					s.conn.Close()
 					s.conn = nil
-					s.mu.Unlock()
-				}()
+					err = fmt.Errorf("connection does not expose CloseNotifier")
+				} else {
+					closeChan := notifier.CloseNotify()
+					go func() {
+						<-closeChan
+						s.mu.Lock()
+						if s.conn != nil {
+							s.conn.Close()
+						}
+						s.conn = nil
+						s.mu.Unlock()
+					}()
+				}
 			}
 		}
 		s.mu.Unlock()

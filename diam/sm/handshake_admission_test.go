@@ -53,7 +53,7 @@ func TestOnHandshakeCalledForEveryPeer(t *testing.T) {
 			t.Fatalf("Dial returned before OnHandshake: %d", got)
 		}
 		c.Close()
-		<-c.(interface{ DispatchDone() <-chan struct{} }).DispatchDone()
+		<-mustConnAs[interface{ DispatchDone() <-chan struct{} }](t, c).DispatchDone()
 	}
 	// Reading CEA and closing the listener do not wait for the server callback.
 	// Wait for the callbacks themselves before asserting their exact count.
@@ -292,7 +292,7 @@ func TestOnHandshakePanicCompletesDial(t *testing.T) {
 					t.Fatal("missing peer handshake")
 				}
 				select {
-				case <-peer.(diam.CloseNotifier).CloseNotify():
+				case <-mustConnAs[diam.CloseNotifier](t, peer).CloseNotify():
 				case <-time.After(time.Second):
 					t.Fatal("callback panic did not close peer")
 				}

@@ -78,7 +78,7 @@ func TestPeerDPRAnsweredAndWaitsForPeerClose(t *testing.T) {
 		t.Fatal("no DPA")
 	}
 	select {
-	case <-peer.(diam.CloseNotifier).CloseNotify():
+	case <-mustConnAs[diam.CloseNotifier](t, peer).CloseNotify():
 		t.Fatal("peer closed transport before initiator")
 	case <-time.After(30 * time.Millisecond):
 	}
@@ -91,7 +91,7 @@ func TestPeerDPRAnsweredAndWaitsForPeerClose(t *testing.T) {
 		t.Fatal("OnDPR was not called")
 	}
 	select {
-	case <-peer.(diam.CloseNotifier).CloseNotify():
+	case <-mustConnAs[diam.CloseNotifier](t, peer).CloseNotify():
 	case <-time.After(time.Second):
 		t.Fatal("Closing state did not time out")
 	}

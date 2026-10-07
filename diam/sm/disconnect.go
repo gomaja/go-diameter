@@ -43,7 +43,7 @@ func (sm *StateMachine) Disconnect(c diam.Conn, cause DisconnectCause, timeout t
 	if _, ok := smpeer.FromContext(c.Context()); !ok {
 		return fmt.Errorf("disconnect before CER/CEA handshake")
 	}
-	notifier, ok := c.(diam.CloseNotifier)
+	notifier, ok := diam.ConnAs[diam.CloseNotifier](c)
 	if !ok {
 		return fmt.Errorf("disconnect requires CloseNotifier")
 	}

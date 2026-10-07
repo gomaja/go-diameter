@@ -79,7 +79,7 @@ func TestAcceptedConnectionCleanupReleasesTimer(t *testing.T) {
 		t.Fatal(err)
 	}
 	select {
-	case <-c.(interface{ DispatchDone() <-chan struct{} }).DispatchDone():
+	case <-mustConnAs[interface{ DispatchDone() <-chan struct{} }](t, c).DispatchDone():
 	case <-time.After(time.Second):
 		t.Fatal("connection did not finish")
 	}

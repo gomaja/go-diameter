@@ -69,7 +69,7 @@ func TestDecoderEOFGetsMessageErrorAnswer(t *testing.T) {
 		serverConn.Close()
 		srv.Close()
 		select {
-		case <-serverConn.(interface{ DispatchDone() <-chan struct{} }).DispatchDone():
+		case <-mustConnAs[interface{ DispatchDone() <-chan struct{} }](t, serverConn).DispatchDone():
 		case <-time.After(3 * time.Second):
 			t.Error("server dispatch did not finish")
 		}

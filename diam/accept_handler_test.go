@@ -44,8 +44,12 @@ func TestAcceptHandlerOnlyRunsForAcceptedConnections(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("accept cleanup not called")
 	}
+	done, ok := diam.ConnAs[interface{ DispatchDone() <-chan struct{} }](client)
+	if !ok {
+		t.Fatal("client does not expose DispatchDone")
+	}
 	select {
-	case <-client.(interface{ DispatchDone() <-chan struct{} }).DispatchDone():
+	case <-done.DispatchDone():
 	case <-time.After(time.Second):
 		t.Fatal("client did not close")
 	}

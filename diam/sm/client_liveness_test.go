@@ -71,7 +71,7 @@ func TestCleanEOFWakesSupervisor(t *testing.T) {
 	// Peer closes cleanly, before any further message is exchanged.
 	peer.Close()
 
-	notifier, ok := conn.(diam.CloseNotifier)
+	notifier, ok := diam.ConnAs[diam.CloseNotifier](conn)
 	if !ok {
 		t.Fatal("conn does not implement diam.CloseNotifier")
 	}
@@ -119,7 +119,7 @@ func TestCloseNotifyAfterPeerGone(t *testing.T) {
 	time.Sleep(200 * time.Millisecond)
 
 	select {
-	case <-conn.(diam.CloseNotifier).CloseNotify():
+	case <-mustConnAs[diam.CloseNotifier](t, conn).CloseNotify():
 	case <-time.After(5 * time.Second):
 		t.Fatal("CloseNotify registered after the peer was gone never fired")
 	}

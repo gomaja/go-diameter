@@ -51,7 +51,7 @@ func TestServerShutdownDrainsInFlightHandler(t *testing.T) {
 	})}
 	srv.OnShutdownConnection = func(_ context.Context, c Conn) {
 		select {
-		case <-c.(CloseNotifier).CloseNotify():
+		case <-mustConnAs[CloseNotifier](t, c).CloseNotify():
 			t.Error("connection closed before shutdown action")
 		default:
 		}
@@ -113,7 +113,7 @@ func TestServerShutdownDrainsInFlightHandler(t *testing.T) {
 		t.Fatal("Shutdown did not finish")
 	}
 	select {
-	case <-client.(CloseNotifier).CloseNotify():
+	case <-mustConnAs[CloseNotifier](t, client).CloseNotify():
 	case <-time.After(time.Second):
 		t.Fatal("connection remained open")
 	}
@@ -140,7 +140,7 @@ func TestServerShutdownClosesIdleConnection(t *testing.T) {
 		t.Fatal(err)
 	}
 	select {
-	case <-client.(CloseNotifier).CloseNotify():
+	case <-mustConnAs[CloseNotifier](t, client).CloseNotify():
 	case <-time.After(time.Second):
 		t.Fatal("idle connection remained open")
 	}
@@ -182,7 +182,7 @@ func TestServerShutdownDeadlineForcesTransportClose(t *testing.T) {
 		t.Fatalf("Shutdown returned %v, want deadline", err)
 	}
 	select {
-	case <-client.(CloseNotifier).CloseNotify():
+	case <-mustConnAs[CloseNotifier](t, client).CloseNotify():
 	case <-time.After(time.Second):
 		t.Fatal("deadline did not force transport close")
 	}

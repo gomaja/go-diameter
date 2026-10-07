@@ -490,14 +490,16 @@ func (m *Message) WriteToWithRetry(writer io.Writer, retries uint) (int64, error
 }
 
 // WriteToStream serializes the Message and writes into the writer
-// If writer implements MultistreamWriter, writes the message into specified stream
+// If writer implements MultistreamWriter, writes the message into specified stream.
+// A Conn is written with its own WriteStream, so a wrapper sees the message.
 func (m *Message) WriteToStream(writer io.Writer, stream uint) (n int, err error) {
 	return m.WriteToStreamWithRetry(writer, stream, 0)
 }
 
 // WriteToStreamWithRetry serializes the Message and writes into the writer with specified number of retries
 // if needed
-// If writer implements MultistreamWriter, writes the message into specified stream
+// If writer implements MultistreamWriter, writes the message into specified stream.
+// A Conn is written with its own WriteStream, so a wrapper sees the message.
 func (m *Message) WriteToStreamWithRetry(writer io.Writer, stream, retries uint) (n int, err error) {
 	l, err := m.serializedLength()
 	if err != nil {
@@ -510,11 +512,14 @@ func (m *Message) WriteToStreamWithRetry(writer io.Writer, stream, retries uint)
 		return 0, err
 	}
 	switch w := writer.(type) {
+	case Conn:
+		// Every Conn has WriteStream; calling the outermost one keeps a
+		// wrapper's own Write/WriteStream in the path.
+		return writeStreamRetry(w, b, stream, retries)
 	case MultistreamWriter:
 		return writeStreamRetry(w, b, stream, retries)
-	default:
-		return writeRetry(writer, b, retries)
 	}
+	return writeRetry(writer, b, retries)
 }
 
 func writeRetry(w io.Writer, b []byte, retries uint) (n int, err error) {
@@ -535,7 +540,9 @@ func writeRetry(w io.Writer, b []byte, retries uint) (n int, err error) {
 	}
 }
 
-func writeStreamRetry(w MultistreamWriter, b []byte, stream, retries uint) (n int, err error) {
+func writeStreamRetry(w interface {
+	WriteStream([]byte, uint) (int, error)
+}, b []byte, stream, retries uint) (n int, err error) {
 	var wn int
 	for {
 		wn, err = w.WriteStream(b, stream)
