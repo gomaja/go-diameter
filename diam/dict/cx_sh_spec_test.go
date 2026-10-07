@@ -378,12 +378,12 @@ func TestCxShInheritedAVPs(t *testing.T) {
 		t.Fatal("Cx and SWx MAR grammars conflated")
 	}
 	// TS 29.336 V20.0.0 Table 6.4.1/1 requires M,V, as does Sh.
-	// Sh does not inherit S6c, whose application-specific definition forbids M.
+	// SGd clears M under TS 29.338 V19.3.0 Table 6.3.3.1/2; Sh and S6c retain M.
 	sh, err := Default.FindAVPByName(16777217, "External-Identifier")
 	if err != nil {
 		t.Fatal(err)
 	}
-	sms, err := Default.FindAVPByName(16777312, "External-Identifier")
+	sms, err := Default.FindAVPByName(16777313, "External-Identifier")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -2487,5 +2487,68 @@
             <data type="Unsigned32"/>
         </avp>
 
+        <!-- TS 29.272 V19.6.0 Table 7.3.1/1, §7.3.159:
+             "MME-Number-for-MT-SMS | 1645 | 7.3.159 | OctetString | V | | | M | No".
+             The application-wide M prohibition differs from S6c. -->
+        <avp name="MME-Number-for-MT-SMS" code="1645" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+            <data type="OctetString"/>
+        </avp>
+
+        <!-- TS 29.272 V19.6.0 Table 7.3.1/2:
+             "External-Identifier | TS 29.336 [54] | | Must not set".
+             Type: TS 29.336 V20.0.0 §6.4.11; M is cleared throughout S6a. -->
+        <avp name="External-Identifier" code="3111" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+            <data type="UTF8String"/>
+        </avp>
+
+        <!-- TS 29.173 V19.0.0 Table 6.4.1/1, §6.4.12:
+             "MME-Realm | 2408 | 6.4.12 | DiameterIdentity | V | | | M | No".
+             TS 29.272 V19.6.0 §7.3.1 does not list this AVP for S6a reuse.
+             Preserve the defining policy for this optional inherited extension;
+             S6c's application-specific M requirement does not apply to S6a. -->
+        <avp name="MME-Realm" code="2408" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+            <data type="DiameterIdentity"/>
+        </avp>
+
+        <!-- 3GPP TS 29.173 V19.0.0 §6.4.3, Table 6.4.1/1; TS 29.272 V19.6.0 §7.3.1
+             supplies no application-specific grammar. S6c's SMS grammar does not apply. -->
+        <avp name="Serving-Node" code="2401" vendor-id="10415" must="M,V" may-encrypt="N">
+            <data type="Grouped">
+                <rule avp="SGSN-Number" required="false" max="1"/>
+                <rule avp="SGSN-Name" required="false" max="1"/>
+                <rule avp="SGSN-Realm" required="false" max="1"/>
+                <rule avp="MME-Name" required="false" max="1"/>
+                <rule avp="MME-Realm" required="false" max="1"/>
+                <rule avp="MSC-Number" required="false" max="1"/>
+                <rule avp="TGPP-AAA-Server-Name" required="false" max="1"/>
+                <rule avp="LCS-Capabilities-Sets" required="false" max="1"/>
+                <rule avp="GMLC-Address" required="false" max="1"/>
+                <rule avp="AVP" required="false"/>
+            </data>
+        </avp>
+
+        <!-- 3GPP TS 29.173 V19.0.0 §6.4.8, Table 6.4.1/1; TS 29.272 V19.6.0 §7.3.1
+             supplies no application-specific grammar. S6c's SMS grammar does not apply. -->
+        <avp name="Additional-Serving-Node" code="2406" vendor-id="10415" must="M,V" may-encrypt="N">
+            <data type="Grouped">
+                <rule avp="SGSN-Number" required="false" max="1"/>
+                <rule avp="MME-Name" required="false" max="1"/>
+                <rule avp="SGSN-Name" required="false" max="1"/>
+                <rule avp="SGSN-Realm" required="false" max="1"/>
+                <rule avp="MME-Realm" required="false" max="1"/>
+                <rule avp="MSC-Number" required="false" max="1"/>
+                <rule avp="TGPP-AAA-Server-Name" required="false" max="1"/>
+                <rule avp="LCS-Capabilities-Sets" required="false" max="1"/>
+                <rule avp="GMLC-Address" required="false" max="1"/>
+                <rule avp="AVP" required="false"/>
+            </data>
+        </avp>
+
+        <!-- TS 29.272 V19.6.0 Table 7.3.1/2: "eNodeB-ID | TS 29.217 [56] | See clause 7.3.198 | Must not set".
+             Type and MAY-P: TS 29.217 V19.0.0 Table 5.3.1.1, §5.3.10. -->
+        <avp name="eNodeB-ID" code="4008" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <data type="OctetString"/>
+        </avp>
+
     </application>
 </diameter>

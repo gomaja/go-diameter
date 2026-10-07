@@ -1,0 +1,701 @@
+{
+  "document": "S6a/SWx inherited SMS definition audit",
+  "applications": [
+    16777251,
+    16777265
+  ],
+  "sources": [
+    {
+      "document": "3GPP TS 29.329 V19.1.0",
+      "source": "https://www.3gpp.org/ftp/Specs/archive/29_series/29.329/29329-j10.zip",
+      "archive_sha256": "4ca3f84834a42780785b09a6227b2755392d01bb61fa85c5ed347e2df298fd5c",
+      "docx_sha256": "7bf574de1bd078b35124f404a6de6f950fec4d9511b308024d30eb15db10e701"
+    },
+    {
+      "document": "3GPP TS 29.212 V20.0.0",
+      "source": "https://www.3gpp.org/ftp/Specs/archive/29_series/29.212/29212-k00.zip",
+      "archive_sha256": "2a18b6817f72e7f52961e939142497e1cd5ec0c90f52a2057c57374ea5a00958",
+      "docx_sha256": "5711cb649ab840050492caec9b9983009ba6774a3f326967e9305ee40cb5fbbb"
+    },
+    {
+      "document": "3GPP TS 29.173 V19.0.0",
+      "source": "https://www.3gpp.org/ftp/Specs/archive/29_series/29.173/29173-j00.zip",
+      "archive_sha256": "8eee10735b41a304f5c2aca65a502dfa5f03607e9a545fff77e333f7bde895b3",
+      "docx_sha256": "1eb15cf08eef8a7f477c278b76ffaf80a9967c4a410e6948eadc5721a50cf5fe"
+    },
+    {
+      "document": "3GPP TS 29.336 V20.0.0",
+      "source": "https://www.3gpp.org/ftp/Specs/archive/29_series/29.336/29336-k00.zip",
+      "archive_sha256": "038bbadbcdc3a6715a06371f30aa31846cba37d4687f1379df1b0bdd29d044ac",
+      "docx_sha256": "0e5fe2d61424e589a73cabbc35661cf2c65a0d96ac5e96f316a14a9bf806c603"
+    },
+    {
+      "document": "3GPP TS 29.272 V19.6.0",
+      "source": "https://www.3gpp.org/ftp/Specs/archive/29_series/29.272/29272-j60.zip",
+      "archive_sha256": "c40fd1834046f87655f4c7c1acd137b0f8f658a91f6cc83a215592ca8326a4b1",
+      "docx_sha256": "1971ddf58ac66eec71425f58f915526964cbaab73c2ac7c262debd198b21426e"
+    },
+    {
+      "document": "3GPP TS 29.229 V19.1.0",
+      "source": "https://www.3gpp.org/ftp/Specs/archive/29_series/29.229/29229-j10.zip",
+      "archive_sha256": "376b8793234f2f952a9f52a37771c56e51677e160160e5d48b1bf29585ac3b1e",
+      "docx_sha256": "855ca97a19cb50a707fde220ce8ac043c2979200f0182aca3d4b530bd6a06c36"
+    },
+    {
+      "document": "3GPP TS 29.217 V19.0.0",
+      "source": "https://www.3gpp.org/ftp/Specs/archive/29_series/29.217/29217-j00.zip",
+      "archive_sha256": "801543a65e9405e401c389245d4d9cc6ac6e82af5cb108ec5f985f4d1cb6ed19",
+      "docx_sha256": "2eb76888288feb83b0c7c13f3d187d94aeccb4164cdbda5d23d2bc89b133f567"
+    },
+    {
+      "document": "3GPP TS 32.299 V19.0.0",
+      "source": "https://www.3gpp.org/ftp/Specs/archive/32_series/32.299/32299-j00.zip",
+      "archive_sha256": "afabe3636ed612045a13916bc30bc7ceaa63364c2d8098b98d60d5893b09ce02",
+      "docx_sha256": "415b17b88fda715aedc9a3e8582007508474872e57f74273692be52f12f23b06"
+    },
+    {
+      "document": "3GPP TS 29.273 V19.2.0",
+      "docx_sha256": "bed4ee977fe0846c74d6cf3e7c649923d4296bde046c7da6555291ee70ec2b4c",
+      "source": "https://www.3gpp.org/ftp/Specs/archive/29_series/29.273/29273-j20.zip",
+      "archive_sha256": "9ca4a7c8de3ce7fa82ac5ed6c39088ca69799137944df0d90ba6caf4697b1531"
+    }
+  ],
+  "definitions": [
+    {
+      "name": "MME-Realm",
+      "code": 2408,
+      "vendor": 10415,
+      "type": "DiameterIdentity",
+      "must": "V",
+      "may": "",
+      "must_not": "M",
+      "may_encrypt": "N",
+      "section": "3GPP TS 29.173 V19.0.0 §6.4.12",
+      "flag_source": "3GPP TS 29.173 V19.0.0 Table 6.4.1/1; TS 29.272 V19.6.0 §7.3.1 (not listed)",
+      "source_row": "MME-Realm | 2408 | 6.4.12 | DiameterIdentity | V | | | M | No",
+      "s6a_applicability": "Not specified or reused by TS 29.272 V19.6.0 §7.3.1; optional inherited dictionary extension, not required S6a support.",
+      "swx_applicability": "Not defined or reused by TS 29.273 V19.2.0 §8.2.3.0 Tables 8.2.3.0/1–2; optional inherited dictionary extension, not required SWx support."
+    },
+    {
+      "name": "MME-Number-for-MT-SMS",
+      "code": 1645,
+      "vendor": 10415,
+      "type": "OctetString",
+      "must": "V",
+      "may": "",
+      "must_not": "M",
+      "may_encrypt": "N",
+      "section": "3GPP TS 29.272 V19.6.0 §7.3.159",
+      "flag_source": "3GPP TS 29.272 V19.6.0 Table 7.3.1/1, §7.3.159",
+      "source_row": "MME-Number-for-MT-SMS | 1645 | 7.3.159 | OctetString | V | | | M | No",
+      "s6a_applicability": "Specified in TS 29.272 V19.6.0 §7.3.159, Table 7.3.1/1",
+      "swx_applicability": "Not defined or reused by TS 29.273 V19.2.0 §8.2.3.0 Tables 8.2.3.0/1–2; optional inherited dictionary extension, not required SWx support."
+    },
+    {
+      "name": "External-Identifier",
+      "code": 3111,
+      "vendor": 10415,
+      "type": "UTF8String",
+      "must": "V",
+      "may": "",
+      "must_not": "M",
+      "may_encrypt": "N",
+      "section": "3GPP TS 29.336 V20.0.0 §6.4.11",
+      "flag_source": "3GPP TS 29.272 V19.6.0 Table 7.3.1/2, §§7.3.2, 7.3.195",
+      "source_row": "External-Identifier | TS 29.336 [54] | | Must not set",
+      "s6a_applicability": "Specified in TS 29.272 V19.6.0 §§7.3.2, 7.3.195, Table 7.3.1/2",
+      "swx_applicability": "TS 29.273 V19.2.0 §8.2.3.0 has no override; TS 29.336 V20.0.0 Table 6.4.1/1 requires M,V. S6a-specific M-clear policy does not apply.",
+      "application_flags": {
+        "16777265": {
+          "must": "M,V",
+          "may": "",
+          "must_not": ""
+        }
+      }
+    },
+    {
+      "name": "Serving-Node",
+      "code": 2401,
+      "vendor": 10415,
+      "type": "Grouped",
+      "must": "M,V",
+      "may": "",
+      "must_not": "",
+      "may_encrypt": "N",
+      "section": "3GPP TS 29.173 V19.0.0 §6.4.3",
+      "rules": [
+        {
+          "name": "SGSN-Number",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ SGSN-Number ]"
+        },
+        {
+          "name": "SGSN-Name",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ SGSN-Name ]"
+        },
+        {
+          "name": "SGSN-Realm",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ SGSN-Realm ]"
+        },
+        {
+          "name": "MME-Name",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ MME-Name ]"
+        },
+        {
+          "name": "MME-Realm",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ MME-Realm ]"
+        },
+        {
+          "name": "MSC-Number",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ MSC-Number ]"
+        },
+        {
+          "name": "TGPP-AAA-Server-Name",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ 3GPP-AAA-Server-Name ]"
+        },
+        {
+          "name": "LCS-Capabilities-Sets",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ LCS-Capabilities-Sets ]"
+        },
+        {
+          "name": "GMLC-Address",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ GMLC-Address ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[AVP]"
+        }
+      ],
+      "s6a_applicability": "Not specified or reused by TS 29.272 V19.6.0 §7.3.1; optional inherited dictionary extension, not required S6a support.",
+      "swx_applicability": "Not defined or reused by TS 29.273 V19.2.0 §8.2.3.0 Tables 8.2.3.0/1–2; optional inherited dictionary extension, not required SWx support.",
+      "grammar_source": "3GPP TS 29.173 V19.0.0 §6.4.3",
+      "scope_note": "The SMS-specific grammar in TS 29.338 §5.3.3 applies only to S6c; the defining TS 29.173 grammar applies here."
+    },
+    {
+      "name": "Additional-Serving-Node",
+      "code": 2406,
+      "vendor": 10415,
+      "type": "Grouped",
+      "must": "M,V",
+      "may": "",
+      "must_not": "",
+      "may_encrypt": "N",
+      "section": "3GPP TS 29.173 V19.0.0 §6.4.8",
+      "rules": [
+        {
+          "name": "SGSN-Number",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ SGSN-Number ]"
+        },
+        {
+          "name": "MME-Name",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ MME-Name ]"
+        },
+        {
+          "name": "SGSN-Name",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ SGSN-Name ]"
+        },
+        {
+          "name": "SGSN-Realm",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ SGSN-Realm ]"
+        },
+        {
+          "name": "MME-Realm",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ MME-Realm ]"
+        },
+        {
+          "name": "MSC-Number",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ MSC-Number ]"
+        },
+        {
+          "name": "TGPP-AAA-Server-Name",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ 3GPP-AAA-Server-Name ]"
+        },
+        {
+          "name": "LCS-Capabilities-Sets",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ LCS-Capabilities-Sets ]"
+        },
+        {
+          "name": "GMLC-Address",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ GMLC-Address ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[AVP]"
+        }
+      ],
+      "s6a_applicability": "Not specified or reused by TS 29.272 V19.6.0 §7.3.1; optional inherited dictionary extension, not required S6a support.",
+      "swx_applicability": "Not defined or reused by TS 29.273 V19.2.0 §8.2.3.0 Tables 8.2.3.0/1–2; optional inherited dictionary extension, not required SWx support.",
+      "grammar_source": "3GPP TS 29.173 V19.0.0 §6.4.8",
+      "scope_note": "The SMS-specific grammar in TS 29.338 §5.3.3 applies only to S6c; the defining TS 29.173 grammar applies here."
+    },
+    {
+      "name": "User-Identifier",
+      "code": 3102,
+      "vendor": 10415,
+      "type": "Grouped",
+      "must": "M,V",
+      "may": "",
+      "must_not": "",
+      "may_encrypt": "N",
+      "section": "3GPP TS 29.336 V20.0.0 §6.4.2",
+      "rules": [
+        {
+          "name": "User-Name",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ User-Name ]"
+        },
+        {
+          "name": "MSISDN",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ MSISDN ]"
+        },
+        {
+          "name": "External-Identifier",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ External-Identifier ]"
+        },
+        {
+          "name": "LMSI",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ LMSI ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[AVP]"
+        }
+      ],
+      "s6a_applicability": "Not specified or reused by TS 29.272 V19.6.0 §7.3.1; optional inherited dictionary extension, not required S6a support.",
+      "swx_applicability": "Not defined or reused by TS 29.273 V19.2.0 §8.2.3.0 Tables 8.2.3.0/1–2; optional inherited dictionary extension, not required SWx support."
+    },
+    {
+      "name": "SM-Delivery-Failure-Cause",
+      "code": 3303,
+      "section": "3GPP TS 29.338 V19.3.0 §6.3.3.5",
+      "type": "Grouped",
+      "vendor": 10415,
+      "must": "M,V",
+      "may": "",
+      "should_not": "",
+      "must_not": "",
+      "may_encrypt": "N",
+      "application": 16777313,
+      "source_abnf": "SM-Delivery-Failure-Cause ::= <AVP header: 3303 10415>\n{ SM-Enumerated-Delivery-Failure-Cause }\n[ SM-Diagnostic-Info ]\n*[ AVP ]",
+      "rules": [
+        {
+          "name": "SM-Enumerated-Delivery-Failure-Cause",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ SM-Enumerated-Delivery-Failure-Cause }"
+        },
+        {
+          "name": "SM-Diagnostic-Info",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ SM-Diagnostic-Info ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ AVP ]"
+        }
+      ],
+      "s6a_applicability": "Not specified or reused by TS 29.272 V19.6.0 §7.3.1; optional inherited dictionary extension, not required S6a support.",
+      "swx_applicability": "Not defined or reused by TS 29.273 V19.2.0 §8.2.3.0 Tables 8.2.3.0/1–2; optional inherited dictionary extension, not required SWx support."
+    },
+    {
+      "name": "SM-Delivery-Outcome",
+      "code": 3316,
+      "section": "3GPP TS 29.338 V19.3.0 §5.3.3.14",
+      "type": "Grouped",
+      "vendor": 10415,
+      "must": "M,V",
+      "may": "",
+      "should_not": "",
+      "must_not": "",
+      "may_encrypt": "N",
+      "application": 16777312,
+      "source_abnf": "SM-Delivery-Outcome::= <AVP header: 3316 10415>\n[ MME-SM-Delivery-Outcome ]\n[ MSC-SM-Delivery-Outcome ]\n[ SGSN-SM-Delivery-Outcome ]\n[ IP-SM-GW-SM-Delivery-Outcome ]\n[ SMSF-3GPP-SM-Delivery-Outcome ]\n[ SMSF-Non-3GPP-SM-Delivery-Outcome ]\n*[AVP]",
+      "rules": [
+        {
+          "name": "MME-SM-Delivery-Outcome",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ MME-SM-Delivery-Outcome ]"
+        },
+        {
+          "name": "MSC-SM-Delivery-Outcome",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ MSC-SM-Delivery-Outcome ]"
+        },
+        {
+          "name": "SGSN-SM-Delivery-Outcome",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ SGSN-SM-Delivery-Outcome ]"
+        },
+        {
+          "name": "IP-SM-GW-SM-Delivery-Outcome",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ IP-SM-GW-SM-Delivery-Outcome ]"
+        },
+        {
+          "name": "SMSF-3GPP-SM-Delivery-Outcome",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ SMSF-3GPP-SM-Delivery-Outcome ]"
+        },
+        {
+          "name": "SMSF-Non-3GPP-SM-Delivery-Outcome",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ SMSF-Non-3GPP-SM-Delivery-Outcome ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[AVP]"
+        }
+      ],
+      "s6a_applicability": "Not specified or reused by TS 29.272 V19.6.0 §7.3.1; optional inherited dictionary extension, not required S6a support.",
+      "swx_applicability": "Not defined or reused by TS 29.273 V19.2.0 §8.2.3.0 Tables 8.2.3.0/1–2; optional inherited dictionary extension, not required SWx support."
+    },
+    {
+      "name": "SMSMI-Correlation-ID",
+      "code": 3324,
+      "section": "3GPP TS 29.338 V19.3.0 §6.3.3.13",
+      "type": "Grouped",
+      "vendor": 10415,
+      "must": "V",
+      "may": "",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "N",
+      "application": 16777313,
+      "source_abnf": "SMS-MI-Correlation-ID  ::= <AVP header: 3308 10415>\n[ HSS-ID ]\n[ Originating-SIP-URI ]\n[ Destination-SIP-URI ]\n*[ AVP ]",
+      "rules": [
+        {
+          "name": "HSS-ID",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ HSS-ID ]"
+        },
+        {
+          "name": "Originating-SIP-URI",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Originating-SIP-URI ]"
+        },
+        {
+          "name": "Destination-SIP-URI",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Destination-SIP-URI ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ AVP ]"
+        }
+      ],
+      "s6a_applicability": "Not specified or reused by TS 29.272 V19.6.0 §7.3.1; optional inherited dictionary extension, not required S6a support.",
+      "swx_applicability": "Not defined or reused by TS 29.273 V19.2.0 §8.2.3.0 Tables 8.2.3.0/1–2; optional inherited dictionary extension, not required SWx support."
+    },
+    {
+      "name": "SMSF-3GPP-Address",
+      "code": 3344,
+      "section": "3GPP TS 29.338 V19.3.0 §5.3.3.35",
+      "type": "Grouped",
+      "vendor": 10415,
+      "must": "V",
+      "may": "",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "N",
+      "application": 16777312,
+      "source_abnf": "SMSF-3GPP-Address ::=<AVP header: 3344 10415>\n[ SMSF-3GPP-Number ]\n[ SMSF-3GPP-Name ]\n[ SMSF-3GPP-Realm ]\n[ SMSF-3GPP-SBI-Support-Indicator ]\n*[AVP]",
+      "rules": [
+        {
+          "name": "SMSF-3GPP-Number",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ SMSF-3GPP-Number ]"
+        },
+        {
+          "name": "SMSF-3GPP-Name",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ SMSF-3GPP-Name ]"
+        },
+        {
+          "name": "SMSF-3GPP-Realm",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ SMSF-3GPP-Realm ]"
+        },
+        {
+          "name": "SMSF-3GPP-SBI-Support-Indicator",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ SMSF-3GPP-SBI-Support-Indicator ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[AVP]"
+        }
+      ],
+      "s6a_applicability": "Not specified or reused by TS 29.272 V19.6.0 §7.3.1; optional inherited dictionary extension, not required S6a support.",
+      "swx_applicability": "Not defined or reused by TS 29.273 V19.2.0 §8.2.3.0 Tables 8.2.3.0/1–2; optional inherited dictionary extension, not required SWx support."
+    },
+    {
+      "name": "SMSF-Non-3GPP-Address",
+      "code": 3345,
+      "section": "3GPP TS 29.338 V19.3.0 §5.3.3.36",
+      "type": "Grouped",
+      "vendor": 10415,
+      "must": "V",
+      "may": "",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "N",
+      "application": 16777312,
+      "source_abnf": "SMSF-Non-3GPP-Address ::=<AVP header: 3345 10415>\n[ SMSF-Non-3GPP-Number ]\n[ SMSF-Non-3GPP-Name ]\n[ SMSF-Non-3GPP-Realm ]\n[ SMSF-Non-3GPP-SBI-Support-Indicator ]\n*[AVP]",
+      "rules": [
+        {
+          "name": "SMSF-Non-3GPP-Number",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ SMSF-Non-3GPP-Number ]"
+        },
+        {
+          "name": "SMSF-Non-3GPP-Name",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ SMSF-Non-3GPP-Name ]"
+        },
+        {
+          "name": "SMSF-Non-3GPP-Realm",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ SMSF-Non-3GPP-Realm ]"
+        },
+        {
+          "name": "SMSF-Non-3GPP-SBI-Support-Indicator",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ SMSF-Non-3GPP-SBI-Support-Indicator ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[AVP]"
+        }
+      ],
+      "s6a_applicability": "Not specified or reused by TS 29.272 V19.6.0 §7.3.1; optional inherited dictionary extension, not required S6a support.",
+      "swx_applicability": "Not defined or reused by TS 29.273 V19.2.0 §8.2.3.0 Tables 8.2.3.0/1–2; optional inherited dictionary extension, not required SWx support."
+    },
+    {
+      "name": "SM-Enumerated-Delivery-Failure-Cause",
+      "code": 3304,
+      "section": "3GPP TS 29.338 V19.3.0 §6.3.3.6",
+      "type": "Enumerated",
+      "vendor": 10415,
+      "must": "M,V",
+      "may": "",
+      "should_not": "",
+      "must_not": "",
+      "may_encrypt": "N",
+      "application": 16777313,
+      "items": {
+        "0": "MEMORY_CAPACITY_EXCEEDED",
+        "1": "EQUIPMENT_PROTOCOL_ERROR",
+        "2": "EQUIPMENT_NOT_SM-EQUIPPED",
+        "3": "UNKNOWN_SERVICE_CENTRE",
+        "4": "SC-CONGESTION",
+        "5": "INVALID_SME-ADDRESS",
+        "6": "USER_NOT_SC-USER"
+      },
+      "s6a_applicability": "Not specified or reused by TS 29.272 V19.6.0 §7.3.1; optional inherited dictionary extension, not required S6a support.",
+      "swx_applicability": "Not defined or reused by TS 29.273 V19.2.0 §8.2.3.0 Tables 8.2.3.0/1–2; optional inherited dictionary extension, not required SWx support."
+    }
+  ],
+  "swx_local_definitions": [
+    {
+      "name": "GMLC-Address",
+      "code": 2405,
+      "vendor": 10415,
+      "type": "Address",
+      "must": "M,V",
+      "may": "",
+      "must_not": "",
+      "may_encrypt": "N",
+      "section": "3GPP TS 29.173 V19.0.0 §6.4.7",
+      "swx_applicability": "TS 29.273 V19.2.0 Table 8.2.3.0/2 has no override; the defining specification applies to this inherited extension.",
+      "flag_source": "3GPP TS 29.173 V19.0.0 Table 6.4.1/1"
+    },
+    {
+      "code": 2319,
+      "vendor": 10415,
+      "type": "Grouped",
+      "must": "M,V",
+      "may": "",
+      "must_not": "",
+      "name": "User-CSG-Information",
+      "rules": [
+        {
+          "name": "CSG-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ CSG-Id }"
+        },
+        {
+          "name": "CSG-Access-Mode",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ CSG-Access-Mode }"
+        },
+        {
+          "name": "CSG-Membership-Indication",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ CSG-Membership-Indication ]"
+        }
+      ],
+      "grammar_source": "TS 32.299 V19.0.0",
+      "section": "3GPP TS 32.299 V19.0.0 §7.2.240A",
+      "flag_source": "3GPP TS 32.299 V19.0.0 Table 7.2.0.1",
+      "may_encrypt": "N",
+      "swx_applicability": "TS 29.273 V19.2.0 Table 8.2.3.0/2 has no override; the defining specification applies to this inherited extension."
+    },
+    {
+      "name": "eNodeB-ID",
+      "code": 4008,
+      "vendor": 10415,
+      "type": "OctetString",
+      "must": "M,V",
+      "may": "P",
+      "must_not": "",
+      "may_encrypt": "Y",
+      "section": "3GPP TS 29.217 V19.0.0 §5.3.10",
+      "flag_source": "3GPP TS 29.217 V19.0.0 Table 5.3.1.1",
+      "swx_applicability": "TS 29.273 V19.2.0 Table 8.2.3.0/2 has no override; the defining specification applies to this inherited extension."
+    },
+    {
+      "name": "External-Identifier",
+      "code": 3111,
+      "vendor": 10415,
+      "type": "UTF8String",
+      "must": "M,V",
+      "may": "",
+      "must_not": "",
+      "may_encrypt": "N",
+      "section": "3GPP TS 29.336 V20.0.0 §6.4.11",
+      "flag_source": "3GPP TS 29.336 V20.0.0 Table 6.4.1/1",
+      "swx_applicability": "TS 29.273 V19.2.0 Table 8.2.3.0/2 has no override; the defining specification applies to this inherited extension."
+    }
+  ]
+}

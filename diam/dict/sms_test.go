@@ -127,7 +127,10 @@ func TestSMSFlagRuleFormat(t *testing.T) {
 			normalized++
 		}
 	}
-	if normalized != 30 {
-		t.Errorf("normalized dual-flag definitions = %d, want 30", normalized)
+	// TS 29.338 V19.3.0 Table 5.3.3.1/2 requires M for both MME AVPs;
+	// External-Identifier retains TS 29.336 V20.0.0 Table 6.4.1/1 M,V;
+	// eNodeB-ID retains TS 29.217 V19.0.0 Table 5.3.1.1 M,V.
+	if normalized != 34 {
+		t.Errorf("normalized dual-flag definitions = %d, want 34", normalized)
 	}
 }

@@ -1,0 +1,3328 @@
+{
+  "document": "3GPP TS 29.338 V19.3.0 (2025-09)",
+  "source": "https://www.3gpp.org/ftp/Specs/archive/29_series/29.338/29338-j30.zip",
+  "sha256": "d996894136580cf53f7451cb24ceffbcaa1c41bc985a078fe18724cc465160e0",
+  "docx_sha256": "abf8edd2b0aad6b279291f6436d1f10c2da10e003e799e79f398bbe808857226",
+  "extraction_note": "Specific AVP tables and command grammars are extracted from Word XML. Definitions include the recursive source-pinned closure and inherited SMS definitions. RFC metadata is transcribed from the cited clauses.",
+  "application": 16777313,
+  "avps": [
+    {
+      "name": "SC-Address",
+      "code": 3300,
+      "section": "6.3.3.2",
+      "type": "OctetString",
+      "vendor": 10415,
+      "must": "M,V",
+      "may": "",
+      "should_not": "",
+      "must_not": "",
+      "may_encrypt": "N",
+      "application": 16777313
+    },
+    {
+      "name": "SM-RP-UI",
+      "code": 3301,
+      "section": "6.3.3.3",
+      "type": "OctetString",
+      "vendor": 10415,
+      "must": "M,V",
+      "may": "",
+      "should_not": "",
+      "must_not": "",
+      "may_encrypt": "N",
+      "application": 16777313
+    },
+    {
+      "name": "TFR-Flags",
+      "code": 3302,
+      "section": "6.3.3.4",
+      "type": "Unsigned32",
+      "vendor": 10415,
+      "must": "M,V",
+      "may": "",
+      "should_not": "",
+      "must_not": "",
+      "may_encrypt": "N",
+      "application": 16777313
+    },
+    {
+      "name": "SM-Delivery-Failure-Cause",
+      "code": 3303,
+      "section": "6.3.3.5",
+      "type": "Grouped",
+      "vendor": 10415,
+      "must": "M,V",
+      "may": "",
+      "should_not": "",
+      "must_not": "",
+      "may_encrypt": "N",
+      "application": 16777313,
+      "source_abnf": "SM-Delivery-Failure-Cause ::= <AVP header: 3303 10415>\n{ SM-Enumerated-Delivery-Failure-Cause }\n[ SM-Diagnostic-Info ]\n*[ AVP ]",
+      "rules": [
+        {
+          "name": "SM-Enumerated-Delivery-Failure-Cause",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ SM-Enumerated-Delivery-Failure-Cause }"
+        },
+        {
+          "name": "SM-Diagnostic-Info",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ SM-Diagnostic-Info ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ AVP ]"
+        }
+      ]
+    },
+    {
+      "name": "SM-Enumerated-Delivery-Failure-Cause",
+      "code": 3304,
+      "section": "6.3.3.6",
+      "type": "Enumerated",
+      "vendor": 10415,
+      "must": "M,V",
+      "may": "",
+      "should_not": "",
+      "must_not": "",
+      "may_encrypt": "N",
+      "application": 16777313,
+      "items": {
+        "0": "MEMORY_CAPACITY_EXCEEDED",
+        "1": "EQUIPMENT_PROTOCOL_ERROR",
+        "2": "EQUIPMENT_NOT_SM-EQUIPPED",
+        "3": "UNKNOWN_SERVICE_CENTRE",
+        "4": "SC-CONGESTION",
+        "5": "INVALID_SME-ADDRESS",
+        "6": "USER_NOT_SC-USER"
+      }
+    },
+    {
+      "name": "SM-Diagnostic-Info",
+      "code": 3305,
+      "section": "6.3.3.7",
+      "type": "OctetString",
+      "vendor": 10415,
+      "must": "M,V",
+      "may": "",
+      "should_not": "",
+      "must_not": "",
+      "may_encrypt": "N",
+      "application": 16777313
+    },
+    {
+      "name": "SM-Delivery-Timer",
+      "code": 3306,
+      "section": "6.3.3.10",
+      "type": "Unsigned32",
+      "vendor": 10415,
+      "must": "M,V",
+      "may": "",
+      "should_not": "",
+      "must_not": "",
+      "may_encrypt": "N",
+      "application": 16777313
+    },
+    {
+      "name": "SM-Delivery-Start-Time",
+      "code": 3307,
+      "section": "6.3.3.11",
+      "type": "Time",
+      "vendor": 10415,
+      "must": "M,V",
+      "may": "",
+      "should_not": "",
+      "must_not": "",
+      "may_encrypt": "N",
+      "application": 16777313
+    },
+    {
+      "name": "SMSMI-Correlation-ID",
+      "code": 3324,
+      "section": "6.3.3.13",
+      "type": "Grouped",
+      "vendor": 10415,
+      "must": "V",
+      "may": "",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "N",
+      "application": 16777313,
+      "source_abnf": "SMS-MI-Correlation-ID  ::= <AVP header: 3308 10415>\n[ HSS-ID ]\n[ Originating-SIP-URI ]\n[ Destination-SIP-URI ]\n*[ AVP ]",
+      "rules": [
+        {
+          "name": "HSS-ID",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ HSS-ID ]"
+        },
+        {
+          "name": "Originating-SIP-URI",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Originating-SIP-URI ]"
+        },
+        {
+          "name": "Destination-SIP-URI",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Destination-SIP-URI ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ AVP ]"
+        }
+      ]
+    },
+    {
+      "name": "HSS-ID",
+      "code": 3325,
+      "section": "6.3.3.14",
+      "type": "UTF8String",
+      "vendor": 10415,
+      "must": "V",
+      "may": "",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "N",
+      "application": 16777313
+    },
+    {
+      "name": "Originating-SIP-URI",
+      "code": 3326,
+      "section": "6.3.3.15",
+      "type": "UTF8String",
+      "vendor": 10415,
+      "must": "V",
+      "may": "",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "N",
+      "application": 16777313
+    },
+    {
+      "name": "Destination-SIP-URI",
+      "code": 3327,
+      "section": "6.3.3.16",
+      "type": "UTF8String",
+      "vendor": 10415,
+      "must": "V",
+      "may": "",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "N",
+      "application": 16777313
+    },
+    {
+      "name": "OFR-Flags",
+      "code": 3328,
+      "section": "6.3.3.12",
+      "type": "Unsigned32",
+      "vendor": 10415,
+      "must": "V",
+      "may": "",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "N",
+      "application": 16777313
+    },
+    {
+      "name": "Maximum-Retransmission-Time",
+      "code": 3330,
+      "section": "6.3.3.17",
+      "type": "Time",
+      "vendor": 10415,
+      "must": "V",
+      "may": "",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "N",
+      "application": 16777313
+    },
+    {
+      "name": "Requested-Retransmission-Time",
+      "code": 3331,
+      "section": "6.3.3.18",
+      "type": "Time",
+      "vendor": 10415,
+      "must": "V",
+      "may": "",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "N",
+      "application": 16777313
+    },
+    {
+      "name": "SMS-GMSC-Address",
+      "code": 3332,
+      "section": "6.3.3.19",
+      "type": "OctetString",
+      "vendor": 10415,
+      "must": "V",
+      "may": "",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "N",
+      "application": 16777313
+    }
+  ],
+  "commands": [
+    {
+      "section": "6.3.2.3",
+      "code": 8388645,
+      "request": true,
+      "proxiable": true,
+      "application": 16777313,
+      "source_abnf": "< MO-Forward-Short-Message-Request > ::=< Diameter Header: 8388645, REQ, PXY, 16777313 >\n< Session-Id >\n[ DRMP ]\n[ Vendor-Specific-Application-Id ]\n{ Auth-Session-State }\n{ Origin-Host }\n{ Origin-Realm }\n[ Destination-Host ]\n{ Destination-Realm }\n{ SC-Address }\n[ OFR-Flags ]\n*[ Supported-Features ]\n{ User-Identifier }\n[ EPS-Location-Information ]\n[ NR-Cell-Global-Identity ]\n{ SM-RP-UI }\n[ SMSMI-Correlation-ID ]\n[ SM-Delivery-Outcome ]\n[ MPS-Priority ]\n*[ AVP ]\n*[ Proxy-Info ]\n*[ Route-Record ]",
+      "rules": [
+        {
+          "name": "Session-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": true,
+          "abnf": "< Session-Id >"
+        },
+        {
+          "name": "DRMP",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ DRMP ]"
+        },
+        {
+          "name": "Vendor-Specific-Application-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Vendor-Specific-Application-Id ]"
+        },
+        {
+          "name": "Auth-Session-State",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Auth-Session-State }"
+        },
+        {
+          "name": "Origin-Host",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Origin-Host }"
+        },
+        {
+          "name": "Origin-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Origin-Realm }"
+        },
+        {
+          "name": "Destination-Host",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Destination-Host ]"
+        },
+        {
+          "name": "Destination-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Destination-Realm }"
+        },
+        {
+          "name": "SC-Address",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ SC-Address }"
+        },
+        {
+          "name": "OFR-Flags",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ OFR-Flags ]"
+        },
+        {
+          "name": "Supported-Features",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Supported-Features ]"
+        },
+        {
+          "name": "User-Identifier",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ User-Identifier }"
+        },
+        {
+          "name": "EPS-Location-Information",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ EPS-Location-Information ]"
+        },
+        {
+          "name": "NR-Cell-Global-Identity",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ NR-Cell-Global-Identity ]"
+        },
+        {
+          "name": "SM-RP-UI",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ SM-RP-UI }"
+        },
+        {
+          "name": "SMSMI-Correlation-ID",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ SMSMI-Correlation-ID ]"
+        },
+        {
+          "name": "SM-Delivery-Outcome",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ SM-Delivery-Outcome ]"
+        },
+        {
+          "name": "MPS-Priority",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ MPS-Priority ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ AVP ]"
+        },
+        {
+          "name": "Proxy-Info",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Proxy-Info ]"
+        },
+        {
+          "name": "Route-Record",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Route-Record ]"
+        }
+      ]
+    },
+    {
+      "section": "6.3.2.4",
+      "code": 8388645,
+      "request": false,
+      "proxiable": true,
+      "application": 16777313,
+      "source_abnf": "< MO-Forward-Short-Message-Answer > ::=< Diameter Header: 8388645, PXY, 16777313 >\n< Session-Id >\n[ DRMP ]\n[ Vendor-Specific-Application-Id ]\n[ Result-Code ]\n[ Experimental-Result ]\n{ Auth-Session-State }\n{ Origin-Host }\n{ Origin-Realm }\n*[ Supported-Features ]\n[ SM-Delivery-Failure-Cause ]\n[ SM-RP-UI ]\n[ External-Identifier ]\n*[ AVP ]\n[ Failed-AVP ]\n*[ Proxy-Info ]\n*[ Route-Record ]",
+      "rules": [
+        {
+          "name": "Session-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": true,
+          "abnf": "< Session-Id >"
+        },
+        {
+          "name": "DRMP",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ DRMP ]"
+        },
+        {
+          "name": "Vendor-Specific-Application-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Vendor-Specific-Application-Id ]"
+        },
+        {
+          "name": "Result-Code",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Result-Code ]"
+        },
+        {
+          "name": "Experimental-Result",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Experimental-Result ]"
+        },
+        {
+          "name": "Auth-Session-State",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Auth-Session-State }"
+        },
+        {
+          "name": "Origin-Host",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Origin-Host }"
+        },
+        {
+          "name": "Origin-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Origin-Realm }"
+        },
+        {
+          "name": "Supported-Features",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Supported-Features ]"
+        },
+        {
+          "name": "SM-Delivery-Failure-Cause",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ SM-Delivery-Failure-Cause ]"
+        },
+        {
+          "name": "SM-RP-UI",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ SM-RP-UI ]"
+        },
+        {
+          "name": "External-Identifier",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ External-Identifier ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ AVP ]"
+        },
+        {
+          "name": "Failed-AVP",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Failed-AVP ]"
+        },
+        {
+          "name": "Proxy-Info",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Proxy-Info ]"
+        },
+        {
+          "name": "Route-Record",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Route-Record ]"
+        }
+      ]
+    },
+    {
+      "section": "6.3.2.5",
+      "code": 8388646,
+      "request": true,
+      "proxiable": true,
+      "application": 16777313,
+      "source_abnf": "< MT-Forward-Short-Message-Request > ::=< Diameter Header: 8388646, REQ, PXY, 16777313 >\n< Session-Id >\n[ DRMP ]\n[ Vendor-Specific-Application-Id ]\n{ Auth-Session-State }\n{ Origin-Host }\n{ Origin-Realm }\n{ Destination-Host }\n{ Destination-Realm }\n{ User-Name }\n*[ Supported-Features ]\n[ SMSMI-Correlation-ID ]\n{ SC-Address }\n{ SM-RP-UI }\n[ MME-Number-for-MT-SMS ]\n[ SGSN-Number ]\n[ TFR-Flags ]\n[ SM-Delivery-Timer ]\n[ SM-Delivery-Start-Time ]\n[ Maximum-Retransmission-Time ]\n[ SMS-GMSC-Address ]\n[ MPS-Priority ]\n*[ AVP ]\n*[ Proxy-Info ]\n*[ Route-Record ]",
+      "rules": [
+        {
+          "name": "Session-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": true,
+          "abnf": "< Session-Id >"
+        },
+        {
+          "name": "DRMP",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ DRMP ]"
+        },
+        {
+          "name": "Vendor-Specific-Application-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Vendor-Specific-Application-Id ]"
+        },
+        {
+          "name": "Auth-Session-State",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Auth-Session-State }"
+        },
+        {
+          "name": "Origin-Host",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Origin-Host }"
+        },
+        {
+          "name": "Origin-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Origin-Realm }"
+        },
+        {
+          "name": "Destination-Host",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Destination-Host }"
+        },
+        {
+          "name": "Destination-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Destination-Realm }"
+        },
+        {
+          "name": "User-Name",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ User-Name }"
+        },
+        {
+          "name": "Supported-Features",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Supported-Features ]"
+        },
+        {
+          "name": "SMSMI-Correlation-ID",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ SMSMI-Correlation-ID ]"
+        },
+        {
+          "name": "SC-Address",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ SC-Address }"
+        },
+        {
+          "name": "SM-RP-UI",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ SM-RP-UI }"
+        },
+        {
+          "name": "MME-Number-for-MT-SMS",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ MME-Number-for-MT-SMS ]"
+        },
+        {
+          "name": "SGSN-Number",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ SGSN-Number ]"
+        },
+        {
+          "name": "TFR-Flags",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ TFR-Flags ]"
+        },
+        {
+          "name": "SM-Delivery-Timer",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ SM-Delivery-Timer ]"
+        },
+        {
+          "name": "SM-Delivery-Start-Time",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ SM-Delivery-Start-Time ]"
+        },
+        {
+          "name": "Maximum-Retransmission-Time",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Maximum-Retransmission-Time ]"
+        },
+        {
+          "name": "SMS-GMSC-Address",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ SMS-GMSC-Address ]"
+        },
+        {
+          "name": "MPS-Priority",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ MPS-Priority ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ AVP ]"
+        },
+        {
+          "name": "Proxy-Info",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Proxy-Info ]"
+        },
+        {
+          "name": "Route-Record",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Route-Record ]"
+        }
+      ]
+    },
+    {
+      "section": "6.3.2.6",
+      "code": 8388646,
+      "request": false,
+      "proxiable": true,
+      "application": 16777313,
+      "source_abnf": "< MT-Forward-Short-Message-Answer > ::=< Diameter Header: 8388646, PXY, 16777313 >\n< Session-Id >\n[ DRMP ]\n[ Vendor-Specific-Application-Id ]\n[ Result-Code ]\n[ Experimental-Result ]\n{ Auth-Session-State }\n{ Origin-Host }\n{ Origin-Realm }\n*[ Supported-Features ]\n[ Absent-User-Diagnostic-SM ]\n[ SM-Delivery-Failure-Cause ]\n[ SM-RP-UI ]\n[ Requested-Retransmission-Time ]\n[ User-Identifier ]\n[ EPS-Location-Information ]\n[ NR-Cell-Global-Identity ]\n*[ AVP ]\n[ Failed-AVP ]\n*[ Proxy-Info ]\n*[ Route-Record ]",
+      "rules": [
+        {
+          "name": "Session-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": true,
+          "abnf": "< Session-Id >"
+        },
+        {
+          "name": "DRMP",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ DRMP ]"
+        },
+        {
+          "name": "Vendor-Specific-Application-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Vendor-Specific-Application-Id ]"
+        },
+        {
+          "name": "Result-Code",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Result-Code ]"
+        },
+        {
+          "name": "Experimental-Result",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Experimental-Result ]"
+        },
+        {
+          "name": "Auth-Session-State",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Auth-Session-State }"
+        },
+        {
+          "name": "Origin-Host",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Origin-Host }"
+        },
+        {
+          "name": "Origin-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Origin-Realm }"
+        },
+        {
+          "name": "Supported-Features",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Supported-Features ]"
+        },
+        {
+          "name": "Absent-User-Diagnostic-SM",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Absent-User-Diagnostic-SM ]"
+        },
+        {
+          "name": "SM-Delivery-Failure-Cause",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ SM-Delivery-Failure-Cause ]"
+        },
+        {
+          "name": "SM-RP-UI",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ SM-RP-UI ]"
+        },
+        {
+          "name": "Requested-Retransmission-Time",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Requested-Retransmission-Time ]"
+        },
+        {
+          "name": "User-Identifier",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ User-Identifier ]"
+        },
+        {
+          "name": "EPS-Location-Information",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ EPS-Location-Information ]"
+        },
+        {
+          "name": "NR-Cell-Global-Identity",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ NR-Cell-Global-Identity ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ AVP ]"
+        },
+        {
+          "name": "Failed-AVP",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Failed-AVP ]"
+        },
+        {
+          "name": "Proxy-Info",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Proxy-Info ]"
+        },
+        {
+          "name": "Route-Record",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Route-Record ]"
+        }
+      ]
+    }
+  ],
+  "reused": [
+    {
+      "name": "User-Name",
+      "reference": "IETF RFC 6733 [20]",
+      "comment": "",
+      "m_bit": "Must set",
+      "clear_m": false,
+      "set_m": true,
+      "nested_clear_m": false,
+      "application": 16777313
+    },
+    {
+      "name": "User-Identifier",
+      "reference": "3GPP TS 29.336 [15]",
+      "comment": "",
+      "m_bit": "",
+      "clear_m": false,
+      "set_m": false,
+      "nested_clear_m": false,
+      "application": 16777313
+    },
+    {
+      "name": "MME-Number-for-MT-SMS",
+      "reference": "3GPP TS 29.272 [4]",
+      "comment": "",
+      "m_bit": "",
+      "clear_m": false,
+      "set_m": false,
+      "nested_clear_m": false,
+      "application": 16777313
+    },
+    {
+      "name": "SGSN-Number",
+      "reference": "3GPP TS 29.272 [4]",
+      "comment": "",
+      "m_bit": "Must not set",
+      "clear_m": true,
+      "set_m": false,
+      "nested_clear_m": false,
+      "application": 16777313
+    },
+    {
+      "name": "EPS-Location-Information",
+      "reference": "3GPP TS 29.272 [4]",
+      "comment": "",
+      "m_bit": "Must not set",
+      "clear_m": true,
+      "set_m": false,
+      "nested_clear_m": false,
+      "application": 16777313
+    },
+    {
+      "name": "Absent-User-Diagnostic-SM",
+      "reference": "3GPP TS 29.338",
+      "comment": "It is defined for the S6c interface, see clause 5.3.3.20",
+      "m_bit": "",
+      "clear_m": false,
+      "set_m": false,
+      "nested_clear_m": false,
+      "application": 16777313
+    },
+    {
+      "name": "Supported-Features",
+      "reference": "3GPP TS 29.229 [5]",
+      "comment": "",
+      "m_bit": "",
+      "clear_m": false,
+      "set_m": false,
+      "nested_clear_m": false,
+      "application": 16777313
+    },
+    {
+      "name": "Feature-List-ID",
+      "reference": "3GPP TS 29.229 [5]",
+      "comment": "See clause 6.3.3.8",
+      "m_bit": "",
+      "clear_m": false,
+      "set_m": false,
+      "nested_clear_m": false,
+      "application": 16777313
+    },
+    {
+      "name": "Feature-List",
+      "reference": "3GPP TS 29.229 [5]",
+      "comment": "See clause 6.3.3.9",
+      "m_bit": "",
+      "clear_m": false,
+      "set_m": false,
+      "nested_clear_m": false,
+      "application": 16777313
+    },
+    {
+      "name": "DRMP",
+      "reference": "IETF RFC 7944 [19]",
+      "comment": "see clause 6.3.3.20",
+      "m_bit": "Must not set",
+      "clear_m": true,
+      "set_m": false,
+      "nested_clear_m": false,
+      "application": 16777313
+    },
+    {
+      "name": "External-Identifier",
+      "reference": "3GPP TS 29.336 [15]",
+      "comment": "",
+      "m_bit": "Must not set",
+      "clear_m": true,
+      "set_m": false,
+      "nested_clear_m": false,
+      "application": 16777313
+    },
+    {
+      "name": "MPS-Priority",
+      "reference": "3GPP TS 29.272 [4]",
+      "comment": "",
+      "m_bit": "Must not set",
+      "clear_m": true,
+      "set_m": false,
+      "nested_clear_m": false,
+      "application": 16777313
+    },
+    {
+      "name": "NR-Cell-Global-Identity",
+      "reference": "3GPP TS 29.272 [4]",
+      "comment": "",
+      "m_bit": "Must not set",
+      "clear_m": true,
+      "set_m": false,
+      "nested_clear_m": false,
+      "application": 16777313
+    }
+  ],
+  "normalizations": [
+    "SGSN-Absent-User-Diagnostic SM in table 5.3.3.1/1 is normalized to SGSN-Absent-User-Diagnostic-SM from clause 5.3.3.11.",
+    "UE_ MEMORY_CAPACITY_EXCEEDED in clause 5.3.3.19 is normalized to UE_MEMORY_CAPACITY_EXCEEDED.",
+    "Flag separators and spacing in the tables are normalized to comma-separated symbols.",
+    "Reused MME-Location Information, eNodeB-Id and Extended-eNodeB-Id table spellings use the established hyphenation and ID capitalization."
+  ],
+  "conflicts": [
+    {
+      "name": "SMSMI-Correlation-ID",
+      "table": "6.3.3.1/1: code 3324",
+      "clause": "6.3.3.13: AVP header 3308",
+      "resolution": "3324 Grouped: approved CR 0014, C4-141882 (CP-140783), corrected the table allocations; grouped header 3308 is stale.",
+      "cr_source": "https://www.3gpp.org/ftp/tsg_ct/WG4_protocollars_ex-CN4/TSGCT4_66bis_Sophia_Antipolis/Docs/C4-141882.zip"
+    },
+    {
+      "name": "SM-Delivery-Timer",
+      "table": "6.3.3.1/1: Unsigned32",
+      "clause": "6.3.3.10: Integer",
+      "resolution": "Unsigned32: precise table type present since V11.0.0 and retained by approved CR 0018r1, C4-152177 (CP-150776). No identified CR explicitly corrects the generic Integer wording."
+    },
+    {
+      "name": "SMSMI-Correlation-ID and Destination-SIP-URI reused cross-references",
+      "table": "5.3.3.1/2: both say clause 6.3.3.2",
+      "clause": "6.3.3.13 and 6.3.3.16 define them",
+      "resolution": "retain table text and report wrong cross-reference"
+    }
+  ],
+  "definitions": [
+    {
+      "name": "SM-RP-MTI",
+      "code": 3308,
+      "section": "3GPP TS 29.338 V19.3.0 §5.3.3.2",
+      "type": "Enumerated",
+      "vendor": 10415,
+      "must": "M,V",
+      "may": "",
+      "should_not": "",
+      "must_not": "",
+      "may_encrypt": "N",
+      "application": 16777312,
+      "items": {
+        "0": "SM_DELIVER",
+        "1": "SM_STATUS_REPORT"
+      }
+    },
+    {
+      "name": "SM-RP-SMEA",
+      "code": 3309,
+      "section": "3GPP TS 29.338 V19.3.0 §5.3.3.3",
+      "type": "OctetString",
+      "vendor": 10415,
+      "must": "M,V",
+      "may": "",
+      "should_not": "",
+      "must_not": "",
+      "may_encrypt": "N",
+      "application": 16777312
+    },
+    {
+      "name": "SRR-Flags",
+      "code": 3310,
+      "section": "3GPP TS 29.338 V19.3.0 §5.3.3.4",
+      "type": "Unsigned32",
+      "vendor": 10415,
+      "must": "M,V",
+      "may": "",
+      "should_not": "",
+      "must_not": "",
+      "may_encrypt": "N",
+      "application": 16777312
+    },
+    {
+      "name": "SM-Delivery-Not-Intended",
+      "code": 3311,
+      "section": "3GPP TS 29.338 V19.3.0 §5.3.3.5",
+      "type": "Enumerated",
+      "vendor": 10415,
+      "must": "M,V",
+      "may": "",
+      "should_not": "",
+      "must_not": "",
+      "may_encrypt": "N",
+      "application": 16777312,
+      "items": {
+        "0": "ONLY_IMSI_REQUESTED",
+        "1": "ONLY_MCC_MNC_REQUESTED"
+      }
+    },
+    {
+      "name": "MWD-Status",
+      "code": 3312,
+      "section": "3GPP TS 29.338 V19.3.0 §5.3.3.8",
+      "type": "Unsigned32",
+      "vendor": 10415,
+      "must": "M,V",
+      "may": "",
+      "should_not": "",
+      "must_not": "",
+      "may_encrypt": "N",
+      "application": 16777312
+    },
+    {
+      "name": "MME-Absent-User-Diagnostic-SM",
+      "code": 3313,
+      "section": "3GPP TS 29.338 V19.3.0 §5.3.3.9",
+      "type": "Unsigned32",
+      "vendor": 10415,
+      "must": "M,V",
+      "may": "",
+      "should_not": "",
+      "must_not": "",
+      "may_encrypt": "N",
+      "application": 16777312
+    },
+    {
+      "name": "MSC-Absent-User-Diagnostic-SM",
+      "code": 3314,
+      "section": "3GPP TS 29.338 V19.3.0 §5.3.3.10",
+      "type": "Unsigned32",
+      "vendor": 10415,
+      "must": "M,V",
+      "may": "",
+      "should_not": "",
+      "must_not": "",
+      "may_encrypt": "N",
+      "application": 16777312
+    },
+    {
+      "name": "SGSN-Absent-User-Diagnostic-SM",
+      "code": 3315,
+      "section": "3GPP TS 29.338 V19.3.0 §5.3.3.11",
+      "type": "Unsigned32",
+      "vendor": 10415,
+      "must": "M,V",
+      "may": "",
+      "should_not": "",
+      "must_not": "",
+      "may_encrypt": "N",
+      "application": 16777312
+    },
+    {
+      "name": "SM-Delivery-Outcome",
+      "code": 3316,
+      "section": "3GPP TS 29.338 V19.3.0 §5.3.3.14",
+      "type": "Grouped",
+      "vendor": 10415,
+      "must": "M,V",
+      "may": "",
+      "should_not": "",
+      "must_not": "",
+      "may_encrypt": "N",
+      "application": 16777312,
+      "source_abnf": "SM-Delivery-Outcome::= <AVP header: 3316 10415>\n[ MME-SM-Delivery-Outcome ]\n[ MSC-SM-Delivery-Outcome ]\n[ SGSN-SM-Delivery-Outcome ]\n[ IP-SM-GW-SM-Delivery-Outcome ]\n[ SMSF-3GPP-SM-Delivery-Outcome ]\n[ SMSF-Non-3GPP-SM-Delivery-Outcome ]\n*[AVP]",
+      "rules": [
+        {
+          "name": "MME-SM-Delivery-Outcome",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ MME-SM-Delivery-Outcome ]"
+        },
+        {
+          "name": "MSC-SM-Delivery-Outcome",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ MSC-SM-Delivery-Outcome ]"
+        },
+        {
+          "name": "SGSN-SM-Delivery-Outcome",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ SGSN-SM-Delivery-Outcome ]"
+        },
+        {
+          "name": "IP-SM-GW-SM-Delivery-Outcome",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ IP-SM-GW-SM-Delivery-Outcome ]"
+        },
+        {
+          "name": "SMSF-3GPP-SM-Delivery-Outcome",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ SMSF-3GPP-SM-Delivery-Outcome ]"
+        },
+        {
+          "name": "SMSF-Non-3GPP-SM-Delivery-Outcome",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ SMSF-Non-3GPP-SM-Delivery-Outcome ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[AVP]"
+        }
+      ]
+    },
+    {
+      "name": "MME-SM-Delivery-Outcome",
+      "code": 3317,
+      "section": "3GPP TS 29.338 V19.3.0 §5.3.3.15",
+      "type": "Grouped",
+      "vendor": 10415,
+      "must": "M,V",
+      "may": "",
+      "should_not": "",
+      "must_not": "",
+      "may_encrypt": "N",
+      "application": 16777312,
+      "source_abnf": "MME-SM-Delivery-Outcome::= <AVP header: 3317 10415>>\n[ SM-Delivery-Cause ]\n[ Absent-User-Diagnostic-SM ]",
+      "rules": [
+        {
+          "name": "SM-Delivery-Cause",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ SM-Delivery-Cause ]"
+        },
+        {
+          "name": "Absent-User-Diagnostic-SM",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Absent-User-Diagnostic-SM ]"
+        }
+      ]
+    },
+    {
+      "name": "SM-Delivery-Cause",
+      "code": 3321,
+      "section": "3GPP TS 29.338 V19.3.0 §5.3.3.19",
+      "type": "Enumerated",
+      "vendor": 10415,
+      "must": "M,V",
+      "may": "",
+      "should_not": "",
+      "must_not": "",
+      "may_encrypt": "N",
+      "application": 16777312,
+      "items": {
+        "0": "UE_MEMORY_CAPACITY_EXCEEDED",
+        "1": "ABSENT_USER",
+        "2": "SUCCESSFUL_TRANSFER"
+      }
+    },
+    {
+      "name": "Absent-User-Diagnostic-SM",
+      "code": 3322,
+      "section": "3GPP TS 29.338 V19.3.0 §5.3.3.20",
+      "type": "Unsigned32",
+      "vendor": 10415,
+      "must": "M,V",
+      "may": "",
+      "should_not": "",
+      "must_not": "",
+      "may_encrypt": "N",
+      "application": 16777312
+    },
+    {
+      "name": "MSC-SM-Delivery-Outcome",
+      "code": 3318,
+      "section": "3GPP TS 29.338 V19.3.0 §5.3.3.16",
+      "type": "Grouped",
+      "vendor": 10415,
+      "must": "M,V",
+      "may": "",
+      "should_not": "",
+      "must_not": "",
+      "may_encrypt": "N",
+      "application": 16777312,
+      "source_abnf": "MSC-SM-Delivery-Outcome::= <AVP header: 3318 10415>\n[ SM-Delivery-Cause ]\n[ Absent-User-Diagnostic-SM ]",
+      "rules": [
+        {
+          "name": "SM-Delivery-Cause",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ SM-Delivery-Cause ]"
+        },
+        {
+          "name": "Absent-User-Diagnostic-SM",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Absent-User-Diagnostic-SM ]"
+        }
+      ]
+    },
+    {
+      "name": "SGSN-SM-Delivery-Outcome",
+      "code": 3319,
+      "section": "3GPP TS 29.338 V19.3.0 §5.3.3.17",
+      "type": "Grouped",
+      "vendor": 10415,
+      "must": "M,V",
+      "may": "",
+      "should_not": "",
+      "must_not": "",
+      "may_encrypt": "N",
+      "application": 16777312,
+      "source_abnf": "SGSN-SM-Delivery-Outcome::= <AVP header: 3319 10415>\n[ SM-Delivery-Cause ]\n[ Absent-User-Diagnostic-SM ]",
+      "rules": [
+        {
+          "name": "SM-Delivery-Cause",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ SM-Delivery-Cause ]"
+        },
+        {
+          "name": "Absent-User-Diagnostic-SM",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Absent-User-Diagnostic-SM ]"
+        }
+      ]
+    },
+    {
+      "name": "IP-SM-GW-SM-Delivery-Outcome",
+      "code": 3320,
+      "section": "3GPP TS 29.338 V19.3.0 §5.3.3.18",
+      "type": "Grouped",
+      "vendor": 10415,
+      "must": "M,V",
+      "may": "",
+      "should_not": "",
+      "must_not": "",
+      "may_encrypt": "N",
+      "application": 16777312,
+      "source_abnf": "IP-SM-GW-SM-Delivery-Outcome::= <AVP header: 3320 10415>\n[ SM-Delivery-Cause ]\n[ Absent-User-Diagnostic-SM ]",
+      "rules": [
+        {
+          "name": "SM-Delivery-Cause",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ SM-Delivery-Cause ]"
+        },
+        {
+          "name": "Absent-User-Diagnostic-SM",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Absent-User-Diagnostic-SM ]"
+        }
+      ]
+    },
+    {
+      "name": "SMSF-3GPP-SM-Delivery-Outcome",
+      "code": 3336,
+      "section": "3GPP TS 29.338 V19.3.0 §5.3.3.27",
+      "type": "Grouped",
+      "vendor": 10415,
+      "must": "V",
+      "may": "",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "N",
+      "application": 16777312,
+      "source_abnf": "SMSF-3GPP-SM-Delivery-Outcome::= <AVP header: 3336 10415>>\n[ SM-Delivery-Cause ]\n[ Absent-User-Diagnostic-SM ]",
+      "rules": [
+        {
+          "name": "SM-Delivery-Cause",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ SM-Delivery-Cause ]"
+        },
+        {
+          "name": "Absent-User-Diagnostic-SM",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Absent-User-Diagnostic-SM ]"
+        }
+      ]
+    },
+    {
+      "name": "SMSF-Non-3GPP-SM-Delivery-Outcome",
+      "code": 3337,
+      "section": "3GPP TS 29.338 V19.3.0 §5.3.3.28",
+      "type": "Grouped",
+      "vendor": 10415,
+      "must": "V",
+      "may": "",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "N",
+      "application": 16777312,
+      "source_abnf": "SMSF-Non-3GPP-SM-Delivery-Outcome::= <AVP header: 3337 10415>>\n[ SM-Delivery-Cause ]\n[ Absent-User-Diagnostic-SM ]",
+      "rules": [
+        {
+          "name": "SM-Delivery-Cause",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ SM-Delivery-Cause ]"
+        },
+        {
+          "name": "Absent-User-Diagnostic-SM",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Absent-User-Diagnostic-SM ]"
+        }
+      ]
+    },
+    {
+      "name": "RDR-Flags",
+      "code": 3323,
+      "section": "3GPP TS 29.338 V19.3.0 §5.3.3.21",
+      "type": "Unsigned32",
+      "vendor": 10415,
+      "must": "V",
+      "may": "",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "N",
+      "application": 16777312
+    },
+    {
+      "name": "Maximum-UE-Availability-Time",
+      "code": 3329,
+      "section": "3GPP TS 29.338 V19.3.0 §5.3.3.22",
+      "type": "Time",
+      "vendor": 10415,
+      "must": "V",
+      "may": "",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "N",
+      "application": 16777312
+    },
+    {
+      "name": "SMS-GMSC-Alert-Event",
+      "code": 3333,
+      "section": "3GPP TS 29.338 V19.3.0 §5.3.3.23",
+      "type": "Unsigned32",
+      "vendor": 10415,
+      "must": "V",
+      "may": "",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "N",
+      "application": 16777312
+    },
+    {
+      "name": "SMSF-3GPP-Absent-User-Diagnostic-SM",
+      "code": 3334,
+      "section": "3GPP TS 29.338 V19.3.0 §5.3.3.25",
+      "type": "Unsigned32",
+      "vendor": 10415,
+      "must": "V",
+      "may": "",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "N",
+      "application": 16777312
+    },
+    {
+      "name": "SMSF-Non-3GPP-Absent-User-Diagnostic-SM",
+      "code": 3335,
+      "section": "3GPP TS 29.338 V19.3.0 §5.3.3.26",
+      "type": "Unsigned32",
+      "vendor": 10415,
+      "must": "V",
+      "may": "",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "N",
+      "application": 16777312
+    },
+    {
+      "name": "SMSF-3GPP-Number",
+      "code": 3338,
+      "section": "3GPP TS 29.338 V19.3.0 §5.3.3.29",
+      "type": "OctetString",
+      "vendor": 10415,
+      "must": "V",
+      "may": "",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "N",
+      "application": 16777312
+    },
+    {
+      "name": "SMSF-Non-3GPP-Number",
+      "code": 3339,
+      "section": "3GPP TS 29.338 V19.3.0 §5.3.3.30",
+      "type": "OctetString",
+      "vendor": 10415,
+      "must": "V",
+      "may": "",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "N",
+      "application": 16777312
+    },
+    {
+      "name": "SMSF-3GPP-Name",
+      "code": 3340,
+      "section": "3GPP TS 29.338 V19.3.0 §5.3.3.31",
+      "type": "DiameterIdentity",
+      "vendor": 10415,
+      "must": "V",
+      "may": "",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "N",
+      "application": 16777312
+    },
+    {
+      "name": "SMSF-Non-3GPP-Name",
+      "code": 3341,
+      "section": "3GPP TS 29.338 V19.3.0 §5.3.3.32",
+      "type": "DiameterIdentity",
+      "vendor": 10415,
+      "must": "V",
+      "may": "",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "N",
+      "application": 16777312
+    },
+    {
+      "name": "SMSF-3GPP-Realm",
+      "code": 3342,
+      "section": "3GPP TS 29.338 V19.3.0 §5.3.3.33",
+      "type": "DiameterIdentity",
+      "vendor": 10415,
+      "must": "V",
+      "may": "",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "N",
+      "application": 16777312
+    },
+    {
+      "name": "SMSF-Non-3GPP-Realm",
+      "code": 3343,
+      "section": "3GPP TS 29.338 V19.3.0 §5.3.3.34",
+      "type": "DiameterIdentity",
+      "vendor": 10415,
+      "must": "V",
+      "may": "",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "N",
+      "application": 16777312
+    },
+    {
+      "name": "SMSF-3GPP-Address",
+      "code": 3344,
+      "section": "3GPP TS 29.338 V19.3.0 §5.3.3.35",
+      "type": "Grouped",
+      "vendor": 10415,
+      "must": "V",
+      "may": "",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "N",
+      "application": 16777312,
+      "source_abnf": "SMSF-3GPP-Address ::=<AVP header: 3344 10415>\n[ SMSF-3GPP-Number ]\n[ SMSF-3GPP-Name ]\n[ SMSF-3GPP-Realm ]\n[ SMSF-3GPP-SBI-Support-Indicator ]\n*[AVP]",
+      "rules": [
+        {
+          "name": "SMSF-3GPP-Number",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ SMSF-3GPP-Number ]"
+        },
+        {
+          "name": "SMSF-3GPP-Name",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ SMSF-3GPP-Name ]"
+        },
+        {
+          "name": "SMSF-3GPP-Realm",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ SMSF-3GPP-Realm ]"
+        },
+        {
+          "name": "SMSF-3GPP-SBI-Support-Indicator",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ SMSF-3GPP-SBI-Support-Indicator ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[AVP]"
+        }
+      ]
+    },
+    {
+      "name": "SMSF-3GPP-SBI-Support-Indicator",
+      "code": 3346,
+      "section": "3GPP TS 29.338 V19.3.0 §5.3.3.37",
+      "type": "Enumerated",
+      "vendor": 10415,
+      "must": "V",
+      "may": "",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "N",
+      "application": 16777312,
+      "items": {
+        "0": "NOT_SUPPORT_SBI",
+        "1": "SUPPORT_SBI"
+      }
+    },
+    {
+      "name": "SMSF-Non-3GPP-Address",
+      "code": 3345,
+      "section": "3GPP TS 29.338 V19.3.0 §5.3.3.36",
+      "type": "Grouped",
+      "vendor": 10415,
+      "must": "V",
+      "may": "",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "N",
+      "application": 16777312,
+      "source_abnf": "SMSF-Non-3GPP-Address ::=<AVP header: 3345 10415>\n[ SMSF-Non-3GPP-Number ]\n[ SMSF-Non-3GPP-Name ]\n[ SMSF-Non-3GPP-Realm ]\n[ SMSF-Non-3GPP-SBI-Support-Indicator ]\n*[AVP]",
+      "rules": [
+        {
+          "name": "SMSF-Non-3GPP-Number",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ SMSF-Non-3GPP-Number ]"
+        },
+        {
+          "name": "SMSF-Non-3GPP-Name",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ SMSF-Non-3GPP-Name ]"
+        },
+        {
+          "name": "SMSF-Non-3GPP-Realm",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ SMSF-Non-3GPP-Realm ]"
+        },
+        {
+          "name": "SMSF-Non-3GPP-SBI-Support-Indicator",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ SMSF-Non-3GPP-SBI-Support-Indicator ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[AVP]"
+        }
+      ]
+    },
+    {
+      "name": "SMSF-Non-3GPP-SBI-Support-Indicator",
+      "code": 3347,
+      "section": "3GPP TS 29.338 V19.3.0 §5.3.3.38",
+      "type": "Enumerated",
+      "vendor": 10415,
+      "must": "V",
+      "may": "",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "N",
+      "application": 16777312,
+      "items": {
+        "0": "NOT_SUPPORT_SBI",
+        "1": "SUPPORT_SBI"
+      }
+    },
+    {
+      "name": "IP-SM-GW-SBI-Support-Indicator",
+      "code": 3348,
+      "section": "3GPP TS 29.338 V19.3.0 §5.3.3.39",
+      "type": "Enumerated",
+      "vendor": 10415,
+      "must": "V",
+      "may": "",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "N",
+      "application": 16777312,
+      "items": {
+        "0": "NOT_SUPPORT_SBI",
+        "1": "SUPPORT_SBI"
+      }
+    },
+    {
+      "name": "SC-Address",
+      "code": 3300,
+      "section": "3GPP TS 29.338 V19.3.0 §6.3.3.2",
+      "type": "OctetString",
+      "vendor": 10415,
+      "must": "M,V",
+      "may": "",
+      "should_not": "",
+      "must_not": "",
+      "may_encrypt": "N",
+      "application": 16777313
+    },
+    {
+      "name": "SM-RP-UI",
+      "code": 3301,
+      "section": "3GPP TS 29.338 V19.3.0 §6.3.3.3",
+      "type": "OctetString",
+      "vendor": 10415,
+      "must": "M,V",
+      "may": "",
+      "should_not": "",
+      "must_not": "",
+      "may_encrypt": "N",
+      "application": 16777313
+    },
+    {
+      "name": "TFR-Flags",
+      "code": 3302,
+      "section": "3GPP TS 29.338 V19.3.0 §6.3.3.4",
+      "type": "Unsigned32",
+      "vendor": 10415,
+      "must": "M,V",
+      "may": "",
+      "should_not": "",
+      "must_not": "",
+      "may_encrypt": "N",
+      "application": 16777313
+    },
+    {
+      "name": "SM-Delivery-Failure-Cause",
+      "code": 3303,
+      "section": "3GPP TS 29.338 V19.3.0 §6.3.3.5",
+      "type": "Grouped",
+      "vendor": 10415,
+      "must": "M,V",
+      "may": "",
+      "should_not": "",
+      "must_not": "",
+      "may_encrypt": "N",
+      "application": 16777313,
+      "source_abnf": "SM-Delivery-Failure-Cause ::= <AVP header: 3303 10415>\n{ SM-Enumerated-Delivery-Failure-Cause }\n[ SM-Diagnostic-Info ]\n*[ AVP ]",
+      "rules": [
+        {
+          "name": "SM-Enumerated-Delivery-Failure-Cause",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ SM-Enumerated-Delivery-Failure-Cause }"
+        },
+        {
+          "name": "SM-Diagnostic-Info",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ SM-Diagnostic-Info ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ AVP ]"
+        }
+      ]
+    },
+    {
+      "name": "SM-Enumerated-Delivery-Failure-Cause",
+      "code": 3304,
+      "section": "3GPP TS 29.338 V19.3.0 §6.3.3.6",
+      "type": "Enumerated",
+      "vendor": 10415,
+      "must": "M,V",
+      "may": "",
+      "should_not": "",
+      "must_not": "",
+      "may_encrypt": "N",
+      "application": 16777313,
+      "items": {
+        "0": "MEMORY_CAPACITY_EXCEEDED",
+        "1": "EQUIPMENT_PROTOCOL_ERROR",
+        "2": "EQUIPMENT_NOT_SM-EQUIPPED",
+        "3": "UNKNOWN_SERVICE_CENTRE",
+        "4": "SC-CONGESTION",
+        "5": "INVALID_SME-ADDRESS",
+        "6": "USER_NOT_SC-USER"
+      }
+    },
+    {
+      "name": "SM-Diagnostic-Info",
+      "code": 3305,
+      "section": "3GPP TS 29.338 V19.3.0 §6.3.3.7",
+      "type": "OctetString",
+      "vendor": 10415,
+      "must": "M,V",
+      "may": "",
+      "should_not": "",
+      "must_not": "",
+      "may_encrypt": "N",
+      "application": 16777313
+    },
+    {
+      "name": "SM-Delivery-Timer",
+      "code": 3306,
+      "section": "3GPP TS 29.338 V19.3.0 §6.3.3.10",
+      "type": "Unsigned32",
+      "vendor": 10415,
+      "must": "M,V",
+      "may": "",
+      "should_not": "",
+      "must_not": "",
+      "may_encrypt": "N",
+      "application": 16777313
+    },
+    {
+      "name": "SM-Delivery-Start-Time",
+      "code": 3307,
+      "section": "3GPP TS 29.338 V19.3.0 §6.3.3.11",
+      "type": "Time",
+      "vendor": 10415,
+      "must": "M,V",
+      "may": "",
+      "should_not": "",
+      "must_not": "",
+      "may_encrypt": "N",
+      "application": 16777313
+    },
+    {
+      "name": "SMSMI-Correlation-ID",
+      "code": 3324,
+      "section": "3GPP TS 29.338 V19.3.0 §6.3.3.13",
+      "type": "Grouped",
+      "vendor": 10415,
+      "must": "V",
+      "may": "",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "N",
+      "application": 16777313,
+      "source_abnf": "SMS-MI-Correlation-ID  ::= <AVP header: 3308 10415>\n[ HSS-ID ]\n[ Originating-SIP-URI ]\n[ Destination-SIP-URI ]\n*[ AVP ]",
+      "rules": [
+        {
+          "name": "HSS-ID",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ HSS-ID ]"
+        },
+        {
+          "name": "Originating-SIP-URI",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Originating-SIP-URI ]"
+        },
+        {
+          "name": "Destination-SIP-URI",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Destination-SIP-URI ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ AVP ]"
+        }
+      ]
+    },
+    {
+      "name": "HSS-ID",
+      "code": 3325,
+      "section": "3GPP TS 29.338 V19.3.0 §6.3.3.14",
+      "type": "UTF8String",
+      "vendor": 10415,
+      "must": "V",
+      "may": "",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "N",
+      "application": 16777313
+    },
+    {
+      "name": "Originating-SIP-URI",
+      "code": 3326,
+      "section": "3GPP TS 29.338 V19.3.0 §6.3.3.15",
+      "type": "UTF8String",
+      "vendor": 10415,
+      "must": "V",
+      "may": "",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "N",
+      "application": 16777313
+    },
+    {
+      "name": "Destination-SIP-URI",
+      "code": 3327,
+      "section": "3GPP TS 29.338 V19.3.0 §6.3.3.16",
+      "type": "UTF8String",
+      "vendor": 10415,
+      "must": "V",
+      "may": "",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "N",
+      "application": 16777313
+    },
+    {
+      "name": "OFR-Flags",
+      "code": 3328,
+      "section": "3GPP TS 29.338 V19.3.0 §6.3.3.12",
+      "type": "Unsigned32",
+      "vendor": 10415,
+      "must": "V",
+      "may": "",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "N",
+      "application": 16777313
+    },
+    {
+      "name": "Maximum-Retransmission-Time",
+      "code": 3330,
+      "section": "3GPP TS 29.338 V19.3.0 §6.3.3.17",
+      "type": "Time",
+      "vendor": 10415,
+      "must": "V",
+      "may": "",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "N",
+      "application": 16777313
+    },
+    {
+      "name": "Requested-Retransmission-Time",
+      "code": 3331,
+      "section": "3GPP TS 29.338 V19.3.0 §6.3.3.18",
+      "type": "Time",
+      "vendor": 10415,
+      "must": "V",
+      "may": "",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "N",
+      "application": 16777313
+    },
+    {
+      "name": "SMS-GMSC-Address",
+      "code": 3332,
+      "section": "3GPP TS 29.338 V19.3.0 §6.3.3.19",
+      "type": "OctetString",
+      "vendor": 10415,
+      "must": "V",
+      "may": "",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "N",
+      "application": 16777313
+    },
+    {
+      "name": "User-Name",
+      "code": 1,
+      "vendor": 0,
+      "type": "UTF8String",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "section": "RFC 6733 (October 2012) §8.14",
+      "flag_source": "3GPP TS 29.338 V19.3.0 Table 6.3.3.1/2",
+      "shared_dictionary_gap": {
+        "dictionary": "base.xml",
+        "may": "P",
+        "reason": "RFC 6733 §4.5 has no MAY-P column; shared metadata retains obsolete P policy."
+      }
+    },
+    {
+      "name": "User-Identifier",
+      "code": 3102,
+      "vendor": 10415,
+      "type": "Grouped",
+      "must": "M,V",
+      "may": "",
+      "must_not": "",
+      "may_encrypt": "N",
+      "section": "3GPP TS 29.336 V20.0.0 §6.4.2",
+      "rules": [
+        {
+          "name": "User-Name",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ User-Name ]"
+        },
+        {
+          "name": "MSISDN",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ MSISDN ]"
+        },
+        {
+          "name": "External-Identifier",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ External-Identifier ]"
+        },
+        {
+          "name": "LMSI",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ LMSI ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[AVP]"
+        }
+      ]
+    },
+    {
+      "name": "MSISDN",
+      "code": 701,
+      "vendor": 10415,
+      "type": "OctetString",
+      "must": "M,V",
+      "may": "",
+      "must_not": "",
+      "may_encrypt": "N",
+      "section": "3GPP TS 29.329 V19.1.0 §6.3.2"
+    },
+    {
+      "name": "External-Identifier",
+      "code": 3111,
+      "vendor": 10415,
+      "type": "UTF8String",
+      "must": "V",
+      "may": "",
+      "must_not": "M",
+      "may_encrypt": "N",
+      "section": "3GPP TS 29.336 V20.0.0 §6.4.11",
+      "flag_source": "3GPP TS 29.338 V19.3.0 Table 6.3.3.1/2"
+    },
+    {
+      "name": "LMSI",
+      "code": 2400,
+      "vendor": 10415,
+      "type": "OctetString",
+      "must": "M,V",
+      "may": "",
+      "must_not": "",
+      "may_encrypt": "N",
+      "section": "3GPP TS 29.173 V19.0.0 §6.4.2"
+    },
+    {
+      "name": "MME-Number-for-MT-SMS",
+      "code": 1645,
+      "vendor": 10415,
+      "type": "OctetString",
+      "must": "V",
+      "may": "",
+      "must_not": "M",
+      "may_encrypt": "N",
+      "section": "3GPP TS 29.272 V19.6.0 §7.3.159",
+      "flag_source": "3GPP TS 29.272 V19.6.0 Table 7.3.1/1; TS 29.338 V19.3.0 Table 6.3.3.1/2 has no override"
+    },
+    {
+      "name": "SGSN-Number",
+      "code": 1489,
+      "vendor": 10415,
+      "type": "OctetString",
+      "must": "V",
+      "may": "",
+      "must_not": "M",
+      "may_encrypt": "N",
+      "section": "3GPP TS 29.272 V19.6.0 §7.3.102",
+      "flag_source": "3GPP TS 29.338 V19.3.0 Table 6.3.3.1/2"
+    },
+    {
+      "name": "EPS-Location-Information",
+      "code": 1496,
+      "vendor": 10415,
+      "type": "Grouped",
+      "must": "V",
+      "may": "",
+      "must_not": "M",
+      "may_encrypt": "N",
+      "section": "3GPP TS 29.272 V19.6.0 §7.3.111",
+      "rules": [
+        {
+          "name": "MME-Location-Information",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "SGSN-Location-Information",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        }
+      ],
+      "flag_source": "3GPP TS 29.338 V19.3.0 Table 6.3.3.1/2"
+    },
+    {
+      "name": "MME-Location-Information",
+      "code": 1600,
+      "vendor": 10415,
+      "type": "Grouped",
+      "must": "V",
+      "may": "",
+      "must_not": "M",
+      "may_encrypt": "N",
+      "section": "3GPP TS 29.272 V19.6.0 §7.3.115",
+      "rules": [
+        {
+          "name": "E-UTRAN-Cell-Global-Identity",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Tracking-Area-Identity",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Geographical-Information",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Geodetic-Information",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Current-Location-Retrieved",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Age-Of-Location-Information",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "User-CSG-Information",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "eNodeB-ID",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Extended-eNodeB-ID",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        }
+      ]
+    },
+    {
+      "name": "E-UTRAN-Cell-Global-Identity",
+      "code": 1602,
+      "vendor": 10415,
+      "type": "OctetString",
+      "must": "V",
+      "may": "",
+      "must_not": "M",
+      "may_encrypt": "N",
+      "section": "3GPP TS 29.272 V19.6.0 §7.3.117"
+    },
+    {
+      "name": "Tracking-Area-Identity",
+      "code": 1603,
+      "vendor": 10415,
+      "type": "OctetString",
+      "must": "V",
+      "may": "",
+      "must_not": "M",
+      "may_encrypt": "N",
+      "section": "3GPP TS 29.272 V19.6.0 §7.3.118"
+    },
+    {
+      "name": "Geographical-Information",
+      "code": 1608,
+      "vendor": 10415,
+      "type": "OctetString",
+      "must": "V",
+      "may": "",
+      "must_not": "M",
+      "may_encrypt": "N",
+      "section": "3GPP TS 29.272 V19.6.0 §7.3.123"
+    },
+    {
+      "name": "Geodetic-Information",
+      "code": 1609,
+      "vendor": 10415,
+      "type": "OctetString",
+      "must": "V",
+      "may": "",
+      "must_not": "M",
+      "may_encrypt": "N",
+      "section": "3GPP TS 29.272 V19.6.0 §7.3.124"
+    },
+    {
+      "name": "Current-Location-Retrieved",
+      "code": 1610,
+      "vendor": 10415,
+      "type": "Enumerated",
+      "must": "V",
+      "may": "",
+      "must_not": "M",
+      "may_encrypt": "N",
+      "section": "3GPP TS 29.272 V19.6.0 §7.3.125",
+      "items": {
+        "0": "ACTIVE-LOCATION-RETRIEVAL"
+      }
+    },
+    {
+      "name": "Age-Of-Location-Information",
+      "code": 1611,
+      "vendor": 10415,
+      "type": "Unsigned32",
+      "must": "V",
+      "may": "",
+      "must_not": "M",
+      "may_encrypt": "N",
+      "section": "3GPP TS 29.272 V19.6.0 §7.3.126"
+    },
+    {
+      "code": 2319,
+      "vendor": 10415,
+      "type": "Grouped",
+      "must": "M,V",
+      "may": "",
+      "must_not": "",
+      "name": "User-CSG-Information",
+      "rules": [
+        {
+          "name": "CSG-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ CSG-Id }"
+        },
+        {
+          "name": "CSG-Access-Mode",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ CSG-Access-Mode }"
+        },
+        {
+          "name": "CSG-Membership-Indication",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ CSG-Membership-Indication ]"
+        }
+      ],
+      "grammar_source": "TS 32.299 V19.0.0",
+      "section": "3GPP TS 32.299 V19.0.0 §7.2.240A",
+      "flag_source": "3GPP TS 32.299 V19.0.0 Table 7.2.0.1",
+      "may_encrypt": "N",
+      "shared_dictionary_gap": {
+        "Dictionary": "tgpp_ro_rf.xml",
+        "Reason": "The inherited charging definition retains MAY-P absent from TS 32.299 V19.0.0 Table 7.2.0.1; the shared file is outside scope.",
+        "May": "P"
+      }
+    },
+    {
+      "name": "CSG-Id",
+      "code": 1437,
+      "vendor": 10415,
+      "type": "Unsigned32",
+      "must": "M,V",
+      "may": "",
+      "must_not": "",
+      "may_encrypt": "N",
+      "section": "3GPP TS 29.272 V19.6.0 §7.3.79"
+    },
+    {
+      "code": 2317,
+      "vendor": 10415,
+      "type": "Enumerated",
+      "must": "V,M",
+      "may": "",
+      "must_not": "",
+      "name": "CSG-Access-Mode",
+      "section": "3GPP TS 32.299 V19.0.0 §7.2.46A",
+      "items": {
+        "0": "Closed mode",
+        "1": "Hybrid Mode"
+      }
+    },
+    {
+      "code": 2318,
+      "vendor": 10415,
+      "type": "Enumerated",
+      "must": "V,M",
+      "may": "",
+      "must_not": "",
+      "name": "CSG-Membership-Indication",
+      "section": "3GPP TS 32.299 V19.0.0 §7.2.46B",
+      "items": {
+        "0": "Not CSG member",
+        "1": "CSG Member"
+      }
+    },
+    {
+      "name": "eNodeB-ID",
+      "code": 4008,
+      "vendor": 10415,
+      "type": "OctetString",
+      "must": "M,V",
+      "may": "P",
+      "must_not": "",
+      "may_encrypt": "Y",
+      "section": "3GPP TS 29.217 V19.0.0 §5.3.10",
+      "flag_source": "3GPP TS 29.217 V19.0.0 Table 5.3.1.1"
+    },
+    {
+      "name": "Extended-eNodeB-ID",
+      "code": 4013,
+      "vendor": 10415,
+      "type": "OctetString",
+      "must": "V",
+      "may": "P",
+      "must_not": "M",
+      "may_encrypt": "Y",
+      "section": "3GPP TS 29.217 V19.0.0 §5.3.15",
+      "flag_source": "3GPP TS 29.217 V19.0.0 Table 5.3.1.1"
+    },
+    {
+      "name": "SGSN-Location-Information",
+      "code": 1601,
+      "vendor": 10415,
+      "type": "Grouped",
+      "must": "V",
+      "may": "",
+      "must_not": "M",
+      "may_encrypt": "N",
+      "section": "3GPP TS 29.272 V19.6.0 §7.3.116",
+      "rules": [
+        {
+          "name": "Cell-Global-Identity",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Location-Area-Identity",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Service-Area-Identity",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Routing-Area-Identity",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Geographical-Information",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Geodetic-Information",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Current-Location-Retrieved",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Age-Of-Location-Information",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "User-CSG-Information",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        }
+      ]
+    },
+    {
+      "name": "Cell-Global-Identity",
+      "code": 1604,
+      "vendor": 10415,
+      "type": "OctetString",
+      "must": "V",
+      "may": "",
+      "must_not": "M",
+      "may_encrypt": "N",
+      "section": "3GPP TS 29.272 V19.6.0 §7.3.119"
+    },
+    {
+      "name": "Location-Area-Identity",
+      "code": 1606,
+      "vendor": 10415,
+      "type": "OctetString",
+      "must": "V",
+      "may": "",
+      "must_not": "M",
+      "may_encrypt": "N",
+      "section": "3GPP TS 29.272 V19.6.0 §7.3.121"
+    },
+    {
+      "name": "Service-Area-Identity",
+      "code": 1607,
+      "vendor": 10415,
+      "type": "OctetString",
+      "must": "V",
+      "may": "",
+      "must_not": "M",
+      "may_encrypt": "N",
+      "section": "3GPP TS 29.272 V19.6.0 §7.3.122"
+    },
+    {
+      "name": "Routing-Area-Identity",
+      "code": 1605,
+      "vendor": 10415,
+      "type": "OctetString",
+      "must": "V",
+      "may": "",
+      "must_not": "M",
+      "may_encrypt": "N",
+      "section": "3GPP TS 29.272 V19.6.0 §7.3.120"
+    },
+    {
+      "name": "Supported-Features",
+      "code": 628,
+      "vendor": 10415,
+      "type": "Grouped",
+      "must": "V",
+      "may": "M",
+      "must_not": "",
+      "may_encrypt": "N",
+      "section": "3GPP TS 29.229 V19.1.0 §6.3.29",
+      "rules": [
+        {
+          "name": "Vendor-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Vendor-Id }"
+        },
+        {
+          "name": "Feature-List-ID",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Feature-List-ID }"
+        },
+        {
+          "name": "Feature-List",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Feature-List }"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[AVP]"
+        }
+      ]
+    },
+    {
+      "name": "Vendor-Id",
+      "code": 266,
+      "vendor": 0,
+      "type": "Unsigned32",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "section": "RFC 6733 (October 2012) §5.3.3",
+      "shared_dictionary_gap": {
+        "dictionary": "base.xml",
+        "may": "P",
+        "reason": "RFC 6733 §4.5 has no MAY-P column; shared metadata retains obsolete P policy."
+      }
+    },
+    {
+      "name": "Feature-List-ID",
+      "code": 629,
+      "vendor": 10415,
+      "type": "Unsigned32",
+      "must": "V",
+      "may": "",
+      "must_not": "M",
+      "may_encrypt": "N",
+      "section": "3GPP TS 29.229 V19.1.0 §6.3.30"
+    },
+    {
+      "name": "Feature-List",
+      "code": 630,
+      "vendor": 10415,
+      "type": "Unsigned32",
+      "must": "V",
+      "may": "",
+      "must_not": "M",
+      "may_encrypt": "N",
+      "section": "3GPP TS 29.229 V19.1.0 §6.3.31"
+    },
+    {
+      "name": "DRMP",
+      "code": 301,
+      "vendor": 0,
+      "type": "Enumerated",
+      "must": "",
+      "may": "",
+      "must_not": "M,V",
+      "section": "RFC 7944 (August 2016) §§9.1–9.2",
+      "items": {
+        "0": "PRIORITY_0",
+        "1": "PRIORITY_1",
+        "2": "PRIORITY_2",
+        "3": "PRIORITY_3",
+        "4": "PRIORITY_4",
+        "5": "PRIORITY_5",
+        "6": "PRIORITY_6",
+        "7": "PRIORITY_7",
+        "8": "PRIORITY_8",
+        "9": "PRIORITY_9",
+        "10": "PRIORITY_10",
+        "11": "PRIORITY_11",
+        "12": "PRIORITY_12",
+        "13": "PRIORITY_13",
+        "14": "PRIORITY_14",
+        "15": "PRIORITY_15"
+      },
+      "flag_source": "3GPP TS 29.338 V19.3.0 Table 6.3.3.1/2"
+    },
+    {
+      "name": "MPS-Priority",
+      "code": 1616,
+      "vendor": 10415,
+      "type": "Unsigned32",
+      "must": "V",
+      "may": "",
+      "must_not": "M",
+      "may_encrypt": "N",
+      "section": "3GPP TS 29.272 V19.6.0 §7.3.131",
+      "flag_source": "3GPP TS 29.338 V19.3.0 Table 6.3.3.1/2"
+    },
+    {
+      "name": "NR-Cell-Global-Identity",
+      "code": 1726,
+      "vendor": 10415,
+      "type": "OctetString",
+      "must": "V",
+      "may": "",
+      "must_not": "M",
+      "may_encrypt": "N",
+      "section": "3GPP TS 29.272 V19.6.0 §7.3.251",
+      "flag_source": "3GPP TS 29.338 V19.3.0 Table 6.3.3.1/2"
+    },
+    {
+      "name": "Serving-Node",
+      "code": 2401,
+      "vendor": 10415,
+      "type": "Grouped",
+      "must": "M,V",
+      "may": "",
+      "must_not": "",
+      "may_encrypt": "N",
+      "section": "3GPP TS 29.173 V19.0.0 §6.4.3",
+      "rules": [
+        {
+          "name": "SGSN-Number",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ SGSN-Number ]"
+        },
+        {
+          "name": "SGSN-Name",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ SGSN-Name ]"
+        },
+        {
+          "name": "SGSN-Realm",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ SGSN-Realm ]"
+        },
+        {
+          "name": "MME-Name",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ MME-Name ]"
+        },
+        {
+          "name": "MME-Realm",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ MME-Realm ]"
+        },
+        {
+          "name": "MSC-Number",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ MSC-Number ]"
+        },
+        {
+          "name": "TGPP-AAA-Server-Name",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ 3GPP-AAA-Server-Name ]"
+        },
+        {
+          "name": "LCS-Capabilities-Sets",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ LCS-Capabilities-Sets ]"
+        },
+        {
+          "name": "GMLC-Address",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ GMLC-Address ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[AVP]"
+        }
+      ],
+      "grammar_source": "3GPP TS 29.173 V19.0.0 §6.4.3",
+      "scope_note": "The SMS-specific grammar in TS 29.338 §5.3.3 applies only to S6c; the defining TS 29.173 grammar applies here."
+    },
+    {
+      "name": "SGSN-Name",
+      "code": 2409,
+      "vendor": 10415,
+      "type": "DiameterIdentity",
+      "must": "V",
+      "may": "",
+      "must_not": "M",
+      "may_encrypt": "N",
+      "section": "3GPP TS 29.173 V19.0.0 §6.4.13"
+    },
+    {
+      "name": "SGSN-Realm",
+      "code": 2410,
+      "vendor": 10415,
+      "type": "DiameterIdentity",
+      "must": "V",
+      "may": "",
+      "must_not": "M",
+      "may_encrypt": "N",
+      "section": "3GPP TS 29.173 V19.0.0 §6.4.14"
+    },
+    {
+      "name": "MME-Name",
+      "code": 2402,
+      "vendor": 10415,
+      "type": "DiameterIdentity",
+      "must": "M,V",
+      "may": "",
+      "must_not": "",
+      "may_encrypt": "N",
+      "section": "3GPP TS 29.173 V19.0.0 §6.4.4"
+    },
+    {
+      "name": "MME-Realm",
+      "code": 2408,
+      "vendor": 10415,
+      "type": "DiameterIdentity",
+      "must": "V",
+      "may": "",
+      "must_not": "M",
+      "may_encrypt": "N",
+      "section": "3GPP TS 29.173 V19.0.0 §6.4.12",
+      "flag_source": "3GPP TS 29.173 V19.0.0 Table 6.4.1/1; no override in TS 29.338 V19.3.0 Table 6.3.3.1/2"
+    },
+    {
+      "name": "MSC-Number",
+      "code": 2403,
+      "vendor": 10415,
+      "type": "OctetString",
+      "must": "M,V",
+      "may": "",
+      "must_not": "",
+      "may_encrypt": "N",
+      "section": "3GPP TS 29.173 V19.0.0 §6.4.5"
+    },
+    {
+      "name": "IP-SM-GW-Number",
+      "code": 3100,
+      "vendor": 10415,
+      "type": "OctetString",
+      "must": "M,V",
+      "may": "",
+      "must_not": "",
+      "may_encrypt": "N",
+      "section": "3GPP TS 29.336 V20.0.0 §6.4.14"
+    },
+    {
+      "name": "IP-SM-GW-Name",
+      "code": 3101,
+      "vendor": 10415,
+      "type": "DiameterIdentity",
+      "must": "M,V",
+      "may": "",
+      "must_not": "",
+      "may_encrypt": "N",
+      "section": "3GPP TS 29.336 V20.0.0 §6.4.15"
+    },
+    {
+      "name": "IP-SM-GW-Realm",
+      "code": 3112,
+      "vendor": 10415,
+      "type": "DiameterIdentity",
+      "must": "M,V",
+      "may": "",
+      "must_not": "",
+      "may_encrypt": "N",
+      "section": "3GPP TS 29.336 V20.0.0 §6.4.18"
+    },
+    {
+      "name": "Additional-Serving-Node",
+      "code": 2406,
+      "vendor": 10415,
+      "type": "Grouped",
+      "must": "M,V",
+      "may": "",
+      "must_not": "",
+      "may_encrypt": "N",
+      "section": "3GPP TS 29.173 V19.0.0 §6.4.8",
+      "rules": [
+        {
+          "name": "SGSN-Number",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ SGSN-Number ]"
+        },
+        {
+          "name": "MME-Name",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ MME-Name ]"
+        },
+        {
+          "name": "SGSN-Name",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ SGSN-Name ]"
+        },
+        {
+          "name": "SGSN-Realm",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ SGSN-Realm ]"
+        },
+        {
+          "name": "MME-Realm",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ MME-Realm ]"
+        },
+        {
+          "name": "MSC-Number",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ MSC-Number ]"
+        },
+        {
+          "name": "TGPP-AAA-Server-Name",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ 3GPP-AAA-Server-Name ]"
+        },
+        {
+          "name": "LCS-Capabilities-Sets",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ LCS-Capabilities-Sets ]"
+        },
+        {
+          "name": "GMLC-Address",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ GMLC-Address ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[AVP]"
+        }
+      ],
+      "grammar_source": "3GPP TS 29.173 V19.0.0 §6.4.8",
+      "scope_note": "The SMS-specific grammar in TS 29.338 §5.3.3 applies only to S6c; the defining TS 29.173 grammar applies here."
+    },
+    {
+      "name": "Session-Id",
+      "code": 263,
+      "vendor": 0,
+      "type": "UTF8String",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "section": "RFC 6733 (October 2012) §8.8",
+      "shared_dictionary_gap": {
+        "dictionary": "base.xml",
+        "may": "P",
+        "reason": "RFC 6733 §4.5 has no MAY-P column; shared metadata retains obsolete P policy."
+      }
+    },
+    {
+      "name": "Vendor-Specific-Application-Id",
+      "code": 260,
+      "vendor": 0,
+      "type": "Grouped",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "section": "RFC 6733 (October 2012) §6.11",
+      "rules": [
+        {
+          "name": "Vendor-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Auth-Application-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Acct-Application-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        }
+      ],
+      "shared_dictionary_gap": {
+        "dictionary": "base.xml",
+        "may": "P",
+        "reason": "RFC 6733 §4.5 has no MAY-P column; shared metadata retains obsolete P policy."
+      }
+    },
+    {
+      "name": "Auth-Application-Id",
+      "code": 258,
+      "vendor": 0,
+      "type": "Unsigned32",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "section": "RFC 6733 (October 2012) §6.8",
+      "shared_dictionary_gap": {
+        "dictionary": "base.xml",
+        "may": "P",
+        "reason": "RFC 6733 §4.5 has no MAY-P column; shared metadata retains obsolete P policy."
+      }
+    },
+    {
+      "name": "Acct-Application-Id",
+      "code": 259,
+      "vendor": 0,
+      "type": "Unsigned32",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "section": "RFC 6733 (October 2012) §6.9",
+      "shared_dictionary_gap": {
+        "dictionary": "base.xml",
+        "may": "P",
+        "reason": "RFC 6733 §4.5 has no MAY-P column; shared metadata retains obsolete P policy."
+      }
+    },
+    {
+      "name": "Auth-Session-State",
+      "code": 277,
+      "vendor": 0,
+      "type": "Enumerated",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "section": "RFC 6733 (October 2012) §8.11",
+      "items": {
+        "0": "STATE_MAINTAINED",
+        "1": "NO_STATE_MAINTAINED"
+      },
+      "shared_dictionary_gap": {
+        "dictionary": "base.xml",
+        "may": "P",
+        "reason": "RFC 6733 §4.5 has no MAY-P column; shared metadata retains obsolete P policy."
+      }
+    },
+    {
+      "name": "Origin-Host",
+      "code": 264,
+      "vendor": 0,
+      "type": "DiameterIdentity",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "section": "RFC 6733 (October 2012) §6.3",
+      "shared_dictionary_gap": {
+        "dictionary": "base.xml",
+        "may": "P",
+        "reason": "RFC 6733 §4.5 has no MAY-P column; shared metadata retains obsolete P policy."
+      }
+    },
+    {
+      "name": "Origin-Realm",
+      "code": 296,
+      "vendor": 0,
+      "type": "DiameterIdentity",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "section": "RFC 6733 (October 2012) §6.4",
+      "shared_dictionary_gap": {
+        "dictionary": "base.xml",
+        "may": "P",
+        "reason": "RFC 6733 §4.5 has no MAY-P column; shared metadata retains obsolete P policy."
+      }
+    },
+    {
+      "name": "Destination-Host",
+      "code": 293,
+      "vendor": 0,
+      "type": "DiameterIdentity",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "section": "RFC 6733 (October 2012) §6.5",
+      "shared_dictionary_gap": {
+        "dictionary": "base.xml",
+        "may": "P",
+        "reason": "RFC 6733 §4.5 has no MAY-P column; shared metadata retains obsolete P policy."
+      }
+    },
+    {
+      "name": "Destination-Realm",
+      "code": 283,
+      "vendor": 0,
+      "type": "DiameterIdentity",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "section": "RFC 6733 (October 2012) §6.6",
+      "shared_dictionary_gap": {
+        "dictionary": "base.xml",
+        "may": "P",
+        "reason": "RFC 6733 §4.5 has no MAY-P column; shared metadata retains obsolete P policy."
+      }
+    },
+    {
+      "name": "Proxy-Info",
+      "code": 284,
+      "vendor": 0,
+      "type": "Grouped",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "section": "RFC 6733 (October 2012) §6.7.2",
+      "rules": [
+        {
+          "name": "Proxy-Host",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Proxy-State",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        }
+      ],
+      "shared_dictionary_gap": {
+        "dictionary": "base.xml",
+        "rules": [
+          {
+            "name": "Proxy-Host",
+            "min": 1,
+            "max": 1,
+            "fixed": false
+          },
+          {
+            "name": "Proxy-State",
+            "min": 1,
+            "max": 1,
+            "fixed": false
+          }
+        ],
+        "reason": "RFC 6733 §6.7.2 includes *[AVP]; the shared grammar omits it."
+      }
+    },
+    {
+      "name": "Proxy-Host",
+      "code": 280,
+      "vendor": 0,
+      "type": "DiameterIdentity",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "section": "RFC 6733 (October 2012) §6.7.3"
+    },
+    {
+      "name": "Proxy-State",
+      "code": 33,
+      "vendor": 0,
+      "type": "OctetString",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "section": "RFC 6733 (October 2012) §6.7.4"
+    },
+    {
+      "name": "Route-Record",
+      "code": 282,
+      "vendor": 0,
+      "type": "DiameterIdentity",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "section": "RFC 6733 (October 2012) §6.7.1"
+    },
+    {
+      "name": "Result-Code",
+      "code": 268,
+      "vendor": 0,
+      "type": "Unsigned32",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "section": "RFC 6733 (October 2012) §7.1",
+      "shared_dictionary_gap": {
+        "dictionary": "base.xml",
+        "may": "P",
+        "reason": "RFC 6733 §4.5 has no MAY-P column; shared metadata retains obsolete P policy."
+      }
+    },
+    {
+      "name": "Experimental-Result",
+      "code": 297,
+      "vendor": 0,
+      "type": "Grouped",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "section": "RFC 6733 (October 2012) §7.6",
+      "rules": [
+        {
+          "name": "Vendor-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Experimental-Result-Code",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        }
+      ],
+      "shared_dictionary_gap": {
+        "dictionary": "base.xml",
+        "may": "P",
+        "reason": "RFC 6733 §4.5 has no MAY-P column; shared metadata retains obsolete P policy."
+      }
+    },
+    {
+      "name": "Experimental-Result-Code",
+      "code": 298,
+      "vendor": 0,
+      "type": "Unsigned32",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "section": "RFC 6733 (October 2012) §7.7",
+      "shared_dictionary_gap": {
+        "dictionary": "base.xml",
+        "may": "P",
+        "reason": "RFC 6733 §4.5 has no MAY-P column; shared metadata retains obsolete P policy."
+      }
+    },
+    {
+      "name": "Failed-AVP",
+      "code": 279,
+      "vendor": 0,
+      "type": "Grouped",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "section": "RFC 6733 (October 2012) §7.5",
+      "rules": [
+        {
+          "name": "AVP",
+          "min": 1,
+          "max": null,
+          "fixed": false
+        }
+      ],
+      "shared_dictionary_gap": {
+        "dictionary": "base.xml",
+        "may": "P",
+        "reason": "RFC 6733 §§4.5,7.5: remove MAY-P and add 1*{AVP}; shared metadata and grammar are stale.",
+        "rules": []
+      }
+    },
+    {
+      "name": "GMLC-Address",
+      "code": 2405,
+      "vendor": 10415,
+      "type": "Address",
+      "must": "M,V",
+      "may": "",
+      "must_not": "",
+      "may_encrypt": "N",
+      "section": "3GPP TS 29.173 V19.0.0 §6.4.7"
+    },
+    {
+      "name": "LCS-Capabilities-Sets",
+      "code": 2404,
+      "vendor": 10415,
+      "type": "Unsigned32",
+      "must": "M,V",
+      "may": "",
+      "must_not": "",
+      "may_encrypt": "N",
+      "section": "3GPP TS 29.173 V19.0.0 §6.4.6"
+    },
+    {
+      "name": "TGPP-AAA-Server-Name",
+      "code": 318,
+      "vendor": 10415,
+      "type": "DiameterIdentity",
+      "must": "M,V",
+      "may": "",
+      "must_not": "P",
+      "may_encrypt": "N",
+      "section": "3GPP TS 29.273 V19.2.0 §8.2.3.24, Table 8.2.3.0/1",
+      "source_name": "3GPP-AAA-Server-Name"
+    }
+  ],
+  "sources": [
+    {
+      "document": "3GPP TS 29.329 V19.1.0",
+      "source": "https://www.3gpp.org/ftp/Specs/archive/29_series/29.329/29329-j10.zip",
+      "archive_sha256": "4ca3f84834a42780785b09a6227b2755392d01bb61fa85c5ed347e2df298fd5c",
+      "docx_sha256": "7bf574de1bd078b35124f404a6de6f950fec4d9511b308024d30eb15db10e701"
+    },
+    {
+      "document": "3GPP TS 29.212 V20.0.0",
+      "source": "https://www.3gpp.org/ftp/Specs/archive/29_series/29.212/29212-k00.zip",
+      "archive_sha256": "2a18b6817f72e7f52961e939142497e1cd5ec0c90f52a2057c57374ea5a00958",
+      "docx_sha256": "5711cb649ab840050492caec9b9983009ba6774a3f326967e9305ee40cb5fbbb"
+    },
+    {
+      "document": "3GPP TS 29.173 V19.0.0",
+      "source": "https://www.3gpp.org/ftp/Specs/archive/29_series/29.173/29173-j00.zip",
+      "archive_sha256": "8eee10735b41a304f5c2aca65a502dfa5f03607e9a545fff77e333f7bde895b3",
+      "docx_sha256": "1eb15cf08eef8a7f477c278b76ffaf80a9967c4a410e6948eadc5721a50cf5fe"
+    },
+    {
+      "document": "3GPP TS 29.336 V20.0.0",
+      "source": "https://www.3gpp.org/ftp/Specs/archive/29_series/29.336/29336-k00.zip",
+      "archive_sha256": "038bbadbcdc3a6715a06371f30aa31846cba37d4687f1379df1b0bdd29d044ac",
+      "docx_sha256": "0e5fe2d61424e589a73cabbc35661cf2c65a0d96ac5e96f316a14a9bf806c603"
+    },
+    {
+      "document": "3GPP TS 29.272 V19.6.0",
+      "source": "https://www.3gpp.org/ftp/Specs/archive/29_series/29.272/29272-j60.zip",
+      "archive_sha256": "c40fd1834046f87655f4c7c1acd137b0f8f658a91f6cc83a215592ca8326a4b1",
+      "docx_sha256": "1971ddf58ac66eec71425f58f915526964cbaab73c2ac7c262debd198b21426e"
+    },
+    {
+      "document": "3GPP TS 29.229 V19.1.0",
+      "source": "https://www.3gpp.org/ftp/Specs/archive/29_series/29.229/29229-j10.zip",
+      "archive_sha256": "376b8793234f2f952a9f52a37771c56e51677e160160e5d48b1bf29585ac3b1e",
+      "docx_sha256": "855ca97a19cb50a707fde220ce8ac043c2979200f0182aca3d4b530bd6a06c36"
+    },
+    {
+      "document": "3GPP TS 29.217 V19.0.0",
+      "source": "https://www.3gpp.org/ftp/Specs/archive/29_series/29.217/29217-j00.zip",
+      "archive_sha256": "801543a65e9405e401c389245d4d9cc6ac6e82af5cb108ec5f985f4d1cb6ed19",
+      "docx_sha256": "2eb76888288feb83b0c7c13f3d187d94aeccb4164cdbda5d23d2bc89b133f567"
+    },
+    {
+      "document": "3GPP TS 32.299 V19.0.0",
+      "source": "https://www.3gpp.org/ftp/Specs/archive/32_series/32.299/32299-j00.zip",
+      "archive_sha256": "afabe3636ed612045a13916bc30bc7ceaa63364c2d8098b98d60d5893b09ce02",
+      "docx_sha256": "415b17b88fda715aedc9a3e8582007508474872e57f74273692be52f12f23b06"
+    },
+    {
+      "document": "3GPP TS 29.273 V19.2.0",
+      "docx_sha256": "bed4ee977fe0846c74d6cf3e7c649923d4296bde046c7da6555291ee70ec2b4c",
+      "source": "https://www.3gpp.org/ftp/Specs/archive/29_series/29.273/29273-j20.zip",
+      "archive_sha256": "9ca4a7c8de3ce7fa82ac5ed6c39088ca69799137944df0d90ba6caf4697b1531"
+    }
+  ],
+  "vendors": [
+    10415
+  ]
+}

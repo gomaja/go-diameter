@@ -2,8 +2,9 @@ package dict
 
 import "testing"
 
-// TS 29.272 V19.6.0 Table 7.3.1/2 reuses the identities defined in
-// TS 29.173 V19.0.0 §§6.4.5, 6.4.13–6.4.14. S6c declares the nearest copies.
+// TS 29.173 V19.0.0 §§6.4.5, 6.4.13–6.4.14 define the inherited
+// node identities. TS 29.272 V19.6.0 Table 7.3.1/2 reuses Supported-Features
+// and Feature-List-ID. Identical definitions resolve to their Ro/Rf owner.
 func TestS6aRefreshInheritedAVPs(t *testing.T) {
 	for _, d := range []*Parser{Default, New(S6a, S6c, CreditControl, RoRf, NASREQ, Base)} {
 		for _, tc := range []struct {
@@ -22,10 +23,7 @@ func TestS6aRefreshInheritedAVPs(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				owner := uint32(16777312)
-				if tc.code == 628 || tc.code == 629 {
-					owner = 4
-				}
+				owner := uint32(4)
 				byCode, err := d.FindAVP(16777251, tc.code, 10415)
 				if err != nil || a != byCode || a.Code != tc.code || a.Data.TypeName != tc.typ || a.App.ID != owner {
 					t.Fatalf("%s: definition=%+v owner=%d code lookup=%+v err=%v; want owner %d", tc.name, a, a.App.ID, byCode, err, owner)
