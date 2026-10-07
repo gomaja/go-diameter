@@ -7,7 +7,7 @@
         <!-- 3GPP TS 29.338 V19.3.0 §§6.3.2.3-6.3.2.4, Table 6.3.2.2/1. -->
         <command code="8388645" short="OF" name="MO-Forward-Short-Message">
           <request proxiable="true">
-            <rule avp="Session-Id" required="true" max="1"/>
+            <rule avp="Session-Id" required="true" max="1" fixed="true"/>
             <rule avp="DRMP" required="false" max="1"/>
             <rule avp="Vendor-Specific-Application-Id" required="false" max="1"/>
             <rule avp="Auth-Session-State" required="true" max="1"/>
@@ -30,7 +30,7 @@
             <rule avp="Route-Record" required="false"/>
           </request>
           <answer proxiable="true">
-            <rule avp="Session-Id" required="true" max="1"/>
+            <rule avp="Session-Id" required="true" max="1" fixed="true"/>
             <rule avp="DRMP" required="false" max="1"/>
             <rule avp="Vendor-Specific-Application-Id" required="false" max="1"/>
             <rule avp="Result-Code" required="false" max="1"/>
@@ -51,7 +51,7 @@
         <!-- 3GPP TS 29.338 V19.3.0 §§6.3.2.5-6.3.2.6, Table 6.3.2.2/1. -->
         <command code="8388646" short="TF" name="MT-Forward-Short-Message">
           <request proxiable="true">
-            <rule avp="Session-Id" required="true" max="1"/>
+            <rule avp="Session-Id" required="true" max="1" fixed="true"/>
             <rule avp="DRMP" required="false" max="1"/>
             <rule avp="Vendor-Specific-Application-Id" required="false" max="1"/>
             <rule avp="Auth-Session-State" required="true" max="1"/>
@@ -77,7 +77,7 @@
             <rule avp="Route-Record" required="false"/>
           </request>
           <answer proxiable="true">
-            <rule avp="Session-Id" required="true" max="1"/>
+            <rule avp="Session-Id" required="true" max="1" fixed="true"/>
             <rule avp="DRMP" required="false" max="1"/>
             <rule avp="Vendor-Specific-Application-Id" required="false" max="1"/>
             <rule avp="Result-Code" required="false" max="1"/>
@@ -99,5 +99,60 @@
             <rule avp="Route-Record" required="false"/>
           </answer>
         </command>
+        <!-- 3GPP TS 29.336 V20.0.0 §6.4.11; 3GPP TS 29.338 V19.3.0 Table 6.3.3.1/2. -->
+        <avp name="External-Identifier" code="3111" vendor-id="10415" must="V" may="" must-not="M" may-encrypt="N">
+            <data type="UTF8String">
+            </data>
+        </avp>
+        <!-- 3GPP TS 29.272 V19.6.0 Table 7.3.1/1, §7.3.159. -->
+        <avp name="MME-Number-for-MT-SMS" code="1645" vendor-id="10415" must="V" may="" must-not="M" may-encrypt="N">
+            <data type="OctetString">
+            </data>
+        </avp>
+        <!-- 3GPP TS 29.272 V19.6.0 §7.3.102; 3GPP TS 29.338 V19.3.0 Table 6.3.3.1/2. -->
+        <avp name="SGSN-Number" code="1489" vendor-id="10415" must="V" may="" must-not="M" may-encrypt="N">
+            <data type="OctetString">
+            </data>
+        </avp>
+        <!-- TS 29.173 V19.0.0 Table 6.4.1/1, §6.4.12; no override in
+             TS 29.338 V19.3.0 Table 6.3.3.1/2. S6c's M requirement is local to S6c. -->
+        <avp name="MME-Realm" code="2408" vendor-id="10415" must="V" may="" must-not="M" may-encrypt="N">
+            <data type="DiameterIdentity"/>
+        </avp>
+
+        <!-- 3GPP TS 29.173 V19.0.0 §6.4.3, Table 6.4.1/1; TS 29.338 V19.3.0 Table 6.3.3.1/2
+             supplies no application-specific grammar. S6c's SMS grammar does not apply. -->
+        <avp name="Serving-Node" code="2401" vendor-id="10415" must="M,V" may-encrypt="N">
+            <data type="Grouped">
+                <rule avp="SGSN-Number" required="false" max="1"/>
+                <rule avp="SGSN-Name" required="false" max="1"/>
+                <rule avp="SGSN-Realm" required="false" max="1"/>
+                <rule avp="MME-Name" required="false" max="1"/>
+                <rule avp="MME-Realm" required="false" max="1"/>
+                <rule avp="MSC-Number" required="false" max="1"/>
+                <rule avp="TGPP-AAA-Server-Name" required="false" max="1"/>
+                <rule avp="LCS-Capabilities-Sets" required="false" max="1"/>
+                <rule avp="GMLC-Address" required="false" max="1"/>
+                <rule avp="AVP" required="false"/>
+            </data>
+        </avp>
+
+        <!-- 3GPP TS 29.173 V19.0.0 §6.4.8, Table 6.4.1/1; TS 29.338 V19.3.0 Table 6.3.3.1/2
+             supplies no application-specific grammar. S6c's SMS grammar does not apply. -->
+        <avp name="Additional-Serving-Node" code="2406" vendor-id="10415" must="M,V" may-encrypt="N">
+            <data type="Grouped">
+                <rule avp="SGSN-Number" required="false" max="1"/>
+                <rule avp="MME-Name" required="false" max="1"/>
+                <rule avp="SGSN-Name" required="false" max="1"/>
+                <rule avp="SGSN-Realm" required="false" max="1"/>
+                <rule avp="MME-Realm" required="false" max="1"/>
+                <rule avp="MSC-Number" required="false" max="1"/>
+                <rule avp="TGPP-AAA-Server-Name" required="false" max="1"/>
+                <rule avp="LCS-Capabilities-Sets" required="false" max="1"/>
+                <rule avp="GMLC-Address" required="false" max="1"/>
+                <rule avp="AVP" required="false"/>
+            </data>
+        </avp>
+
     </application>
 </diameter>

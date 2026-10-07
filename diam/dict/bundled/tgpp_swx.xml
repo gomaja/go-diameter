@@ -577,5 +577,33 @@
             </data>
         </avp>
 
+        <!-- TS 29.336 V20.0.0 Table 6.4.1/1, §6.4.11; TS 29.273 V19.2.0 Table 8.2.3.0/2
+             supplies no override. The S6a-specific M-clear rule does not apply to SWx. -->
+        <avp name="External-Identifier" code="3111" vendor-id="10415" must="M,V" may="" must-not="" may-encrypt="N">
+            <data type="UTF8String"/>
+        </avp>
+
+        <!-- TS 29.173 V19.0.0 Table 6.4.1/1, §6.4.7; TS 29.273 V19.2.0 Table 8.2.3.0/2
+             supplies no override. The S6a-specific M-clear rule does not apply to SWx. -->
+        <avp name="GMLC-Address" code="2405" vendor-id="10415" must="M,V" may="" must-not="" may-encrypt="N">
+            <data type="Address"/>
+        </avp>
+
+        <!-- TS 29.217 V19.0.0 Table 5.3.1.1, §5.3.10; TS 29.273 V19.2.0 Table 8.2.3.0/2
+             supplies no override. The S6a-specific M-clear rule does not apply to SWx. -->
+        <avp name="eNodeB-ID" code="4008" vendor-id="10415" must="M,V" may="P" must-not="" may-encrypt="Y">
+            <data type="OctetString"/>
+        </avp>
+
+        <!-- TS 32.299 V19.0.0 Table 7.2.0.1, §7.2.240A; TS 29.273 V19.2.0
+             Table 8.2.3.0/2 supplies no override. S6a alone clears M. -->
+        <avp name="User-CSG-Information" code="2319" vendor-id="10415" must="M,V" may-encrypt="N">
+            <data type="Grouped">
+                <rule avp="CSG-Id" required="true" max="1"/>
+                <rule avp="CSG-Access-Mode" required="true" max="1"/>
+                <rule avp="CSG-Membership-Indication" required="false" max="1"/>
+            </data>
+        </avp>
+
     </application>
 </diameter>

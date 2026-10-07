@@ -290,3 +290,151 @@ RFC 6733 4210/4234/5084 and RFC 5234 2820/2914/6172/6173; rejected records
 include RFC 6733 4209/4462/4463/4473/4931/6833, RFC 5234
 1423/3096/4040/4564/5110/4361, and RFC 7405 5334. Reported RFC 7683
 5277/5278 and RFC 6733 6832 remain unverified.
+
+
+`s6c_spec.json` and `sgd_spec.json` cover TS 29.338 V19.3.0 (2025-09),
+confirmed as the latest published version on the
+[3GPP portal](https://portal.3gpp.org/desktopmodules/Specifications/SpecificationDetails.aspx?specificationId=1714).
+The
+[source archive](https://www.3gpp.org/ftp/Specs/archive/29_series/29.338/29338-j30.zip)
+SHA-256 is `d996894136580cf53f7451cb24ceffbcaa1c41bc985a078fe18724cc465160e0`;
+the DOCX SHA-256 is
+`abf8edd2b0aad6b279291f6436d1f10c2da10e003e799e79f398bbe808857226`.
+
+The fixtures contain 33 S6c and 16 SGd specific AVPs, seven enumerations,
+11 specific Grouped grammars, 24 and 13 reused table rows, and six and four
+command bodies. S6c pins 109 effective definitions and SGd pins 112,
+including 23 Grouped grammars and every named descendant, with inherited SMS
+definitions included. Specific tables and grammars were extracted directly
+from Word XML; reused source tables and grammars were extracted independently
+or taken from the existing source-extracted S6a/Gx fixtures. RFC metadata is
+an explicit transcription of the cited clauses. No specification expectations
+were generated from bundled dictionary XML. Source typography is normalized
+explicitly, including the stray space in `UE_ MEMORY_CAPACITY_EXCEEDED`,
+`SGSN-Absent-User-Diagnostic SM`, `MME-Location Information`, and `Id`/`ID`.
+The established `TGPP-AAA-Server-Name` spelling represents source
+`3GPP-AAA-Server-Name`. Flags use exact comma-separated sets. SMS enum
+labels are compared exactly after the documented stray-space correction in
+the fixture; punctuation such as `SC-CONGESTION` is significant. Extraction
+tooling is not distributed.
+
+The recursively reused sources were checked against their current 3GPP portal
+versions. Their archive hashes are:
+
+| Document | Archive SHA-256 |
+| --- | --- |
+| [3GPP TS 29.329 V19.1.0](https://www.3gpp.org/ftp/Specs/archive/29_series/29.329/29329-j10.zip) | `4ca3f84834a42780785b09a6227b2755392d01bb61fa85c5ed347e2df298fd5c` |
+| [3GPP TS 29.212 V20.0.0](https://www.3gpp.org/ftp/Specs/archive/29_series/29.212/29212-k00.zip) | `2a18b6817f72e7f52961e939142497e1cd5ec0c90f52a2057c57374ea5a00958` |
+| [3GPP TS 29.173 V19.0.0](https://www.3gpp.org/ftp/Specs/archive/29_series/29.173/29173-j00.zip) | `8eee10735b41a304f5c2aca65a502dfa5f03607e9a545fff77e333f7bde895b3` |
+| [3GPP TS 29.336 V20.0.0](https://www.3gpp.org/ftp/Specs/archive/29_series/29.336/29336-k00.zip) | `038bbadbcdc3a6715a06371f30aa31846cba37d4687f1379df1b0bdd29d044ac` |
+| [3GPP TS 29.272 V19.6.0](https://www.3gpp.org/ftp/Specs/archive/29_series/29.272/29272-j60.zip) | `c40fd1834046f87655f4c7c1acd137b0f8f658a91f6cc83a215592ca8326a4b1` |
+| [3GPP TS 29.229 V19.1.0](https://www.3gpp.org/ftp/Specs/archive/29_series/29.229/29229-j10.zip) | `376b8793234f2f952a9f52a37771c56e51677e160160e5d48b1bf29585ac3b1e` |
+| [3GPP TS 29.217 V19.0.0](https://www.3gpp.org/ftp/Specs/archive/29_series/29.217/29217-j00.zip) | `801543a65e9405e401c389245d4d9cc6ac6e82af5cb108ec5f985f4d1cb6ed19` |
+| [3GPP TS 32.299 V19.0.0](https://www.3gpp.org/ftp/Specs/archive/32_series/32.299/32299-j00.zip) | `afabe3636ed612045a13916bc30bc7ceaa63364c2d8098b98d60d5893b09ce02` |
+
+Each fixture also records DOCX hashes and definition clauses. The charging
+source supplies User-CSG-Information and its enumerations; TS 29.272 supplies
+the location grammars. Its application-specific M-bit restrictions apply
+only to S6a. Identical inherited
+definitions are reused, including MSC-Number, SGSN-Name and SGSN-Realm.
+
+Specification discrepancies are resolved as follows:
+
+- SMSMI-Correlation-ID is code 3324, Grouped. Approved
+  [CR 0014, C4-141882](https://www.3gpp.org/ftp/tsg_ct/WG4_protocollars_ex-CN4/TSGCT4_66bis_Sophia_Antipolis/Docs/C4-141882.zip)
+  (CP-140783, incorporated in V12.5.0) corrected Table 6.3.3.1/1 allocations,
+  leaving the §6.3.3.13 header's 3308 stale. Annex B incorrectly lists CR 0014
+  under CP-140767; the [3GPP CR database](https://portal.3gpp.org/ChangeRequests.aspx?q=1&specnumber=29.338)
+  records C4-141882 as approved through CP-140783 at CT#66, which is the
+  approval reference used here. The CR archive SHA-256 is
+  `8d3789f397de0b92fc89f396ed6b748e91f397549676fe5702037907f53e3e58`.
+  TS 29.230 V19.3.0 also assigns 3324 but incorrectly calls it Unsigned32;
+  TS 29.338's table and grouped grammar determine its type.
+- SM-Delivery-Timer uses the precise Unsigned32 type in Table 6.3.3.1/1.
+  The generic “Integer” wording in §6.3.3.10 dates to V11.0.0. Approved
+  [CR 0018r1, C4-152177](https://www.3gpp.org/ftp/tsg_ct/WG4_protocollars_ex-CN4/TSGCT4_71_Anaheim/Docs/C4-152177.zip)
+  (CP-150776, incorporated in V13.0.0) retained Unsigned32 in the table;
+  no identified CR explicitly corrects the prose. Its archive SHA-256 is
+  `50150da1bb3773dddbe8fb4fd1f7676c3019ef4427845eed09c56df2d75cca18`.
+- S6c Table 5.3.3.1/2's SMSMI-Correlation-ID and Destination-SIP-URI
+  references should point to §§6.3.3.13 and 6.3.3.16, not §6.3.3.2.
+- SGd §6.3.2.3 uses SM-Delivery-Outcome, although Table 6.3.3.1/2 omits it;
+  the fixture includes its S6c definition.
+- S6c alone uses the Serving-Node and Additional-Serving-Node SMS grammars
+  in §§5.3.3.6–7. SGd, S6a and SWx use their defining TS 29.173 V19.0.0
+  §§6.4.3, 6.4.8 grammars. All printed extension points are preserved. The six
+  per-node delivery-outcome grammars omit an extension point in the source.
+- MME-Realm and MME-Number-for-MT-SMS require M in S6c. SGd retains the
+  source M-clear MME-Realm and MME number, and explicitly clears SGSN-Number and
+  External-Identifier. External-Identifier retains source M,V in S6c.
+
+`sms_spec_test.go` compares the effective `dict.Default` view, all ordered
+rules, fixed positions, cardinalities, exact AVP and member flag sets,
+exact enumeration labels and values, PXY, recursive closure and vendor declarations.
+`sms_wire_spec_test.go` exercises all 221 application/definition combinations,
+including optional nested members, and all ten command bodies.
+`sms_vendor_spec_test.go` exercises CER vendor advertisement for every bundle.
+
+The source fixtures preserve explicit `shared_dictionary_gap` records for
+shared files excluded from this refresh. Tests pin these known deviations
+separately instead of treating them as normative expectations:
+
+- `base.xml` retains obsolete MAY-P metadata on 15 reused AVPs listed in
+  the fixtures; RFC 6733 §4.5 has no such MAY-P column.
+- `base.xml` lacks Proxy-Info's `*[AVP]` (RFC 6733 §6.7.2) and Failed-AVP's
+  `1*{AVP}` (RFC 6733 §7.5). Failed-AVP payloads are intentionally exempt
+  from normal grouped validation because they carry error evidence.
+- `tgpp_ro_rf.xml` retains MAY-P for User-CSG-Information, absent from
+  TS 32.299 V19.0.0 Table 7.2.0.1. Its source M,V flags and grouped grammar
+  are inherited by S6c/SGd; the shared metadata gap remains explicit.
+
+User-CSG-Information and eNodeB-ID retain their defining M,V flags in
+S6c/SGd (TS 32.299 V19.0.0 Table 7.2.0.1; TS 29.217 V19.0.0 Table 5.3.1.1).
+The latter permits P. Neither TS 29.338 reuse table overrides these flags.
+S6a's Table 7.3.1/2 M-clear rules apply only within S6a. Extended-eNodeB-ID's
+defining TS 29.217 table itself forbids M, so it needs no such distinction.
+
+`sms_inheritance_spec.json` pins all twelve affected definitions in the
+S6a and SWx effective views. Its `swx_local_definitions` additionally pins
+the complete definitions of the four SWx overrides: types, encryption metadata,
+exact flag sets, enumeration labels and values, and ordered member rules.
+S6a locally clears M for MME-Number-for-MT-SMS
+(TS 29.272 V19.6.0 Table 7.3.1/1, §7.3.159) and External-Identifier
+(Table 7.3.1/2, §§7.3.2, 7.3.195). MME-Realm is absent from those S6a
+tables; its local override preserves the defining TS 29.173 V19.0.0
+Table 6.4.1/1, §6.4.12 policy for an optional inherited extension. These
+are application-wide definitions, not member-specific flag exceptions.
+
+The other nine definitions are absent from TS 29.272 §7.3.1's application
+and reuse tables. All twelve are absent from TS 29.273 V19.2.0 §8.2.3.0
+Tables 8.2.3.0/1–2 and the SWx grammars. Both specifications explicitly
+exclude unlisted non-base AVPs from required support. When these definitions
+are exposed by inheritance, the defining specification governs: an absent
+row does not authorize importing another application's flag or grammar override.
+S6a and SGd locally restore the two TS 29.173 node grammars; SWx inherits the
+S6a copies. Keeping the parent map requires four Grouped copies, whereas
+reparenting S6a directly to Ro/Rf would require 16 definitions to preserve its
+command and grouped-member closure; eNodeB-ID is already defined locally in
+S6a. SWx locally restores the source M,V flags
+for External-Identifier, GMLC-Address, User-CSG-Information and eNodeB-ID;
+TS 29.273 Table 8.2.3.0/2 specifies no overrides for them. These AVPs remain
+optional extensions rather than added SWx procedure requirements. This
+correction isolates S6a policy only for these four AVPs, not the entire inherited
+SWx view. Other inherited TS 29.336 V20.0.0 AVPs, including SCEF-Reference-ID and
+Monitoring-Event-Configuration, still expose S6a M-clear overrides in SWx.
+They do not occur in SWx message grammars; their inherited definitions remain
+a known limitation outside this refresh.
+
+The SWx prose “External Identifier” in §§8.2.3.1–2 refers to Subscription-ID,
+not the External-Identifier AVP. The audited
+[TS 29.273 V19.2.0 archive](https://www.3gpp.org/ftp/Specs/archive/29_series/29.273/29273-j20.zip)
+has SHA-256 `9ca4a7c8de3ce7fa82ac5ed6c39088ca69799137944df0d90ba6caf4697b1531`.
+
+TS 29.338 still cites obsolete RFC 2234 (§§5.3.2.1, 6.3.2.1) and RFC 4960
+(§4.6). Current grammar interpretation uses RFC 5234, updated by RFC 7405;
+current SCTP is RFC 9260. RFC 6733 remains current, updated by RFC 7075 and
+RFC 8553. RFC Editor and filtered Datatracker relationship queries agreed;
+verified errata were checked, including RFC 6733 Errata 4803 and 4808.
+Held and rejected proposals were not applied. The Diameter working group is
+concluded; the active SCTP DTLS extension draft is not a replacement for
+RFC 9260.
