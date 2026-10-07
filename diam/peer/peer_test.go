@@ -12,6 +12,7 @@ import (
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/dict"
 	"github.com/gomaja/go-diameter/diam/internal/base"
+	"github.com/gomaja/go-diameter/diam/internal/testutil"
 	"github.com/gomaja/go-diameter/diam/sm"
 )
 
@@ -218,7 +219,12 @@ func testManagersSimultaneous(t *testing.T, network, hostA, hostB string, fallba
 	}
 	go func() { _ = sa.Serve(la) }()
 	go func() { _ = sb.Serve(lb) }()
-	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	lifetime := 8 * time.Second
+	if network == "sctp" {
+		// Allow admission and both peers' DPR/DPA exchanges their own budget.
+		lifetime = 3 * testutil.SCTPTimeout
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), lifetime)
 	defer cancel()
 	if err := ma.Start(ctx); err != nil {
 		t.Fatal(err)
@@ -226,7 +232,7 @@ func testManagersSimultaneous(t *testing.T, network, hostA, hostB string, fallba
 	if err := mb.Start(ctx); err != nil {
 		t.Fatal(err)
 	}
-	deadline := time.Now().Add(5 * time.Second)
+	deadline := time.Now().Add(testutil.NetworkTimeout(network, 5*time.Second))
 	wantA, wantB := IOpen, ROpen
 	if compareIdentity(datatype.DiameterIdentity(hostA), datatype.DiameterIdentity(hostB)) > 0 {
 		wantA, wantB = ROpen, IOpen
@@ -245,7 +251,7 @@ func testManagersSimultaneous(t *testing.T, network, hostA, hostB string, fallba
 	if err := ma.Close(ctx, sm.DisconnectRebooting); err != nil {
 		t.Fatal(err)
 	}
-	if time.Since(started) > time.Second {
+	if time.Since(started) > testutil.NetworkTimeout(network, time.Second) {
 		t.Fatal("DPR/DPA did not close promptly")
 	}
 	if err := mb.Close(ctx, sm.DisconnectRebooting); err != nil {

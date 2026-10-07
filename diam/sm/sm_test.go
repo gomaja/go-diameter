@@ -13,6 +13,7 @@ import (
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/diamtest"
 	"github.com/gomaja/go-diameter/diam/dict"
+	"github.com/gomaja/go-diameter/diam/internal/testutil"
 )
 
 func testResultCode(m *diam.Message, want uint32) bool {
@@ -64,7 +65,7 @@ func testStateMachine(t *testing.T, network string) {
 	mux.HandleFunc("DWA", func(c diam.Conn, m *diam.Message) {
 		mc <- m
 	})
-	cli, err := diam.DialNetwork(network, srv.Addr, mux, dict.Default)
+	cli, err := diam.DialNetworkTimeout(network, srv.Addr, mux, dict.Default, testutil.NetworkTimeout(network, 0))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -94,7 +95,7 @@ func testStateMachine(t *testing.T, network string) {
 		if !testResultCode(resp, diam.Success) {
 			t.Fatalf("Unexpected result code.\n%s", resp)
 		}
-	case <-time.After(time.Second):
+	case <-time.After(testutil.NetworkTimeout(network, time.Second)):
 		t.Fatal("No CEA message received")
 	}
 	// Send RAR.
@@ -114,7 +115,7 @@ func testStateMachine(t *testing.T, network string) {
 	select {
 	case <-mc:
 		// All good.
-	case <-time.After(time.Second):
+	case <-time.After(testutil.NetworkTimeout(network, time.Second)):
 		t.Fatal("No RAR message received")
 	}
 	// Send DWR.
@@ -129,7 +130,7 @@ func testStateMachine(t *testing.T, network string) {
 	select {
 	case <-mc:
 	// All good.
-	case <-time.After(time.Second):
+	case <-time.After(testutil.NetworkTimeout(network, time.Second)):
 		t.Fatal("No DWR message received")
 	}
 }

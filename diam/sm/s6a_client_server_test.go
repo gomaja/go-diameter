@@ -19,6 +19,7 @@ import (
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/dict"
 	"github.com/gomaja/go-diameter/diam/internal/logtest"
+	"github.com/gomaja/go-diameter/diam/internal/testutil"
 	"github.com/gomaja/go-diameter/diam/sm/smpeer"
 )
 
@@ -112,7 +113,7 @@ func testS6aClientServer(network string, t *testing.T) {
 		Dict:               dict.Default,
 		Handler:            cmux,
 		MaxRetransmits:     3,
-		RetransmitInterval: time.Second,
+		RetransmitInterval: testutil.NetworkTimeout(network, time.Second),
 		EnableWatchdog:     true,
 		WatchdogInterval:   time.Second * 3,
 		watchdogTiming:     &watchdogTiming{floor: time.Millisecond},

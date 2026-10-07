@@ -13,6 +13,7 @@ import (
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/diamtest"
 	"github.com/gomaja/go-diameter/diam/dict"
+	"github.com/gomaja/go-diameter/diam/internal/testutil"
 	"github.com/gomaja/go-diameter/diam/sm/smpeer"
 )
 
@@ -29,7 +30,7 @@ func testHandleCER_HandshakeMetadata(t *testing.T, network string) {
 	defer srv.Close()
 
 	hsc := smHandshakes
-	cli, err := diam.DialNetwork(network, srv.Addr, nil, dict.Default)
+	cli, err := diam.DialNetworkTimeout(network, srv.Addr, nil, dict.Default, testutil.NetworkTimeout(network, 0))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -48,7 +49,12 @@ func testHandleCER_HandshakeMetadata(t *testing.T, network string) {
 		t.Fatal(err)
 	}
 
-	c := <-hsc
+	var c diam.Conn
+	select {
+	case c = <-hsc:
+	case <-time.After(testutil.NetworkTimeout(network, time.Second)):
+		t.Fatal("No handshake metadata received")
+	}
 	ctx := c.Context()
 	meta, ok := smpeer.FromContext(ctx)
 	if !ok {
@@ -387,7 +393,7 @@ func testHandleCER_VS_Auth(t *testing.T, network string) {
 	mux.HandleFunc("CEA", func(c diam.Conn, m *diam.Message) {
 		mc <- m
 	})
-	cli, err := diam.DialNetwork(network, srv.Addr, mux, dict.Default)
+	cli, err := diam.DialNetworkTimeout(network, srv.Addr, mux, dict.Default, testutil.NetworkTimeout(network, 0))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -414,7 +420,7 @@ func testHandleCER_VS_Auth(t *testing.T, network string) {
 		if !testResultCode(resp, diam.Success) {
 			t.Fatalf("Unexpected result code.\n%s", resp)
 		}
-	case <-time.After(time.Second):
+	case <-time.After(testutil.NetworkTimeout(network, time.Second)):
 		t.Fatal("No message received")
 	}
 }
