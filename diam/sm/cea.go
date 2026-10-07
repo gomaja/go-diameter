@@ -16,7 +16,7 @@ import (
 func handleCEA(sm *StateMachine, activity *watchdogActivity) diam.HandlerFunc {
 	return func(c diam.Conn, m *diam.Message) {
 		cea := new(smparser.CEA)
-		if err := cea.ParseWithApplicationIDs(m, smparser.Client, activity.advertised); err != nil {
+		if err := cea.Parse(m, smparser.ParseOptions{Role: smparser.Client, LocalApplications: activity.advertised}); err != nil {
 			activity.ceac <- err
 			return
 		}
@@ -27,6 +27,7 @@ func handleCEA(sm *StateMachine, activity *watchdogActivity) diam.HandlerFunc {
 		}
 		ctx = context.WithValue(ctx, advertisedAppsKey{}, activity.advertised)
 		c.SetContext(smpeer.NewContext(ctx, meta))
+		activity.ceaReceived.Store(true)
 		// Notify about peer passing the handshake.
 		select {
 		case sm.hsNotifyc <- c:

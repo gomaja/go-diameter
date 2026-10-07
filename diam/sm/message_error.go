@@ -39,26 +39,11 @@ func (sm *StateMachine) handleUnsupportedCommand(c diam.Conn, request *diam.Mess
 		})})
 }
 
-// supportsApplication reports whether appID is the base application or one
-// this state machine advertises in CER/CEA. Advertising the relay
-// application (RFC 6733 §2.4) covers every application.
-func (sm *StateMachine) supportsApplication(appID uint32) bool {
-	if appID == 0 {
-		return true
-	}
-	for _, advertised := range sm.advertised {
-		if advertised == appID || advertised == relayApplicationID {
-			return true
-		}
-	}
-	return false
-}
-
 type advertisedAppsKey struct{}
 
-// supportsApplicationOn uses a client's explicit per-connection offer when
-// present. Inbound connections use this state machine's Settings advertisement
-// (RFC 6733 §§5.3, 5.6).
+// supportsApplicationOn uses the local CER or CEA offer saved at admission.
+// The snapshot follows this connection's advertised capabilities throughout its
+// lifetime, including overrides (RFC 6733 §§5.3, 5.6).
 func (sm *StateMachine) supportsApplicationOn(c diam.Conn, appID uint32) bool {
 	if appID == 0 {
 		return true
@@ -73,7 +58,8 @@ func (sm *StateMachine) supportsApplicationOn(c diam.Conn, appID uint32) bool {
 			return false
 		}
 	}
-	return sm.supportsApplication(appID)
+
+	return false
 }
 
 // relayApplicationID is the Relay Application-Id (RFC 6733 §2.4).
@@ -82,6 +68,11 @@ const relayApplicationID = 0xffffffff
 // HandleMessageError implements diam.MessageErrorHandler. RFC 6733 §§7.1-7.2
 // reserve E for protocol errors; answers never receive answers.
 func (sm *StateMachine) HandleMessageError(c diam.Conn, request *diam.Message, messageErr *diam.MessageError) error {
+	release := request.BeginDispatch()
+	defer release()
+	if headerErr := base.ValidateHeader(request); headerErr != nil {
+		messageErr = headerErr
+	}
 	if !sm.preCERMessageAllowed(c, request) {
 		c.Close()
 		return nil
@@ -101,7 +92,7 @@ func (sm *StateMachine) HandleMessageError(c diam.Conn, request *diam.Message, m
 		failedAVPs = []*diam.AVP{messageErr.FailedAVP}
 	}
 	err := sm.writeErrorAnswer(c, request, messageErr.ResultCode, failedAVPs, protocolError)
-	if request.Header.CommandCode == diam.CapabilitiesExchange && !admittedPeer(c) {
+	if request.Header.CommandCode == diam.CapabilitiesExchange && (base.ValidateHeader(request) != nil || !admittedPeer(c)) {
 		// RFC 6733 §§5.3 and 5.6.1: a rejected CER admits no peer, and the
 		// transport connection is closed, as handleCER does.
 		c.Close()

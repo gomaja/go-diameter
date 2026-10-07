@@ -5,10 +5,12 @@
 package sm
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
 	"github.com/gomaja/go-diameter/diam"
+	"github.com/gomaja/go-diameter/diam/dict"
 	"github.com/gomaja/go-diameter/diam/internal/base"
 	"github.com/gomaja/go-diameter/diam/sm/smparser"
 	"github.com/gomaja/go-diameter/diam/sm/smpeer"
@@ -27,8 +29,9 @@ func handleCER(sm *StateMachine) diam.HandlerFunc {
 			// Ignore retransmission.
 			return
 		}
+		local := base.AdvertisedApplicationIDs(sm.capabilities(c, m))
 		cer := new(smparser.CER)
-		_, err := cer.ParseWithSecurityAndApplications(m, smparser.Server, c.TLS() != nil, sm.dictionary, sm.advertised)
+		_, err := cer.Parse(m, smparser.ParseOptions{Role: smparser.Server, TLS: c.TLS() != nil, Dictionary: sm.capabilityDictionary(c, m), LocalApplications: local})
 		if err != nil {
 			err = errorCEA(sm, c, m, err)
 			if err != nil {
@@ -44,7 +47,7 @@ func handleCER(sm *StateMachine) diam.HandlerFunc {
 		a, err := buildSuccessCEA(sm, c, m)
 		if err == nil {
 			meta := smpeer.FromCER(cer)
-			c.SetContext(smpeer.NewContext(ctx, meta))
+			c.SetContext(smpeer.NewContext(context.WithValue(ctx, advertisedAppsKey{}, local), meta))
 			// Publish admission before the peer can respond to the CEA (RFC 6733 §5.6.1).
 			if !sm.completeAcceptedHandshake(c) {
 				// The handshake timer won: no peer was admitted and no CEA is sent.
@@ -74,21 +77,21 @@ func handleCER(sm *StateMachine) diam.HandlerFunc {
 	}
 }
 
-// errorCEA sends the legacy capability failure answer (RFC 6733 §5.3.2).
+// errorCEA sends the capability failure answer (RFC 6733 §5.3.2).
 func errorCEA(sm *StateMachine, c diam.Conn, m *diam.Message, errMessage error) error {
 	hostAddresses := sm.cfg.HostIPAddresses
 	if len(hostAddresses) == 0 {
 		var err error
 		hostAddresses, err = getLocalAddresses(c)
 		if err != nil {
-			return fmt.Errorf("error CEA '%s' create failure: %v", errMessage, err)
+			return fmt.Errorf("error CEA '%w' create failure: %w", errMessage, err)
 		}
 	}
 	var resultCode uint32
-	switch errMessage {
-	case smparser.ErrNoCommonSecurity:
+	switch {
+	case errors.Is(errMessage, smparser.ErrNoCommonSecurity):
 		resultCode = diam.NoCommonSecurity
-	case smparser.ErrNoCommonApplication:
+	case errors.Is(errMessage, smparser.ErrNoCommonApplication):
 		resultCode = diam.NoCommonApplication
 	default:
 		resultCode = diam.UnableToComply
@@ -100,14 +103,18 @@ func errorCEA(sm *StateMachine, c diam.Conn, m *diam.Message, errMessage error) 
 	var messageErr *diam.MessageError
 	if errors.As(errMessage, &messageErr) {
 		// RFC 6733 §7.1.5, Verified Erratum 4615: one Failed-AVP.
-		a, err = base.BuildErrorAnswer(m, cfg, messageErr.ResultCode, []*diam.AVP{messageErr.FailedAVP}, false)
+		var failed []*diam.AVP
+		if messageErr.FailedAVP != nil {
+			failed = []*diam.AVP{messageErr.FailedAVP}
+		}
+		a, err = base.BuildErrorAnswer(m, cfg, messageErr.ResultCode, failed, messageErr.ResultCode >= 3000 && messageErr.ResultCode < 4000)
 		if err != nil {
 			return err
 		}
 	} else {
 		a, err = base.BuildCEA(m, cfg, resultCode)
 		if err != nil {
-			return fmt.Errorf("error CEA '%s' create failure: %w", errMessage, err)
+			return fmt.Errorf("error CEA '%w' create failure: %w", errMessage, err)
 		}
 	}
 	if sm.cfg.OnCEA != nil {
@@ -115,21 +122,8 @@ func errorCEA(sm *StateMachine, c diam.Conn, m *diam.Message, errMessage error) 
 	}
 	_, err = a.WriteTo(c)
 	if err != nil {
-		err = fmt.Errorf("error CEA '%s' send failure: %v", errMessage, err)
+		err = fmt.Errorf("error CEA '%w' send failure: %w", errMessage, err)
 	}
-	return err
-}
-
-// successCEA sends the legacy capability success answer (RFC 6733 §5.3.2).
-func successCEA(sm *StateMachine, c diam.Conn, m *diam.Message) error {
-	a, err := buildSuccessCEA(sm, c, m)
-	if err != nil {
-		return err
-	}
-	if sm.cfg.OnCEA != nil {
-		sm.cfg.OnCEA(c, a)
-	}
-	_, err = a.WriteTo(c)
 	return err
 }
 
@@ -142,13 +136,34 @@ func buildSuccessCEA(sm *StateMachine, c diam.Conn, m *diam.Message) (*diam.Mess
 			return nil, err
 		}
 	}
-	cfg := baseSettings(sm.cfg)
+	cfg := sm.capabilities(c, m)
 	cfg.HostIPAddresses = hostAddresses
-	for _, app := range sm.supportedApps {
+	// The caller runs OnCEA only once the CEA will be sent.
+	return base.BuildCEA(m, cfg, diam.Success)
+}
+
+// capabilities derives advertisement and validation from the same dictionary
+// as the connection when Settings.Dict is unset (RFC 6733 §5.3).
+func (sm *StateMachine) capabilities(c diam.Conn, m *diam.Message) base.Settings {
+	cfg := baseSettings(sm.cfg)
+	apps := sm.supportedApps
+	if sm.dictionary == nil {
+		apps = PrepareSupportedApps(sm.capabilityDictionary(c, m))
+	}
+	for _, app := range apps {
 		cfg.Applications = append(cfg.Applications, base.LocalApplication{
 			ID: app.ID, AppType: app.AppType, Vendor: app.Vendor, SupportedVendors: app.SupportedVendors,
 		})
 	}
-	// The caller runs OnCEA only once the CEA will be sent.
-	return base.BuildCEA(m, cfg, diam.Success)
+	return cfg
+}
+
+func (sm *StateMachine) capabilityDictionary(c diam.Conn, m *diam.Message) *dict.Parser {
+	if sm.dictionary != nil {
+		return sm.dictionary
+	}
+	if dp := c.Dictionary(); dp != nil {
+		return dp
+	}
+	return m.Dictionary()
 }

@@ -25,7 +25,7 @@ func TestCapabilityParsersReusableWithoutStateMachine(t *testing.T) {
 		}
 	}
 	parsed := new(base.CER)
-	if _, err := parsed.Parse(request, base.Server); err != nil {
+	if _, err := parsed.Parse(request, base.ParseOptions{Role: base.Server}); err != nil {
 		t.Fatal(err)
 	}
 	if got := parsed.Applications(); len(got) != 1 || got[0] != 0xffffffff {
@@ -34,19 +34,19 @@ func TestCapabilityParsersReusableWithoutStateMachine(t *testing.T) {
 
 	answer := request.Answer(diam.Success)
 	parsedAnswer := new(base.CEA)
-	if err := parsedAnswer.Parse(answer, base.Client); err == nil {
+	if err := parsedAnswer.Parse(answer, base.ParseOptions{Role: base.Client}); err == nil {
 		t.Fatal("accepted CEA without Origin-Host and Origin-Realm")
 	}
 }
 
-func TestRelayCERNeedsLocallyAdvertisedApplication(t *testing.T) {
+func TestRelayCERAlwaysHasCommonApplications(t *testing.T) {
 	relay := diam.NewAVP(avp.AuthApplicationID, avp.Mbit, 0, datatype.Unsigned32(0xffffffff))
 	for _, tc := range []struct {
 		name     string
 		localIDs []uint32
 		wantErr  error
 	}{
-		{"none", []uint32{}, base.ErrNoCommonApplication},
+		{"none", []uint32{}, nil},
 		{"accounting", []uint32{3}, nil},
 		{"dictionary-fallback", nil, nil},
 	} {

@@ -23,7 +23,7 @@ func mustCEAAVP(t *testing.T, m *diam.Message, code uint32, flags uint8, vendor 
 func TestCEA_MissingResultCode(t *testing.T) {
 	m := diam.NewMessage(diam.CapabilitiesExchange, 0, 0, 0, 0, nil)
 	cea := new(CEA)
-	err := cea.Parse(m, Client)
+	err := cea.Parse(m, ParseOptions{Role: Client})
 	if err == nil {
 		t.Fatal("Broken CEA was parsed with no errors")
 	}
@@ -36,7 +36,7 @@ func TestCEA_MissingOriginHost(t *testing.T) {
 	m := diam.NewMessage(diam.CapabilitiesExchange, 0, 0, 0, 0, nil)
 	mustCEAAVP(t, m, avp.ResultCode, avp.Mbit, 0, datatype.Unsigned32(diam.Success))
 	cea := new(CEA)
-	err := cea.Parse(m, Client)
+	err := cea.Parse(m, ParseOptions{Role: Client})
 	if err == nil {
 		t.Fatal("Broken CEA was parsed with no errors")
 	}
@@ -50,7 +50,7 @@ func TestCEA_MissingOriginRealm(t *testing.T) {
 	mustCEAAVP(t, m, avp.ResultCode, avp.Mbit, 0, datatype.Unsigned32(diam.Success))
 	mustCEAAVP(t, m, avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("foobar"))
 	cea := new(CEA)
-	err := cea.Parse(m, Client)
+	err := cea.Parse(m, ParseOptions{Role: Client})
 	if err == nil {
 		t.Fatal("Broken CEA was parsed with no errors")
 	}
@@ -66,7 +66,7 @@ func TestCEA_MissingApplication(t *testing.T) {
 	mustCEAAVP(t, m, avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("test"))
 	mustCEAAVP(t, m, avp.OriginStateID, avp.Mbit, 0, datatype.Unsigned32(1))
 	cea := new(CEA)
-	err := cea.Parse(m, Client)
+	err := cea.Parse(m, ParseOptions{Role: Client})
 	if err == nil {
 		t.Fatal("Broken CEA was parsed with no errors")
 	}
@@ -88,7 +88,7 @@ func TestCEA_MissingApplicationWithError(t *testing.T) {
 	mustCEAAVP(t, m, avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("test"))
 	mustCEAAVP(t, m, avp.OriginStateID, avp.Mbit, 0, datatype.Unsigned32(1))
 	cea := new(CEA)
-	err := cea.Parse(m, Client)
+	err := cea.Parse(m, ParseOptions{Role: Client})
 	if err == nil {
 		t.Fatal("Broken CEA was parsed with no errors")
 	}
@@ -120,7 +120,7 @@ func TestCEA_NoCommonApplication(t *testing.T) {
 	mustCEAAVP(t, m, avp.OriginStateID, avp.Mbit, 0, datatype.Unsigned32(1))
 	mustCEAAVP(t, m, avp.AcctApplicationID, avp.Mbit, 0, datatype.Unsigned32(2))
 	cea := new(CEA)
-	err := cea.Parse(m, Server)
+	err := cea.Parse(m, ParseOptions{Role: Server})
 	if err == nil {
 		t.Fatal("Broken CEA was parsed with no errors")
 	}
@@ -137,7 +137,7 @@ func TestCEA_FailedAcctAppID(t *testing.T) {
 	mustCEAAVP(t, m, avp.OriginStateID, avp.Mbit, 0, datatype.Unsigned32(1))
 	mustCEAAVP(t, m, avp.AcctApplicationID, avp.Mbit, 0, datatype.Unsigned32(1000))
 	cea := new(CEA)
-	err := cea.Parse(m, Server)
+	err := cea.Parse(m, ParseOptions{Role: Server})
 	if err == nil {
 		t.Fatal("Broken CEA was parsed with no errors")
 	}
@@ -154,7 +154,7 @@ func TestCEA(t *testing.T) {
 	mustCEAAVP(t, m, avp.OriginStateID, avp.Mbit, 0, datatype.Unsigned32(1))
 	mustCEAAVP(t, m, avp.AuthApplicationID, avp.Mbit, 0, datatype.Unsigned32(4))
 	cea := new(CEA)
-	if err := cea.Parse(m, Server); err != nil {
+	if err := cea.Parse(m, ParseOptions{Role: Server}); err != nil {
 		t.Fatal(err)
 	}
 	if cea.ResultCode != diam.Success {
@@ -250,7 +250,7 @@ func TestCommonAppIdCEA(t *testing.T) {
 		},
 	})
 	cea := new(CEA)
-	if err := cea.Parse(m, Client); err != nil {
+	if err := cea.Parse(m, ParseOptions{Role: Client}); err != nil {
 		t.Fatal(err)
 	}
 	if cea.ResultCode != diam.Success {
@@ -282,7 +282,7 @@ func TestCEACapabilityAVPs(t *testing.T) {
 	mustCEAAVP(t, m, avp.AuthApplicationID, avp.Mbit, 0, datatype.Unsigned32(4))
 
 	cea := new(CEA)
-	if err := cea.Parse(m, Client); err != nil {
+	if err := cea.Parse(m, ParseOptions{Role: Client}); err != nil {
 		t.Fatal(err)
 	}
 	if cea.VendorID != 10415 {
@@ -317,7 +317,7 @@ func TestCEAAutAndAcct(t *testing.T) {
 	mustCEAAVP(t, m, avp.AcctApplicationID, avp.Mbit, 0, datatype.Unsigned32(4))
 
 	cea := new(CEA)
-	if err := cea.Parse(m, Client); err != nil {
+	if err := cea.Parse(m, ParseOptions{Role: Client}); err != nil {
 		t.Fatal(err)
 	}
 	if cea.ResultCode != diam.Success {

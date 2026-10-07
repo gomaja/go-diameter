@@ -50,7 +50,7 @@ func TestReadAnswerPrecedesConnectionGone(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("close watcher stalled")
 	}
-	if s.enqueue(answer) {
+	if err := s.enqueue(answer); err == nil {
 		t.Fatal("message admitted after close sealed ordered ingress")
 	}
 	dispatchDone := make(chan struct{})

@@ -125,12 +125,13 @@ type watchdogActivity struct {
 	dwac         chan struct{}
 	ceac         chan error
 	ceaOnce      sync.Once
+	ceaReceived  atomic.Bool
 	advertised   []uint32
 	capabilities base.Settings
 }
 
 func newWatchdogActivity() *watchdogActivity {
-	return &watchdogActivity{signal: make(chan struct{}, 1), dwac: make(chan struct{}, 1), ceac: make(chan error)}
+	return &watchdogActivity{signal: make(chan struct{}, 1), dwac: make(chan struct{}, 1), ceac: make(chan error, 1)}
 }
 
 type activityHandler struct {
@@ -141,6 +142,18 @@ type activityHandler struct {
 }
 
 func (h activityHandler) ServeDIAM(c diam.Conn, m *diam.Message) {
+	// RFC 6733 §5.6: Wait-I-CEA / I-Rcv-Non-CEA -> Error -> Closed.
+	isCEA := m.Header.ApplicationID == 0 && m.Header.CommandCode == diam.CapabilitiesExchange && m.Header.CommandFlags&diam.RequestFlag == 0
+	if !h.activity.ceaReceived.Load() && !isCEA {
+		h.rejectHandshake(c, errors.New("non-CEA received while waiting for CEA"))
+		return
+	}
+	// RFC 6733 §§2.5 and 5.5.2: invalid base headers cannot confirm liveness.
+	// StateMachine reports/discards invalid answers and answers invalid requests.
+	if base.ValidateHeader(m) != nil {
+		h.StateMachine.ServeDIAM(c, m)
+		return
+	}
 	// RFC 3539 §3.4.1 [2]: any received AAA message resets Tw.
 	h.activity.last.Store(time.Now().UnixNano())
 	select {
@@ -149,8 +162,7 @@ func (h activityHandler) ServeDIAM(c diam.Conn, m *diam.Message) {
 	}
 	// RFC 6733 §5.3: CEA completes the CER exchange on this connection.
 	// Do not publish its result through the shared state-machine mux.
-	if m.Header.ApplicationID == 0 && m.Header.CommandCode == diam.CapabilitiesExchange &&
-		m.Header.CommandFlags&diam.RequestFlag == 0 {
+	if isCEA {
 		h.activity.ceaOnce.Do(func() { h.cea.ServeDIAM(c, m) })
 		return
 	}
@@ -163,6 +175,21 @@ func (h activityHandler) ServeDIAM(c diam.Conn, m *diam.Message) {
 		return
 	}
 	h.StateMachine.ServeDIAM(c, m)
+}
+
+// HandleMessageError also enforces Wait-I-CEA for malformed input, which
+// the transport does not dispatch through ServeDIAM (RFC 6733 §5.6).
+func (h activityHandler) HandleMessageError(c diam.Conn, m *diam.Message, err *diam.MessageError) error {
+	if !h.activity.ceaReceived.Load() {
+		h.rejectHandshake(c, err)
+		return nil
+	}
+	return h.StateMachine.HandleMessageError(c, m, err)
+}
+
+func (h activityHandler) rejectHandshake(c diam.Conn, err error) {
+	h.activity.ceaOnce.Do(func() { h.activity.ceac <- err })
+	c.Close()
 }
 
 // WatchdogEvent identifies a bounded client-side watchdog outcome from the
@@ -356,7 +383,7 @@ func (cli *Client) handshake(c diam.Conn, activity *watchdogActivity) (diam.Conn
 		hostAddresses, err = getLocalAddresses(c)
 		if err != nil {
 			c.Close()
-			return nil, fmt.Errorf("diameter handshake failure: %v", err)
+			return nil, fmt.Errorf("diameter handshake failure: %w", err)
 		}
 	}
 
@@ -367,11 +394,6 @@ func (cli *Client) handshake(c diam.Conn, activity *watchdogActivity) (diam.Conn
 		c.Close()
 		return nil, err
 	}
-	// Ignore CER, but not DWR.
-	cerClientHandler := func(c diam.Conn, m *diam.Message) {}
-	// See sm.go for Base Diam Idx declarations
-	cli.Handler.mux.HandleIdx(baseCERIdx, diam.HandlerFunc(cerClientHandler))
-	cli.Handler.mux.HandleFunc("CER", cerClientHandler)
 	// CEA and DWA are dispatched by the per-connection activityHandler.
 	errc := activity.ceac
 	for i := 0; i < (int(cli.MaxRetransmits) + 1); i++ {

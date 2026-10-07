@@ -155,8 +155,8 @@ func (a *actor) sendWatchdog() {
 		a.fail(fmt.Errorf("peer: build DWR: %w", err))
 		return
 	}
-	if !a.active.sendControl(msg) {
-		a.fail(errors.New("peer: DWR write queue full"))
+	if err := a.active.sendControl(msg); err != nil {
+		a.fail(fmt.Errorf("peer: DWR write: %w", err))
 		return
 	}
 	a.pendingWatchdog = true

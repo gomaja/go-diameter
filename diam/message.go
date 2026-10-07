@@ -36,9 +36,9 @@ var unknownCommand = &dict.Command{
 
 // Message represents a Diameter message.
 type Message struct {
-	Header      *Header
-	AVP         []*AVP // AVPs in this message.
-	dispatchSeq uint64 // read order on a Server connection; zero outside Server dispatch
+	Header   *Header
+	AVP      []*AVP           // AVPs in this message.
+	dispatch *dispatchBarrier // callback admission order on a Server connection
 
 	DecodeErr            error // Possible decoding error on one or more AVPs (does not halt parsing)
 	unknownMandatoryAVPs []*AVP
@@ -47,13 +47,76 @@ type Message struct {
 	ctx                  context.Context
 }
 
-// DispatchSequence is the read order of a message dispatched by Server.
-// It is zero for messages constructed or read outside Server.
-func (m *Message) DispatchSequence() uint64 {
-	if m == nil {
-		return 0
+// dispatchQueue retains only callbacks whose admission has not finished.
+// All links and releases are protected by mu; sequence numbers are immutable.
+type dispatchQueue struct {
+	mu         sync.Mutex
+	head, tail *dispatchBarrier
+	sequence   uint64
+}
+type dispatchBarrier struct {
+	queue          *dispatchQueue
+	sequence       uint64
+	previous, next *dispatchBarrier
+	done           chan struct{}
+	released       bool
+}
+
+// BeginDispatch waits for every earlier callback on this Server connection to
+// finish admission. Its idempotent release function only releases this message:
+// neither release nor Server's automatic release waits for another callback.
+// Release before running independent application handlers to retain concurrency.
+// Outside Server dispatch this is a no-op. Wrappers must forward synchronously
+// before returning to retain a message's arrival position (see Handler).
+//
+// BeginDispatch also waits for earlier callbacks that never call it to
+// return. Such a callback must not wait for later messages on the same
+// connection: with a positive Server.MaxConcurrentHandlers, the callbacks
+// waiting here can hold every slot, and the message it waits for is never
+// dispatched.
+func (m *Message) BeginDispatch() func() {
+	if m == nil || m.dispatch == nil {
+		return func() {}
 	}
-	return m.dispatchSeq
+	barrier := m.dispatch
+	queue := barrier.queue
+	for {
+		queue.mu.Lock()
+		first := queue.head
+		if first == nil || first.sequence >= barrier.sequence {
+			queue.mu.Unlock()
+			return m.releaseDispatch
+		}
+		done := first.done
+		queue.mu.Unlock()
+		<-done
+	}
+}
+
+func (m *Message) releaseDispatch() {
+	if m == nil || m.dispatch == nil {
+		return
+	}
+	barrier := m.dispatch
+	queue := barrier.queue
+	queue.mu.Lock()
+	defer queue.mu.Unlock()
+	if barrier.released {
+		return
+	}
+	barrier.released = true
+	if barrier.previous == nil {
+		queue.head = barrier.next
+	} else {
+		barrier.previous.next = barrier.next
+	}
+	if barrier.next == nil {
+		queue.tail = barrier.previous
+	} else {
+		barrier.next.previous = barrier.previous
+	}
+	barrier.previous, barrier.next = nil, nil
+	close(barrier.done)
 }
 
 // UnknownMandatoryAVPs returns the unknown mandatory AVPs found during decode.

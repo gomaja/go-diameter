@@ -168,7 +168,7 @@ func TestConcurrentDispatchPreservesFirstCER(t *testing.T) {
 	}
 }
 
-func TestOrderedIngressAwaitedMessageBypassesPendingLimit(t *testing.T) {
+func TestOrderedIngressFIFOWithSingleSlot(t *testing.T) {
 	m, err := New(Config{Settings: testSettings("local.example.net"), Limits: Limits{Events: 1}})
 	if err != nil {
 		t.Fatal(err)
@@ -176,7 +176,7 @@ func TestOrderedIngressAwaitedMessageBypassesPendingLimit(t *testing.T) {
 	if err := m.AddPeer(PeerConfig{Host: "known.example.net"}); err != nil {
 		t.Fatal(err)
 	}
-	c := newFakeConn()
+	c := &capabilityWireConn{fakeConn: newFakeConn(), wire: make(chan []byte, 2)}
 	s := m.newSession(c, nil, 0, true)
 	defer func() { s.close(); closeManager(t, m, nil) }()
 	cer, err := base.BuildCER(dict.Default, testBase("known.example.net"))
@@ -187,19 +187,29 @@ func TestOrderedIngressAwaitedMessageBypassesPendingLimit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.ingress <- incoming{msg: dwr, seq: 2}
-	deadline := time.Now().Add(time.Second)
-	for len(s.ingress) != 0 && time.Now().Before(deadline) {
-		time.Sleep(time.Millisecond)
+	// The single write slot must be drained before asking for another answer.
+	// A wire notification, not actor state or scheduling, proves that happened.
+	for _, request := range []*diam.Message{cer, dwr} {
+		s.ingress <- incoming{msg: request}
+		select {
+		case wire := <-c.wire:
+			answer, err := diam.ReadMessage(bytes.NewReader(wire), dict.Default)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if code(t, answer) != diam.Success || answer.Header.CommandCode != request.Header.CommandCode || answer.Header.HopByHopID != request.Header.HopByHopID {
+				t.Fatalf("unexpected answer: %v", answer)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("answer was not written")
+		}
 	}
-	if len(s.ingress) != 0 {
-		t.Fatal("out-of-order message was not received")
+	if peers := m.Peers(); len(peers) != 1 || peers[0].State != ROpen {
+		t.Fatalf("peer state after DWA: %v", peers)
 	}
-	s.ingress <- incoming{msg: cer, seq: 1}
-	awaitState(t, m, ROpen)
 	select {
 	case <-s.closed:
-		t.Fatal("awaited CER closed connection while an out-of-order message was buffered")
+		t.Fatal("FIFO admission closed the connection")
 	default:
 	}
 }
@@ -320,7 +330,7 @@ func TestPreCERGateAndUnknownPeer(t *testing.T) {
 						t.Fatalf("read: %v; state: %+v", readErr, m.Peers())
 					}
 				}
-				want := uint32(diam.UnableToComply)
+				want := uint32(diam.MissingAVP)
 				if name == "unknown-peer" {
 					want = diam.UnknownPeer
 				}

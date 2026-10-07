@@ -67,7 +67,7 @@ func TestMetadataCloneOwnsParsedApplicationIDs(t *testing.T) {
 		}
 	}
 	cer := new(smparser.CER)
-	if _, err := cer.Parse(request, smparser.Server); err != nil {
+	if _, err := cer.Parse(request, smparser.ParseOptions{Role: smparser.Server}); err != nil {
 		t.Fatal(err)
 	}
 	original := FromCER(cer)

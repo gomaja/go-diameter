@@ -210,7 +210,7 @@ func testHandleAIR(results chan error, settings *Settings) diam.HandlerFunc {
 
 		err := m.Unmarshal(&req)
 		if err != nil {
-			err = fmt.Errorf("unmarshal failed: %s", err)
+			err = fmt.Errorf("unmarshal failed: %w", err)
 			code = diam.UnableToComply
 			results <- err
 		} else {
@@ -226,7 +226,7 @@ func testHandleAIR(results chan error, settings *Settings) diam.HandlerFunc {
 		mustS6aAVP(a, avp.OriginStateID, avp.Mbit, 0, settings.OriginStateID)
 		_, err = testSendAIA(c, a)
 		if err != nil {
-			results <- fmt.Errorf("failed to send AIA: %s", err.Error())
+			results <- fmt.Errorf("failed to send AIA: %w", err)
 		} else {
 			atomic.AddUint32(&sentAIAs, 1)
 		}
@@ -268,7 +268,7 @@ func testHandleCLR(results chan error, settings *Settings) diam.HandlerFunc {
 		err := m.Unmarshal(&clr)
 
 		if err != nil {
-			err = fmt.Errorf("clr unmarshal failed: %s", err)
+			err = fmt.Errorf("clr unmarshal failed: %w", err)
 			code = diam.UnableToComply
 			results <- err
 		} else {
@@ -284,7 +284,7 @@ func testHandleCLR(results chan error, settings *Settings) diam.HandlerFunc {
 		mustS6aAVP(a, avp.OriginRealm, avp.Mbit, 0, settings.OriginRealm)
 		_, err = testSendCLA(settings, c, a)
 		if err != nil {
-			err := fmt.Errorf("failed to send ULA: %s", err.Error())
+			err := fmt.Errorf("failed to send ULA: %w", err)
 			results <- err
 		} else {
 			atomic.AddUint32(&sentCLAs, 1)
@@ -311,7 +311,7 @@ func testHandleULR(results chan error, settings *Settings) diam.HandlerFunc {
 
 		err := m.Unmarshal(&req)
 		if err != nil {
-			err = fmt.Errorf("unmarshal failed: %s", err)
+			err = fmt.Errorf("unmarshal failed: %w", err)
 			code = diam.UnableToComply
 			results <- err
 		} else {
@@ -328,14 +328,14 @@ func testHandleULR(results chan error, settings *Settings) diam.HandlerFunc {
 		mustS6aAVP(a, avp.OriginStateID, avp.Mbit, 0, settings.OriginStateID)
 		_, err = testSendULA(settings, c, a)
 		if err != nil {
-			results <- fmt.Errorf("failed to send ULA: %s", err.Error())
+			results <- fmt.Errorf("failed to send ULA: %w", err)
 		} else {
 			atomic.AddUint32(&sentULAs, 1)
 		}
 		// send cancel location request
 		err = testSendCLR(c, settings)
 		if err != nil {
-			results <- fmt.Errorf("failed to send CLR: %s\n", err.Error())
+			results <- fmt.Errorf("failed to send CLR: %w\n", err)
 		} else {
 			atomic.AddUint32(&sentCLRs, 1)
 		}
@@ -564,7 +564,7 @@ func testHandleAIA(results chan error, cfg *Settings) diam.HandlerFunc {
 			var req AIA
 			err := m.Unmarshal(&req) // Make sure, we can unmarshal it
 			if err != nil {
-				err = fmt.Errorf("aia unmarshal failed: %s", err)
+				err = fmt.Errorf("aia unmarshal failed: %w", err)
 				results <- err
 				return
 			}
@@ -588,7 +588,7 @@ func testHandleULA(results chan error) diam.HandlerFunc {
 			var req ULA
 			err := m.Unmarshal(&req) // Make sure, we can unmarshal it
 			if err != nil {
-				err = fmt.Errorf("ula unmarshal failed: %s", err)
+				err = fmt.Errorf("ula unmarshal failed: %w", err)
 				results <- err
 				return
 			}
@@ -606,7 +606,7 @@ func testHandleCLA(results chan error) diam.HandlerFunc {
 			var cla CLA
 			err := m.Unmarshal(&cla) // Make sure, we can unmarshal it
 			if err != nil {
-				err = fmt.Errorf("cla unmarshal failed: %s", err)
+				err = fmt.Errorf("cla unmarshal failed: %w", err)
 				results <- err
 				return
 			}
@@ -641,6 +641,6 @@ func logStats(t *testing.T) {
 
 func testPrintErrors(ec <-chan *diam.ErrorReport, results chan error) {
 	for err := range ec {
-		results <- fmt.Errorf("error: %v for message: %s", err.Error, err.Message)
+		results <- fmt.Errorf("error: %w for message: %s", err.Error, err.Message)
 	}
 }

@@ -478,7 +478,7 @@ func TestCompletedQueuedRequestIsNotWritten(t *testing.T) {
 			}
 			sentinel := outboundRequest("", "example.net")
 			sentinel.Header.HopByHopID = 0xfefefefe
-			if !sessions[0].send(sentinel, false) {
+			if err := sessions[0].send(sentinel, false); err != nil {
 				t.Fatal("sentinel not queued")
 			}
 			close(c.release)
@@ -549,7 +549,7 @@ func TestManagedHopSkipsOutstandingControlRequest(t *testing.T) {
 		t.Fatal(err)
 	}
 	control := diam.NewRequest(diam.DeviceWatchdog, 0, nil)
-	if !sessions[0].sendControl(control) {
+	if err := sessions[0].sendControl(control); err != nil {
 		t.Fatal("control request not queued")
 	}
 	_ = nextWrite(t, sessions[0])
@@ -570,7 +570,7 @@ func TestControlReservationReleasedIfSessionClosed(t *testing.T) {
 	s := sessions[0]
 	s.close()
 	for range 64 {
-		if s.sendControl(diam.NewRequest(diam.DeviceWatchdog, 0, nil)) {
+		if err := s.sendControl(diam.NewRequest(diam.DeviceWatchdog, 0, nil)); err == nil {
 			t.Fatal("closed session accepted control request")
 		}
 		if len(m.controls[s]) != 0 {

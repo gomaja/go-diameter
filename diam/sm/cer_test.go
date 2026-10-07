@@ -40,7 +40,7 @@ func testHandleCER_HandshakeMetadata(t *testing.T, network string) {
 		close(ready)
 	}()
 
-	m := diam.NewRequest(diam.CapabilitiesExchange, 1001, dict.Default)
+	m := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
 	mustSMClientAVP(t, m, avp.OriginHost, avp.Mbit, 0, clientSettings.OriginHost)
 	mustSMClientAVP(t, m, avp.OriginRealm, avp.Mbit, 0, clientSettings.OriginRealm)
 	mustSMClientAVP(t, m, avp.HostIPAddress, avp.Mbit, 0, localhostAddress)
@@ -91,7 +91,7 @@ func TestHandleCER_HandshakeMetadata_CustomIP(t *testing.T) {
 	}()
 	<-ready
 
-	m := diam.NewRequest(diam.CapabilitiesExchange, 1001, dict.Default)
+	m := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
 	mustSMClientAVP(t, m, avp.OriginHost, avp.Mbit, 0, clientSettings.OriginHost)
 	mustSMClientAVP(t, m, avp.OriginRealm, avp.Mbit, 0, clientSettings.OriginRealm)
 	mustSMClientAVP(t, m, avp.HostIPAddress, avp.Mbit, 0, localhostAddress)
@@ -135,7 +135,7 @@ func TestHandleCER_Acct(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer cli.Close()
-	m := diam.NewRequest(diam.CapabilitiesExchange, 1001, dict.Default)
+	m := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
 	mustSMClientAVP(t, m, avp.OriginHost, avp.Mbit, 0, clientSettings.OriginHost)
 	mustSMClientAVP(t, m, avp.OriginRealm, avp.Mbit, 0, clientSettings.OriginRealm)
 	mustSMClientAVP(t, m, avp.HostIPAddress, avp.Mbit, 0, localhostAddress)
@@ -252,7 +252,7 @@ func TestHandleCER_VS_Acct(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer cli.Close()
-	m := diam.NewRequest(diam.CapabilitiesExchange, 1001, dict.Default)
+	m := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
 	mustSMClientAVP(t, m, avp.OriginHost, avp.Mbit, 0, clientSettings.OriginHost)
 	mustSMClientAVP(t, m, avp.OriginRealm, avp.Mbit, 0, clientSettings.OriginRealm)
 	mustSMClientAVP(t, m, avp.HostIPAddress, avp.Mbit, 0, localhostAddress)
@@ -338,7 +338,7 @@ func TestHandleCER_Auth(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer cli.Close()
-	m := diam.NewRequest(diam.CapabilitiesExchange, 1002, dict.Default)
+	m := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
 	mustSMClientAVP(t, m, avp.OriginHost, avp.Mbit, 0, clientSettings.OriginHost)
 	mustSMClientAVP(t, m, avp.OriginRealm, avp.Mbit, 0, clientSettings.OriginRealm)
 	mustSMClientAVP(t, m, avp.HostIPAddress, avp.Mbit, 0, localhostAddress)
@@ -420,7 +420,7 @@ func testHandleCER_VS_Auth(t *testing.T, network string) {
 		t.Fatal(err)
 	}
 	defer cli.Close()
-	m := diam.NewRequest(diam.CapabilitiesExchange, 1002, dict.Default)
+	m := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
 	mustSMClientAVP(t, m, avp.OriginHost, avp.Mbit, 0, clientSettings.OriginHost)
 	mustSMClientAVP(t, m, avp.OriginRealm, avp.Mbit, 0, clientSettings.OriginRealm)
 	mustSMClientAVP(t, m, avp.HostIPAddress, avp.Mbit, 0, localhostAddress)

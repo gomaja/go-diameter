@@ -17,10 +17,13 @@ func BuildErrorAnswer(request *diam.Message, cfg Settings, resultCode uint32, fa
 	// RFC 6733 §§7 and 7.2: application errors such as 5001 clear R and T
 	// without E; protocol errors such as 3001 set E. Both copy only P.
 	answer.Header.CommandFlags = request.Header.CommandFlags & diam.ProxiableFlag
-	if !protocolError &&
-		(request.Header.CommandCode == diam.CapabilitiesExchange || request.Header.CommandCode == diam.DeviceWatchdog || request.Header.CommandCode == diam.DisconnectPeer) {
-		answer.Header.CommandFlags = 0
+	// RFC 6733 §2.5 requires zero Application-Id for every CEA/DWA/DPA,
+	// including E-bit errors for invalid request headers (§7.1.3).
+	if request.Header.CommandCode == diam.CapabilitiesExchange || request.Header.CommandCode == diam.DeviceWatchdog || request.Header.CommandCode == diam.DisconnectPeer {
 		answer.Header.ApplicationID = 0
+		if !protocolError {
+			answer.Header.CommandFlags = 0
+		}
 	}
 	if protocolError {
 		answer.Header.CommandFlags |= diam.ErrorFlag

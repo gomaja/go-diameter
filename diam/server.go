@@ -23,6 +23,13 @@ import (
 
 // The Handler interface allow arbitrary objects to be
 // registered to serve particular messages like CER, DWR.
+//
+// Concurrent plain handlers are independent: returning releases their callback
+// without waiting for older handlers. Protocol handlers may use BeginDispatch
+// to order admission, and must release admission before waiting for later traffic.
+// Wrappers around an ordered handler must forward ServeDIAM synchronously, before
+// returning. They must also forward MessageErrorHandler synchronously or consume
+// the error themselves; a consumed callback leaves no gap in dispatch order.
 type Handler interface {
 	// ServeDIAM should write messages to the Conn and then return.
 	// Returning signals that the request is finished.
@@ -109,9 +116,9 @@ type conn struct {
 	// connections share serve but run the client side of the handshake.
 	accepted bool
 
-	hwg         sync.WaitGroup // tracks in-flight handler goroutines
-	sem         chan struct{}  // bounds concurrent handlers; nil = unbounded/sequential
-	dispatchSeq uint64         // read order assigned before concurrent handler dispatch
+	hwg           sync.WaitGroup // tracks in-flight handler goroutines
+	sem           chan struct{}  // bounds concurrent handlers; nil = unbounded/sequential
+	dispatchOrder dispatchQueue  // pending reader callbacks
 
 	drainMu      sync.Mutex
 	draining     bool
@@ -346,6 +353,8 @@ func (c *conn) handleReadError(m *Message, err error) bool {
 	var handleErr error
 	handled := false
 	if errors.As(err, &messageErr) {
+		c.prepareDispatch(m)
+		defer m.releaseDispatch()
 		if dispatcher, ok := h.(messageErrorDispatcher); ok {
 			handled, handleErr = dispatcher.dispatchMessageError(c.writer, m, messageErr)
 		} else if messageErrorHandler, ok := h.(MessageErrorHandler); ok {
@@ -374,13 +383,13 @@ func (c *conn) dispatch(m *Message) {
 		c.drainMu.Unlock()
 		return
 	}
-	c.dispatchSeq++
-	m.dispatchSeq = c.dispatchSeq
+	c.prepareDispatch(m)
 	c.active++
 	c.drainMu.Unlock()
 	if c.server.MaxConcurrentHandlers == 0 {
 		// Sequential dispatch preserves the historical Handler contract.
 		defer c.finishDispatch()
+		defer m.releaseDispatch()
 		serverHandler{c.server}.ServeDIAM(c.writer, m)
 		return
 	}
@@ -391,6 +400,7 @@ func (c *conn) dispatch(m *Message) {
 	go func() {
 		defer c.hwg.Done()
 		defer c.finishDispatch()
+		defer m.releaseDispatch()
 		defer func() {
 			if c.sem != nil {
 				<-c.sem
@@ -403,6 +413,26 @@ func (c *conn) dispatch(m *Message) {
 		}()
 		serverHandler{c.server}.ServeDIAM(c.writer, m)
 	}()
+}
+
+// RFC 6733 §§5.6 and 7: admission observes reader order even when a wrapper
+// consumes a callback instead of forwarding it to the protocol handler.
+func (c *conn) prepareDispatch(m *Message) {
+	if m == nil {
+		return
+	}
+	queue := &c.dispatchOrder
+	queue.mu.Lock()
+	defer queue.mu.Unlock()
+	queue.sequence++
+	barrier := &dispatchBarrier{queue: queue, sequence: queue.sequence, previous: queue.tail, done: make(chan struct{})}
+	if queue.tail == nil {
+		queue.head = barrier
+	} else {
+		queue.tail.next = barrier
+	}
+	queue.tail = barrier
+	m.dispatch = barrier
 }
 
 func (c *conn) finishDispatch() {
@@ -591,7 +621,11 @@ type ErrorReporter interface {
 
 // MessageErrorHandler is implemented by handlers that can construct Diameter
 // error answers using their configured node identity. The server calls it
-// synchronously and never dispatches the malformed message through ServeDIAM.
+// synchronously on the reader and never dispatches the malformed message through
+// ServeDIAM. Returning never waits for earlier handlers. The callback itself must
+// not wait for subsequent input on the same connection. Ordered protocol handlers
+// may call BeginDispatch to await earlier admission. Wrappers must forward this
+// method synchronously or handle the error themselves before returning.
 type MessageErrorHandler interface {
 	HandleMessageError(Conn, *Message, *MessageError) error
 }
@@ -890,10 +924,16 @@ type Server struct {
 	// Measured locally with a 1ms handler: ~810 msg/s sequential vs
 	// ~39,900 msg/s with MaxConcurrentHandlers=256 (~49x).
 	//
-	// Diameter matches answers to requests by Hop-by-Hop ID, not arrival
-	// order, so concurrent dispatch does not change what the peer sees.
-	// Handlers that mutate shared per-connection state must synchronize
-	// themselves.
+	// Concurrent callbacks can finish out of order; Diameter correlates answers
+	// by Hop-by-Hop ID. Plain callbacks never wait for older callbacks on return.
+	// Stateful protocol handlers may call Message.BeginDispatch to order admission;
+	// release before waiting for later messages. BeginDispatch waits for earlier
+	// callbacks to return, so a callback that waits for a later message on its
+	// connection must not be followed by one that calls BeginDispatch while every
+	// slot is taken. sm.StateMachine and peer.Manager
+	// do this internally. Their wrappers must follow Handler's synchronous forwarding
+	// contract, including MessageErrorHandler. Shared application state still needs
+	// its own synchronization.
 	MaxConcurrentHandlers int
 
 	// OnNewConnection, if non-nil, is invoked once per accepted connection

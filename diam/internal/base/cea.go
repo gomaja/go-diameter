@@ -42,14 +42,12 @@ func (e ErrFailedResultCode) Error() string {
 	return fmt.Sprintf("failed Result-Code AVP: %d", e.ResultCode)
 }
 
-// Parse parses and validates the given message.
-func (cea *CEA) Parse(m *diam.Message, localRole Role) (err error) {
-	return cea.ParseWithApplicationIDs(m, localRole, nil)
-}
-
-// ParseWithApplicationIDs checks the CEA against the applications offered in
-// this connection's CER when localIDs is non-nil (RFC 6733 §5.3.2).
-func (cea *CEA) ParseWithApplicationIDs(m *diam.Message, localRole Role, localIDs []uint32) (err error) {
+// Parse decodes and validates a CEA against the local capabilities offered on
+// this connection (RFC 6733 §5.3.2). Answers never generate an error answer.
+func (cea *CEA) Parse(m *diam.Message, options ParseOptions) (err error) {
+	if err := ValidateHeader(m); err != nil {
+		return err
+	}
 	// RFC 6733 §§5.3.2 and 7.1.5: a non-strict decoder preserves an
 	// invalid Address as Unknown. Identify its original AVP before reflection
 	// loses that context. The CEA is an answer, so this error is returned to
@@ -80,7 +78,11 @@ func (cea *CEA) ParseWithApplicationIDs(m *diam.Message, localRole Role, localID
 		AuthApplicationID:           cea.AuthApplicationID,
 		VendorSpecificApplicationID: cea.VendorSpecificApplicationID,
 	}
-	if _, err := app.ParseWithApplicationIDs(m.Dictionary(), localRole, localIDs); err != nil {
+	dictionary := options.Dictionary
+	if dictionary == nil {
+		dictionary = m.Dictionary()
+	}
+	if _, err := app.ParseWithApplicationIDs(dictionary, options.Role, options.LocalApplications); err != nil {
 		return err
 	}
 	cea.appID = app.ID()

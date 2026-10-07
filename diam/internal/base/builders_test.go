@@ -33,7 +33,7 @@ func TestBuildBaseRequests(t *testing.T) {
 		t.Fatalf("CER code = %d", cer.Header.CommandCode)
 	}
 	parsed := new(base.CER)
-	if _, err := parsed.Parse(cer, base.Server); err != nil {
+	if _, err := parsed.Parse(cer, base.ParseOptions{Role: base.Server}); err != nil {
 		t.Fatal(err)
 	}
 	dwr, err := base.BuildDWR(dict.Default, cfg, 333)

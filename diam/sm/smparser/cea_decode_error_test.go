@@ -45,7 +45,7 @@ func TestCEANonStrictMalformedHostIPAddress(t *testing.T) {
 				t.Fatal("decoder did not retain malformed Host-IP-Address")
 			}
 			var cea smparser.CEA
-			err = cea.Parse(parsed, smparser.Client)
+			err = cea.Parse(parsed, smparser.ParseOptions{Role: smparser.Client})
 			var messageErr *diam.MessageError
 			if !errors.As(err, &messageErr) || messageErr.ResultCode != tc.result || !strings.Contains(err.Error(), "CEA") {
 				t.Fatalf("Parse error = %T(%v), want CEA MessageError %d", err, err, tc.result)
