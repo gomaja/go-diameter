@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net"
+	"sync"
 	"testing"
 	"time"
 
@@ -91,10 +92,17 @@ func TestS6aProxyService(t *testing.T) {
 		ImmediateResponsePreferred: true,
 	}
 	complChan := make(chan error, TEST_LOOPS+1)
+	// Every routine finishes, and logs, before the test returns: testing
+	// panics on a log from a goroutine that outlives its test.
+	var routines sync.WaitGroup
+	defer routines.Wait()
 	testLoopF := func(id int) {
+		defer routines.Done()
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		defer cancel()
 		t.Logf("Test Routine ID: %d", id)
 		// AIR
-		r, err := c.AuthenticationInformation(context.Background(), req)
+		r, err := c.AuthenticationInformation(ctx, req)
 		if err != nil {
 			complChan <- err
 			t.Logf("GRPC AIR Error: %v", err)
@@ -114,7 +122,7 @@ func TestS6aProxyService(t *testing.T) {
 			InitialAttach:      true,
 		}
 		// ULR
-		ulResp, err := c.UpdateLocation(context.Background(), ulReq)
+		ulResp, err := c.UpdateLocation(ctx, ulReq)
 		if err != nil {
 			complChan <- err
 			t.Errorf("GRPC ULR Error: %v", err)
@@ -124,9 +132,10 @@ func TestS6aProxyService(t *testing.T) {
 		if ulResp.GetErrorCode() != protos.ErrorCode_UNDEFINED {
 			t.Errorf("Unexpected ULA Error Code: %d", ulResp.GetErrorCode())
 		}
-		complChan <- nil
 		t.Logf("Test Routine ID: %d -- END", id)
+		complChan <- nil
 	}
+	routines.Add(1)
 	go testLoopF(-1)
 
 	select {
@@ -142,6 +151,7 @@ func TestS6aProxyService(t *testing.T) {
 	// return
 
 	for round := 0; round < TEST_LOOPS; round++ {
+		routines.Add(1)
 		go testLoopF(round)
 	}
 	for round := 0; round < TEST_LOOPS; round++ {
