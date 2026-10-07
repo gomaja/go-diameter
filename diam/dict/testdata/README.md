@@ -583,7 +583,7 @@ in these RFC-owned definitions requiring a CR override.
 | `nasreq_spec.json` | RFC 7155: 78 AVPs including Erratum 6119, four supplemental RADIUS identities, 14 enumerations with 132 assigned values, two Grouped grammars, ten command bodies with 358 ordered rules |
 | `nasreq_reused_spec.json` | RFC 6733: 37 reused AVPs, including recursive Proxy-Info members and seven current IANA registries |
 | `credit_control_spec.json` | RFC 8506: all 68 §8 AVPs, 46 assigned enum values, 17 Grouped grammars, CCR/CCA with 30/29 RFC rules |
-| `credit_control_reused_spec.json` | Source grammars and bounded shared gaps for RFC 6733 Proxy-Info/Failed-AVP and RFC 5777 Filter-Rule |
+| `credit_control_reused_spec.json` | Bounded RFC 6733 Proxy-Info/Failed-AVP gaps, strict RFC 5777 Filter-Rule grammar, and RFC 6733 Vendor-Id metadata |
 
 The archived source bytes have these SHA-256 digests:
 
@@ -653,11 +653,11 @@ The source tests explicitly bound these outstanding shared definitions:
   than all thirty current IANA values; assigned values 11–32 are missing.
 - Reused base AVPs retain legacy P/encryption metadata. Tests permit only
   identified existing metadata or the canonical current source values.
-- Filter-Rule (509), an existing non-RFC 8506 definition in the charging
-  dictionary, is an empty Grouped stub. RFC 5777 §3.2 requires eight named
-  member rules and an extension point. Its complete descendant definitions
-  need a separate RFC 5777 refresh; these tests do not claim that closure
-  is implemented.
+
+Filter-Rule (509) is required to match the complete RFC 5777 §3.2 grammar.
+The reused-source and wire tests traverse its full named-member closure using
+`rfc5777_spec.json`, including Vendor-Id through QoS-Profile-Template.
+Reverting Filter-Rule to an empty Grouped definition fails these tests.
 
 RFC Editor JSON and filtered Datatracker relationship records were checked
 on 2026-10-07 and agree: RFCs 7155 and 8506 are current, replacing 4005 and
@@ -669,12 +669,126 @@ RADEXT's active Connect-Info work describes Wi-Fi attribute content and
 is not a normative replacement for these Diameter encodings.
 
 RFC 6733 Verified Erratum 4803 supplies the corrected CCF header literal.
-Its other Verified errata, RFC 7683 Erratum 4549, RFC 5777 Errata 2333–2336,
-and the RADIUS source corrections were reviewed without additional changes
-to the scoped Diameter definitions. Non-Verified proposals remain unapplied:
+Its other Verified errata, RFC 7683 Erratum 4549, and the RADIUS source
+corrections were reviewed without additional changes to those definitions.
+RFC 5777 Verified Errata 2333–2336 are applied in the section below. Non-Verified proposals remain unapplied:
 RFC 7155 Reported 6029; RFC 6733 Reported 6832, Held 4210/4234/5084,
 Rejected 4209/4462/4463/4473/4931/6833; RFC 7683 Reported 5277/5278;
 RFC 5777 Held 2337; RFC 2865 Held 6915/8739/9034 and Rejected 4077;
 RFC 3162 Held 3217 and Rejected 1923; RFC 3575 Rejected 5093;
 RFC 5080 Held 4623 and Rejected 4476; RFC 8044 Reported 8671.
 RFC 8506 has no errata. Extraction tooling remains outside the repository.
+
+## RFC 5777 traffic classification and QoS
+
+`rfc5777_spec.json` covers all 71 AVPs (508–578) in RFC 5777 §§3–6 and
+10.1: 23 Grouped grammars, 115 ordered member rules, and 292 enum labels.
+The table, CCF and local enums were extracted independently from the published
+RFC text; codes were cross-checked against IANA AAA. Protocol, DSCP, IPv4
+option, TCP option and ICMP type labels are a **2026-10-07 IANA registry
+snapshot**, not a permanently complete registry. Source hashes are in the
+fixture; extraction tooling remains outside the repository.
+
+Corrections and interpretation:
+
+- Verified Erratum 2333 adds both fractional-second members and Timezone-Offset
+  to Time-Of-Day-Condition as optional singletons in their corrected order.
+- Verified Erratum 2334 makes Treatment-Action Enumerated; 2335 fixes
+  IP-Mask-Bit-Mask-Width; 2336 clarifies the Unsigned32 start-fraction field.
+  Held Erratum 2337 is not applied to the end-fraction field.
+- RFC 6733 §§3.2, 4.4 and Verified Erratum 4803 govern CCF notation. All 23
+  groups preserve their unbounded extension points; range endpoints remain
+  optional where printed. QoS-Parameters is exactly `*[AVP]` (§5.5).
+- RFC 5777 has no flag table: §10.1 lists names, codes, sections and types.
+  RFC 6733 §4.1 forbids V for these vendor-zero AVPs; M remains optional.
+  Filter-Rule's legacy MAY-P/encryption annotations are removed because P
+  is reserved. Application reuse restrictions do not govern other applications.
+- RFC 5777 §4.1.8.12 binds ICMP-Type-Number to the **IPv4 ICMP** registry;
+  these labels can mislead when interpreting IPv6-ICMP traffic. ICMP-Code
+  (§4.1.8.13) remains an open Enumerated type because labels depend on
+  ICMP-Type-Number and cannot be flattened into one unambiguous map.
+
+Application 4 supplies the definitions to Rx, Gx, Sy, S6c, SGd, S6a and SWx.
+S6a's three local time-field copies are removed: Time-Of-Day-Start,
+Time-Of-Day-End and Day-Of-Week-Mask now inherit from application 4, including
+in SWx. TS 29.272 V19.6.0 does not mention these AVPs or RFC 5777, so the
+defining specification governs. TS 29.336 V20.0.0 §8.4.30 imports them for
+Scheduled-Communication-Time. S6a declares CreditControl as a direct member
+provider; its transitive bundle selection and CER vendor advertisements are
+unchanged. The three fields retain the same effective flag permissions.
+
+RFC 8506 §8.68 QoS-Final-Unit-Indication reaches Filter-Rule directly and
+through Multiple-Services-Credit-Control. Gx/Rx command bodies are unchanged;
+their extension points can carry inherited IETF AVPs. Their vendor-specific
+QoS-Information, QoS-Class-Identifier, Flow-Information and Flow-Description
+remain separate. Base, accounting, NASREQ, Cx, Sh and S13 do not inherit these
+AVPs. No command, application or vendor declarations change.
+
+Vendor-Id is the only external named member (RFC 6733 §5.3.3), inherited
+from base; its canonical metadata is in `credit_control_reused_spec.json`.
+The bounded shared MAY-P metadata allowance covers Vendor-Id pending the
+separate base refresh. QoS-Resources and QoS-Capability enclose rules and
+profile templates. RFC 5624's TMOD-1/TMOD-2, Bandwidth and PHB-Class are
+profile-specific extensions, not named members of QoS-Parameters, and remain
+outside this fixture. RFC 5866 defines a separate, unbundled QoS application.
+
+The tests pin all fourteen effective views, types, flags, enum labels and
+ordered grammars. Wire tests cover every AVP with M clear/set, every enum
+value, every member with zero/one/two instances, all extension points, and
+the nested Classifier-ID requirement in final-unit indications. The strict
+source grammar also detects deletion of QoS-Parameters' sole wildcard,
+since an empty dictionary grammar otherwise disables member validation.
+Autogen adds 67 constants; FilterRule, TimeOfDayStart, TimeOfDayEnd and
+DayOfWeekMask already existed.
+
+These checks do not implement classification or scheduling. Callers enforce
+address/port ranges, prefix widths, mask continuity, Ethernet lengths and
+mutual exclusion, protocol/DSCP consistency, time masks and timezone
+dependencies, fractional-time interpretation, profile negotiation and
+requirements conditional on treatment values.
+
+RFC Editor JSON and filtered Datatracker relationships agreed on 2026-10-07.
+RFCs 5777, 5624, 5866 and 8506 have no replacements or updates; the latter
+three have no errata. RFC 6733 is updated by 7075/8553 (redirection/discovery).
+Direct dependency updates are: 2119 by 8174; 2474 by 3168/3260/8436; 2475 by
+3260; 2780 by 4443/5237/5771/6335/7045; 3168 by 4301/6040/8311/9768; and
+5234 by 7405. Their transitive updates were also checked: 4443→4884→8335,
+4301→6040/7619, and 6040→9601. None changes these AVP encodings. RFC 8436's
+DSCP Pool 3 policy is reflected by the registry snapshot; RFC 9768 changes
+TCP ECN feedback while TCP-Flag-Type remains an Unsigned32 mask.
+
+Obsolete source references are interpreted using their replacements:
+3588→6733 (CCF and reserved P), 4005→7155 (NASREQ), 5226→8126 (allocation),
+and 1305→5905 (NTP, cited by Erratum 2336). RFC 8126 is updated by 9907's
+YANG-specific guidance. RFC 5905 is updated by 7822/8573/9109/9748/9769;
+7822 and 8573 are themselves updated by 9748. These do not change the
+fractional-time AVP encoding. DIME is concluded. TCPM, TSVWG, RADEXT and
+NTP active documents were checked; NTPv5 (`draft-ietf-ntp-ntpv5-09`) remains
+future work, not a normative replacement for these definitions.
+
+Verified errata were reviewed for the encodings and CCF. Non-Verified proposals
+in the checked source chain remain unapplied, including unrelated transport
+and timing proposals:
+
+| RFC | Reported | Held for Document Update | Rejected |
+| --- | --- | --- | --- |
+| [2119](https://errata.rfc-editor.org/search/?rfc_number=2119&presentation=records) | 8849, 8850 | 2969, 5206 | 497, 6773, 6954 |
+| [3168](https://errata.rfc-editor.org/search/?rfc_number=3168&presentation=records) | — | 2316, 4754 | 3680, 6494, 3636, 4997 |
+| [3260](https://errata.rfc-editor.org/search/?rfc_number=3260&presentation=records) | — | 3193 | — |
+| [3588](https://errata.rfc-editor.org/search/?rfc_number=3588&presentation=records) | — | 2101, 2564, 3250 | 3381 |
+| [4005](https://errata.rfc-editor.org/search/?rfc_number=4005&presentation=records) | — | 2563 | 1946 |
+| [4301](https://errata.rfc-editor.org/search/?rfc_number=4301&presentation=records) | — | 135, 717, 1684, 1713, 2179, 2181, 2182 | 2178, 6635, 2183, 2661, 4709 |
+| [4443](https://errata.rfc-editor.org/search/?rfc_number=4443&presentation=records) | — | 88, 1918, 1926, 3201 | 4445, 6153 |
+| [5226](https://errata.rfc-editor.org/search/?rfc_number=5226&presentation=records) | — | 2701 | 2684, 2715 |
+| [5234](https://errata.rfc-editor.org/search/?rfc_number=5234&presentation=records) | — | 2820, 2914, 6172, 6173 | 1423, 3096, 4040, 4564, 5110, 4361 |
+| [5237](https://errata.rfc-editor.org/search/?rfc_number=5237&presentation=records) | — | 2732 | 6990 |
+| [5771](https://errata.rfc-editor.org/search/?rfc_number=5771&presentation=records) | — | 2733, 2734 | — |
+| [5777](https://errata.rfc-editor.org/search/?rfc_number=5777&presentation=records) | — | 2337 | — |
+| [5905](https://errata.rfc-editor.org/search/?rfc_number=5905&presentation=records) | 8904, 8903 | 2476, 3125, 3127, 3404, 3608, 4366, 5604, 6280, 8215, 2514, 2826, 3126, 3132, 4025, 4263, 6423, 6524 | 3613, 4505, 5020 |
+| [6335](https://errata.rfc-editor.org/search/?rfc_number=6335&presentation=records) | — | 4999 | — |
+| [6733](https://errata.rfc-editor.org/search/?rfc_number=6733&presentation=records) | 6832 | 5084, 4210, 4234 | 4209, 4462, 4463, 4473, 4931, 6833 |
+| [7155](https://errata.rfc-editor.org/search/?rfc_number=7155&presentation=records) | 6029 | — | — |
+| [7405](https://errata.rfc-editor.org/search/?rfc_number=7405&presentation=records) | — | — | 5334 |
+| [8126](https://errata.rfc-editor.org/search/?rfc_number=8126&presentation=records) | — | 5772 | 6522 |
+| [8174](https://errata.rfc-editor.org/search/?rfc_number=8174&presentation=records) | — | 5022 | 6878 |
+| [9907](https://errata.rfc-editor.org/search/?rfc_number=9907&presentation=records) | 9134 | — | — |

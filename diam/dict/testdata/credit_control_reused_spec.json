@@ -1,5 +1,5 @@
 {
-  "source": "RFC 6733 \u00a76.7.2 and \u00a77.5; RFC 5777 \u00a73.2",
+  "source": "RFC 6733 \u00a7\u00a74.5, 5.3.3, 6.7.2 and 7.5; RFC 5777 \u00a73.2",
   "rfc6733_url": "https://www.rfc-editor.org/rfc/rfc6733.txt",
   "rfc6733_sha256": "b0117adedd43f9f44e444f64cd7360709c351aa27ea288d9c664c2800da8fa26",
   "rfc5777_url": "https://www.rfc-editor.org/rfc/rfc5777.txt",
@@ -42,7 +42,9 @@
         }
       ],
       "known_shared_rule_count": 0
-    },
+    }
+  ],
+  "required_grouped": [
     {
       "name": "Filter-Rule",
       "code": 509,
@@ -94,8 +96,20 @@
           "min": 0,
           "max": null
         }
-      ],
-      "known_shared_rule_count": 0
+      ]
+    }
+  ],
+  "avps": [
+    {
+      "name": "Vendor-Id",
+      "code": 266,
+      "section": "RFC 6733 \u00a7\u00a74.5, 5.3.3",
+      "type": "Unsigned32",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "items": {},
+      "rules": []
     }
   ]
 }

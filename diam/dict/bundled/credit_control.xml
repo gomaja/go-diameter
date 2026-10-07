@@ -449,9 +449,811 @@
 			<data type="OctetString"/>
 		</avp>
 
-		<avp name="Filter-Rule" code="509" must="-" may="P,M" must-not="V" may-encrypt="Y">
-			<!-- RFC 5777 §3.2, referenced by RFC 8506 §8.68. -->
-			<data type="Grouped"/>
+		<!-- IANA-derived enumeration labels below are a 2026-10-07 registry snapshot. -->
+		<avp name="QoS-Resources" code="508" must="-" may="M" must-not="V">
+			<!-- RFC 5777 §3.1; §10.1. RFC 6733 §4.1 flags. -->
+			<data type="Grouped">
+				<rule avp="Filter-Rule" required="true" min="1"/>
+				<rule avp="AVP" required="false"/>
+			</data>
+		</avp>
+
+		<avp name="Filter-Rule" code="509" must="-" may="M" must-not="V">
+			<!-- RFC 5777 §3.2; §10.1. RFC 6733 §4.1 flags. -->
+			<data type="Grouped">
+				<rule avp="Filter-Rule-Precedence" required="false" max="1"/>
+				<rule avp="Classifier" required="false" max="1"/>
+				<rule avp="Time-Of-Day-Condition" required="false"/>
+				<rule avp="Treatment-Action" required="false" max="1"/>
+				<rule avp="QoS-Semantics" required="false" max="1"/>
+				<rule avp="QoS-Profile-Template" required="false" max="1"/>
+				<rule avp="QoS-Parameters" required="false" max="1"/>
+				<rule avp="Excess-Treatment" required="false" max="1"/>
+				<rule avp="AVP" required="false"/>
+			</data>
+		</avp>
+
+		<avp name="Filter-Rule-Precedence" code="510" must="-" may="M" must-not="V">
+			<!-- RFC 5777 §3.3; §10.1. RFC 6733 §4.1 flags. -->
+			<data type="Unsigned32"/>
+		</avp>
+
+		<avp name="Classifier" code="511" must="-" may="M" must-not="V">
+			<!-- RFC 5777 §4.1.1; §10.1. RFC 6733 §4.1 flags. -->
+			<data type="Grouped">
+				<rule avp="Classifier-ID" required="true" max="1"/>
+				<rule avp="Protocol" required="false" max="1"/>
+				<rule avp="Direction" required="false" max="1"/>
+				<rule avp="From-Spec" required="false"/>
+				<rule avp="To-Spec" required="false"/>
+				<rule avp="Diffserv-Code-Point" required="false"/>
+				<rule avp="Fragmentation-Flag" required="false" max="1"/>
+				<rule avp="IP-Option" required="false"/>
+				<rule avp="TCP-Option" required="false"/>
+				<rule avp="TCP-Flags" required="false" max="1"/>
+				<rule avp="ICMP-Type" required="false"/>
+				<rule avp="ETH-Option" required="false"/>
+				<rule avp="AVP" required="false"/>
+			</data>
+		</avp>
+
+		<avp name="Classifier-ID" code="512" must="-" may="M" must-not="V">
+			<!-- RFC 5777 §4.1.2; §10.1. RFC 6733 §4.1 flags. -->
+			<data type="OctetString"/>
+		</avp>
+
+		<avp name="Protocol" code="513" must="-" may="M" must-not="V">
+			<!-- RFC 5777 §4.1.3; §10.1. RFC 6733 §4.1 flags. -->
+			<!-- https://www.iana.org/assignments/protocol-numbers/protocol-numbers.xml -->
+			<data type="Enumerated">
+				<item code="0" name="HOPOPT"/>
+				<item code="1" name="ICMP"/>
+				<item code="2" name="IGMP"/>
+				<item code="3" name="GGP"/>
+				<item code="4" name="IPv4"/>
+				<item code="5" name="ST"/>
+				<item code="6" name="TCP"/>
+				<item code="7" name="CBT"/>
+				<item code="8" name="EGP"/>
+				<item code="9" name="IGP"/>
+				<item code="10" name="BBN-RCC-MON"/>
+				<item code="11" name="NVP-II"/>
+				<item code="12" name="PUP"/>
+				<item code="13" name="ARGUS (deprecated)"/>
+				<item code="14" name="EMCON"/>
+				<item code="15" name="XNET"/>
+				<item code="16" name="CHAOS"/>
+				<item code="17" name="UDP"/>
+				<item code="18" name="MUX"/>
+				<item code="19" name="DCN-MEAS"/>
+				<item code="20" name="HMP"/>
+				<item code="21" name="PRM"/>
+				<item code="22" name="XNS-IDP"/>
+				<item code="23" name="TRUNK-1"/>
+				<item code="24" name="TRUNK-2"/>
+				<item code="25" name="LEAF-1"/>
+				<item code="26" name="LEAF-2"/>
+				<item code="27" name="RDP"/>
+				<item code="28" name="IRTP"/>
+				<item code="29" name="ISO-TP4"/>
+				<item code="30" name="NETBLT"/>
+				<item code="31" name="MFE-NSP"/>
+				<item code="32" name="MERIT-INP"/>
+				<item code="33" name="DCCP"/>
+				<item code="34" name="3PC"/>
+				<item code="35" name="IDPR"/>
+				<item code="36" name="XTP"/>
+				<item code="37" name="DDP"/>
+				<item code="38" name="IDPR-CMTP"/>
+				<item code="39" name="TP++"/>
+				<item code="40" name="IL"/>
+				<item code="41" name="IPv6"/>
+				<item code="42" name="SDRP"/>
+				<item code="43" name="IPv6-Route"/>
+				<item code="44" name="IPv6-Frag"/>
+				<item code="45" name="IDRP"/>
+				<item code="46" name="RSVP"/>
+				<item code="47" name="GRE"/>
+				<item code="48" name="DSR"/>
+				<item code="49" name="BNA"/>
+				<item code="50" name="ESP"/>
+				<item code="51" name="AH"/>
+				<item code="52" name="I-NLSP"/>
+				<item code="53" name="SWIPE (deprecated)"/>
+				<item code="54" name="NARP"/>
+				<item code="55" name="Min-IPv4"/>
+				<item code="56" name="TLSP"/>
+				<item code="57" name="SKIP"/>
+				<item code="58" name="IPv6-ICMP"/>
+				<item code="59" name="IPv6-NoNxt"/>
+				<item code="60" name="IPv6-Opts"/>
+				<item code="61" name="any host internal protocol"/>
+				<item code="62" name="CFTP"/>
+				<item code="63" name="any local network"/>
+				<item code="64" name="SAT-EXPAK"/>
+				<item code="65" name="KRYPTOLAN"/>
+				<item code="66" name="RVD"/>
+				<item code="67" name="IPPC"/>
+				<item code="68" name="any distributed file system"/>
+				<item code="69" name="SAT-MON"/>
+				<item code="70" name="VISA"/>
+				<item code="71" name="IPCV"/>
+				<item code="72" name="CPNX"/>
+				<item code="73" name="CPHB"/>
+				<item code="74" name="WSN"/>
+				<item code="75" name="PVP"/>
+				<item code="76" name="BR-SAT-MON"/>
+				<item code="77" name="SUN-ND"/>
+				<item code="78" name="WB-MON"/>
+				<item code="79" name="WB-EXPAK"/>
+				<item code="80" name="ISO-IP"/>
+				<item code="81" name="VMTP"/>
+				<item code="82" name="SECURE-VMTP"/>
+				<item code="83" name="VINES"/>
+				<item code="84" name="IPTM"/>
+				<item code="85" name="NSFNET-IGP"/>
+				<item code="86" name="DGP"/>
+				<item code="87" name="TCF"/>
+				<item code="88" name="EIGRP"/>
+				<item code="89" name="OSPFIGP"/>
+				<item code="90" name="Sprite-RPC"/>
+				<item code="91" name="LARP"/>
+				<item code="92" name="MTP"/>
+				<item code="93" name="AX.25"/>
+				<item code="94" name="IPIP"/>
+				<item code="95" name="MICP (deprecated)"/>
+				<item code="96" name="SCC-SP"/>
+				<item code="97" name="ETHERIP"/>
+				<item code="98" name="ENCAP"/>
+				<item code="99" name="any private encryption scheme"/>
+				<item code="100" name="GMTP"/>
+				<item code="101" name="IFMP"/>
+				<item code="102" name="PNNI"/>
+				<item code="103" name="PIM"/>
+				<item code="104" name="ARIS"/>
+				<item code="105" name="SCPS"/>
+				<item code="106" name="QNX"/>
+				<item code="107" name="A/N"/>
+				<item code="108" name="IPComp"/>
+				<item code="109" name="SNP"/>
+				<item code="110" name="Compaq-Peer"/>
+				<item code="111" name="IPX-in-IP"/>
+				<item code="112" name="VRRP"/>
+				<item code="113" name="PGM"/>
+				<item code="114" name="any 0-hop protocol"/>
+				<item code="115" name="L2TP"/>
+				<item code="116" name="DDX"/>
+				<item code="117" name="IATP"/>
+				<item code="118" name="STP"/>
+				<item code="119" name="SRP"/>
+				<item code="120" name="UTI"/>
+				<item code="121" name="SMP"/>
+				<item code="122" name="SM (deprecated)"/>
+				<item code="123" name="PTP"/>
+				<item code="124" name="ISIS over IPv4"/>
+				<item code="125" name="FIRE"/>
+				<item code="126" name="CRTP"/>
+				<item code="127" name="CRUDP"/>
+				<item code="128" name="SSCOPMCE"/>
+				<item code="129" name="IPLT"/>
+				<item code="130" name="SPS"/>
+				<item code="131" name="PIPE"/>
+				<item code="132" name="SCTP"/>
+				<item code="133" name="FC"/>
+				<item code="134" name="RSVP-E2E-IGNORE"/>
+				<item code="135" name="Mobility Header"/>
+				<item code="136" name="UDPLite"/>
+				<item code="137" name="MPLS-in-IP"/>
+				<item code="138" name="manet"/>
+				<item code="139" name="HIP"/>
+				<item code="140" name="Shim6"/>
+				<item code="141" name="WESP"/>
+				<item code="142" name="ROHC"/>
+				<item code="143" name="Ethernet"/>
+				<item code="144" name="AGGFRAG"/>
+				<item code="145" name="NSH"/>
+				<item code="146" name="Homa"/>
+				<item code="147" name="BIT-EMU"/>
+				<item code="253" name="Use for experimentation and testing"/>
+				<item code="254" name="Use for experimentation and testing"/>
+			</data>
+		</avp>
+
+		<avp name="Direction" code="514" must="-" may="M" must-not="V">
+			<!-- RFC 5777 §4.1.4; §10.1. RFC 6733 §4.1 flags. -->
+			<data type="Enumerated">
+				<item code="0" name="IN"/>
+				<item code="1" name="OUT"/>
+				<item code="2" name="BOTH"/>
+			</data>
+		</avp>
+
+		<avp name="From-Spec" code="515" must="-" may="M" must-not="V">
+			<!-- RFC 5777 §4.1.5; §10.1. RFC 6733 §4.1 flags. -->
+			<data type="Grouped">
+				<rule avp="IP-Address" required="false"/>
+				<rule avp="IP-Address-Range" required="false"/>
+				<rule avp="IP-Address-Mask" required="false"/>
+				<rule avp="MAC-Address" required="false"/>
+				<rule avp="MAC-Address-Mask" required="false"/>
+				<rule avp="EUI64-Address" required="false"/>
+				<rule avp="EUI64-Address-Mask" required="false"/>
+				<rule avp="Port" required="false"/>
+				<rule avp="Port-Range" required="false"/>
+				<rule avp="Negated" required="false" max="1"/>
+				<rule avp="Use-Assigned-Address" required="false" max="1"/>
+				<rule avp="AVP" required="false"/>
+			</data>
+		</avp>
+
+		<avp name="To-Spec" code="516" must="-" may="M" must-not="V">
+			<!-- RFC 5777 §4.1.6; §10.1. RFC 6733 §4.1 flags. -->
+			<data type="Grouped">
+				<rule avp="IP-Address" required="false"/>
+				<rule avp="IP-Address-Range" required="false"/>
+				<rule avp="IP-Address-Mask" required="false"/>
+				<rule avp="MAC-Address" required="false"/>
+				<rule avp="MAC-Address-Mask" required="false"/>
+				<rule avp="EUI64-Address" required="false"/>
+				<rule avp="EUI64-Address-Mask" required="false"/>
+				<rule avp="Port" required="false"/>
+				<rule avp="Port-Range" required="false"/>
+				<rule avp="Negated" required="false" max="1"/>
+				<rule avp="Use-Assigned-Address" required="false" max="1"/>
+				<rule avp="AVP" required="false"/>
+			</data>
+		</avp>
+
+		<avp name="Negated" code="517" must="-" may="M" must-not="V">
+			<!-- RFC 5777 §4.1.7.1; §10.1. RFC 6733 §4.1 flags. -->
+			<data type="Enumerated">
+				<item code="0" name="False"/>
+				<item code="1" name="True"/>
+			</data>
+		</avp>
+
+		<avp name="IP-Address" code="518" must="-" may="M" must-not="V">
+			<!-- RFC 5777 §4.1.7.2; §10.1. RFC 6733 §4.1 flags. -->
+			<data type="Address"/>
+		</avp>
+
+		<avp name="IP-Address-Range" code="519" must="-" may="M" must-not="V">
+			<!-- RFC 5777 §4.1.7.3; §10.1. RFC 6733 §4.1 flags. -->
+			<data type="Grouped">
+				<rule avp="IP-Address-Start" required="false" max="1"/>
+				<rule avp="IP-Address-End" required="false" max="1"/>
+				<rule avp="AVP" required="false"/>
+			</data>
+		</avp>
+
+		<avp name="IP-Address-Start" code="520" must="-" may="M" must-not="V">
+			<!-- RFC 5777 §4.1.7.4; §10.1. RFC 6733 §4.1 flags. -->
+			<data type="Address"/>
+		</avp>
+
+		<avp name="IP-Address-End" code="521" must="-" may="M" must-not="V">
+			<!-- RFC 5777 §4.1.7.5; §10.1. RFC 6733 §4.1 flags. -->
+			<data type="Address"/>
+		</avp>
+
+		<avp name="IP-Address-Mask" code="522" must="-" may="M" must-not="V">
+			<!-- RFC 5777 §4.1.7.6; §10.1; Verified Errata 2335. RFC 6733 §4.1 flags. -->
+			<data type="Grouped">
+				<rule avp="IP-Address" required="true" max="1"/>
+				<rule avp="IP-Mask-Bit-Mask-Width" required="true" max="1"/>
+				<rule avp="AVP" required="false"/>
+			</data>
+		</avp>
+
+		<avp name="IP-Mask-Bit-Mask-Width" code="523" must="-" may="M" must-not="V">
+			<!-- RFC 5777 §4.1.7.7; §10.1; Verified Errata 2335. RFC 6733 §4.1 flags. -->
+			<data type="Unsigned32"/>
+		</avp>
+
+		<avp name="MAC-Address" code="524" must="-" may="M" must-not="V">
+			<!-- RFC 5777 §4.1.7.8; §10.1. RFC 6733 §4.1 flags. -->
+			<data type="OctetString"/>
+		</avp>
+
+		<avp name="MAC-Address-Mask" code="525" must="-" may="M" must-not="V">
+			<!-- RFC 5777 §4.1.7.9; §10.1. RFC 6733 §4.1 flags. -->
+			<data type="Grouped">
+				<rule avp="MAC-Address" required="true" max="1"/>
+				<rule avp="MAC-Address-Mask-Pattern" required="true" max="1"/>
+				<rule avp="AVP" required="false"/>
+			</data>
+		</avp>
+
+		<avp name="MAC-Address-Mask-Pattern" code="526" must="-" may="M" must-not="V">
+			<!-- RFC 5777 §4.1.7.10; §10.1. RFC 6733 §4.1 flags. -->
+			<data type="OctetString"/>
+		</avp>
+
+		<avp name="EUI64-Address" code="527" must="-" may="M" must-not="V">
+			<!-- RFC 5777 §4.1.7.11; §10.1. RFC 6733 §4.1 flags. -->
+			<data type="OctetString"/>
+		</avp>
+
+		<avp name="EUI64-Address-Mask" code="528" must="-" may="M" must-not="V">
+			<!-- RFC 5777 §4.1.7.12; §10.1. RFC 6733 §4.1 flags. -->
+			<data type="Grouped">
+				<rule avp="EUI64-Address" required="true" max="1"/>
+				<rule avp="EUI64-Address-Mask-Pattern" required="true" max="1"/>
+				<rule avp="AVP" required="false"/>
+			</data>
+		</avp>
+
+		<avp name="EUI64-Address-Mask-Pattern" code="529" must="-" may="M" must-not="V">
+			<!-- RFC 5777 §4.1.7.13; §10.1. RFC 6733 §4.1 flags. -->
+			<data type="OctetString"/>
+		</avp>
+
+		<avp name="Port" code="530" must="-" may="M" must-not="V">
+			<!-- RFC 5777 §4.1.7.14; §10.1. RFC 6733 §4.1 flags. -->
+			<data type="Integer32"/>
+		</avp>
+
+		<avp name="Port-Range" code="531" must="-" may="M" must-not="V">
+			<!-- RFC 5777 §4.1.7.15; §10.1. RFC 6733 §4.1 flags. -->
+			<data type="Grouped">
+				<rule avp="Port-Start" required="false" max="1"/>
+				<rule avp="Port-End" required="false" max="1"/>
+				<rule avp="AVP" required="false"/>
+			</data>
+		</avp>
+
+		<avp name="Port-Start" code="532" must="-" may="M" must-not="V">
+			<!-- RFC 5777 §4.1.7.16; §10.1. RFC 6733 §4.1 flags. -->
+			<data type="Integer32"/>
+		</avp>
+
+		<avp name="Port-End" code="533" must="-" may="M" must-not="V">
+			<!-- RFC 5777 §4.1.7.17; §10.1. RFC 6733 §4.1 flags. -->
+			<data type="Integer32"/>
+		</avp>
+
+		<avp name="Use-Assigned-Address" code="534" must="-" may="M" must-not="V">
+			<!-- RFC 5777 §4.1.7.18; §10.1. RFC 6733 §4.1 flags. -->
+			<data type="Enumerated">
+				<item code="0" name="False"/>
+				<item code="1" name="True"/>
+			</data>
+		</avp>
+
+		<avp name="Diffserv-Code-Point" code="535" must="-" may="M" must-not="V">
+			<!-- RFC 5777 §4.1.8.1; §10.1. RFC 6733 §4.1 flags. -->
+			<!-- https://www.iana.org/assignments/dscp-registry/dscp-registry.xml -->
+			<data type="Enumerated">
+				<item code="0" name="CS0"/>
+				<item code="1" name="LE"/>
+				<item code="8" name="CS1"/>
+				<item code="10" name="AF11"/>
+				<item code="12" name="AF12"/>
+				<item code="14" name="AF13"/>
+				<item code="16" name="CS2"/>
+				<item code="18" name="AF21"/>
+				<item code="20" name="AF22"/>
+				<item code="22" name="AF23"/>
+				<item code="24" name="CS3"/>
+				<item code="26" name="AF31"/>
+				<item code="28" name="AF32"/>
+				<item code="30" name="AF33"/>
+				<item code="32" name="CS4"/>
+				<item code="34" name="AF41"/>
+				<item code="36" name="AF42"/>
+				<item code="38" name="AF43"/>
+				<item code="40" name="CS5"/>
+				<item code="44" name="VOICE-ADMIT"/>
+				<item code="45" name="NQB"/>
+				<item code="46" name="EF"/>
+				<item code="48" name="CS6"/>
+				<item code="56" name="CS7"/>
+			</data>
+		</avp>
+
+		<avp name="Fragmentation-Flag" code="536" must="-" may="M" must-not="V">
+			<!-- RFC 5777 §4.1.8.2; §10.1. RFC 6733 §4.1 flags. -->
+			<data type="Enumerated">
+				<item code="0" name="Don&#x27;t Fragment (DF)"/>
+				<item code="1" name="More Fragments (MF)"/>
+			</data>
+		</avp>
+
+		<avp name="IP-Option" code="537" must="-" may="M" must-not="V">
+			<!-- RFC 5777 §4.1.8.3; §10.1. RFC 6733 §4.1 flags. -->
+			<data type="Grouped">
+				<rule avp="IP-Option-Type" required="true" max="1"/>
+				<rule avp="IP-Option-Value" required="false"/>
+				<rule avp="Negated" required="false" max="1"/>
+				<rule avp="AVP" required="false"/>
+			</data>
+		</avp>
+
+		<avp name="IP-Option-Type" code="538" must="-" may="M" must-not="V">
+			<!-- RFC 5777 §4.1.8.4; §10.1. RFC 6733 §4.1 flags. -->
+			<!-- https://www.iana.org/assignments/ip-parameters/ip-parameters.xml -->
+			<data type="Enumerated">
+				<item code="0" name="EOOL - End of Options List"/>
+				<item code="1" name="NOP - No Operation"/>
+				<item code="7" name="RR - Record Route"/>
+				<item code="10" name="ZSU - Experimental Measurement"/>
+				<item code="11" name="MTUP - MTU Probe"/>
+				<item code="12" name="MTUR - MTU Reply"/>
+				<item code="15" name="ENCODE - ???"/>
+				<item code="25" name="QS - Quick-Start"/>
+				<item code="30" name="EXP - RFC3692-style Experiment"/>
+				<item code="68" name="TS - Time Stamp"/>
+				<item code="82" name="TR - Traceroute"/>
+				<item code="94" name="EXP - RFC3692-style Experiment"/>
+				<item code="130" name="SEC - Security"/>
+				<item code="131" name="LSR - Loose Source Route"/>
+				<item code="133" name="E-SEC - Extended Security"/>
+				<item code="134" name="CIPSO - Commercial Security"/>
+				<item code="136" name="SID - Stream ID"/>
+				<item code="137" name="SSR - Strict Source Route"/>
+				<item code="142" name="VISA - Experimental Access Control"/>
+				<item code="144" name="IMITD - IMI Traffic Descriptor"/>
+				<item code="145" name="EIP - Extended Internet Protocol"/>
+				<item code="147" name="ADDEXT - Address Extension"/>
+				<item code="148" name="RTRALT - Router Alert"/>
+				<item code="149" name="SDB - Selective Directed Broadcast"/>
+				<item code="151" name="DPS - Dynamic Packet State"/>
+				<item code="152" name="UMP - Upstream Multicast Pkt."/>
+				<item code="158" name="EXP - RFC3692-style Experiment"/>
+				<item code="205" name="FINN - Experimental Flow Control"/>
+				<item code="222" name="EXP - RFC3692-style Experiment"/>
+			</data>
+		</avp>
+
+		<avp name="IP-Option-Value" code="539" must="-" may="M" must-not="V">
+			<!-- RFC 5777 §4.1.8.5; §10.1. RFC 6733 §4.1 flags. -->
+			<data type="OctetString"/>
+		</avp>
+
+		<avp name="TCP-Option" code="540" must="-" may="M" must-not="V">
+			<!-- RFC 5777 §4.1.8.6; §10.1. RFC 6733 §4.1 flags. -->
+			<data type="Grouped">
+				<rule avp="TCP-Option-Type" required="true" max="1"/>
+				<rule avp="TCP-Option-Value" required="false"/>
+				<rule avp="Negated" required="false" max="1"/>
+				<rule avp="AVP" required="false"/>
+			</data>
+		</avp>
+
+		<avp name="TCP-Option-Type" code="541" must="-" may="M" must-not="V">
+			<!-- RFC 5777 §4.1.8.7; §10.1. RFC 6733 §4.1 flags. -->
+			<!-- https://www.iana.org/assignments/tcp-parameters/tcp-parameters.xml -->
+			<data type="Enumerated">
+				<item code="0" name="End of Option List"/>
+				<item code="1" name="No-Operation"/>
+				<item code="2" name="Maximum Segment Size"/>
+				<item code="3" name="Window Scale"/>
+				<item code="4" name="SACK Permitted"/>
+				<item code="5" name="SACK"/>
+				<item code="6" name="Echo (obsoleted by option 8)"/>
+				<item code="7" name="Echo Reply (obsoleted by option 8)"/>
+				<item code="8" name="Timestamps"/>
+				<item code="9" name="Partial Order Connection Permitted (obsolete)"/>
+				<item code="10" name="Partial Order Service Profile (obsolete)"/>
+				<item code="11" name="CC (obsolete)"/>
+				<item code="12" name="CC.NEW (obsolete)"/>
+				<item code="13" name="CC.ECHO (obsolete)"/>
+				<item code="14" name="TCP Alternate Checksum Request (obsolete)"/>
+				<item code="15" name="TCP Alternate Checksum Data (obsolete)"/>
+				<item code="16" name="Skeeter"/>
+				<item code="17" name="Bubba"/>
+				<item code="18" name="Trailer Checksum Option"/>
+				<item code="19" name="MD5 Signature Option (obsoleted by option 29)"/>
+				<item code="20" name="SCPS Capabilities"/>
+				<item code="21" name="Selective Negative Acknowledgements"/>
+				<item code="22" name="Record Boundaries"/>
+				<item code="23" name="Corruption experienced"/>
+				<item code="24" name="SNAP"/>
+				<item code="26" name="TCP Compression Filter"/>
+				<item code="27" name="Quick-Start Response"/>
+				<item code="28" name="User Timeout Option (also, other known unauthorized use) [***]"/>
+				<item code="29" name="TCP Authentication Option (TCP-AO)"/>
+				<item code="30" name="Multipath TCP (MPTCP)"/>
+				<item code="34" name="TCP Fast Open Cookie"/>
+				<item code="69" name="Encryption Negotiation (TCP-ENO)"/>
+				<item code="172" name="Accurate ECN Order 0 (AccECN0)"/>
+				<item code="174" name="Accurate ECN Order 1 (AccECN1)"/>
+				<item code="253" name="RFC3692-style Experiment 1 (also improperly used for shipping products) [*]"/>
+				<item code="254" name="RFC3692-style Experiment 2 (also improperly used for shipping products) [*]"/>
+			</data>
+		</avp>
+
+		<avp name="TCP-Option-Value" code="542" must="-" may="M" must-not="V">
+			<!-- RFC 5777 §4.1.8.8; §10.1. RFC 6733 §4.1 flags. -->
+			<data type="OctetString"/>
+		</avp>
+
+		<avp name="TCP-Flags" code="543" must="-" may="M" must-not="V">
+			<!-- RFC 5777 §4.1.8.9; §10.1. RFC 6733 §4.1 flags. -->
+			<data type="Grouped">
+				<rule avp="TCP-Flag-Type" required="true" max="1"/>
+				<rule avp="Negated" required="false" max="1"/>
+				<rule avp="AVP" required="false"/>
+			</data>
+		</avp>
+
+		<avp name="TCP-Flag-Type" code="544" must="-" may="M" must-not="V">
+			<!-- RFC 5777 §4.1.8.10; §10.1. RFC 6733 §4.1 flags. -->
+			<data type="Unsigned32"/>
+		</avp>
+
+		<avp name="ICMP-Type" code="545" must="-" may="M" must-not="V">
+			<!-- RFC 5777 §4.1.8.11; §10.1. RFC 6733 §4.1 flags. -->
+			<data type="Grouped">
+				<rule avp="ICMP-Type-Number" required="true" max="1"/>
+				<rule avp="ICMP-Code" required="false"/>
+				<rule avp="Negated" required="false" max="1"/>
+				<rule avp="AVP" required="false"/>
+			</data>
+		</avp>
+
+		<avp name="ICMP-Type-Number" code="546" must="-" may="M" must-not="V">
+			<!-- RFC 5777 §4.1.8.12; §10.1. RFC 6733 §4.1 flags. -->
+			<!-- Section 4.1.8.12 binds this to the IPv4 ICMP registry; these labels can mislead for IPv6-ICMP. -->
+			<!-- https://www.iana.org/assignments/icmp-parameters/icmp-parameters.xml -->
+			<data type="Enumerated">
+				<item code="0" name="Echo Reply"/>
+				<item code="3" name="Destination Unreachable"/>
+				<item code="4" name="Source Quench (Deprecated)"/>
+				<item code="5" name="Redirect"/>
+				<item code="6" name="Alternate Host Address (Deprecated)"/>
+				<item code="8" name="Echo"/>
+				<item code="9" name="Router Advertisement"/>
+				<item code="10" name="Router Solicitation"/>
+				<item code="11" name="Time Exceeded"/>
+				<item code="12" name="Parameter Problem"/>
+				<item code="13" name="Timestamp"/>
+				<item code="14" name="Timestamp Reply"/>
+				<item code="15" name="Information Request (Deprecated)"/>
+				<item code="16" name="Information Reply (Deprecated)"/>
+				<item code="17" name="Address Mask Request (Deprecated)"/>
+				<item code="18" name="Address Mask Reply (Deprecated)"/>
+				<item code="30" name="Traceroute (Deprecated)"/>
+				<item code="31" name="Datagram Conversion Error (Deprecated)"/>
+				<item code="32" name="Mobile Host Redirect (Deprecated)"/>
+				<item code="33" name="IPv6 Where-Are-You (Deprecated)"/>
+				<item code="34" name="IPv6 I-Am-Here (Deprecated)"/>
+				<item code="35" name="Mobile Registration Request (Deprecated)"/>
+				<item code="36" name="Mobile Registration Reply (Deprecated)"/>
+				<item code="37" name="Domain Name Request (Deprecated)"/>
+				<item code="38" name="Domain Name Reply (Deprecated)"/>
+				<item code="39" name="SKIP (Deprecated)"/>
+				<item code="40" name="Photuris"/>
+				<item code="41" name="ICMP messages utilized by experimental mobility protocols such as Seamoby"/>
+				<item code="42" name="Extended Echo Request"/>
+				<item code="43" name="Extended Echo Reply"/>
+				<item code="253" name="RFC3692-style Experiment 1"/>
+				<item code="254" name="RFC3692-style Experiment 2"/>
+			</data>
+		</avp>
+
+		<avp name="ICMP-Code" code="547" must="-" may="M" must-not="V">
+			<!-- RFC 5777 §4.1.8.13; §10.1. RFC 6733 §4.1 flags. -->
+			<!-- https://www.iana.org/assignments/icmp-parameters/icmp-parameters.xml -->
+			<!-- Code labels depend on ICMP-Type-Number; retain the open Enumerated type instead of flattening distinct per-type namespaces. -->
+			<data type="Enumerated"/>
+		</avp>
+
+		<avp name="ETH-Option" code="548" must="-" may="M" must-not="V">
+			<!-- RFC 5777 §4.1.8.14; §10.1. RFC 6733 §4.1 flags. -->
+			<data type="Grouped">
+				<rule avp="ETH-Proto-Type" required="true" max="1"/>
+				<rule avp="VLAN-ID-Range" required="false"/>
+				<rule avp="User-Priority-Range" required="false"/>
+				<rule avp="AVP" required="false"/>
+			</data>
+		</avp>
+
+		<avp name="ETH-Proto-Type" code="549" must="-" may="M" must-not="V">
+			<!-- RFC 5777 §4.1.8.15; §10.1. RFC 6733 §4.1 flags. -->
+			<data type="Grouped">
+				<rule avp="ETH-Ether-Type" required="false"/>
+				<rule avp="ETH-SAP" required="false"/>
+				<rule avp="AVP" required="false"/>
+			</data>
+		</avp>
+
+		<avp name="ETH-Ether-Type" code="550" must="-" may="M" must-not="V">
+			<!-- RFC 5777 §4.1.8.16; §10.1. RFC 6733 §4.1 flags. -->
+			<data type="OctetString"/>
+		</avp>
+
+		<avp name="ETH-SAP" code="551" must="-" may="M" must-not="V">
+			<!-- RFC 5777 §4.1.8.17; §10.1. RFC 6733 §4.1 flags. -->
+			<data type="OctetString"/>
+		</avp>
+
+		<avp name="VLAN-ID-Range" code="552" must="-" may="M" must-not="V">
+			<!-- RFC 5777 §4.1.8.18; §10.1. RFC 6733 §4.1 flags. -->
+			<data type="Grouped">
+				<rule avp="S-VID-Start" required="false" max="1"/>
+				<rule avp="S-VID-End" required="false" max="1"/>
+				<rule avp="C-VID-Start" required="false" max="1"/>
+				<rule avp="C-VID-End" required="false" max="1"/>
+				<rule avp="AVP" required="false"/>
+			</data>
+		</avp>
+
+		<avp name="S-VID-Start" code="553" must="-" may="M" must-not="V">
+			<!-- RFC 5777 §4.1.8.19; §10.1. RFC 6733 §4.1 flags. -->
+			<data type="Unsigned32"/>
+		</avp>
+
+		<avp name="S-VID-End" code="554" must="-" may="M" must-not="V">
+			<!-- RFC 5777 §4.1.8.20; §10.1. RFC 6733 §4.1 flags. -->
+			<data type="Unsigned32"/>
+		</avp>
+
+		<avp name="C-VID-Start" code="555" must="-" may="M" must-not="V">
+			<!-- RFC 5777 §4.1.8.21; §10.1. RFC 6733 §4.1 flags. -->
+			<data type="Unsigned32"/>
+		</avp>
+
+		<avp name="C-VID-End" code="556" must="-" may="M" must-not="V">
+			<!-- RFC 5777 §4.1.8.22; §10.1. RFC 6733 §4.1 flags. -->
+			<data type="Unsigned32"/>
+		</avp>
+
+		<avp name="User-Priority-Range" code="557" must="-" may="M" must-not="V">
+			<!-- RFC 5777 §4.1.8.23; §10.1. RFC 6733 §4.1 flags. -->
+			<data type="Grouped">
+				<rule avp="Low-User-Priority" required="false"/>
+				<rule avp="High-User-Priority" required="false"/>
+				<rule avp="AVP" required="false"/>
+			</data>
+		</avp>
+
+		<avp name="Low-User-Priority" code="558" must="-" may="M" must-not="V">
+			<!-- RFC 5777 §4.1.8.24; §10.1. RFC 6733 §4.1 flags. -->
+			<data type="Unsigned32"/>
+		</avp>
+
+		<avp name="High-User-Priority" code="559" must="-" may="M" must-not="V">
+			<!-- RFC 5777 §4.1.8.25; §10.1. RFC 6733 §4.1 flags. -->
+			<data type="Unsigned32"/>
+		</avp>
+
+		<avp name="Time-Of-Day-Condition" code="560" must="-" may="M" must-not="V">
+			<!-- RFC 5777 §4.2.1; §10.1; Verified Errata 2333. RFC 6733 §4.1 flags. -->
+			<data type="Grouped">
+				<rule avp="Time-Of-Day-Start" required="false" max="1"/>
+				<rule avp="Time-Of-Day-End" required="false" max="1"/>
+				<rule avp="Day-Of-Week-Mask" required="false" max="1"/>
+				<rule avp="Day-Of-Month-Mask" required="false" max="1"/>
+				<rule avp="Month-Of-Year-Mask" required="false" max="1"/>
+				<rule avp="Absolute-Start-Time" required="false" max="1"/>
+				<rule avp="Absolute-Start-Fractional-Seconds" required="false" max="1"/>
+				<rule avp="Absolute-End-Time" required="false" max="1"/>
+				<rule avp="Absolute-End-Fractional-Seconds" required="false" max="1"/>
+				<rule avp="Timezone-Flag" required="false" max="1"/>
+				<rule avp="Timezone-Offset" required="false" max="1"/>
+				<rule avp="AVP" required="false"/>
+			</data>
+		</avp>
+
+		<avp name="Time-Of-Day-Start" code="561" must="-" may="M" must-not="V">
+			<!-- RFC 5777 §4.2.2; §10.1. RFC 6733 §4.1 flags. -->
+			<data type="Unsigned32"/>
+		</avp>
+
+		<avp name="Time-Of-Day-End" code="562" must="-" may="M" must-not="V">
+			<!-- RFC 5777 §4.2.3; §10.1. RFC 6733 §4.1 flags. -->
+			<data type="Unsigned32"/>
+		</avp>
+
+		<avp name="Day-Of-Week-Mask" code="563" must="-" may="M" must-not="V">
+			<!-- RFC 5777 §4.2.4; §10.1. RFC 6733 §4.1 flags. -->
+			<data type="Unsigned32"/>
+		</avp>
+
+		<avp name="Day-Of-Month-Mask" code="564" must="-" may="M" must-not="V">
+			<!-- RFC 5777 §4.2.5; §10.1. RFC 6733 §4.1 flags. -->
+			<data type="Unsigned32"/>
+		</avp>
+
+		<avp name="Month-Of-Year-Mask" code="565" must="-" may="M" must-not="V">
+			<!-- RFC 5777 §4.2.6; §10.1. RFC 6733 §4.1 flags. -->
+			<data type="Unsigned32"/>
+		</avp>
+
+		<avp name="Absolute-Start-Time" code="566" must="-" may="M" must-not="V">
+			<!-- RFC 5777 §4.2.7; §10.1. RFC 6733 §4.1 flags. -->
+			<data type="Time"/>
+		</avp>
+
+		<avp name="Absolute-Start-Fractional-Seconds" code="567" must="-" may="M" must-not="V">
+			<!-- RFC 5777 §4.2.8; §10.1; Verified Errata 2336. RFC 6733 §4.1 flags. -->
+			<!-- Erratum 2336: Unsigned32 encodes the 32-bit fractional-second field. -->
+			<data type="Unsigned32"/>
+		</avp>
+
+		<avp name="Absolute-End-Time" code="568" must="-" may="M" must-not="V">
+			<!-- RFC 5777 §4.2.9; §10.1. RFC 6733 §4.1 flags. -->
+			<data type="Time"/>
+		</avp>
+
+		<avp name="Absolute-End-Fractional-Seconds" code="569" must="-" may="M" must-not="V">
+			<!-- RFC 5777 §4.2.10; §10.1. RFC 6733 §4.1 flags. -->
+			<data type="Unsigned32"/>
+		</avp>
+
+		<avp name="Timezone-Flag" code="570" must="-" may="M" must-not="V">
+			<!-- RFC 5777 §4.2.11; §10.1. RFC 6733 §4.1 flags. -->
+			<data type="Enumerated">
+				<item code="0" name="UTC"/>
+				<item code="1" name="LOCAL"/>
+				<item code="2" name="OFFSET"/>
+			</data>
+		</avp>
+
+		<avp name="Timezone-Offset" code="571" must="-" may="M" must-not="V">
+			<!-- RFC 5777 §4.2.12; §10.1. RFC 6733 §4.1 flags. -->
+			<data type="Integer32"/>
+		</avp>
+
+		<avp name="Treatment-Action" code="572" must="-" may="M" must-not="V">
+			<!-- RFC 5777 §5.1; §10.1; Verified Errata 2334. RFC 6733 §4.1 flags. -->
+			<data type="Enumerated">
+				<item code="0" name="drop"/>
+				<item code="1" name="shape"/>
+				<item code="2" name="mark"/>
+				<item code="3" name="permit"/>
+			</data>
+		</avp>
+
+		<avp name="QoS-Profile-Id" code="573" must="-" may="M" must-not="V">
+			<!-- RFC 5777 §5.2; §10.1. RFC 6733 §4.1 flags. -->
+			<data type="Unsigned32"/>
+		</avp>
+
+		<avp name="QoS-Profile-Template" code="574" must="-" may="M" must-not="V">
+			<!-- RFC 5777 §5.3; §10.1. RFC 6733 §4.1 flags. -->
+			<data type="Grouped">
+				<rule avp="Vendor-Id" required="true" max="1"/>
+				<rule avp="QoS-Profile-Id" required="true" max="1"/>
+				<rule avp="AVP" required="false"/>
+			</data>
+		</avp>
+
+		<avp name="QoS-Semantics" code="575" must="-" may="M" must-not="V">
+			<!-- RFC 5777 §5.4; §10.1. RFC 6733 §4.1 flags. -->
+			<data type="Enumerated">
+				<item code="0" name="QoS-Desired"/>
+				<item code="1" name="QoS-Available"/>
+				<item code="2" name="QoS-Delivered"/>
+				<item code="3" name="Minimum-QoS"/>
+				<item code="4" name="QoS-Authorized"/>
+			</data>
+		</avp>
+
+		<avp name="QoS-Parameters" code="576" must="-" may="M" must-not="V">
+			<!-- RFC 5777 §5.5; §10.1. RFC 6733 §4.1 flags. -->
+			<data type="Grouped">
+				<rule avp="AVP" required="false"/>
+			</data>
+		</avp>
+
+		<avp name="Excess-Treatment" code="577" must="-" may="M" must-not="V">
+			<!-- RFC 5777 §5.6; §10.1. RFC 6733 §4.1 flags. -->
+			<data type="Grouped">
+				<rule avp="Treatment-Action" required="true" max="1"/>
+				<rule avp="QoS-Profile-Template" required="false" max="1"/>
+				<rule avp="QoS-Parameters" required="false" max="1"/>
+				<rule avp="AVP" required="false"/>
+			</data>
+		</avp>
+
+		<avp name="QoS-Capability" code="578" must="-" may="M" must-not="V">
+			<!-- RFC 5777 §6; §10.1. RFC 6733 §4.1 flags. -->
+			<data type="Grouped">
+				<rule avp="QoS-Profile-Template" required="true" min="1"/>
+				<rule avp="AVP" required="false"/>
+			</data>
 		</avp>
 
 		<avp name="User-Equipment-Info-Extension" code="653" must="-" may="M" must-not="V">

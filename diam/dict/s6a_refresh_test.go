@@ -38,7 +38,8 @@ func TestS6aRefreshInheritedAVPs(t *testing.T) {
 
 // RFC 5777 §§4.2.2–4.2.4; TS 29.336 V20.0.0 §8.4.30 imports these
 // fields for Scheduled-Communication-Time, used by S6a communication patterns.
-func TestS6aRefreshLocalTimeAVPs(t *testing.T) {
+// TS 29.272 V19.6.0 has no override: inherit the defining application-4 AVPs.
+func TestS6aRefreshInheritedTimeAVPs(t *testing.T) {
 	for _, tc := range []struct {
 		name string
 		code uint32
@@ -48,12 +49,12 @@ func TestS6aRefreshLocalTimeAVPs(t *testing.T) {
 		{"Day-Of-Week-Mask", 563},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			d := New(Base, NASREQ, CreditControl, RoRf, S6c, S6a)
+			d := New(S6a)
 			a, err := d.FindAVPByName(16777251, tc.name)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if a.App.ID != 16777251 || a.Code != tc.code || a.Data.TypeName != "Unsigned32" || a.Must != "" || a.MustNot != "V" {
+			if a.App.ID != 4 || a.Code != tc.code || a.Data.TypeName != "Unsigned32" || a.Must != "-" || a.May != "M" || a.MustNot != "V" {
 				t.Fatalf("S6a time definition: %+v owner=%d", a, a.App.ID)
 			}
 			if _, err := d.FindAVP(0, tc.code, 0); err == nil {
