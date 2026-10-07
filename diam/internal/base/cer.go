@@ -49,7 +49,7 @@ func (cer *CER) Parse(m *diam.Message, options ParseOptions) (failedAVP *diam.AV
 	// A non-strict dictionary retains an undecodable Address payload as
 	// Unknown. Classify it before reflection requires datatype.Address, so
 	// RFC 6733 §§4.3.1 and 7.1.5 can identify the original AVP in the
-	// error answer (RFC 6733 §7.5, Verified Erratum 4615).
+	// error answer (RFC 6733 §7.5, Verified Erratum 4808).
 	for _, a := range m.AVP {
 		if a.Code != avp.HostIPAddress || a.VendorID != 0 {
 			continue
@@ -72,7 +72,7 @@ func (cer *CER) Parse(m *diam.Message, options ParseOptions) (failedAVP *diam.AV
 		} else {
 			code = avp.OriginRealm
 		}
-		// RFC 6733 §7.1.5, Verified Erratum 4615: one Failed-AVP with a zero-valued example.
+		// RFC 6733 §7.1.5, Verified Erratum 4808: one Failed-AVP with a zero-valued example.
 		failed := diam.NewAVP(code, avp.Mbit, 0, datatype.DiameterIdentity("\x00"))
 		return failed, &diam.MessageError{ResultCode: diam.MissingAVP, FailedAVP: failed, Err: err}
 	}

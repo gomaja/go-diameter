@@ -432,7 +432,7 @@
       "vendor": 0,
       "type": "Unsigned32",
       "must": "M",
-      "may": "P",
+      "may": "",
       "must_not": "V",
       "source": "RFC 6733 (October 2012) \u00a7\u00a74.5, 5.3.3",
       "name": "Vendor-Id",

@@ -262,7 +262,7 @@ func TestSWxVendorsAndLocalCoverage(t *testing.T) {
 		names[swxName(a.Name)] = true
 		if gap := a.KnownSharedMetadataGap; gap != nil {
 			gaps++
-			if a.May != "" || gap.May != "P" || gap.Reason == "" || (gap.SourceApplication != 0 && gap.SourceApplication != 4) {
+			if a.May != "" || gap.May != "P" || gap.Reason == "" || gap.SourceApplication != 4 {
 				t.Fatalf("invalid known metadata gap for %s: %+v", a.Name, gap)
 			}
 			inherited, err := Default.FindAVP(gap.SourceApplication, a.Code, a.Vendor)
@@ -274,8 +274,8 @@ func TestSWxVendorsAndLocalCoverage(t *testing.T) {
 			}
 		}
 	}
-	if gaps != 16 {
-		t.Fatalf("shared metadata gaps %d, want 16", gaps)
+	if gaps != 1 {
+		t.Fatalf("shared metadata gaps %d, want 1", gaps)
 	}
 	if len(app.AVP) != 38 {
 		t.Fatalf("local definitions %d, want 38", len(app.AVP))

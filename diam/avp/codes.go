@@ -866,6 +866,7 @@ const (
 	RedirectHostUsage                          = 261
 	RedirectInformation                        = 1085
 	RedirectMaxCacheTime                       = 262
+	RedirectRealm                              = 620
 	RedirectServer                             = 434
 	RedirectServerAddress                      = 435
 	RedirectServerExtension                    = 665

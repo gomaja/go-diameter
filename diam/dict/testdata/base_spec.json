@@ -1,0 +1,2283 @@
+{
+  "sources": [
+    {
+      "rfc": 6733,
+      "url": "https://www.rfc-editor.org/rfc/rfc6733.txt",
+      "sha256": "b0117adedd43f9f44e444f64cd7360709c351aa27ea288d9c664c2800da8fa26"
+    },
+    {
+      "rfc": 7683,
+      "url": "https://www.rfc-editor.org/rfc/rfc7683.txt",
+      "sha256": "6c4253d5f8ad62233145d9455d7719d5becb1106826b8f0597919094fa192d9c"
+    },
+    {
+      "rfc": 8581,
+      "url": "https://www.rfc-editor.org/rfc/rfc8581.txt",
+      "sha256": "a9af193db7a4f45003d509d46f009954960e9adf9e636e815af71e0754967af9"
+    },
+    {
+      "rfc": 8583,
+      "url": "https://www.rfc-editor.org/rfc/rfc8583.txt",
+      "sha256": "a792492816bbfab4b2bc4ea419e60edfdd887629c3f71827edcf2f730d3c13e5"
+    },
+    {
+      "rfc": 7944,
+      "url": "https://www.rfc-editor.org/rfc/rfc7944.txt",
+      "sha256": "d67ef36cf9b43a32b30d965852c1ca496ec35728e0bcb0026dc2eb486a2aebec"
+    },
+    {
+      "rfc": 7075,
+      "url": "https://www.rfc-editor.org/rfc/rfc7075.txt",
+      "sha256": "294d4bdf4f292ec13785b9eccf039c5ab92e0b9ccec4fc3b9d997931e72dc88c"
+    },
+    {
+      "rfc": 8553,
+      "url": "https://www.rfc-editor.org/rfc/rfc8553.txt",
+      "sha256": "bd2397e9b08ebc0177971d8623c327190835c7e3625caa7575afe234bcadbf13"
+    },
+    {
+      "rfc": 7155,
+      "url": "https://www.rfc-editor.org/rfc/rfc7155.txt",
+      "sha256": "f100a5a47def22bda012369e8926f5d17c57b9a73a0fe4daeac16bb01b272cd5"
+    },
+    {
+      "url": "https://www.iana.org/assignments/aaa-parameters/aaa-parameters.xml",
+      "sha256": "67e1f78147ac95886436dc9459611f1821159fd3d411d98f2781db2b4820b720"
+    }
+  ],
+  "avps": [
+    {
+      "name": "Acct-Interim-Interval",
+      "code": 85,
+      "section": "RFC 6733 \u00a7\u00a74.5, 9.8.2",
+      "type": "Unsigned32",
+      "must": "M",
+      "must_not": "V",
+      "may": "",
+      "vendor": 0
+    },
+    {
+      "name": "Accounting-Realtime-Required",
+      "code": 483,
+      "section": "RFC 6733 \u00a7\u00a74.5, 9.8.7",
+      "type": "Enumerated",
+      "must": "M",
+      "must_not": "V",
+      "may": "",
+      "vendor": 0,
+      "items": {
+        "1": "DELIVER_AND_GRANT",
+        "2": "GRANT_AND_STORE",
+        "3": "GRANT_AND_LOSE"
+      }
+    },
+    {
+      "name": "Acct-Multi-Session-Id",
+      "code": 50,
+      "section": "RFC 6733 \u00a7\u00a74.5, 9.8.5",
+      "type": "UTF8String",
+      "must": "M",
+      "must_not": "V",
+      "may": "",
+      "vendor": 0
+    },
+    {
+      "name": "Accounting-Record-Number",
+      "code": 485,
+      "section": "RFC 6733 \u00a7\u00a74.5, 9.8.3",
+      "type": "Unsigned32",
+      "must": "M",
+      "must_not": "V",
+      "may": "",
+      "vendor": 0
+    },
+    {
+      "name": "Accounting-Record-Type",
+      "code": 480,
+      "section": "RFC 6733 \u00a7\u00a74.5, 9.8.1",
+      "type": "Enumerated",
+      "must": "M",
+      "must_not": "V",
+      "may": "",
+      "vendor": 0,
+      "items": {
+        "1": "EVENT_RECORD",
+        "2": "START_RECORD",
+        "3": "INTERIM_RECORD",
+        "4": "STOP_RECORD"
+      }
+    },
+    {
+      "name": "Acct-Session-Id",
+      "code": 44,
+      "section": "RFC 6733 \u00a7\u00a74.5, 9.8.4",
+      "type": "OctetString",
+      "must": "M",
+      "must_not": "V",
+      "may": "",
+      "vendor": 0
+    },
+    {
+      "name": "Accounting-Sub-Session-Id",
+      "code": 287,
+      "section": "RFC 6733 \u00a7\u00a74.5, 9.8.6",
+      "type": "Unsigned64",
+      "must": "M",
+      "must_not": "V",
+      "may": "",
+      "vendor": 0
+    },
+    {
+      "name": "Acct-Application-Id",
+      "code": 259,
+      "section": "RFC 6733 \u00a7\u00a74.5, 6.9",
+      "type": "Unsigned32",
+      "must": "M",
+      "must_not": "V",
+      "may": "",
+      "vendor": 0
+    },
+    {
+      "name": "Auth-Application-Id",
+      "code": 258,
+      "section": "RFC 6733 \u00a7\u00a74.5, 6.8",
+      "type": "Unsigned32",
+      "must": "M",
+      "must_not": "V",
+      "may": "",
+      "vendor": 0
+    },
+    {
+      "name": "Auth-Request-Type",
+      "code": 274,
+      "section": "RFC 6733 \u00a7\u00a74.5, 8.7",
+      "type": "Enumerated",
+      "must": "M",
+      "must_not": "V",
+      "may": "",
+      "vendor": 0,
+      "items": {
+        "1": "AUTHENTICATE_ONLY",
+        "2": "AUTHORIZE_ONLY",
+        "3": "AUTHORIZE_AUTHENTICATE"
+      }
+    },
+    {
+      "name": "Authorization-Lifetime",
+      "code": 291,
+      "section": "RFC 6733 \u00a7\u00a74.5, 8.9",
+      "type": "Unsigned32",
+      "must": "M",
+      "must_not": "V",
+      "may": "",
+      "vendor": 0
+    },
+    {
+      "name": "Auth-Grace-Period",
+      "code": 276,
+      "section": "RFC 6733 \u00a7\u00a74.5, 8.10",
+      "type": "Unsigned32",
+      "must": "M",
+      "must_not": "V",
+      "may": "",
+      "vendor": 0
+    },
+    {
+      "name": "Auth-Session-State",
+      "code": 277,
+      "section": "RFC 6733 \u00a7\u00a74.5, 8.11",
+      "type": "Enumerated",
+      "must": "M",
+      "must_not": "V",
+      "may": "",
+      "vendor": 0,
+      "items": {
+        "0": "STATE_MAINTAINED",
+        "1": "NO_STATE_MAINTAINED"
+      }
+    },
+    {
+      "name": "Re-Auth-Request-Type",
+      "code": 285,
+      "section": "RFC 6733 \u00a7\u00a74.5, 8.12",
+      "type": "Enumerated",
+      "must": "M",
+      "must_not": "V",
+      "may": "",
+      "vendor": 0,
+      "items": {
+        "0": "AUTHORIZE_ONLY",
+        "1": "AUTHORIZE_AUTHENTICATE"
+      }
+    },
+    {
+      "name": "Class",
+      "code": 25,
+      "section": "RFC 6733 \u00a7\u00a74.5, 8.20",
+      "type": "OctetString",
+      "must": "M",
+      "must_not": "V",
+      "may": "",
+      "vendor": 0
+    },
+    {
+      "name": "Destination-Host",
+      "code": 293,
+      "section": "RFC 6733 \u00a7\u00a74.5, 6.5",
+      "type": "DiameterIdentity",
+      "must": "M",
+      "must_not": "V",
+      "may": "",
+      "vendor": 0
+    },
+    {
+      "name": "Destination-Realm",
+      "code": 283,
+      "section": "RFC 6733 \u00a7\u00a74.5, 6.6",
+      "type": "DiameterIdentity",
+      "must": "M",
+      "must_not": "V",
+      "may": "",
+      "vendor": 0
+    },
+    {
+      "name": "Disconnect-Cause",
+      "code": 273,
+      "section": "RFC 6733 \u00a7\u00a74.5, 5.4.3",
+      "type": "Enumerated",
+      "must": "M",
+      "must_not": "V",
+      "may": "",
+      "vendor": 0,
+      "items": {
+        "0": "REBOOTING",
+        "1": "BUSY",
+        "2": "DO_NOT_WANT_TO_TALK_TO_YOU"
+      }
+    },
+    {
+      "name": "Error-Message",
+      "code": 281,
+      "section": "RFC 6733 \u00a7\u00a74.5, 7.3",
+      "type": "UTF8String",
+      "must": "",
+      "must_not": "M,V",
+      "may": "",
+      "vendor": 0
+    },
+    {
+      "name": "Error-Reporting-Host",
+      "code": 294,
+      "section": "RFC 6733 \u00a7\u00a74.5, 7.4",
+      "type": "DiameterIdentity",
+      "must": "",
+      "must_not": "M,V",
+      "may": "",
+      "vendor": 0
+    },
+    {
+      "name": "Event-Timestamp",
+      "code": 55,
+      "section": "RFC 6733 \u00a7\u00a74.5, 8.21",
+      "type": "Time",
+      "must": "M",
+      "must_not": "V",
+      "may": "",
+      "vendor": 0
+    },
+    {
+      "name": "Experimental-Result",
+      "code": 297,
+      "section": "RFC 6733 \u00a7\u00a74.5, 7.6; Erratum 4803",
+      "type": "Grouped",
+      "must": "M",
+      "must_not": "V",
+      "may": "",
+      "vendor": 0,
+      "ccf": "Experimental-Result ::= < AVP Header: 297 >\n{ Vendor-Id }\n{ Experimental-Result-Code }",
+      "rules": [
+        {
+          "name": "Vendor-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Experimental-Result-Code",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        }
+      ]
+    },
+    {
+      "name": "Experimental-Result-Code",
+      "code": 298,
+      "section": "RFC 6733 \u00a7\u00a74.5, 7.7",
+      "type": "Unsigned32",
+      "must": "M",
+      "must_not": "V",
+      "may": "",
+      "vendor": 0
+    },
+    {
+      "name": "Failed-AVP",
+      "code": 279,
+      "section": "RFC 6733 \u00a7\u00a74.5, 7.5; Erratum 4803",
+      "type": "Grouped",
+      "must": "M",
+      "must_not": "V",
+      "may": "",
+      "vendor": 0,
+      "ccf": "<Failed-AVP> ::= < AVP Header: 279 >\n1* {AVP}",
+      "rules": [
+        {
+          "name": "AVP",
+          "min": 1,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        }
+      ]
+    },
+    {
+      "name": "Firmware-Revision",
+      "code": 267,
+      "section": "RFC 6733 \u00a7\u00a74.5, 5.3.4",
+      "type": "Unsigned32",
+      "must": "",
+      "must_not": "M,V",
+      "may": "",
+      "vendor": 0
+    },
+    {
+      "name": "Host-IP-Address",
+      "code": 257,
+      "section": "RFC 6733 \u00a7\u00a74.5, 5.3.5",
+      "type": "Address",
+      "must": "M",
+      "must_not": "V",
+      "may": "",
+      "vendor": 0
+    },
+    {
+      "name": "Inband-Security-Id",
+      "code": 299,
+      "section": "RFC 6733 \u00a7\u00a74.5, 6.10",
+      "type": "Unsigned32",
+      "must": "M",
+      "must_not": "V",
+      "may": "",
+      "vendor": 0
+    },
+    {
+      "name": "Multi-Round-Time-Out",
+      "code": 272,
+      "section": "RFC 6733 \u00a7\u00a74.5, 8.19",
+      "type": "Unsigned32",
+      "must": "M",
+      "must_not": "V",
+      "may": "",
+      "vendor": 0
+    },
+    {
+      "name": "Origin-Host",
+      "code": 264,
+      "section": "RFC 6733 \u00a7\u00a74.5, 6.3",
+      "type": "DiameterIdentity",
+      "must": "M",
+      "must_not": "V",
+      "may": "",
+      "vendor": 0
+    },
+    {
+      "name": "Origin-Realm",
+      "code": 296,
+      "section": "RFC 6733 \u00a7\u00a74.5, 6.4",
+      "type": "DiameterIdentity",
+      "must": "M",
+      "must_not": "V",
+      "may": "",
+      "vendor": 0
+    },
+    {
+      "name": "Origin-State-Id",
+      "code": 278,
+      "section": "RFC 6733 \u00a7\u00a74.5, 8.16",
+      "type": "Unsigned32",
+      "must": "M",
+      "must_not": "V",
+      "may": "",
+      "vendor": 0
+    },
+    {
+      "name": "Product-Name",
+      "code": 269,
+      "section": "RFC 6733 \u00a7\u00a74.5, 5.3.7",
+      "type": "UTF8String",
+      "must": "",
+      "must_not": "M,V",
+      "may": "",
+      "vendor": 0
+    },
+    {
+      "name": "Proxy-Host",
+      "code": 280,
+      "section": "RFC 6733 \u00a7\u00a74.5, 6.7.3",
+      "type": "DiameterIdentity",
+      "must": "M",
+      "must_not": "V",
+      "may": "",
+      "vendor": 0
+    },
+    {
+      "name": "Proxy-Info",
+      "code": 284,
+      "section": "RFC 6733 \u00a7\u00a74.5, 6.7.2; Erratum 4803",
+      "type": "Grouped",
+      "must": "M",
+      "must_not": "V",
+      "may": "",
+      "vendor": 0,
+      "ccf": "Proxy-Info ::= < AVP Header: 284 >\n{ Proxy-Host }\n{ Proxy-State }\n* [ AVP ]",
+      "rules": [
+        {
+          "name": "Proxy-Host",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Proxy-State",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        }
+      ]
+    },
+    {
+      "name": "Proxy-State",
+      "code": 33,
+      "section": "RFC 6733 \u00a7\u00a74.5, 6.7.4",
+      "type": "OctetString",
+      "must": "M",
+      "must_not": "V",
+      "may": "",
+      "vendor": 0
+    },
+    {
+      "name": "Redirect-Host",
+      "code": 292,
+      "section": "RFC 6733 \u00a7\u00a74.5, 6.12",
+      "type": "DiameterURI",
+      "must": "M",
+      "must_not": "V",
+      "may": "",
+      "vendor": 0
+    },
+    {
+      "name": "Redirect-Host-Usage",
+      "code": 261,
+      "section": "RFC 6733 \u00a7\u00a74.5, 6.13",
+      "type": "Enumerated",
+      "must": "M",
+      "must_not": "V",
+      "may": "",
+      "vendor": 0,
+      "items": {
+        "0": "DONT_CACHE",
+        "1": "ALL_SESSION",
+        "2": "ALL_REALM",
+        "3": "REALM_AND_APPLICATION",
+        "4": "ALL_APPLICATION",
+        "5": "ALL_HOST",
+        "6": "ALL_USER"
+      }
+    },
+    {
+      "name": "Redirect-Max-Cache-Time",
+      "code": 262,
+      "section": "RFC 6733 \u00a7\u00a74.5, 6.14",
+      "type": "Unsigned32",
+      "must": "M",
+      "must_not": "V",
+      "may": "",
+      "vendor": 0
+    },
+    {
+      "name": "Result-Code",
+      "code": 268,
+      "section": "RFC 6733 \u00a7\u00a74.5, 7.1",
+      "type": "Unsigned32",
+      "must": "M",
+      "must_not": "V",
+      "may": "",
+      "vendor": 0
+    },
+    {
+      "name": "Route-Record",
+      "code": 282,
+      "section": "RFC 6733 \u00a7\u00a74.5, 6.7.1",
+      "type": "DiameterIdentity",
+      "must": "M",
+      "must_not": "V",
+      "may": "",
+      "vendor": 0
+    },
+    {
+      "name": "Session-Id",
+      "code": 263,
+      "section": "RFC 6733 \u00a7\u00a74.5, 8.8",
+      "type": "UTF8String",
+      "must": "M",
+      "must_not": "V",
+      "may": "",
+      "vendor": 0
+    },
+    {
+      "name": "Session-Timeout",
+      "code": 27,
+      "section": "RFC 6733 \u00a7\u00a74.5, 8.13",
+      "type": "Unsigned32",
+      "must": "M",
+      "must_not": "V",
+      "may": "",
+      "vendor": 0
+    },
+    {
+      "name": "Session-Binding",
+      "code": 270,
+      "section": "RFC 6733 \u00a7\u00a74.5, 8.17",
+      "type": "Unsigned32",
+      "must": "M",
+      "must_not": "V",
+      "may": "",
+      "vendor": 0
+    },
+    {
+      "name": "Session-Server-Failover",
+      "code": 271,
+      "section": "RFC 6733 \u00a7\u00a74.5, 8.18",
+      "type": "Enumerated",
+      "must": "M",
+      "must_not": "V",
+      "may": "",
+      "vendor": 0,
+      "items": {
+        "0": "REFUSE_SERVICE",
+        "1": "TRY_AGAIN",
+        "2": "ALLOW_SERVICE",
+        "3": "TRY_AGAIN_ALLOW_SERVICE"
+      }
+    },
+    {
+      "name": "Supported-Vendor-Id",
+      "code": 265,
+      "section": "RFC 6733 \u00a7\u00a74.5, 5.3.6",
+      "type": "Unsigned32",
+      "must": "M",
+      "must_not": "V",
+      "may": "",
+      "vendor": 0
+    },
+    {
+      "name": "Termination-Cause",
+      "code": 295,
+      "section": "RFC 6733 \u00a7\u00a74.5, 8.15; IANA Termination-Cause AVP Values",
+      "type": "Enumerated",
+      "must": "M",
+      "must_not": "V",
+      "may": "",
+      "vendor": 0,
+      "items": {
+        "1": "DIAMETER_LOGOUT",
+        "2": "DIAMETER_SERVICE_NOT_PROVIDED",
+        "3": "DIAMETER_BAD_ANSWER",
+        "4": "DIAMETER_ADMINISTRATIVE",
+        "5": "DIAMETER_LINK_BROKEN",
+        "6": "DIAMETER_AUTH_EXPIRED",
+        "7": "DIAMETER_USER_MOVED",
+        "8": "DIAMETER_SESSION_TIMEOUT",
+        "11": "USER_REQUEST",
+        "12": "LOST_CARRIER",
+        "13": "LOST_SERVICE",
+        "14": "IDLE_TIMEOUT",
+        "15": "SESSION_TIMEOUT",
+        "16": "ADMIN_RESET",
+        "17": "ADMIN_REBOOT",
+        "18": "PORT_ERROR",
+        "19": "NAS_ERROR",
+        "20": "NAS_REQUEST",
+        "21": "NAS_REBOOT",
+        "22": "PORT_UNNEEDED",
+        "23": "PORT_PREEMPTED",
+        "24": "PORT_SUSPENDED",
+        "25": "SERVICE_UNAVAILABLE",
+        "26": "CALLBACK",
+        "27": "USER_ERROR",
+        "28": "HOST_REQUEST",
+        "29": "SUPPLICANT_RESTART",
+        "30": "REAUTHENTICATION_FAILURE",
+        "31": "PORT_REINITIALIZED",
+        "32": "PORT_ADMINISTRATIVELY_DISABLED"
+      }
+    },
+    {
+      "name": "User-Name",
+      "code": 1,
+      "section": "RFC 6733 \u00a7\u00a74.5, 8.14",
+      "type": "UTF8String",
+      "must": "M",
+      "must_not": "V",
+      "may": "",
+      "vendor": 0
+    },
+    {
+      "name": "Vendor-Id",
+      "code": 266,
+      "section": "RFC 6733 \u00a7\u00a74.5, 5.3.3",
+      "type": "Unsigned32",
+      "must": "M",
+      "must_not": "V",
+      "may": "",
+      "vendor": 0
+    },
+    {
+      "name": "Vendor-Specific-Application-Id",
+      "code": 260,
+      "section": "RFC 6733 \u00a7\u00a74.5, 6.11; Erratum 4803",
+      "type": "Grouped",
+      "must": "M",
+      "must_not": "V",
+      "may": "",
+      "vendor": 0,
+      "ccf": "<Vendor-Specific-Application-Id> ::= < AVP Header: 260 >\n{ Vendor-Id }\n[ Auth-Application-Id ]\n[ Acct-Application-Id ]",
+      "rules": [
+        {
+          "name": "Vendor-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Auth-Application-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Acct-Application-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        }
+      ]
+    },
+    {
+      "name": "OC-Supported-Features",
+      "code": 621,
+      "section": "RFC 7683 \u00a7\u00a77.1, 7.8; RFC 8581 \u00a77.1",
+      "type": "Grouped",
+      "must": "",
+      "may": "",
+      "must_not": "V",
+      "vendor": 0,
+      "ccf": "OC-Supported-Features ::= < AVP Header: 621 >\n[ OC-Feature-Vector ]\n[ SourceID ]\n[ OC-Peer-Algo]\n* [ AVP ]",
+      "rules": [
+        {
+          "name": "OC-Feature-Vector",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "SourceID",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "OC-Peer-Algo",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        }
+      ]
+    },
+    {
+      "name": "OC-Feature-Vector",
+      "code": 622,
+      "section": "RFC 7683 \u00a7\u00a77.2, 7.8",
+      "type": "Unsigned64",
+      "must": "",
+      "may": "",
+      "must_not": "V",
+      "vendor": 0
+    },
+    {
+      "name": "OC-OLR",
+      "code": 623,
+      "section": "RFC 7683 \u00a7\u00a77.3, 7.8; RFC 8581 \u00a77.2",
+      "type": "Grouped",
+      "must": "",
+      "may": "",
+      "must_not": "V",
+      "vendor": 0,
+      "ccf": "OC-OLR ::= < AVP Header: 623 >\n< OC-Sequence-Number >\n< OC-Report-Type >\n[ OC-Reduction-Percentage ]\n[ OC-Validity-Duration ]\n[ SourceID ]\n* [ AVP ]",
+      "rules": [
+        {
+          "name": "OC-Sequence-Number",
+          "min": 1,
+          "max": 1,
+          "fixed": true,
+          "must_not": ""
+        },
+        {
+          "name": "OC-Report-Type",
+          "min": 1,
+          "max": 1,
+          "fixed": true,
+          "must_not": ""
+        },
+        {
+          "name": "OC-Reduction-Percentage",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "OC-Validity-Duration",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "SourceID",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        }
+      ]
+    },
+    {
+      "name": "OC-Sequence-Number",
+      "code": 624,
+      "section": "RFC 7683 \u00a7\u00a77.4, 7.8",
+      "type": "Unsigned64",
+      "must": "",
+      "may": "",
+      "must_not": "V",
+      "vendor": 0
+    },
+    {
+      "name": "OC-Validity-Duration",
+      "code": 625,
+      "section": "RFC 7683 \u00a7\u00a77.5, 7.8",
+      "type": "Unsigned32",
+      "must": "",
+      "may": "",
+      "must_not": "V",
+      "vendor": 0
+    },
+    {
+      "name": "OC-Report-Type",
+      "code": 626,
+      "section": "RFC 7683 \u00a7\u00a77.6, 7.8; RFC 8581 \u00a77.2.1",
+      "type": "Enumerated",
+      "must": "",
+      "may": "",
+      "must_not": "V",
+      "vendor": 0,
+      "items": {
+        "0": "HOST_REPORT",
+        "1": "REALM_REPORT",
+        "2": "PEER_REPORT"
+      }
+    },
+    {
+      "name": "OC-Reduction-Percentage",
+      "code": 627,
+      "section": "RFC 7683 \u00a7\u00a77.7, 7.8",
+      "type": "Unsigned32",
+      "must": "",
+      "may": "",
+      "must_not": "V",
+      "vendor": 0
+    },
+    {
+      "name": "OC-Peer-Algo",
+      "code": 648,
+      "section": "RFC 8581 \u00a7\u00a77.1.2, 7.4",
+      "type": "Unsigned64",
+      "must": "",
+      "may": "",
+      "must_not": "V",
+      "vendor": 0
+    },
+    {
+      "name": "SourceID",
+      "code": 649,
+      "section": "RFC 8581 \u00a7\u00a77.3, 7.4",
+      "type": "DiameterIdentity",
+      "must": "",
+      "may": "",
+      "must_not": "V",
+      "vendor": 0
+    },
+    {
+      "name": "Load",
+      "code": 650,
+      "section": "RFC 8583 \u00a7\u00a77.1, 7.5",
+      "type": "Grouped",
+      "must": "",
+      "may": "",
+      "must_not": "V",
+      "vendor": 0,
+      "ccf": "Load ::= < AVP Header: 650 >\n[ Load-Type ]\n[ Load-Value ]\n[ SourceID ]\n* [ AVP ]",
+      "rules": [
+        {
+          "name": "Load-Type",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Load-Value",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "SourceID",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        }
+      ]
+    },
+    {
+      "name": "Load-Type",
+      "code": 651,
+      "section": "RFC 8583 \u00a7\u00a77.2, 7.5",
+      "type": "Enumerated",
+      "must": "",
+      "may": "",
+      "must_not": "V",
+      "vendor": 0,
+      "items": {
+        "0": "HOST",
+        "1": "PEER"
+      }
+    },
+    {
+      "name": "Load-Value",
+      "code": 652,
+      "section": "RFC 8583 \u00a7\u00a77.3, 7.5",
+      "type": "Unsigned64",
+      "must": "",
+      "may": "",
+      "must_not": "V",
+      "vendor": 0
+    },
+    {
+      "name": "DRMP",
+      "code": 301,
+      "section": "RFC 7944 \u00a7\u00a79.1, 9.2",
+      "type": "Enumerated",
+      "must": "",
+      "may": "",
+      "must_not": "V",
+      "vendor": 0,
+      "items": {
+        "15": "PRIORITY_15",
+        "14": "PRIORITY_14",
+        "13": "PRIORITY_13",
+        "12": "PRIORITY_12",
+        "11": "PRIORITY_11",
+        "10": "PRIORITY_10",
+        "9": "PRIORITY_9",
+        "8": "PRIORITY_8",
+        "7": "PRIORITY_7",
+        "6": "PRIORITY_6",
+        "5": "PRIORITY_5",
+        "4": "PRIORITY_4",
+        "3": "PRIORITY_3",
+        "2": "PRIORITY_2",
+        "1": "PRIORITY_1",
+        "0": "PRIORITY_0"
+      }
+    },
+    {
+      "name": "Redirect-Realm",
+      "code": 620,
+      "type": "DiameterIdentity",
+      "vendor": 0,
+      "must": "",
+      "may": "",
+      "must_not": "V",
+      "section": "RFC 7075 \u00a73.3; RFC 6733 \u00a74.1"
+    }
+  ],
+  "commands": [
+    {
+      "section": "RFC 6733 \u00a75.3.1; Erratum 4803",
+      "code": 257,
+      "request": true,
+      "proxiable": false,
+      "ccf": "<CER> ::= < Diameter Header: 257, REQ >\n{ Origin-Host }\n{ Origin-Realm }\n1* { Host-IP-Address }\n{ Vendor-Id }\n{ Product-Name }\n[ Origin-State-Id ]\n* [ Supported-Vendor-Id ]\n* [ Auth-Application-Id ]\n* [ Inband-Security-Id ]\n* [ Acct-Application-Id ]\n* [ Vendor-Specific-Application-Id ]\n[ Firmware-Revision ]\n* [ AVP ]",
+      "rules": [
+        {
+          "name": "Origin-Host",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Origin-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Host-IP-Address",
+          "min": 1,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Vendor-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Product-Name",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Origin-State-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Supported-Vendor-Id",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Auth-Application-Id",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Inband-Security-Id",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Acct-Application-Id",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Vendor-Specific-Application-Id",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Firmware-Revision",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        }
+      ]
+    },
+    {
+      "section": "RFC 6733 \u00a75.3.2; Erratum 4803 ; Errata 4808, 4887",
+      "code": 257,
+      "request": false,
+      "proxiable": false,
+      "ccf": "<CEA> ::= < Diameter Header: 257 >\n{ Result-Code }\n{ Origin-Host }\n{ Origin-Realm }\n1* { Host-IP-Address }\n{ Vendor-Id }\n{ Product-Name }\n[ Origin-State-Id ]\n[ Error-Message ]\n[ Failed-AVP ]\n* [ Supported-Vendor-Id ]\n* [ Auth-Application-Id ]\n* [ Inband-Security-Id ]\n* [ Acct-Application-Id ]\n* [ Vendor-Specific-Application-Id ]\n[ Firmware-Revision ]\n* [ AVP ]",
+      "rules": [
+        {
+          "name": "Result-Code",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Origin-Host",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Origin-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Host-IP-Address",
+          "min": 1,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Vendor-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Product-Name",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Origin-State-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Error-Message",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Failed-AVP",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Supported-Vendor-Id",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Auth-Application-Id",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Inband-Security-Id",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Acct-Application-Id",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Vendor-Specific-Application-Id",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Firmware-Revision",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        }
+      ]
+    },
+    {
+      "section": "RFC 6733 \u00a75.4.1; Erratum 4803",
+      "code": 282,
+      "request": true,
+      "proxiable": false,
+      "ccf": "<DPR>  ::= < Diameter Header: 282, REQ >\n{ Origin-Host }\n{ Origin-Realm }\n{ Disconnect-Cause }\n* [ AVP ]",
+      "rules": [
+        {
+          "name": "Origin-Host",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Origin-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Disconnect-Cause",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        }
+      ]
+    },
+    {
+      "section": "RFC 6733 \u00a75.4.2; Erratum 4803 ; Errata 4808, 4887",
+      "code": 282,
+      "request": false,
+      "proxiable": false,
+      "ccf": "<DPA>  ::= < Diameter Header: 282 >\n{ Result-Code }\n{ Origin-Host }\n{ Origin-Realm }\n[ Error-Message ]\n[ Failed-AVP ]\n* [ AVP ]",
+      "rules": [
+        {
+          "name": "Result-Code",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Origin-Host",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Origin-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Error-Message",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Failed-AVP",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        }
+      ]
+    },
+    {
+      "section": "RFC 6733 \u00a75.5.1; Erratum 4803",
+      "code": 280,
+      "request": true,
+      "proxiable": false,
+      "ccf": "<DWR>  ::= < Diameter Header: 280, REQ >\n{ Origin-Host }\n{ Origin-Realm }\n[ Origin-State-Id ]\n* [ AVP ]",
+      "rules": [
+        {
+          "name": "Origin-Host",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Origin-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Origin-State-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        }
+      ]
+    },
+    {
+      "section": "RFC 6733 \u00a75.5.2; Erratum 4803 ; Errata 4808, 4887",
+      "code": 280,
+      "request": false,
+      "proxiable": false,
+      "ccf": "<DWA>  ::= < Diameter Header: 280 >\n{ Result-Code }\n{ Origin-Host }\n{ Origin-Realm }\n[ Error-Message ]\n[ Failed-AVP ]\n[ Origin-State-Id ]\n* [ AVP ]",
+      "rules": [
+        {
+          "name": "Result-Code",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Origin-Host",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Origin-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Error-Message",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Failed-AVP",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Origin-State-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        }
+      ]
+    },
+    {
+      "section": "RFC 6733 \u00a78.3.1; Erratum 4803",
+      "code": 258,
+      "request": true,
+      "proxiable": true,
+      "ccf": "<RAR>  ::= < Diameter Header: 258, REQ, PXY >\n< Session-Id >\n{ Origin-Host }\n{ Origin-Realm }\n{ Destination-Realm }\n{ Destination-Host }\n{ Auth-Application-Id }\n{ Re-Auth-Request-Type }\n[ User-Name ]\n[ Origin-State-Id ]\n* [ Proxy-Info ]\n* [ Route-Record ]\n* [ AVP ]",
+      "rules": [
+        {
+          "name": "Session-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": true,
+          "must_not": ""
+        },
+        {
+          "name": "Origin-Host",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Origin-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Destination-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Destination-Host",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Auth-Application-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Re-Auth-Request-Type",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "User-Name",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Origin-State-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Proxy-Info",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Route-Record",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        }
+      ]
+    },
+    {
+      "section": "RFC 6733 \u00a78.3.2; Erratum 4803 ; Errata 4808, 4887",
+      "code": 258,
+      "request": false,
+      "proxiable": true,
+      "ccf": "<RAA>  ::= < Diameter Header: 258, PXY >\n< Session-Id >\n{ Result-Code }\n{ Origin-Host }\n{ Origin-Realm }\n[ User-Name ]\n[ Origin-State-Id ]\n[ Error-Message ]\n[ Error-Reporting-Host ]\n[ Failed-AVP ]\n* [ Redirect-Host ]\n[ Redirect-Host-Usage ]\n[ Redirect-Max-Cache-Time ]\n* [ Proxy-Info ]\n* [ AVP ]",
+      "rules": [
+        {
+          "name": "Session-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": true,
+          "must_not": ""
+        },
+        {
+          "name": "Result-Code",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Origin-Host",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Origin-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "User-Name",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Origin-State-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Error-Message",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Error-Reporting-Host",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Failed-AVP",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Redirect-Host",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Redirect-Host-Usage",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Redirect-Max-Cache-Time",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Proxy-Info",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        }
+      ]
+    },
+    {
+      "section": "RFC 6733 \u00a78.4.1; Erratum 4803",
+      "code": 275,
+      "request": true,
+      "proxiable": true,
+      "ccf": "<STR>  ::= < Diameter Header: 275, REQ, PXY >\n< Session-Id >\n{ Origin-Host }\n{ Origin-Realm }\n{ Destination-Realm }\n{ Auth-Application-Id }\n{ Termination-Cause }\n[ User-Name ]\n[ Destination-Host ]\n* [ Class ]\n[ Origin-State-Id ]\n* [ Proxy-Info ]\n* [ Route-Record ]\n* [ AVP ]",
+      "rules": [
+        {
+          "name": "Session-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": true,
+          "must_not": ""
+        },
+        {
+          "name": "Origin-Host",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Origin-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Destination-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Auth-Application-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Termination-Cause",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "User-Name",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Destination-Host",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Class",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Origin-State-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Proxy-Info",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Route-Record",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        }
+      ]
+    },
+    {
+      "section": "RFC 6733 \u00a78.4.2; Erratum 4803 ; Errata 4808, 4887",
+      "code": 275,
+      "request": false,
+      "proxiable": true,
+      "ccf": "<STA> ::= < Diameter Header: 275, PXY >\n< Session-Id >\n{ Result-Code }\n{ Origin-Host }\n{ Origin-Realm }\n[ User-Name ]\n* [ Class ]\n[ Error-Message ]\n[ Error-Reporting-Host ]\n[ Failed-AVP ]\n[ Origin-State-Id ]\n* [ Redirect-Host ]\n[ Redirect-Host-Usage ]\n[ Redirect-Max-Cache-Time ]\n* [ Proxy-Info ]\n* [ AVP ]",
+      "rules": [
+        {
+          "name": "Session-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": true,
+          "must_not": ""
+        },
+        {
+          "name": "Result-Code",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Origin-Host",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Origin-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "User-Name",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Class",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Error-Message",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Error-Reporting-Host",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Failed-AVP",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Origin-State-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Redirect-Host",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Redirect-Host-Usage",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Redirect-Max-Cache-Time",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Proxy-Info",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        }
+      ]
+    },
+    {
+      "section": "RFC 6733 \u00a78.5.1; Erratum 4803",
+      "code": 274,
+      "request": true,
+      "proxiable": true,
+      "ccf": "<ASR>  ::= < Diameter Header: 274, REQ, PXY >\n< Session-Id >\n{ Origin-Host }\n{ Origin-Realm }\n{ Destination-Realm }\n{ Destination-Host }\n{ Auth-Application-Id }\n[ User-Name ]\n[ Origin-State-Id ]\n* [ Proxy-Info ]\n* [ Route-Record ]\n* [ AVP ]",
+      "rules": [
+        {
+          "name": "Session-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": true,
+          "must_not": ""
+        },
+        {
+          "name": "Origin-Host",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Origin-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Destination-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Destination-Host",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Auth-Application-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "User-Name",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Origin-State-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Proxy-Info",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Route-Record",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        }
+      ]
+    },
+    {
+      "section": "RFC 6733 \u00a78.5.2; Erratum 4803 ; Errata 4808, 4887",
+      "code": 274,
+      "request": false,
+      "proxiable": true,
+      "ccf": "<ASA>  ::= < Diameter Header: 274, PXY >\n< Session-Id >\n{ Result-Code }\n{ Origin-Host }\n{ Origin-Realm }\n[ User-Name ]\n[ Origin-State-Id ]\n[ Error-Message ]\n[ Error-Reporting-Host ]\n[ Failed-AVP ]\n* [ Redirect-Host ]\n[ Redirect-Host-Usage ]\n[ Redirect-Max-Cache-Time ]\n* [ Proxy-Info ]\n* [ AVP ]",
+      "rules": [
+        {
+          "name": "Session-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": true,
+          "must_not": ""
+        },
+        {
+          "name": "Result-Code",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Origin-Host",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Origin-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "User-Name",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Origin-State-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Error-Message",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Error-Reporting-Host",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Failed-AVP",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Redirect-Host",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Redirect-Host-Usage",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Redirect-Max-Cache-Time",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Proxy-Info",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        }
+      ]
+    },
+    {
+      "section": "RFC 6733 \u00a79.7.1; Erratum 4803",
+      "code": 271,
+      "request": true,
+      "proxiable": true,
+      "ccf": "<ACR> ::= < Diameter Header: 271, REQ, PXY >\n< Session-Id >\n{ Origin-Host }\n{ Origin-Realm }\n{ Destination-Realm }\n{ Accounting-Record-Type }\n{ Accounting-Record-Number }\n[ Acct-Application-Id ]\n[ Vendor-Specific-Application-Id ]\n[ User-Name ]\n[ Destination-Host ]\n[ Accounting-Sub-Session-Id ]\n[ Acct-Session-Id ]\n[ Acct-Multi-Session-Id ]\n[ Acct-Interim-Interval ]\n[ Accounting-Realtime-Required ]\n[ Origin-State-Id ]\n[ Event-Timestamp ]\n* [ Proxy-Info ]\n* [ Route-Record ]\n* [ AVP ]",
+      "rules": [
+        {
+          "name": "Session-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": true,
+          "must_not": ""
+        },
+        {
+          "name": "Origin-Host",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Origin-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Destination-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Accounting-Record-Type",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Accounting-Record-Number",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Acct-Application-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Vendor-Specific-Application-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "User-Name",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Destination-Host",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Accounting-Sub-Session-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Acct-Session-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Acct-Multi-Session-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Acct-Interim-Interval",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Accounting-Realtime-Required",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Origin-State-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Event-Timestamp",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Proxy-Info",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Route-Record",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        }
+      ]
+    },
+    {
+      "section": "RFC 6733 \u00a79.7.2; Erratum 4803 ; Errata 4808, 4887",
+      "code": 271,
+      "request": false,
+      "proxiable": true,
+      "ccf": "<ACA> ::= < Diameter Header: 271, PXY >\n< Session-Id >\n{ Result-Code }\n{ Origin-Host }\n{ Origin-Realm }\n{ Accounting-Record-Type }\n{ Accounting-Record-Number }\n[ Acct-Application-Id ]\n[ Vendor-Specific-Application-Id ]\n[ User-Name ]\n[ Accounting-Sub-Session-Id ]\n[ Acct-Session-Id ]\n[ Acct-Multi-Session-Id ]\n[ Error-Message ]\n[ Error-Reporting-Host ]\n[ Failed-AVP ]\n[ Acct-Interim-Interval ]\n[ Accounting-Realtime-Required ]\n[ Origin-State-Id ]\n[ Event-Timestamp ]\n* [ Proxy-Info ]\n* [ AVP ]",
+      "rules": [
+        {
+          "name": "Session-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": true,
+          "must_not": ""
+        },
+        {
+          "name": "Result-Code",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Origin-Host",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Origin-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Accounting-Record-Type",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Accounting-Record-Number",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Acct-Application-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Vendor-Specific-Application-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "User-Name",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Accounting-Sub-Session-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Acct-Session-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Acct-Multi-Session-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Error-Message",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Error-Reporting-Host",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Failed-AVP",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Acct-Interim-Interval",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Accounting-Realtime-Required",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Origin-State-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Event-Timestamp",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Proxy-Info",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        }
+      ]
+    }
+  ]
+}

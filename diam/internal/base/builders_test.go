@@ -177,7 +177,7 @@ func TestBuildErrorAnswerDoesNotReuseUndecodedSessionID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(answer.AVP) == 0 || answer.AVP[0].Code != avp.SessionID || answer.AVP[0].Data != datatype.UTF8String("") {
+	if len(answer.FindAVPsWithPath(diam.AVPRef{Code: avp.SessionID})) != 0 {
 		t.Fatalf("answer reused undecoded Session-Id: %v", answer)
 	}
 }

@@ -283,7 +283,7 @@ documents were cross-checked on 2026-10-07. RFC 6733 is updated by 7075/8553;
 7683 by 8581; 5234 by 7405; and 3046 by 6607. RFC 7944, the DRMP source, has
 no updates, obsoletes or errata. No database disagreement or
 pending replacement for the dictionary RFCs was found. Verified RFC 6733
-Erratum 4615 agrees with singleton Failed-AVP rules. Verified RFC 7683
+Erratum 4808 clarifies singleton Failed-AVP rules. Verified RFC 7683
 Erratum 4549 concerns overload realm interpretation, not dictionary shape.
 Held and rejected proposals were not applied: relevant held records include
 RFC 6733 4210/4234/5084 and RFC 5234 2820/2914/6172/6173; rejected records
@@ -379,11 +379,6 @@ The source fixtures preserve explicit `shared_dictionary_gap` records for
 shared files excluded from this refresh. Tests pin these known deviations
 separately instead of treating them as normative expectations:
 
-- `base.xml` retains obsolete MAY-P metadata on 15 reused AVPs listed in
-  the fixtures; RFC 6733 §4.5 has no such MAY-P column.
-- `base.xml` lacks Proxy-Info's `*[AVP]` (RFC 6733 §6.7.2) and Failed-AVP's
-  `1*{AVP}` (RFC 6733 §7.5). Failed-AVP payloads are intentionally exempt
-  from normal grouped validation because they carry error evidence.
 - `tgpp_ro_rf.xml` retains MAY-P for User-CSG-Information, absent from
   TS 32.299 V19.0.0 Table 7.2.0.1. Its source M,V flags and grouped grammar
   are inherited by S6c/SGd; the shared metadata gap remains explicit.
@@ -521,13 +516,13 @@ SWx interpretation and normalization:
   Grouped. RFC 5447 and RFC 5778 Verified Errata 3034/3035 correct the
   MIP6-Agent-Info name. Their grammars retain their extension points.
 - Base RFC 6733 §4.5 and RFC 8506 §8 flag tables no longer have the older
-  P-bit permission column. Fifteen base AVPs and Ro/Rf's BSSID retain
-  informational `may="P"` in their shared definitions. The fixtures record
-  these as `known_shared_metadata_gap` entries while retaining the canonical
+  P-bit permission column. The base definitions now match their source;
+  Ro/Rf's BSSID still retains informational `may="P"`. Its fixture records
+  a `known_shared_metadata_gap` entry while retaining the canonical
   source metadata. Tests accept only the source MAY set or the documented
   legacy `P` set, and require inheritance instead of SWx-local copies.
-  These shared metadata gaps have no validation behavior effect and remain
-  for their respective shared-dictionary audits.
+  This BSSID metadata gap has no validation behavior effect and remains
+  for the Ro/Rf dictionary audit.
 - TS 29.273 V19.2.0 §8.2.2.2 omits PXY in the published PPR header,
   while its PPA includes PXY; §8.2.2.3 likewise uses PXY in SAR/SAA.
   The dictionary and fixture require PXY on both PPR and PPA under
@@ -581,9 +576,9 @@ in these RFC-owned definitions requiring a CR override.
 | Fixture | Source coverage |
 | --- | --- |
 | `nasreq_spec.json` | RFC 7155: 78 AVPs including Erratum 6119, four supplemental RADIUS identities, 14 enumerations with 132 assigned values, two Grouped grammars, ten command bodies with 358 ordered rules |
-| `nasreq_reused_spec.json` | RFC 6733: 37 reused AVPs, including recursive Proxy-Info members and seven current IANA registries |
+| `nasreq_reused_spec.json` | RFC 6733: 37 reused AVPs, including recursive Proxy-Info members, the Failed-AVP minimum and seven current IANA registries |
 | `credit_control_spec.json` | RFC 8506: all 68 §8 AVPs, 46 assigned enum values, 17 Grouped grammars, CCR/CCA with 30/29 RFC rules |
-| `credit_control_reused_spec.json` | Bounded RFC 6733 Proxy-Info/Failed-AVP gaps, strict RFC 5777 Filter-Rule grammar, and RFC 6733 Vendor-Id metadata |
+| `credit_control_reused_spec.json` | Strict RFC 6733 Proxy-Info/Failed-AVP and RFC 5777 Filter-Rule grammars, plus RFC 6733 Vendor-Id metadata |
 
 The archived source bytes have these SHA-256 digests:
 
@@ -640,19 +635,14 @@ member boundaries, closed groups and bounded/unbounded extension points.
 Command and CHAP-Auth extension tests use a known non-member AVP,
 Host-IP-Address, so removing the wildcard makes validation fail. Reused
 enum comparisons normalize typography on both sides, including all thirty
-IANA Termination-Cause values when the base definition is refreshed.
+IANA Termination-Cause values.
 The CER test pins every bundled selection and the complete dictionary's
 Supported-Vendor-Id advertisement. Cross-application enumeration consistency
 is checked by the shared registry test.
 
-The source tests explicitly bound these outstanding shared definitions:
-
-- Base Proxy-Info lacks RFC 6733 §6.7.2's `*[AVP]`; Failed-AVP lacks
-  §7.5's `1*{AVP}`. Their source grammars remain in the fixtures.
-- Base Termination-Cause contains the eight RFC 6733 §8.15 values rather
-  than all thirty current IANA values; assigned values 11–32 are missing.
-- Reused base AVPs retain legacy P/encryption metadata. Tests permit only
-  identified existing metadata or the canonical current source values.
+The source tests strictly require RFC 6733 §6.7.2's Proxy-Info extension,
+§7.5's Failed-AVP minimum, all thirty Termination-Cause values, and §4.5's
+current flag metadata. No shared grammar gaps remain in these source checks.
 
 Filter-Rule (509) is required to match the complete RFC 5777 §3.2 grammar.
 The reused-source and wire tests traverse its full named-member closure using
@@ -792,3 +782,108 @@ and timing proposals:
 | [8126](https://errata.rfc-editor.org/search/?rfc_number=8126&presentation=records) | — | 5772 | 6522 |
 | [8174](https://errata.rfc-editor.org/search/?rfc_number=8174&presentation=records) | — | 5022 | 6878 |
 | [9907](https://errata.rfc-editor.org/search/?rfc_number=9907&presentation=records) | 9134 | — | — |
+
+## Diameter base protocol
+
+`base_spec.json` covers applications 0 and 3: all 49 AVPs in RFC 6733
+§4.5, Redirect-Realm from RFC 7075, and the 13 overload, load and priority
+AVPs from RFCs 7683/8581, 8583 and 7944. It pins seven Grouped grammars, 12 Enumerated registries
+(79 values), and all 14 base command bodies. Application 3 inherits
+common definitions without copies.
+
+Fixtures are extracted from RFC Editor plain-text publications, independently
+of dictionary XML. Wrapped names are joined, `DiamIdent` and `DiamURI` expanded,
+and flag punctuation normalized to comma-separated sets. Original CCF is
+retained beside ordered rules. Inband-Security-Id's flags occupy the first line
+of its two-line table row. Termination-Cause's values come from the IANA registry
+delegated by RFC 6733 §8.15, including assignments 11–32. Space-separated IANA
+labels become uppercase underscore tokens. No table/clause conflict requires
+a 3GPP change-request override in these IETF definitions.
+
+The archived source bytes have these SHA-256 hashes:
+
+| Source | SHA-256 |
+| --- | --- |
+| [RFC 6733](https://www.rfc-editor.org/rfc/rfc6733.txt) | `b0117adedd43f9f44e444f64cd7360709c351aa27ea288d9c664c2800da8fa26` |
+| [RFC 7683](https://www.rfc-editor.org/rfc/rfc7683.txt) | `6c4253d5f8ad62233145d9455d7719d5becb1106826b8f0597919094fa192d9c` |
+| [RFC 8581](https://www.rfc-editor.org/rfc/rfc8581.txt) | `a9af193db7a4f45003d509d46f009954960e9adf9e636e815af71e0754967af9` |
+| [RFC 8583](https://www.rfc-editor.org/rfc/rfc8583.txt) | `a792492816bbfab4b2bc4ea419e60edfdd887629c3f71827edcf2f730d3c13e5` |
+| [RFC 7944](https://www.rfc-editor.org/rfc/rfc7944.txt) | `d67ef36cf9b43a32b30d965852c1ca496ec35728e0bcb0026dc2eb486a2aebec` |
+| [RFC 7075](https://www.rfc-editor.org/rfc/rfc7075.txt) | `294d4bdf4f292ec13785b9eccf039c5ab92e0b9ccec4fc3b9d997931e72dc88c` |
+| [RFC 8553](https://www.rfc-editor.org/rfc/rfc8553.txt) | `bd2397e9b08ebc0177971d8623c327190835c7e3625caa7575afe234bcadbf13` |
+| [RFC 7155](https://www.rfc-editor.org/rfc/rfc7155.txt) | `f100a5a47def22bda012369e8926f5d17c57b9a73a0fe4daeac16bb01b272cd5` |
+| [IANA AAA parameters XML](https://www.iana.org/assignments/aaa-parameters/aaa-parameters.xml) | `67e1f78147ac95886436dc9459611f1821159fd3d411d98f2781db2b4820b720` |
+
+The current flag tables specify MUST and MUST NOT, with no per-AVP P or
+end-to-end encryption column. Empty MAY sets and absent encryption metadata
+are intentional. RFC 6733 §4.1's SHOULD-clear P remains a sender policy,
+not a dictionary MUST NOT. The six previously removed P prohibitions stay
+removed. No M prohibition is added to the overload/load/priority AVPs:
+their specifications leave application-specific M policy to applications.
+
+RFC 6733 §6.7.2 retains Proxy-Info's `*[ AVP ]`; §7.5 specifies
+Failed-AVP's `1* { AVP }`. Vendor-Specific-Application-Id and
+Experimental-Result have no extension point. RFC 8581 updates both overload
+grammars and adds PEER_REPORT; RFC 8583 Load retains its extension point.
+All named descendants have source entries with exact flags. Tests resolve
+both effective views through `dict.Default`, including name/code lookups,
+source identity, cardinality, fixed positions, enum values and PXY constraints.
+Wire tests cover every base AVP, every enum value and all command bodies in
+both applications, with explicit extension and cardinality cases. The CER
+test pins vendor advertisements for all 14 bundled applications.
+
+Verified RFC 6733 Erratum 4803 supplies the `Diameter Header` / `AVP Header`
+CCF literals; 4808 clarifies the single Failed-AVP and Vendor-Id cardinalities.
+Erratum 4615 corrects the 5001 text to require one Failed-AVP container;
+4887 corrects Origin-Realm in answers.
+Verified 3805 (message-length units), 3806 (peer terminology), 3942
+(Authorization-Lifetime spelling), 3997 (secure port) and 6171 (loop-detection
+actor) require no additional dictionary definition changes. RFC 7683 Verified
+4549 corrects realm identification without changing the AVP grammar.
+
+RFC Editor JSON, Datatracker status and filtered update/obsoletion relationships,
+and errata records were cross-checked on 2026-10-07. Both authorities agree:
+RFC 6733 is current with updates 7075/8553; RFC 7683 is current with update
+8581; RFCs 8581, 8583, 7944, 7075, 8553 and 7155 have no successors or
+updates. DIME is concluded; its document listing and the relationship records
+identify no pending replacement. RFC 7075 §3 broadens Redirect-Host-Usage and
+Redirect-Max-Cache-Time usage for application-specific realm redirection without
+changing their encodings. Redirect-Realm (620), a DiameterIdentity with no
+AVP-specific M-bit rule, is included under RFC 7075 §3.3 and RFC 6733 §4.1.
+The companion protocol error code 3011 is defined by RFC 7075 §3.4.
+RFC 8553 corrects DNS underscored-name registrations, with no AVP or CCF change.
+
+Unverified proposals are not applied: RFC 6733 Reported 6832; Held
+4210/4234/5084; Rejected 4209/4462/4463/4473/4931/6833; RFC 7683 Reported
+5277/5278; RFC 7155 Reported 6029. RFC 7155 Verified 6119 and
+5993/5994/5995 concern NASREQ details, not Termination-Cause assignments.
+RFCs 7075, 7944, 8553, 8581 and 8583 have no errata.
+
+Dictionary conformance is distinct from value-dependent procedures. Overload
+negotiation, counter/range policies and realm routing are outside these
+definitions. RFC 6733 §3.2 wildcard minima count all unlisted AVPs,
+including unknown AVPs; maxima count known AVPs only, preserving §4.1's
+unknown-optional tolerance. Top-level wildcard-minimum failures return 5005
+without Failed-AVP because no example can be identified (§7.1.5 SHOULD).
+Failed-AVP counts every evidence member, including unknown or malformed AVPs
+(§7.5), and requires a nonempty container without validating peer evidence.
+Duplicate fixed AVPs report the first excess instance as 5009 (§7.1.5).
+Opt-in validation enforces §3.2 fixed positions, although §8.8 says SHOULD
+for Session-Id's position on send. Unknown AVPs do not occupy a
+fixed position (M-set unknowns are handled separately with 5001); a misplaced fixed AVP itself is the 5008 evidence.
+Under §6.2, a missing or undecodable Session-Id is omitted from every error
+answer. Received error answers can omit it regardless of Failed-AVP;
+receive validation relaxes only its presence/minimum, preserving all other rules.
+Public outgoing validation stays strict. Only the internal error builder can
+relax Session-Id presence, when the request's first top-level instance was
+absent or undecodable; later duplicates cannot supply a replacement.
+Informational and success answers retain their required Session-Id. Protocol
+errors retain the optional fixed prefix (§7.2). Message.Answer and error
+builders deep-copy every top-level Proxy-Info in request order (§6.2).
+Those peer echoes bypass outgoing flag and grouped-member validation, retaining
+the peer's contents even when malformed. Reserved AVP flag bits are cleared
+recursively before sending (§4.1); every other flag and payload byte is retained.
+Newly added Proxy-Info remains subject to sending rules, and echo provenance never bypasses request validation.
+Gx/Rx/Sy and S6c/SGd/SWx base reuse fixtures now pin the corrected definitions.
+S6c owns DRMP's M,V prohibition and SGd inherits that identical definition.
+Extraction tooling and packet captures stay outside the repository.

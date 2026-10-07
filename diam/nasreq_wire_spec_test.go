@@ -65,7 +65,13 @@ func nasreqWireData(t *testing.T, a nasreqWireAVP, lookup map[string]nasreqWireA
 		if rule.Min == 0 {
 			continue
 		}
-		child, ok := lookup[rule.Name]
+		name := rule.Name
+		if name == "AVP" {
+			// RFC 6733 §§3.2, 7.5: a required wildcard accepts arbitrary
+			// evidence; use a concrete source-defined User-Name instance.
+			name = "User-Name"
+		}
+		child, ok := lookup[name]
 		if !ok {
 			t.Fatalf("missing independent fixture for %s child %s", a.Name, rule.Name)
 		}

@@ -1,10 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <diameter>
-	<!-- RFC 6733 section 4.5: base AVP flag rules have no P column. -->
+	<!-- RFC 6733 §§4.1, 4.5: only MUST / MUST NOT are tabulated.
+	     P SHOULD be zero; no per-AVP P or encryption rules are specified. -->
 
 	<application id="0" name="Base"> <!-- Diameter Common Messages -->
 
 		<command code="257" short="CE" name="Capabilities-Exchange">
+			<!-- RFC 6733 §5.3.1; Erratum 4803. -->
 			<request proxiable="false">
 				<rule avp="Origin-Host" required="true" max="1"/>
 				<rule avp="Origin-Realm" required="true" max="1"/>
@@ -20,6 +22,7 @@
 				<rule avp="Firmware-Revision" required="False" max="1"/>
 				<rule avp="AVP"/>
 			</request>
+			<!-- RFC 6733 §5.3.2; Erratum 4803; Errata 4808, 4887. -->
 			<answer proxiable="false">
 				<rule avp="Result-Code" required="true" max="1"/>
 				<rule avp="Origin-Host" required="true" max="1"/>
@@ -41,8 +44,9 @@
 		</command>
 
 		<command code="258" short="RA" name="Re-Auth">
+			<!-- RFC 6733 §8.3.1; Erratum 4803. -->
 			<request proxiable="true">
-				<rule avp="Session-Id" required="true" max="1"/>
+				<rule avp="Session-Id" required="true" max="1" fixed="true"/>
 				<rule avp="Origin-Host" required="true" max="1"/>
 				<rule avp="Origin-Realm" required="true" max="1"/>
 				<rule avp="Destination-Realm" required="true" max="1"/>
@@ -55,8 +59,9 @@
 				<rule avp="Route-Record" required="false"/>
 				<rule avp="AVP"/>
 			</request>
+			<!-- RFC 6733 §8.3.2; Erratum 4803; Errata 4808, 4887. -->
 			<answer proxiable="true">
-				<rule avp="Session-Id" required="true" max="1"/>
+				<rule avp="Session-Id" required="true" max="1" fixed="true"/>
 				<rule avp="Result-Code" required="true" max="1"/>
 				<rule avp="Origin-Host" required="true" max="1"/>
 				<rule avp="Origin-Realm" required="true" max="1"/>
@@ -74,8 +79,9 @@
 		</command>
 
 		<command code="271" short="AC" name="Accounting">
+			<!-- RFC 6733 §9.7.1; Erratum 4803. -->
 			<request proxiable="true">
-				<rule avp="Session-Id" required="true" max="1"/>
+				<rule avp="Session-Id" required="true" max="1" fixed="true"/>
 				<rule avp="Origin-Host" required="true" max="1"/>
 				<rule avp="Origin-Realm" required="true" max="1"/>
 				<rule avp="Destination-Realm" required="true" max="1"/>
@@ -96,8 +102,9 @@
 				<rule avp="Route-Record" required="false"/>
 				<rule avp="AVP"/>
 			</request>
+			<!-- RFC 6733 §9.7.2; Erratum 4803; Errata 4808, 4887. -->
 			<answer proxiable="true">
-				<rule avp="Session-Id" required="true" max="1"/>
+				<rule avp="Session-Id" required="true" max="1" fixed="true"/>
 				<rule avp="Result-Code" required="true" max="1"/>
 				<rule avp="Origin-Host" required="true" max="1"/>
 				<rule avp="Origin-Realm" required="true" max="1"/>
@@ -122,8 +129,9 @@
 		</command>
 
 		<command code="274" short="AS" name="Abort-Session">
+			<!-- RFC 6733 §8.5.1; Erratum 4803. -->
 			<request proxiable="true">
-				<rule avp="Session-Id" required="true" max="1"/>
+				<rule avp="Session-Id" required="true" max="1" fixed="true"/>
 				<rule avp="Origin-Host" required="true" max="1"/>
 				<rule avp="Origin-Realm" required="true" max="1"/>
 				<rule avp="Destination-Realm" required="true" max="1"/>
@@ -135,8 +143,9 @@
 				<rule avp="Route-Record" required="false"/>
 				<rule avp="AVP"/>
 			</request>
+			<!-- RFC 6733 §8.5.2; Erratum 4803; Errata 4808, 4887. -->
 			<answer proxiable="true">
-				<rule avp="Session-Id" required="true" max="1"/>
+				<rule avp="Session-Id" required="true" max="1" fixed="true"/>
 				<rule avp="Result-Code" required="true" max="1"/>
 				<rule avp="Origin-Host" required="true" max="1"/>
 				<rule avp="Origin-Realm" required="true" max="1"/>
@@ -154,8 +163,9 @@
 		</command>
 
 		<command code="275" short="ST" name="Session-Termination">
+			<!-- RFC 6733 §8.4.1; Erratum 4803. -->
 			<request proxiable="true">
-				<rule avp="Session-Id" required="true" max="1"/>
+				<rule avp="Session-Id" required="true" max="1" fixed="true"/>
 				<rule avp="Origin-Host" required="true" max="1"/>
 				<rule avp="Origin-Realm" required="true" max="1"/>
 				<rule avp="Destination-Realm" required="true" max="1"/>
@@ -169,8 +179,9 @@
 				<rule avp="Route-Record" required="false"/>
 				<rule avp="AVP"/>
 			</request>
+			<!-- RFC 6733 §8.4.2; Erratum 4803; Errata 4808, 4887. -->
 			<answer proxiable="true">
-				<rule avp="Session-Id" required="true" max="1"/>
+				<rule avp="Session-Id" required="true" max="1" fixed="true"/>
 				<rule avp="Result-Code" required="true" max="1"/>
 				<rule avp="Origin-Host" required="true" max="1"/>
 				<rule avp="Origin-Realm" required="true" max="1"/>
@@ -189,12 +200,14 @@
 		</command>
 
 		<command code="280" short="DW" name="Device-Watchdog">
+			<!-- RFC 6733 §5.5.1; Erratum 4803. -->
 			<request proxiable="false">
 				<rule avp="Origin-Host" required="true" max="1"/>
 				<rule avp="Origin-Realm" required="true" max="1"/>
 				<rule avp="Origin-State-Id" required="false" max="1"/>
 				<rule avp="AVP"/>
 			</request>
+			<!-- RFC 6733 §5.5.2; Erratum 4803; Errata 4808, 4887. -->
 			<answer proxiable="false">
 				<rule avp="Result-Code" required="true" max="1"/>
 				<rule avp="Origin-Host" required="true" max="1"/>
@@ -207,12 +220,14 @@
 		</command>
 
 		<command code="282" short="DP" name="Disconnect-Peer">
+			<!-- RFC 6733 §5.4.1; Erratum 4803. -->
 			<request proxiable="false">
 				<rule avp="Origin-Host" required="true" max="1"/>
 				<rule avp="Origin-Realm" required="true" max="1"/>
 				<rule avp="Disconnect-Cause" required="true" max="1"/>
 				<rule avp="AVP"/>
 			</request>
+			<!-- RFC 6733 §5.4.2; Erratum 4803; Errata 4808, 4887. -->
 			<answer proxiable="false">
 				<rule avp="Result-Code" required="true" max="1"/>
 				<rule avp="Origin-Host" required="true" max="1"/>
@@ -223,11 +238,13 @@
 			</answer>
 		</command>
 
-		<avp name="Acct-Interim-Interval" code="85" must="M" may="P" must-not="V" may-encrypt="Y">
+		<!-- RFC 6733 §§4.5, 9.8.2. -->
+		<avp name="Acct-Interim-Interval" code="85" must="M" may="" must-not="V">
 			<data type="Unsigned32"/>
 		</avp>
 
-		<avp name="Accounting-Realtime-Required" code="483" must="M" may="P" must-not="V" may-encrypt="Y">
+		<!-- RFC 6733 §§4.5, 9.8.7. -->
+		<avp name="Accounting-Realtime-Required" code="483" must="M" may="" must-not="V">
 			<data type="Enumerated">
 				<item code="1" name="DELIVER_AND_GRANT"/>
 				<item code="2" name="GRANT_AND_STORE"/>
@@ -235,15 +252,18 @@
 			</data>
 		</avp>
 
-		<avp name="Acct-Multi-Session-Id" code="50" must="M" may="P" must-not="V" may-encrypt="Y">
+		<!-- RFC 6733 §§4.5, 9.8.5. -->
+		<avp name="Acct-Multi-Session-Id" code="50" must="M" may="" must-not="V">
 			<data type="UTF8String"/>
 		</avp>
 
-		<avp name="Accounting-Record-Number" code="485" must="M" may="P" must-not="V" may-encrypt="Y">
+		<!-- RFC 6733 §§4.5, 9.8.3. -->
+		<avp name="Accounting-Record-Number" code="485" must="M" may="" must-not="V">
 			<data type="Unsigned32"/>
 		</avp>
 
-		<avp name="Accounting-Record-Type" code="480" must="M" may="P" must-not="V" may-encrypt="Y">
+		<!-- RFC 6733 §§4.5, 9.8.1. -->
+		<avp name="Accounting-Record-Type" code="480" must="M" may="" must-not="V">
 			<data type="Enumerated">
 				<item code="1" name="EVENT_RECORD"/>
 				<item code="2" name="START_RECORD"/>
@@ -252,24 +272,28 @@
 			</data>
 		</avp>
 
-		<!-- RFC 6733 §§9.8.4, 10.2: Acct-Session-Id is AVP 44. -->
-		<avp name="Acct-Session-Id" code="44" must="M" may="P" must-not="V" may-encrypt="Y">
+		<!-- RFC 6733 §§4.5, 9.8.4. -->
+		<avp name="Acct-Session-Id" code="44" must="M" may="" must-not="V">
 			<data type="OctetString"/>
 		</avp>
 
-		<avp name="Accounting-Sub-Session-Id" code="287" must="M" may="P" must-not="V" may-encrypt="Y">
+		<!-- RFC 6733 §§4.5, 9.8.6. -->
+		<avp name="Accounting-Sub-Session-Id" code="287" must="M" may="" must-not="V">
 			<data type="Unsigned64"/>
 		</avp>
 
-		<avp name="Acct-Application-Id" code="259" must="M" may="P" must-not="V" may-encrypt="-">
+		<!-- RFC 6733 §§4.5, 6.9. -->
+		<avp name="Acct-Application-Id" code="259" must="M" may="" must-not="V">
 			<data type="Unsigned32"/>
 		</avp>
 
-		<avp name="Auth-Application-Id" code="258" must="M" may="P" must-not="V" may-encrypt="-">
+		<!-- RFC 6733 §§4.5, 6.8. -->
+		<avp name="Auth-Application-Id" code="258" must="M" may="" must-not="V">
 			<data type="Unsigned32"/>
 		</avp>
 
-		<avp name="Auth-Request-Type" code="274" must="M" may="P" must-not="V" may-encrypt="-">
+		<!-- RFC 6733 §§4.5, 8.7. -->
+		<avp name="Auth-Request-Type" code="274" must="M" may="" must-not="V">
 			<data type="Enumerated">
 				<item code="1" name="AUTHENTICATE_ONLY"/>
 				<item code="2" name="AUTHORIZE_ONLY"/>
@@ -277,41 +301,49 @@
 			</data>
 		</avp>
 
-		<avp name="Authorization-Lifetime" code="291" must="M" may="P" must-not="V" may-encrypt="-">
+		<!-- RFC 6733 §§4.5, 8.9. -->
+		<avp name="Authorization-Lifetime" code="291" must="M" may="" must-not="V">
 			<data type="Unsigned32"/>
 		</avp>
 
-		<avp name="Auth-Grace-Period" code="276" must="M" may="P" must-not="V" may-encrypt="-">
+		<!-- RFC 6733 §§4.5, 8.10. -->
+		<avp name="Auth-Grace-Period" code="276" must="M" may="" must-not="V">
 			<data type="Unsigned32"/>
 		</avp>
 
-		<avp name="Auth-Session-State" code="277" must="M" may="P" must-not="V" may-encrypt="-">
+		<!-- RFC 6733 §§4.5, 8.11. -->
+		<avp name="Auth-Session-State" code="277" must="M" may="" must-not="V">
 			<data type="Enumerated">
 				<item code="0" name="STATE_MAINTAINED"/>
 				<item code="1" name="NO_STATE_MAINTAINED"/>
 			</data>
 		</avp>
 
-		<avp name="Re-Auth-Request-Type" code="285" must="M" may="P" must-not="V" may-encrypt="-">
+		<!-- RFC 6733 §§4.5, 8.12. -->
+		<avp name="Re-Auth-Request-Type" code="285" must="M" may="" must-not="V">
 			<data type="Enumerated">
 				<item code="0" name="AUTHORIZE_ONLY"/>
 				<item code="1" name="AUTHORIZE_AUTHENTICATE"/>
 			</data>
 		</avp>
 
-		<avp name="Class" code="25" must="M" may="P" must-not="V" may-encrypt="Y">
+		<!-- RFC 6733 §§4.5, 8.20. -->
+		<avp name="Class" code="25" must="M" may="" must-not="V">
 			<data type="OctetString"/>
 		</avp>
 
-		<avp name="Destination-Host" code="293" must="M" may="P" must-not="V" may-encrypt="-">
+		<!-- RFC 6733 §§4.5, 6.5. -->
+		<avp name="Destination-Host" code="293" must="M" may="" must-not="V">
 			<data type="DiameterIdentity"/>
 		</avp>
 
-		<avp name="Destination-Realm" code="283" must="M" may="P" must-not="V" may-encrypt="-">
+		<!-- RFC 6733 §§4.5, 6.6. -->
+		<avp name="Destination-Realm" code="283" must="M" may="" must-not="V">
 			<data type="DiameterIdentity"/>
 		</avp>
 
-		<avp name="Disconnect-Cause" code="273" must="M" may="P" must-not="V" may-encrypt="-">
+		<!-- RFC 6733 §§4.5, 5.4.3. -->
+		<avp name="Disconnect-Cause" code="273" must="M" may="" must-not="V">
 			<data type="Enumerated">
 				<item code="0" name="REBOOTING"/>
 				<item code="1" name="BUSY"/>
@@ -319,85 +351,112 @@
 			</data>
 		</avp>
 
-		<avp name="Error-Message" code="281" must="-" may="P" must-not="V,M" may-encrypt="-">
+		<!-- RFC 6733 §§4.5, 7.3. -->
+		<avp name="Error-Message" code="281" must="-" may="" must-not="V,M">
 			<data type="UTF8String"/>
 		</avp>
 
-		<avp name="Error-Reporting-Host" code="294" must="-" may="P" must-not="V,M" may-encrypt="-">
+		<!-- RFC 6733 §§4.5, 7.4. -->
+		<avp name="Error-Reporting-Host" code="294" must="-" may="" must-not="V,M">
 			<data type="DiameterIdentity"/>
 		</avp>
 
-		<avp name="Event-Timestamp" code="55" must="M" may="P" must-not="V" may-encrypt="-">
+		<!-- RFC 6733 §§4.5, 8.21. -->
+		<avp name="Event-Timestamp" code="55" must="M" may="" must-not="V">
 			<data type="Time"/>
 		</avp>
 
-		<avp name="Experimental-Result" code="297" must="M" may="P" must-not="V" may-encrypt="-">
+		<!-- RFC 6733 §§4.5, 7.6; Erratum 4803. -->
+		<avp name="Experimental-Result" code="297" must="M" may="" must-not="V">
 			<data type="Grouped">
 				<rule avp="Vendor-Id" required="true" max="1"/>
 				<rule avp="Experimental-Result-Code" required="true" max="1"/>
 			</data>
 		</avp>
 
-		<avp name="Experimental-Result-Code" code="298" must="M" may="P" must-not="V" may-encrypt="-">
+		<!-- RFC 6733 §§4.5, 7.7. -->
+		<avp name="Experimental-Result-Code" code="298" must="M" may="" must-not="V">
 			<data type="Unsigned32"/>
 		</avp>
 
-		<avp name="Failed-AVP" code="279" must="M" may="P" must-not="V" may-encrypt="-">
-			<data type="Grouped"/>
-		</avp>
-
-		<avp name="Firmware-Revision" code="267" must="-" may="-" must-not="V,M" may-encrypt="-">
-			<data type="Unsigned32"/>
-		</avp>
-
-		<avp name="Host-IP-Address" code="257" must="M" may="P" must-not="V" may-encrypt="-">
-			<data type="Address"/>
-		</avp>
-
-		<avp name="Inband-Security-Id" code="299" must="M" may="P" must-not="V" may-encrypt="-">
-			<data type="Unsigned32"/>
-		</avp>
-
-		<avp name="Multi-Round-Time-Out" code="272" must="M" may="P" must-not="V" may-encrypt="Y">
-			<data type="Unsigned32"/>
-		</avp>
-
-		<avp name="Origin-Host" code="264" must="M" may="P" must-not="V" may-encrypt="-">
-			<data type="DiameterIdentity"/>
-		</avp>
-
-		<avp name="Origin-Realm" code="296" must="M" may="P" must-not="V" may-encrypt="-">
-			<data type="DiameterIdentity"/>
-		</avp>
-
-		<avp name="Origin-State-Id" code="278" must="M" may="P" must-not="V" may-encrypt="-">
-			<data type="Unsigned32"/>
-		</avp>
-
-		<avp name="Product-Name" code="269" must="-" may="-" must-not="V,M" may-encrypt="-">
-			<data type="UTF8String"/>
-		</avp>
-
-		<avp name="Proxy-Host" code="280" must="M" may="-" must-not="V" may-encrypt="-">
-			<data type="DiameterIdentity"/>
-		</avp>
-
-		<avp name="Proxy-Info" code="284" must="M" may="-" must-not="V" may-encrypt="-">
+		<!-- RFC 6733 §§4.5, 7.5; Erratum 4803. -->
+		<avp name="Failed-AVP" code="279" must="M" may="" must-not="V">
 			<data type="Grouped">
-				<rule avp="Proxy-Host" required="true" max="1"/>
-				<rule avp="Proxy-State" required="true" max="1"/>
+				<rule avp="AVP" required="true" min="1"/>
 			</data>
 		</avp>
 
-		<avp name="Proxy-State" code="33" must="M" may="-" must-not="V" may-encrypt="-">
+		<!-- RFC 6733 §§4.5, 5.3.4. -->
+		<avp name="Firmware-Revision" code="267" must="-" may="" must-not="V,M">
+			<data type="Unsigned32"/>
+		</avp>
+
+		<!-- RFC 6733 §§4.5, 5.3.5. -->
+		<avp name="Host-IP-Address" code="257" must="M" may="" must-not="V">
+			<data type="Address"/>
+		</avp>
+
+		<!-- RFC 6733 §§4.5, 6.10. -->
+		<avp name="Inband-Security-Id" code="299" must="M" may="" must-not="V">
+			<data type="Unsigned32"/>
+		</avp>
+
+		<!-- RFC 6733 §§4.5, 8.19. -->
+		<avp name="Multi-Round-Time-Out" code="272" must="M" may="" must-not="V">
+			<data type="Unsigned32"/>
+		</avp>
+
+		<!-- RFC 6733 §§4.5, 6.3. -->
+		<avp name="Origin-Host" code="264" must="M" may="" must-not="V">
+			<data type="DiameterIdentity"/>
+		</avp>
+
+		<!-- RFC 6733 §§4.5, 6.4. -->
+		<avp name="Origin-Realm" code="296" must="M" may="" must-not="V">
+			<data type="DiameterIdentity"/>
+		</avp>
+
+		<!-- RFC 6733 §§4.5, 8.16. -->
+		<avp name="Origin-State-Id" code="278" must="M" may="" must-not="V">
+			<data type="Unsigned32"/>
+		</avp>
+
+		<!-- RFC 6733 §§4.5, 5.3.7. -->
+		<avp name="Product-Name" code="269" must="-" may="" must-not="V,M">
+			<data type="UTF8String"/>
+		</avp>
+
+		<!-- RFC 6733 §§4.5, 6.7.3. -->
+		<avp name="Proxy-Host" code="280" must="M" may="" must-not="V">
+			<data type="DiameterIdentity"/>
+		</avp>
+
+		<!-- RFC 6733 §§4.5, 6.7.2; Erratum 4803. -->
+		<avp name="Proxy-Info" code="284" must="M" may="" must-not="V">
+			<data type="Grouped">
+				<rule avp="Proxy-Host" required="true" max="1"/>
+				<rule avp="Proxy-State" required="true" max="1"/>
+				<rule avp="AVP" required="false"/>
+			</data>
+		</avp>
+
+		<!-- RFC 6733 §§4.5, 6.7.4. -->
+		<avp name="Proxy-State" code="33" must="M" may="" must-not="V">
 			<data type="OctetString"/>
 		</avp>
 
-		<avp name="Redirect-Host" code="292" must="M" may="P" must-not="V" may-encrypt="-">
+		<!-- RFC 7075 §3.3; RFC 6733 §4.1: IETF AVP; no AVP-specific M rule. -->
+		<avp name="Redirect-Realm" code="620" must="" may="" must-not="V">
+			<data type="DiameterIdentity"/>
+		</avp>
+
+		<!-- RFC 6733 §§4.5, 6.12. -->
+		<avp name="Redirect-Host" code="292" must="M" may="" must-not="V">
 			<data type="DiameterURI"/>
 		</avp>
 
-		<avp name="Redirect-Host-Usage" code="261" must="M" may="P" must-not="V" may-encrypt="-">
+		<!-- RFC 6733 §§4.5, 6.13; RFC 7075 §3 (realm redirect usage). -->
+		<avp name="Redirect-Host-Usage" code="261" must="M" may="" must-not="V">
 			<data type="Enumerated">
 				<item code="0" name="DONT_CACHE"/>
 				<item code="1" name="ALL_SESSION"/>
@@ -409,31 +468,38 @@
 			</data>
 		</avp>
 
-		<avp name="Redirect-Max-Cache-Time" code="262" must="M" may="P" must-not="V" may-encrypt="-">
+		<!-- RFC 6733 §§4.5, 6.14; RFC 7075 §3 (realm redirect usage). -->
+		<avp name="Redirect-Max-Cache-Time" code="262" must="M" may="" must-not="V">
 			<data type="Unsigned32"/>
 		</avp>
 
-		<avp name="Result-Code" code="268" must="M" may="P" must-not="V" may-encrypt="-">
+		<!-- RFC 6733 §§4.5, 7.1. -->
+		<avp name="Result-Code" code="268" must="M" may="" must-not="V">
 			<data type="Unsigned32"/>
 		</avp>
 
-		<avp name="Route-Record" code="282" must="M" may="-" must-not="V" may-encrypt="-">
+		<!-- RFC 6733 §§4.5, 6.7.1. -->
+		<avp name="Route-Record" code="282" must="M" may="" must-not="V">
 			<data type="DiameterIdentity"/>
 		</avp>
 
-		<avp name="Session-Id" code="263" must="M" may="P" must-not="V" may-encrypt="Y">
+		<!-- RFC 6733 §§4.5, 8.8. -->
+		<avp name="Session-Id" code="263" must="M" may="" must-not="V">
 			<data type="UTF8String"/>
 		</avp>
 
-		<avp name="Session-Timeout" code="27" must="M" may="P" must-not="V" may-encrypt="-">
+		<!-- RFC 6733 §§4.5, 8.13. -->
+		<avp name="Session-Timeout" code="27" must="M" may="" must-not="V">
 			<data type="Unsigned32"/>
 		</avp>
 
-		<avp name="Session-Binding" code="270" must="M" may="P" must-not="V" may-encrypt="Y">
+		<!-- RFC 6733 §§4.5, 8.17. -->
+		<avp name="Session-Binding" code="270" must="M" may="" must-not="V">
 			<data type="Unsigned32"/>
 		</avp>
 
-		<avp name="Session-Server-Failover" code="271" must="M" may="P" must-not="V" may-encrypt="Y">
+		<!-- RFC 6733 §§4.5, 8.18. -->
+		<avp name="Session-Server-Failover" code="271" must="M" may="" must-not="V">
 			<data type="Enumerated">
 				<item code="0" name="REFUSE_SERVICE"/>
 				<item code="1" name="TRY_AGAIN"/>
@@ -442,11 +508,13 @@
 			</data>
 		</avp>
 
-		<avp name="Supported-Vendor-Id" code="265" must="M" may="P" must-not="V" may-encrypt="-">
+		<!-- RFC 6733 §§4.5, 5.3.6. -->
+		<avp name="Supported-Vendor-Id" code="265" must="M" may="" must-not="V">
 			<data type="Unsigned32"/>
 		</avp>
 
-		<avp name="Termination-Cause" code="295" must="M" may="P" must-not="V" may-encrypt="-">
+		<!-- RFC 6733 §§4.5, 8.15; IANA Termination-Cause AVP Values. -->
+		<avp name="Termination-Cause" code="295" must="M" may="" must-not="V">
 			<data type="Enumerated">
 				<item code="1" name="DIAMETER_LOGOUT"/>
 				<item code="2" name="DIAMETER_SERVICE_NOT_PROVIDED"/>
@@ -456,18 +524,43 @@
 				<item code="6" name="DIAMETER_AUTH_EXPIRED"/>
 				<item code="7" name="DIAMETER_USER_MOVED"/>
 				<item code="8" name="DIAMETER_SESSION_TIMEOUT"/>
+				<item code="11" name="USER_REQUEST"/>
+				<item code="12" name="LOST_CARRIER"/>
+				<item code="13" name="LOST_SERVICE"/>
+				<item code="14" name="IDLE_TIMEOUT"/>
+				<item code="15" name="SESSION_TIMEOUT"/>
+				<item code="16" name="ADMIN_RESET"/>
+				<item code="17" name="ADMIN_REBOOT"/>
+				<item code="18" name="PORT_ERROR"/>
+				<item code="19" name="NAS_ERROR"/>
+				<item code="20" name="NAS_REQUEST"/>
+				<item code="21" name="NAS_REBOOT"/>
+				<item code="22" name="PORT_UNNEEDED"/>
+				<item code="23" name="PORT_PREEMPTED"/>
+				<item code="24" name="PORT_SUSPENDED"/>
+				<item code="25" name="SERVICE_UNAVAILABLE"/>
+				<item code="26" name="CALLBACK"/>
+				<item code="27" name="USER_ERROR"/>
+				<item code="28" name="HOST_REQUEST"/>
+				<item code="29" name="SUPPLICANT_RESTART"/>
+				<item code="30" name="REAUTHENTICATION_FAILURE"/>
+				<item code="31" name="PORT_REINITIALIZED"/>
+				<item code="32" name="PORT_ADMINISTRATIVELY_DISABLED"/>
 			</data>
 		</avp>
 
-		<avp name="User-Name" code="1" must="M" may="P" must-not="V" may-encrypt="Y">
+		<!-- RFC 6733 §§4.5, 8.14. -->
+		<avp name="User-Name" code="1" must="M" may="" must-not="V">
 			<data type="UTF8String"/>
 		</avp>
 
-		<avp name="Vendor-Id" code="266" must="M" may="P" must-not="V" may-encrypt="-">
+		<!-- RFC 6733 §§4.5, 5.3.3. -->
+		<avp name="Vendor-Id" code="266" must="M" may="" must-not="V">
 			<data type="Unsigned32"/>
 		</avp>
 
-		<avp name="Vendor-Specific-Application-Id" code="260" must="M" may="P" must-not="V" may-encrypt="-">
+		<!-- RFC 6733 §§4.5, 6.11; Erratum 4803. -->
+		<avp name="Vendor-Specific-Application-Id" code="260" must="M" may="" must-not="V">
 			<data type="Grouped">
 				<rule avp="Vendor-Id" required="true" max="1"/>
 				<rule avp="Auth-Application-Id" required="false" max="1"/>
@@ -475,7 +568,7 @@
 			</data>
 		</avp>
 
-		<!-- RFC 7683 §7.1 as updated by RFC 8581 §7.1. -->
+		<!-- RFC 7683 §§7.1, 7.8; RFC 8581 §7.1. -->
 		<avp name="OC-Supported-Features" code="621" must-not="V">
 			<data type="Grouped">
 				<rule avp="OC-Feature-Vector" required="false" max="1"/>
@@ -485,11 +578,12 @@
 			</data>
 		</avp>
 
+		<!-- RFC 7683 §§7.2, 7.8. -->
 		<avp name="OC-Feature-Vector" code="622" must-not="V">
 			<data type="Unsigned64"/>
 		</avp>
 
-		<!-- RFC 7683 §7.3 as updated by RFC 8581 §7.2. -->
+		<!-- RFC 7683 §§7.3, 7.8; RFC 8581 §7.2. -->
 		<avp name="OC-OLR" code="623" must-not="V">
 			<data type="Grouped">
 				<rule avp="OC-Sequence-Number" required="true" max="1" fixed="true"/>
@@ -501,15 +595,17 @@
 			</data>
 		</avp>
 
+		<!-- RFC 7683 §§7.4, 7.8. -->
 		<avp name="OC-Sequence-Number" code="624" must-not="V">
 			<data type="Unsigned64"/>
 		</avp>
 
+		<!-- RFC 7683 §§7.5, 7.8. -->
 		<avp name="OC-Validity-Duration" code="625" must-not="V">
 			<data type="Unsigned32"/>
 		</avp>
 
-		<!-- RFC 7683 §7.6 and RFC 8581 §7.2.1. -->
+		<!-- RFC 7683 §§7.6, 7.8; RFC 8581 §7.2.1. -->
 		<avp name="OC-Report-Type" code="626" must-not="V">
 			<data type="Enumerated">
 				<item code="0" name="HOST_REPORT"/>
@@ -518,11 +614,12 @@
 			</data>
 		</avp>
 
+		<!-- RFC 7683 §§7.7, 7.8. -->
 		<avp name="OC-Reduction-Percentage" code="627" must-not="V">
 			<data type="Unsigned32"/>
 		</avp>
 
-		<!-- IETF RFC 7944 - https://www.rfc-editor.org/rfc/rfc7944 -->
+		<!-- RFC 7944 §§9.1, 9.2. -->
 		<avp name="DRMP" code="301" must-not="V">
 			<data type="Enumerated">
 				<item code="0" name="PRIORITY_0"/>
@@ -545,8 +642,8 @@
 		</avp>
 
 
-		<!-- RFC 8583 §§7.1-7.5 and RFC 8581 §§7.1.2, 7.4. -->
-		<avp name="Load" code="650" vendor-id="0" must="" may="" must-not="V" may-encrypt="N">
+		<!-- RFC 8583 §§7.1, 7.5. -->
+		<avp name="Load" code="650" vendor-id="0" must="" may="" must-not="V">
 			<data type="Grouped">
 				<rule avp="Load-Type" required="false" max="1"/>
 				<rule avp="Load-Value" required="false" max="1"/>
@@ -554,19 +651,23 @@
 				<rule avp="AVP" required="false"/>
 			</data>
 		</avp>
-		<avp name="Load-Type" code="651" vendor-id="0" must="" may="" must-not="V" may-encrypt="N">
+		<!-- RFC 8583 §§7.2, 7.5. -->
+		<avp name="Load-Type" code="651" vendor-id="0" must="" may="" must-not="V">
 			<data type="Enumerated">
 				<item code="0" name="HOST"/>
 				<item code="1" name="PEER"/>
 			</data>
 		</avp>
-		<avp name="Load-Value" code="652" vendor-id="0" must="" may="" must-not="V" may-encrypt="N">
+		<!-- RFC 8583 §§7.3, 7.5. -->
+		<avp name="Load-Value" code="652" vendor-id="0" must="" may="" must-not="V">
 			<data type="Unsigned64"/>
 		</avp>
-		<avp name="SourceID" code="649" vendor-id="0" must="" may="" must-not="V" may-encrypt="N">
+		<!-- RFC 8581 §§7.3, 7.4. -->
+		<avp name="SourceID" code="649" vendor-id="0" must="" may="" must-not="V">
 			<data type="DiameterIdentity"/>
 		</avp>
-		<avp name="OC-Peer-Algo" code="648" vendor-id="0" must="" may="" must-not="V" may-encrypt="N">
+		<!-- RFC 8581 §§7.1.2, 7.4. -->
+		<avp name="OC-Peer-Algo" code="648" vendor-id="0" must="" may="" must-not="V">
 			<data type="Unsigned64"/>
 		</avp>
 

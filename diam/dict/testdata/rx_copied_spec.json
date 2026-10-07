@@ -435,7 +435,7 @@
       "vendor": 0,
       "type": "Unsigned32",
       "must": "M",
-      "may": "P",
+      "may": "",
       "must_not": "V",
       "source": "RFC 6733 (October 2012) §5.3.3 and §4.5 AVP flag table",
       "name": "Vendor-Id"

@@ -1,5 +1,5 @@
 {
-  "source": "RFC 6733 \u00a74.5 base AVP table; \u00a76.7.2 Proxy-Info CCF; IANA AAA Parameters registries",
+  "source": "RFC 6733 \u00a74.5 base AVP table; \u00a76.7.2 Proxy-Info and \u00a77.5 Failed-AVP CCF; IANA AAA Parameters registries",
   "rfc_sha256": "b0117adedd43f9f44e444f64cd7360709c351aa27ea288d9c664c2800da8fa26",
   "aaa_sha256": "67e1f78147ac95886436dc9459611f1821159fd3d411d98f2781db2b4820b720",
   "avps": [
@@ -185,7 +185,14 @@
       "section": "7.5",
       "type": "Grouped",
       "must": "M",
-      "must_not": "V"
+      "must_not": "V",
+      "rules": [
+        {
+          "name": "AVP",
+          "min": 1,
+          "max": null
+        }
+      ]
     },
     {
       "name": "Multi-Round-Time-Out",
