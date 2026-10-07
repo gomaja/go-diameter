@@ -5,6 +5,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/dict"
 )
 
@@ -13,8 +14,9 @@ import (
 // application, using the same independent source metadata as the spec tests.
 func TestNASCCReusedAVPWireRoundTrip(t *testing.T) {
 	lookup := map[string]nasreqWireAVP{}
+	_, qos := rfc5777WireSpec(t)
 	var baseNames []string
-	for _, file := range []string{"nasreq_reused_spec.json", "nasreq_spec.json", "credit_control_spec.json"} {
+	for _, file := range []string{"nasreq_reused_spec.json", "nasreq_spec.json", "credit_control_spec.json", "rfc5777_spec.json", "credit_control_reused_spec.json"} {
 		b, err := os.ReadFile("dict/testdata/" + file)
 		if err != nil {
 			t.Fatal(err)
@@ -44,11 +46,6 @@ func TestNASCCReusedAVPWireRoundTrip(t *testing.T) {
 					return
 				}
 				seen[name] = true
-				if name == "Filter-Rule" {
-					// RFC 5777's unimplemented grammar is explicitly pinned in
-					// credit_control_reused_spec.json; it has no source closure yet.
-					return
-				}
 				a, ok := lookup[name]
 				if !ok {
 					t.Fatalf("missing source metadata for reused %s", name)
@@ -72,7 +69,7 @@ func TestNASCCReusedAVPWireRoundTrip(t *testing.T) {
 					visit(r.Name)
 				}
 			}
-			if len(names) != 21 {
+			if len(names) != 91 {
 				t.Fatalf("incomplete reused Credit-Control closure: %d", len(names))
 			}
 		}
@@ -83,7 +80,16 @@ func TestNASCCReusedAVPWireRoundTrip(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				data := nasreqWireData(t, want, lookup)
+				var data datatype.Type
+				if source, ok := qos[name]; ok {
+					// RFC 5777 §§3–5 source grammar must not regress to an unchecked stub.
+					if source.Type == "Grouped" && len(def.Data.Rule) != len(source.Rules) {
+						t.Fatalf("%s has %d rules, source has %d", name, len(def.Data.Rule), len(source.Rules))
+					}
+					data = rfc5777Data(t, source, qos)
+				} else {
+					data = nasreqWireData(t, want, lookup)
+				}
 				m := NewRequest(265, app, dict.Default)
 				if _, err := m.NewAVPByName(def.Name, gxWireFlags(def.Must), data); err != nil {
 					t.Fatal(err)

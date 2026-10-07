@@ -190,28 +190,30 @@ func TestCreditControlInheritedAVPSpec(t *testing.T) {
 }
 
 // RFC 8506 §§3.1–3.2 and §8.68 reuse these Grouped AVPs. Their source
-// grammars live outside this RFC. Keep the three existing source gaps explicit
-// until the RFC 6733 and RFC 5777 dictionaries are refreshed separately.
+// grammars live outside this RFC. Require the complete RFC 5777 grammar;
+// only the two documented RFC 6733 shared gaps may retain partial rules.
 func TestCreditControlReferencedGroupedSourceGaps(t *testing.T) {
 	data, err := os.ReadFile("testdata/credit_control_reused_spec.json")
 	if err != nil {
 		t.Fatal(err)
 	}
+	type groupedSource struct {
+		Name, Source, Type string
+		Code               uint32
+		Rules              []creditControlRule
+		KnownRuleCount     *int `json:"known_shared_rule_count"`
+	}
 	var fixture struct {
-		KnownSharedGaps []struct {
-			Name, Source, Type string
-			Code               uint32
-			Rules              []creditControlRule
-			KnownRuleCount     int `json:"known_shared_rule_count"`
-		} `json:"known_shared_gaps"`
+		KnownSharedGaps []groupedSource `json:"known_shared_gaps"`
+		RequiredGrouped []groupedSource `json:"required_grouped"`
 	}
 	if err := json.Unmarshal(data, &fixture); err != nil {
 		t.Fatal(err)
 	}
-	if len(fixture.KnownSharedGaps) != 3 {
-		t.Fatalf("source-gap fixture has %d groups, want 3", len(fixture.KnownSharedGaps))
+	if len(fixture.KnownSharedGaps) != 2 || len(fixture.RequiredGrouped) != 1 || fixture.RequiredGrouped[0].Name != "Filter-Rule" || fixture.RequiredGrouped[0].KnownRuleCount != nil {
+		t.Fatal("expected two base gaps and a strict Filter-Rule grammar")
 	}
-	for _, want := range fixture.KnownSharedGaps {
+	for _, want := range append(fixture.RequiredGrouped, fixture.KnownSharedGaps...) {
 		t.Run(want.Name, func(t *testing.T) {
 			if want.Source == "" || len(want.Rules) == 0 {
 				t.Fatal("missing source grammar")
@@ -223,12 +225,12 @@ func TestCreditControlReferencedGroupedSourceGaps(t *testing.T) {
 			if got.Name != want.Name || got.Data.TypeName != want.Type {
 				t.Errorf("identity/type = %s/%s, want %s/%s", got.Name, got.Data.TypeName, want.Name, want.Type)
 			}
-			if len(got.Data.Rule) == len(want.Rules) {
+			if want.KnownRuleCount == nil || len(got.Data.Rule) == len(want.Rules) {
 				checkCreditControlRules(t, got.Data.Rule, want.Rules)
 				return
 			}
-			if len(got.Data.Rule) != want.KnownRuleCount || want.KnownRuleCount >= len(want.Rules) {
-				t.Errorf("%s grammar has %d rules; source has %d; documented shared state is %d", want.Source, len(got.Data.Rule), len(want.Rules), want.KnownRuleCount)
+			if len(got.Data.Rule) != *want.KnownRuleCount || *want.KnownRuleCount >= len(want.Rules) {
+				t.Errorf("%s grammar has %d rules; source has %d; documented shared state is %d", want.Source, len(got.Data.Rule), len(want.Rules), *want.KnownRuleCount)
 				return
 			}
 			for i := 0; i < len(got.Data.Rule); i++ {
@@ -242,7 +244,7 @@ func TestCreditControlReferencedGroupedSourceGaps(t *testing.T) {
 // RFC 8506 §§3.1–3.2, 8.16–8.68 reuse NASREQ/base AVPs. Walk every
 // named member reachable from the CC grammars and pin metadata and enums to
 // the source fixtures for RFC 7155 and RFC 6733, including Proxy-Info's two
-// required descendants. Filter-Rule's RFC 5777 closure is documented above.
+// required descendants and the complete RFC 5777 Filter-Rule closure.
 func TestCreditControlReusedSourceClosure(t *testing.T) {
 	checkCreditControlReusedSourceClosure(t, Default)
 }
@@ -257,7 +259,7 @@ func checkCreditControlReusedSourceClosure(t *testing.T, dictionary *Parser) {
 		Rules                 []creditControlRule
 	}
 	sources := map[string]sourceAVP{}
-	for _, filename := range []string{"testdata/nasreq_spec.json", "testdata/nasreq_reused_spec.json"} {
+	for _, filename := range []string{"testdata/nasreq_spec.json", "testdata/nasreq_reused_spec.json", "testdata/rfc5777_spec.json", "testdata/credit_control_reused_spec.json"} {
 		b, err := os.ReadFile(filename)
 		if err != nil {
 			t.Fatal(err)
@@ -302,7 +304,7 @@ func checkCreditControlReusedSourceClosure(t *testing.T, dictionary *Parser) {
 		"Origin-Host": true, "Origin-Realm": true, "Origin-State-Id": true,
 		"Redirect-Host": true, "Redirect-Host-Usage": true,
 		"Redirect-Max-Cache-Time": true, "Result-Code": true,
-		"Session-Id": true, "Termination-Cause": true, "User-Name": true,
+		"Session-Id": true, "Termination-Cause": true, "User-Name": true, "Vendor-Id": true,
 	}
 	visited := map[string]bool{}
 	for len(pending) != 0 {
@@ -312,9 +314,6 @@ func checkCreditControlReusedSourceClosure(t *testing.T, dictionary *Parser) {
 			continue
 		}
 		visited[name] = true
-		if name == "Filter-Rule" {
-			continue // RFC 5777 §3.2 known shared gap is pinned separately.
-		}
 		want, ok := sources[name]
 		if !ok {
 			t.Errorf("no source fixture for reused AVP %s", name)
@@ -349,8 +348,8 @@ func checkCreditControlReusedSourceClosure(t *testing.T, dictionary *Parser) {
 			pending = append(pending, rule.Name)
 		}
 	}
-	if len(visited) != 22 { // 20 direct reused AVPs plus Proxy-Info's two members.
-		t.Errorf("source closure covered %d reused AVPs, want 22", len(visited))
+	if len(visited) != 91 { // Includes Filter-Rule's 68 descendants and Vendor-Id.
+		t.Errorf("source closure covered %d reused AVPs, want 91", len(visited))
 	}
 }
 

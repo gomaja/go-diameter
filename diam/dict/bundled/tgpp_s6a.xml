@@ -2472,21 +2472,6 @@
         <avp name="ProSe-Permission" code="3702" vendor-id="10415" must="M,V" may-encrypt="N">
             <data type="Unsigned32"/>
         </avp>
-        <!-- RFC 5777 §4.2.2; imported by TS 29.336 V20.0.0 §8.4.30. -->
-        <avp name="Time-Of-Day-Start" code="561" must-not="V">
-            <data type="Unsigned32"/>
-        </avp>
-
-        <!-- RFC 5777 §4.2.3; imported by TS 29.336 V20.0.0 §8.4.30. -->
-        <avp name="Time-Of-Day-End" code="562" must-not="V">
-            <data type="Unsigned32"/>
-        </avp>
-
-        <!-- RFC 5777 §4.2.4; imported by TS 29.336 V20.0.0 §8.4.30. -->
-        <avp name="Day-Of-Week-Mask" code="563" must-not="V">
-            <data type="Unsigned32"/>
-        </avp>
-
         <!-- TS 29.272 V19.6.0 Table 7.3.1/1, §7.3.159:
              "MME-Number-for-MT-SMS | 1645 | 7.3.159 | OctetString | V | | | M | No".
              The application-wide M prohibition differs from S6c. -->
