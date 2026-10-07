@@ -82,7 +82,7 @@ var bundledDependencies = map[Bundled][]Bundled{
 	S6c:           {Base, RoRf},
 	SGd:           {Base, RoRf, S6c},
 	Sh:            {Base, Cx},
-	SWx:           {Base, RoRf, S6a},
+	SWx:           {Base, CreditControl, RoRf, S6a},
 }
 
 // Embedded definitions are immutable, like the definitions returned by Snapshot.

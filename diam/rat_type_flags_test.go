@@ -62,6 +62,8 @@ func TestSWxRATTypeWithoutMValidates(t *testing.T) {
 		NewAVP(avp.DestinationRealm, avp.Mbit, 0, datatype.DiameterIdentity("example.org")),
 		NewAVP(avp.UserName, avp.Mbit, 0, datatype.UTF8String("001010000000001@example.org")),
 		NewAVP(avp.RATType, avp.Vbit, vendor3GPP, datatype.Enumerated(0)),
+		NewAVP(avp.SIPAuthDataItem, avp.Vbit|avp.Mbit, vendor3GPP, &GroupedAVP{}),
+		NewAVP(avp.SIPNumberAuthItems, avp.Vbit|avp.Mbit, vendor3GPP, datatype.Unsigned32(1)),
 	} {
 		m.AddAVP(a)
 	}

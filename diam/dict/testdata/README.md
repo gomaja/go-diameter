@@ -438,3 +438,134 @@ verified errata were checked, including RFC 6733 Errata 4803 and 4808.
 Held and rejected proposals were not applied. The Diameter working group is
 concluded; the active SCTP DTLS extension draft is not a replacement for
 RFC 9260.
+
+`swx_spec.json` covers TS 29.273 V19.2.0 (2026-03): all 16 AVPs in
+Table 8.2.3.0/1, three Enumerated registries with six values, five Grouped
+grammars, all 43 reused entries in Table 8.2.3.0/2, and eight command bodies
+in §§8.2.2.1–8.2.2.4. The command bodies contain 20, 17, 13, 12, 20, 16,
+12 and 10 ordered rules. The [3GPP portal](https://portal.3gpp.org/desktopmodules/Specifications/SpecificationDetails.aspx?specificationId=1691)
+confirmed V19.2.0 as latest on 2026-10-07. The
+[official archive](https://www.3gpp.org/ftp/Specs/archive/29_series/29.273/29273-j20.zip)
+SHA-256 is `9ca4a7c8de3ce7fa82ac5ed6c39088ca69799137944df0d90ba6caf4697b1531`;
+the enclosed document SHA-256 is
+`bed4ee977fe0846c74d6cf3e7c649923d4296bde046c7da6555291ee70ec2b4c`.
+
+`swx_copied_spec.json` pins 20 Grouped roots and the entire named-member
+closure, together with every reused scalar and command member: 169 distinct
+AVPs, 31 Grouped grammars with 197 member rules, and 37 Enumerated registries
+with 264 values. The union of both fixtures also contains 169 distinct AVPs.
+The primary tables, CCF, enumerations and SWx-specific overrides were
+extracted from Word XML. Reused metadata comes from the defining source
+tables, existing independent Gx/Rx/S6a source extractions, and current RFC
+text and flag tables. Neither fixture is extracted from dictionary XML.
+Extraction tooling remains outside the repository.
+
+Additional source archives and their SHA-256 digests:
+
+| Source | Archive SHA-256 |
+| --- | --- |
+| [TS 29.229 V19.1.0](https://www.3gpp.org/ftp/Specs/archive/29_series/29.229/29229-j10.zip) | `376b8793234f2f952a9f52a37771c56e51677e160160e5d48b1bf29585ac3b1e` |
+| [TS 29.272 V19.6.0](https://www.3gpp.org/ftp/Specs/archive/29_series/29.272/29272-j60.zip) | `c40fd1834046f87655f4c7c1acd137b0f8f658a91f6cc83a215592ca8326a4b1` |
+| [TS 29.061 V20.1.0](https://www.3gpp.org/ftp/Specs/archive/29_series/29.061/29061-k10.zip) | `848ae9641136231195f7e8c1d045c8ad8ac7bab22541ba860b7851fdaa936f8f` |
+| [TS 29.336 V20.0.0](https://www.3gpp.org/ftp/Specs/archive/29_series/29.336/29336-k00.zip) | `038bbadbcdc3a6715a06371f30aa31846cba37d4687f1379df1b0bdd29d044ac` |
+| [TS 32.299 V19.0.0](https://www.3gpp.org/ftp/Specs/archive/32_series/32.299/32299-j00.zip) | `afabe3636ed612045a13916bc30bc7ceaa63364c2d8098b98d60d5893b09ce02` |
+| [TS 32.422 V20.3.0](https://www.3gpp.org/ftp/Specs/archive/32_series/32.422/32422-k30.zip) | `ce7492846ba9efdcf4e9f0ca4153856b34854a62c7f9d7414e27161129ecf1c1` |
+| [TS 29.212 V20.0.0](https://www.3gpp.org/ftp/Specs/archive/29_series/29.212/29212-k00.zip) | `2a18b6817f72e7f52961e939142497e1cd5ec0c90f52a2057c57374ea5a00958` |
+| [TS 29.214 V20.0.0](https://www.3gpp.org/ftp/Specs/archive/29_series/29.214/29214-k00.zip) | `639cbcba519539918c8965fdf6399307094b16d87306878d0ed588ac6335659c` |
+
+Logical-Access-ID uses ETSI ES 283 034 V2.2.0 Table 10, §7.3.3, whose PDF digest is
+recorded with Sy above. The SWx vendor declaration includes ETSI 13019 for
+this member of Access-Network-Info; 3GPP 10415 remains the application author.
+
+SWx interpretation and normalization:
+
+- Flag sets are compared exactly and use comma-separated `M,V` syntax.
+  Whitespace, `Subscription-ID` capitalization and established `TGPP-`
+  spellings are normalized. The duplicate closing bracket after OC-OLR in
+  MAA/SAA is typography, not an additional grammar element.
+- Access-Network-Info uses code 1526. Both its current table and §5.2.3.24
+  agree after [CR 0557, C4-260085 / CP-260030](https://portal.3gpp.org/ChangeRequests.aspx?q=1&release=194&versionId=97641),
+  approved for V19.2.0. The CR portal record was checked; the change document
+  itself could not be downloaded.
+- Emergency-Services is defined in §7.2.3.4. Table 9.2.3.2.1/1's reference
+  to §7.2.3.5 points to AAR-Flags instead; the defining clause and STa table
+  agree. ERP-Authorization remains Unsigned32 despite its two named values.
+- Subscription-Id retains the explicitly optional members in §8.2.3.2;
+  SIP-Auth-Data-Item retains the SWx grammar in §8.2.3.9. APN-Configuration
+  inherits the full current TS 29.272 grammar: §8.2.3.7 says some members
+  need not be included, without prohibiting them or removing extensions.
+- SCEF-ID inside APN-Configuration follows TS 29.336 V20.0.0
+  Table 8.4.1-1 and §8.4.5: DiameterIdentity, M,V required, encryption
+  forbidden. SWx Table 8.2.3.0/2 supplies no override, so S6a's
+  application-specific M-bit prohibition does not apply. A local SWx
+  definition restores the defining specification; SAA tests require M,V
+  and reject V-only SCEF-ID before and after a wire round trip.
+- Supported-Features inherits its source grammar. TS 29.229 V19.1.0 §7.2.1
+  forbids its M bit in answers; four command-member rules apply this
+  restriction without changing the AVP's request policy.
+- Load inherits RFC 8583's extension point and member flags. SWx clears M
+  on Load itself, without the recursive M prohibition specified for Gx/Rx.
+  SourceID therefore retains its RFC 8581 §7.4 policy. §8.2.3.26's reference
+  to Annex E is editorially stale; SWx load control is in Annex F.
+- The reused Area-Scope header in TS 29.272 §7.3.138 prints 1623,
+  which belongs to Job-Type. Table 7.3.1/1 and current TS 29.230 V19.3.0
+  Table 7.1/1 assign Area-Scope 1624. The introducing CR records are
+  TS 29.272 CR 0329r2 (C4-110777) and TS 29.230 CR 0207r2 (C4-110780),
+  approved together in CP-110087 for V10.2.0. Their portal records were
+  checked, but the edit marks were unavailable. The independently fetched
+  [TS 29.230 V19.3.0 archive](https://www.3gpp.org/ftp/Specs/archive/29_series/29.230/29230-j30.zip)
+  SHA-256 is `735ec5b55d998504a9dc9e47cb75fa519d2db640cba2f0abc2e92b46d181a173`;
+  the enclosed document SHA-256 is
+  `d0a0da283745aa3390b66f3f1e9129a59339cc9be57237f2d3c7f27a588f98e7`.
+- RFC 4004 §7.11 and Verified Erratum 3234 define MIP-Home-Agent-Host as
+  Grouped. RFC 5447 and RFC 5778 Verified Errata 3034/3035 correct the
+  MIP6-Agent-Info name. Their grammars retain their extension points.
+- Base RFC 6733 §4.5 and RFC 8506 §8 flag tables no longer have the older
+  P-bit permission column. Fifteen base AVPs and Ro/Rf's BSSID retain
+  informational `may="P"` in their shared definitions. The fixtures record
+  these as `known_shared_metadata_gap` entries while retaining the canonical
+  source metadata. Tests accept only the source MAY set or the documented
+  legacy `P` set, and require inheritance instead of SWx-local copies.
+  These shared metadata gaps have no validation behavior effect and remain
+  for their respective shared-dictionary audits.
+- TS 29.273 V19.2.0 §8.2.2.2 omits PXY in the published PPR header,
+  while its PPA includes PXY; §8.2.2.3 likewise uses PXY in SAR/SAA.
+  The dictionary and fixture require PXY on both PPR and PPA under
+  RFC 6733 §6.2's rule that the answer P bit match the request. The fixture
+  retains the original PPR header in `published_header` and explains this
+  deliberate correction in `proxiability_note`. The omission has persisted
+  in every published version since V8.0.0. Cx PPR, also command code 305,
+  uses REQ, PXY (TS 29.229 V19.1.0 §6.1.11). RFC 6733 §3 requires local
+  processing when P is clear. With `ValidateRequests` enabled, a P-clear
+  SWx PPR following the published header is answered with
+  DIAMETER_INVALID_HDR_BITS (3008). No correcting CR was found in the
+  accessible history.
+
+Tests compare the effective `dict.Default` application, exact flag sets,
+identities, types, enums, ordered rules, fixed positions and cardinalities.
+Wire tests round-trip all 169 AVPs and eight command bodies, exercise
+Grouped and command boundaries, and verify answer-scoped feature flags.
+The vendor tests pin both SWx-only and full-default CER advertisements.
+
+RFC Editor and Datatracker relationships and errata were cross-checked on
+2026-10-07. The current sources include RFC 6733 with 7075/8553, RFC 7683
+with 8581, RFC 5580 with 8559, RFCs 4004, 5447, 5778, 7944, 8506 and 8583,
+and RFC 5234 with 7405. DIME is concluded; no pending replacement for the
+SWx dictionary encodings was identified. RADEXT and EMU work concerns
+RADIUS transport or encapsulated EAP behavior, not these Diameter grammars.
+
+TS 29.273 still cites obsolete RFCs 4006 (now 8506), 4005 (7155), 4282
+(7542), and in an STa body reference 3588 (6733). RFC 5448 is current but
+updated by 9048 and 9678; it is not obsolete. Held/rejected proposals were
+not applied: RFC 6733 Held 4210/4234/5084 and Rejected
+4209/4462/4463/4473/4931/6833; RFC 5447 Held 1695/1934; RFC 5580 Held 5465;
+RFC 5234 Held 2820/2914/6172/6173 and Rejected
+1423/3096/4040/4564/5110/4361; RFC 7405 Rejected 5334.
+Reported RFC 6733 6832 and RFC 7683 5277/5278 remain unverified.
+
+Value-dependent procedures remain outside static dictionary validation:
+feature negotiation, conditional user-profile contents, allowed identity
+kinds, reserved bit-mask values, authentication vectors, and the
+Auth-Session-State value required by §8.2.4. The PPR header correction
+above is explicit; these fixtures do not implement encapsulated EAP,
+RADIUS, DNS, or mobility protocols.

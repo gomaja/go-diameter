@@ -8,14 +8,17 @@ package avp
 
 // Diameter AVP types.
 const (
+	AAAFailureIndication                       = 1518
 	AbortCause                                 = 500
 	AbsentUserDiagnosticSM                     = 3322
 	AcceptableServiceInfo                      = 526
+	AccessAuthorizationFlags                   = 1511
 	AccessAvailabilityChangeReason             = 2833
 	AccessNetworkChargingAddress               = 501
 	AccessNetworkChargingIdentifier            = 502
 	AccessNetworkChargingIdentifierGx          = 1022
 	AccessNetworkChargingIdentifierValue       = 503
+	AccessNetworkInfo                          = 1526
 	AccessNetworkInformation                   = 1263
 	AccessRestrictionData                      = 1426
 	AccessTransferInformation                  = 2709
@@ -285,6 +288,7 @@ const (
 	EPSUserState                               = 1495
 	EquipmentStatus                            = 1445
 	EquivalentPLMNList                         = 1637
+	ERPAuthorization                           = 1541
 	ErrorDiagnostic                            = 1614
 	ErrorMessage                               = 281
 	ErrorReportingHost                         = 294
@@ -384,6 +388,7 @@ const (
 	GuaranteedBitrateUL                        = 1026
 	GuaranteedFlowBitrates                     = 1715
 	HeNBLocalIPAddress                         = 2804
+	HESSID                                     = 1525
 	HFCNodeIdentifier                          = 579
 	HomogeneousSupportofIMSVoiceOverPSSessions = 1493
 	HostIPAddress                              = 257
@@ -474,8 +479,10 @@ const (
 	LocalTimeZone                              = 1649
 	LocalTimeZoneIndication                    = 718
 	LocationAreaIdentity                       = 1606
+	LocationData                               = 128
 	LocationEstimate                           = 1242
 	LocationEstimateType                       = 1243
+	LocationInformation                        = 127
 	LocationInformationConfiguration           = 3135
 	LocationType                               = 1244
 	LoggingDuration                            = 1632
@@ -647,6 +654,7 @@ const (
 	OnlineChargingFlag                         = 2303
 	OperationMode                              = 1702
 	OperatorDeterminedBarring                  = 1425
+	OperatorName                               = 126
 	OptionalCapability                         = 605
 	OriginAAAProtocol                          = 408
 	OriginatingIOI                             = 839
@@ -726,6 +734,7 @@ const (
 	PortLimit                                  = 62
 	PositioningData                            = 1245
 	PositioningMethod                          = 1659
+	PPRFlags                                   = 1508
 	PRAInstall                                 = 2845
 	PRARemove                                  = 2846
 	Precedence                                 = 1010
@@ -1153,6 +1162,8 @@ const (
 	TunnelServerAuthID                         = 91
 	TunnelServerEndpoint                       = 67
 	TunnelType                                 = 64
+	TWANAccessInfo                             = 1510
+	TWANDefaultAPNContextID                    = 1512
 	TWANIdentifier                             = 29
 	TWANUserLocationInfo                       = 2714
 	TypeNumber                                 = 1204
@@ -1225,6 +1236,7 @@ const (
 	WildcardedIMPU                             = 636
 	WildcardedPublicIdentity                   = 634
 	WirelineUserLocationInfo                   = 578
+	WLANIdentifier                             = 1509
 	WLANoffloadability                         = 1667
 	WLANoffloadabilityEUTRAN                   = 1668
 	WLANoffloadabilityUTRAN                    = 1669
