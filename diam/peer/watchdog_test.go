@@ -558,35 +558,13 @@ func TestReconnectNeverOverlapsDial(t *testing.T) {
 	if attempts.Load() == 0 {
 		t.Fatal("initial dial did not start")
 	}
-	clock.mu.Lock()
-	before := len(clock.timers)
-	clock.mu.Unlock()
+	before := clock.timerCount()
 	clock.fire() // Connect timeout while Dial is still blocked.
 	awaitState(t, m, Closed)
-	deadline = time.Now().Add(time.Second)
-	for {
-		clock.mu.Lock()
-		count := len(clock.timers)
-		clock.mu.Unlock()
-		if count > before || time.Now().After(deadline) {
-			break
-		}
-		time.Sleep(time.Millisecond)
-	}
-	clock.mu.Lock()
-	before = len(clock.timers)
-	clock.mu.Unlock()
+	clock.waitTimers(t, before+1)
+	before = clock.timerCount()
 	clock.fire() // Tc expires while the first Dial is still in progress.
-	deadline = time.Now().Add(time.Second)
-	for {
-		clock.mu.Lock()
-		count := len(clock.timers)
-		clock.mu.Unlock()
-		if count > before || time.Now().After(deadline) {
-			break
-		}
-		time.Sleep(time.Millisecond)
-	}
+	clock.waitTimers(t, before+1)
 	if got := attempts.Load(); got != 1 {
 		t.Fatalf("overlapping attempts=%d", got)
 	}
