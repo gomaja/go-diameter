@@ -9,7 +9,7 @@
 		<command code="265" short="AA" name="AA">
 			<request proxiable="true">
 				<!-- https://www.rfc-editor.org/rfc/rfc7155#section-3.1 -->
-				<rule avp="Session-Id" required="true" max="1"/>
+				<rule avp="Session-Id" required="true" max="1" fixed="true"/>
 				<rule avp="Auth-Application-Id" required="true" max="1"/>
 				<rule avp="Origin-Host" required="true" max="1"/>
 				<rule avp="Origin-Realm" required="true" max="1"/>
@@ -17,7 +17,7 @@
 				<rule avp="Auth-Request-Type" required="true" max="1"/>
 				<rule avp="Destination-Host" required="false" max="1"/>
 				<rule avp="NAS-Identifier" required="false" max="1"/>
-				<rule avp="NAS-IP-Address" required="true" max="1"/>
+				<rule avp="NAS-IP-Address" required="false" max="1"/>
 				<rule avp="NAS-IPv6-Address" required="false" max="1"/>
 				<rule avp="NAS-Port" required="false" max="1"/>
 				<rule avp="NAS-Port-Id" required="false" max="1"/>
@@ -58,10 +58,11 @@
 				<rule avp="Tunneling" required="false"/>
 				<rule avp="Proxy-Info" required="false"/>
 				<rule avp="Route-Record" required="false"/>
+				<rule avp="AVP" required="false"/>
 			</request>
 			<answer proxiable="true">
 				<!-- https://www.rfc-editor.org/rfc/rfc7155#section-3.2 -->
-				<rule avp="Session-Id" required="true" max="1"/>
+				<rule avp="Session-Id" required="true" max="1" fixed="true"/>
 				<rule avp="Auth-Application-Id" required="true" max="1"/>
 				<rule avp="Auth-Request-Type" required="true" max="1"/>
 				<rule avp="Result-Code" required="true" max="1"/>
@@ -128,13 +129,14 @@
 				<rule avp="Redirect-Host-Usage" required="false" max="1"/>
 				<rule avp="Redirect-Max-Cache-Time" required="false" max="1"/>
 				<rule avp="Proxy-Info" required="false"/>
+				<rule avp="AVP" required="false"/>
 			</answer>
 		</command>
 
 		<command code="258" short="RA" name="Re-Auth">
 			<request proxiable="true">
 				<!-- https://www.rfc-editor.org/rfc/rfc7155#section-3.3 -->
-				<rule avp="Session-Id" required="true" max="1"/>
+				<rule avp="Session-Id" required="true" max="1" fixed="true"/>
 				<rule avp="Origin-Host" required="true" max="1"/>
 				<rule avp="Origin-Realm" required="true" max="1"/>
 				<rule avp="Destination-Realm" required="true" max="1"/>
@@ -145,7 +147,7 @@
 				<rule avp="Origin-AAA-Protocol" required="false" max="1"/>
 				<rule avp="Origin-State-Id" required="false" max="1"/>
 				<rule avp="NAS-Identifier" required="false" max="1"/>
-				<rule avp="NAS-IP-Address" required="true" max="1"/>
+				<rule avp="NAS-IP-Address" required="false" max="1"/>
 				<rule avp="NAS-IPv6-Address" required="false" max="1"/>
 				<rule avp="NAS-Port" required="false" max="1"/>
 				<rule avp="NAS-Port-Id" required="false" max="1"/>
@@ -164,10 +166,11 @@
 				<rule avp="Reply-Message" required="false" max="1"/>
 				<rule avp="Proxy-Info" required="false"/>
 				<rule avp="Route-Record" required="false"/>
+				<rule avp="AVP" required="false"/>
 			</request>
 			<answer proxiable="true">
 				<!-- https://www.rfc-editor.org/rfc/rfc7155#section-3.4 -->
-				<rule avp="Session-Id" required="true" max="1"/>
+				<rule avp="Session-Id" required="true" max="1" fixed="true"/>
 				<rule avp="Result-Code" required="true" max="1"/>
 				<rule avp="Origin-Host" required="true" max="1"/>
 				<rule avp="Origin-Realm" required="true" max="1"/>
@@ -177,8 +180,10 @@
 				<rule avp="Error-Message" required="false" max="1"/>
 				<rule avp="Error-Reporting-Host" required="false" max="1"/>
 				<rule avp="Failed-AVP" required="false"/>
+				<!-- RFC 7155 §3.4; Verified Errata 5993. -->
 				<rule avp="Redirect-Host" required="false"/>
 				<rule avp="Redirect-Host-Usage" required="false" max="1"/>
+				<!-- RFC 7155 §3.4; Verified Errata 5994. -->
 				<rule avp="Redirect-Max-Cache-Time" required="false" max="1"/>
 				<rule avp="Service-Type" required="false" max="1"/>
 				<rule avp="Configuration-Token" required="false"/>
@@ -191,13 +196,14 @@
 				<rule avp="Reply-Message" required="false"/>
 				<rule avp="Prompt" required="false" max="1"/>
 				<rule avp="Proxy-Info" required="false"/>
+				<rule avp="AVP" required="false"/>
 			</answer>
 		</command>
 
 		<command code="275" short="ST" name="Session-Termination">
 			<request proxiable="true">
 				<!-- https://www.rfc-editor.org/rfc/rfc7155#section-3.5 -->
-				<rule avp="Session-Id" required="true" max="1"/>
+				<rule avp="Session-Id" required="true" max="1" fixed="true"/>
 				<rule avp="Origin-Host" required="true" max="1"/>
 				<rule avp="Origin-Realm" required="true" max="1"/>
 				<rule avp="Destination-Realm" required="true" max="1"/>
@@ -210,10 +216,11 @@
 				<rule avp="Origin-State-Id" required="false" max="1"/>
 				<rule avp="Proxy-Info" required="false"/>
 				<rule avp="Route-Record" required="false"/>
+				<rule avp="AVP" required="false"/>
 			</request>
 			<answer proxiable="true">
 				<!-- https://www.rfc-editor.org/rfc/rfc7155#section-3.6 -->
-				<rule avp="Session-Id" required="true" max="1"/>
+				<rule avp="Session-Id" required="true" max="1" fixed="true"/>
 				<rule avp="Result-Code" required="true" max="1"/>
 				<rule avp="Origin-Host" required="true" max="1"/>
 				<rule avp="Origin-Realm" required="true" max="1"/>
@@ -228,13 +235,14 @@
 				<rule avp="Redirect-Host-Usage" required="false" max="1"/>
 				<rule avp="Redirect-Max-Cache-Time" required="false" max="1"/>
 				<rule avp="Proxy-Info" required="false"/>
+				<rule avp="AVP" required="false"/>
 			</answer>
 		</command>
 
 		<command code="274" short="AS" name="Abort-Session">
 			<request proxiable="true">
 				<!-- https://www.rfc-editor.org/rfc/rfc7155#section-3.7 -->
-				<rule avp="Session-Id" required="true" max="1"/>
+				<rule avp="Session-Id" required="true" max="1" fixed="true"/>
 				<rule avp="Origin-Host" required="true" max="1"/>
 				<rule avp="Origin-Realm" required="true" max="1"/>
 				<rule avp="Destination-Realm" required="true" max="1"/>
@@ -244,7 +252,7 @@
 				<rule avp="Origin-AAA-Protocol" required="false" max="1"/>
 				<rule avp="Origin-State-Id" required="false" max="1"/>
 				<rule avp="NAS-Identifier" required="false" max="1"/>
-				<rule avp="NAS-IP-Address" required="true" max="1"/>
+				<rule avp="NAS-IP-Address" required="false" max="1"/>
 				<rule avp="NAS-IPv6-Address" required="false" max="1"/>
 				<rule avp="NAS-Port" required="false" max="1"/>
 				<rule avp="NAS-Port-Id" required="false" max="1"/>
@@ -263,10 +271,11 @@
 				<rule avp="Reply-Message" required="false"/>
 				<rule avp="Proxy-Info" required="false"/>
 				<rule avp="Route-Record" required="false"/>
+				<rule avp="AVP" required="false"/>
 			</request>
 			<answer proxiable="true">
 				<!-- https://www.rfc-editor.org/rfc/rfc7155#section-3.8 -->
-				<rule avp="Session-Id" required="true" max="1"/>
+				<rule avp="Session-Id" required="true" max="1" fixed="true"/>
 				<rule avp="Result-Code" required="true" max="1"/>
 				<rule avp="Origin-Host" required="true" max="1"/>
 				<rule avp="Origin-Realm" required="true" max="1"/>
@@ -277,17 +286,20 @@
 				<rule avp="Error-Message" required="false" max="1"/>
 				<rule avp="Error-Reporting-Host" required="false" max="1"/>
 				<rule avp="Failed-AVP" required="false"/>
+				<!-- RFC 7155 §3.8; Verified Errata 5993. -->
 				<rule avp="Redirect-Host" required="false"/>
 				<rule avp="Redirect-Host-Usage" required="false" max="1"/>
+				<!-- RFC 7155 §3.8 references the RFC 6733 §6.14 Redirect-Max-Cache-Time AVP. -->
 				<rule avp="Redirect-Max-Cache-Time" required="false" max="1"/>
 				<rule avp="Proxy-Info" required="false"/>
+				<rule avp="AVP" required="false"/>
 			</answer>
 		</command>
 
 		<command code="271" short="AC" name="Accounting">
 			<request proxiable="true">
 				<!-- https://www.rfc-editor.org/rfc/rfc7155#section-3.9 -->
-				<rule avp="Session-Id" required="true" max="1"/>
+				<rule avp="Session-Id" required="true" max="1" fixed="true"/>
 				<rule avp="Origin-Host" required="true" max="1"/>
 				<rule avp="Origin-Realm" required="true" max="1"/>
 				<rule avp="Destination-Realm" required="true" max="1"/>
@@ -304,7 +316,7 @@
 				<rule avp="Event-Timestamp" required="false" max="1"/>
 				<rule avp="Acct-Delay-Time" required="false" max="1"/>
 				<rule avp="NAS-Identifier" required="false" max="1"/>
-				<rule avp="NAS-IP-Address" required="true" max="1"/>
+				<rule avp="NAS-IP-Address" required="false" max="1"/>
 				<rule avp="NAS-IPv6-Address" required="false" max="1"/>
 				<rule avp="NAS-Port" required="false" max="1"/>
 				<rule avp="NAS-Port-Id" required="false" max="1"/>
@@ -326,7 +338,7 @@
 				<rule avp="Callback-Number" required="false" max="1"/>
 				<rule avp="Called-Station-Id" required="false" max="1"/>
 				<rule avp="Calling-Station-Id" required="false" max="1"/>
-				<!-- RFC 7155 Errata 5995: Connect-Info is the defined AVP. -->
+				<!-- RFC 7155 §3.9; Verified Errata 5995. -->
 				<rule avp="Connect-Info" required="false"/>
 				<rule avp="Originating-Line-Info" required="false" max="1"/>
 				<rule avp="Authorization-Lifetime" required="false" max="1"/>
@@ -365,10 +377,11 @@
 				<rule avp="Tunneling" required="false"/>
 				<rule avp="Proxy-Info" required="false"/>
 				<rule avp="Route-Record" required="false"/>
+				<rule avp="AVP" required="false"/>
 			</request>
 			<answer proxiable="true">
 				<!-- https://www.rfc-editor.org/rfc/rfc7155#section-3.10 -->
-				<rule avp="Session-Id" required="true" max="1"/>
+				<rule avp="Session-Id" required="true" max="1" fixed="true"/>
 				<rule avp="Result-Code" required="true" max="1"/>
 				<rule avp="Origin-Host" required="true" max="1"/>
 				<rule avp="Origin-Realm" required="true" max="1"/>
@@ -386,7 +399,7 @@
 				<rule avp="Origin-AAA-Protocol" required="false" max="1"/>
 				<rule avp="Origin-State-Id" required="false" max="1"/>
 				<rule avp="NAS-Identifier" required="false" max="1"/>
-				<rule avp="NAS-IP-Address" required="true" max="1"/>
+				<rule avp="NAS-IP-Address" required="false" max="1"/>
 				<rule avp="NAS-IPv6-Address" required="false" max="1"/>
 				<rule avp="NAS-Port" required="false" max="1"/>
 				<rule avp="NAS-Port-Id" required="false" max="1"/>
@@ -397,22 +410,23 @@
 				<rule avp="Acct-Interim-Interval" required="false" max="1"/>
 				<rule avp="Class" required="false"/>
 				<rule avp="Proxy-Info" required="false"/>
+				<rule avp="AVP" required="false"/>
 			</answer>
 		</command>
 
 
 
-		<avp name="NAS-Port" code="5" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="NAS-Port" code="5" must="M" must-not="V">
 			<!-- https://www.rfc-editor.org/rfc/rfc7155#section-4.2.2 -->
 			<data type="Unsigned32"/>
 		</avp>
 
-		<avp name="NAS-Port-Id" code="87" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="NAS-Port-Id" code="87" must="M" must-not="V">
 			<!-- https://www.rfc-editor.org/rfc/rfc7155#section-4.2.3 -->
 			<data type="UTF8String"/>
 		</avp>
 
-		<avp name="NAS-Port-Type" code="61" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="NAS-Port-Type" code="61" must="M" must-not="V">
 			<!-- https://www.rfc-editor.org/rfc/rfc7155#section-4.2.4 -->
 			<data type="Enumerated">
 				<!-- http://www.iana.org/assignments/radius-types/radius-types.xhtml#radius-types-13 -->
@@ -463,42 +477,42 @@
 			</data>
 		</avp>
 
-		<avp name="Called-Station-Id" code="30" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Called-Station-Id" code="30" must="M" must-not="V">
 			<!-- https://www.rfc-editor.org/rfc/rfc7155#section-4.2.5 -->
 			<data type="UTF8String"/>
 		</avp>
 
-		<avp name="Calling-Station-Id" code="31" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Calling-Station-Id" code="31" must="M" must-not="V">
 			<!-- https://www.rfc-editor.org/rfc/rfc7155#section-4.2.6 -->
 			<data type="UTF8String"/>
 		</avp>
 
-		<avp name="Connect-Info" code="77" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Connect-Info" code="77" must="M" must-not="V">
 			<!-- https://www.rfc-editor.org/rfc/rfc7155#section-4.2.7 -->
 			<data type="UTF8String"/>
 		</avp>
 
-		<avp name="Originating-Line-Info" code="94" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Originating-Line-Info" code="94" must="M" must-not="V">
 			<!-- https://www.rfc-editor.org/rfc/rfc7155#section-4.2.8 -->
 			<data type="OctetString"/>
 		</avp>
 
-		<avp name="Reply-Message" code="18" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Reply-Message" code="18" must="M" must-not="V">
 			<!-- https://www.rfc-editor.org/rfc/rfc7155#section-4.2.9 -->
 			<data type="UTF8String"/>
 		</avp>
 
-		<avp name="User-Password" code="2" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="User-Password" code="2" must="M" must-not="V">
 			<!-- https://www.rfc-editor.org/rfc/rfc7155#section-4.3.1 -->
 			<data type="OctetString"/>
 		</avp>
 
-		<avp name="Password-Retry" code="75" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Password-Retry" code="75" must="M" must-not="V">
 			<!-- https://www.rfc-editor.org/rfc/rfc7155#section-4.3.2 -->
 			<data type="Unsigned32"/>
 		</avp>
 
-		<avp name="Prompt" code="76" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Prompt" code="76" must="M" must-not="V">
 			<!-- https://www.rfc-editor.org/rfc/rfc7155#section-4.3.3 -->
 			<data type="Enumerated">
 				<!-- http://www.iana.org/assignments/radius-types/radius-types.xhtml#radius-types-17 -->
@@ -507,59 +521,63 @@
 			</data>
 		</avp>
 
-		<avp name="CHAP-Auth" code="402" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="CHAP-Auth" code="402" must="M" must-not="V">
 			<!-- https://www.rfc-editor.org/rfc/rfc7155#section-4.3.4 -->
 			<data type="Grouped">
 				<rule avp="CHAP-Algorithm" required="true" max="1"/>
 				<rule avp="CHAP-Ident" required="true" max="1"/>
-				<rule avp="CHAP-Response" required="true" max="1"/>
+				<!-- RFC 7155 §4.3.5: CHAP-Algorithm 5 (MD5) requires CHAP-Response.
+				     This conditional sender rule cannot be expressed by the §4.3.4 grammar. -->
+				<rule avp="CHAP-Response" required="false" max="1"/>
+				<rule avp="AVP" required="false"/>
 			</data>
 		</avp>
 
 
-		<avp name="CHAP-Algorithm" code="403" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="CHAP-Algorithm" code="403" must="M" must-not="V">
 			<!-- https://www.rfc-editor.org/rfc/rfc7155#section-4.3.5 -->
 			<data type="Enumerated">
 				<item code="5" name="CHAP with MD5"/>
 			</data>
 		</avp>
 
-		<avp name="CHAP-Ident" code="404" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="CHAP-Ident" code="404" must="M" must-not="V">
 			<!-- https://www.rfc-editor.org/rfc/rfc7155#section-4.3.6 -->
 			<data type="OctetString"/>
 		</avp>
 
-		<avp name="CHAP-Response" code="405" must="M" may="-" must-not="V" may-encrypt="Y">
-			<!-- https://www.rfc-editor.org/rfc/rfc7155#section-4.3.7 -->
+		<avp name="CHAP-Response" code="405" must="M" must-not="V">
+			<!-- RFC 7155 §4.3.7; §4.3.5 requires this AVP for CHAP-Algorithm 5 (MD5),
+			     although the §4.3.4 grammar alone leaves it optional. -->
 			<data type="OctetString"/>
 		</avp>
 
-		<avp name="CHAP-Challenge" code="60" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="CHAP-Challenge" code="60" must="M" must-not="V">
 			<!-- https://www.rfc-editor.org/rfc/rfc7155#section-4.3.8 -->
 			<data type="OctetString"/>
 		</avp>
 
-		<avp name="ARAP-Password" code="70" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="ARAP-Password" code="70" must="M" must-not="V">
 			<!-- https://www.rfc-editor.org/rfc/rfc7155#section-4.3.9 -->
 			<data type="OctetString"/>
 		</avp>
 
-		<avp name="ARAP-Challenge-Response" code="84" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="ARAP-Challenge-Response" code="84" must="M" must-not="V">
 			<!-- https://www.rfc-editor.org/rfc/rfc7155#section-4.3.10 -->
 			<data type="OctetString"/>
 		</avp>
 
-		<avp name="ARAP-Security" code="73" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="ARAP-Security" code="73" must="M" must-not="V">
 			<!-- https://www.rfc-editor.org/rfc/rfc7155#section-4.3.11 -->
 			<data type="Unsigned32"/>
 		</avp>
 
-		<avp name="ARAP-Security-Data" code="74" must="M" may="" must-not="V" may-encrypt="Y">
+		<avp name="ARAP-Security-Data" code="74" must="M" must-not="V">
 			<!-- https://www.rfc-editor.org/rfc/rfc7155#section-4.3.12 -->
 			<data type="OctetString"/>
 		</avp>
 
-		<avp name="Service-Type" code="6" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Service-Type" code="6" must="M" must-not="V">
 			<!-- https://www.rfc-editor.org/rfc/rfc7155#section-4.4.1 -->
 			<data type="Enumerated">
 				<!-- http://www.iana.org/assignments/radius-types/radius-types.xhtml#radius-types-4 -->
@@ -585,48 +603,48 @@
 			</data>
 		</avp>
 
-		<avp name="Callback-Number" code="19" must="M" may="" must-not="V" may-encrypt="Y">
+		<avp name="Callback-Number" code="19" must="M" must-not="V">
 			<!-- https://www.rfc-editor.org/rfc/rfc7155#section-4.4.2 -->
 			<data type="UTF8String"/>
 		</avp>
 
-		<avp name="Callback-Id" code="20" must="M" may="" must-not="V" may-encrypt="Y">
+		<avp name="Callback-Id" code="20" must="M" must-not="V">
 			<!-- https://www.rfc-editor.org/rfc/rfc7155#section-4.4.3 -->
 			<data type="UTF8String"/>
 		</avp>
 
-		<avp name="Idle-Timeout" code="28" must="M" may="" must-not="V" may-encrypt="Y">
+		<avp name="Idle-Timeout" code="28" must="M" must-not="V">
 			<!-- https://www.rfc-editor.org/rfc/rfc7155#section-4.4.4 -->
 			<data type="Unsigned32"/>
 		</avp>
 
-		<avp name="Port-Limit" code="62" must="M" may="" must-not="V" may-encrypt="Y">
+		<avp name="Port-Limit" code="62" must="M" must-not="V">
 			<!-- https://www.rfc-editor.org/rfc/rfc7155#section-4.4.5 -->
 			<data type="Unsigned32"/>
 		</avp>
 
-		<avp name="NAS-Filter-Rule" code="400" must="M" may="" must-not="V" may-encrypt="Y">
+		<avp name="NAS-Filter-Rule" code="400" must="M" must-not="V">
 			<!-- https://www.rfc-editor.org/rfc/rfc7155#section-4.4.6 -->
 			<data type="IPFilterRule"/>
 		</avp>
 
-		<avp name="Filter-Id" code="11" must="M" may="" must-not="V" may-encrypt="Y">
+		<avp name="Filter-Id" code="11" must="M" must-not="V">
 			<!-- https://www.rfc-editor.org/rfc/rfc7155#section-4.4.7 -->
 			<data type="UTF8String"/>
 		</avp>
 
-		<avp name="Configuration-Token" code="78" must="M" may="" must-not="V" may-encrypt="Y">
+		<avp name="Configuration-Token" code="78" must="M" must-not="V">
 			<!-- https://www.rfc-editor.org/rfc/rfc7155#section-4.4.8 -->
 			<data type="OctetString"/>
 		</avp>
 
-		<!-- RFC 7155 §§4.1.1, 4.4.9. Errata 6029 remains Reported. -->
-		<avp name="QoS-Filter-Rule" code="407" may="M,P" must-not="V" may-encrypt="Y">
+		<!-- RFC 7155 §§4.1.1, 4.4.9 permits M. RFC 6733 §4.1 prohibits V for vendor-zero IETF AVPs, independently of the omitted table cell. Errata 6029 remains Reported and is not applied. -->
+		<avp name="QoS-Filter-Rule" code="407" may="M" must-not="V">
 			<data type="QoSFilterRule"/>
 		</avp>
 
 
-		<avp name="Framed-Protocol" code="7" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Framed-Protocol" code="7" must="M" must-not="V">
 			<!-- https://www.rfc-editor.org/rfc/rfc7155#section-4.4.10.1 -->
 			<data type="Enumerated">
 				<!-- http://www.iana.org/assignments/radius-types/radius-types.xhtml#radius-types-5 -->
@@ -640,7 +658,7 @@
 			</data>
 		</avp>
 
-		<avp name="Framed-Routing" code="10" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Framed-Routing" code="10" must="M" must-not="V">
 			<!-- https://www.rfc-editor.org/rfc/rfc7155#section-4.4.10.2 -->
 			<data type="Enumerated">
 				<!-- http://www.iana.org/assignments/radius-types/radius-types.xhtml#radius-types-6 -->
@@ -651,12 +669,12 @@
 			</data>
 		</avp>
 
-		<avp name="Framed-MTU" code="12" must="M" may="" must-not="V" may-encrypt="Y">
+		<avp name="Framed-MTU" code="12" must="M" must-not="V">
 			<!-- https://www.rfc-editor.org/rfc/rfc7155#section-4.4.10.3 -->
 			<data type="Unsigned32"/>
 		</avp>
 
-		<avp name="Framed-Compression" code="13" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Framed-Compression" code="13" must="M" must-not="V">
 			<!-- https://www.rfc-editor.org/rfc/rfc7155#section-4.4.10.4 -->
 			<data type="Enumerated">
 				<!-- http://www.iana.org/assignments/radius-types/radius-types.xhtml#radius-types-7 -->
@@ -667,72 +685,72 @@
 			</data>
 		</avp>
 
-		<avp name="Framed-IP-Address" code="8" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Framed-IP-Address" code="8" must="M" must-not="V">
 			<!-- https://www.rfc-editor.org/rfc/rfc7155#section-4.4.10.5.1 -->
 			<data type="OctetString"/>
 		</avp>
 
-		<avp name="Framed-IP-Netmask" code="9" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Framed-IP-Netmask" code="9" must="M" must-not="V">
 			<!-- https://www.rfc-editor.org/rfc/rfc7155#section-4.4.10.5.2 -->
 			<data type="OctetString"/>
 		</avp>
 
-		<avp name="Framed-Route" code="22" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Framed-Route" code="22" must="M" must-not="V">
 			<!-- https://www.rfc-editor.org/rfc/rfc7155#section-4.4.10.5.3 -->
 			<data type="UTF8String"/>
 		</avp>
 
-		<avp name="Framed-Pool" code="88" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Framed-Pool" code="88" must="M" must-not="V">
 			<!-- https://www.rfc-editor.org/rfc/rfc7155#section-4.4.10.5.4 -->
 			<data type="OctetString"/>
 		</avp>
 
-		<avp name="Framed-Interface-Id" code="96" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Framed-Interface-Id" code="96" must="M" must-not="V">
 			<!-- https://www.rfc-editor.org/rfc/rfc7155#section-4.4.10.5.5 -->
 			<data type="Unsigned64"/>
 		</avp>
 
-		<avp name="Framed-IPv6-Prefix" code="97" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Framed-IPv6-Prefix" code="97" must="M" must-not="V">
 			<!-- https://www.rfc-editor.org/rfc/rfc7155#section-4.4.10.5.6 -->
 			<data type="OctetString"/>
 		</avp>
 
-		<avp name="Framed-IPv6-Route" code="99" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Framed-IPv6-Route" code="99" must="M" must-not="V">
 			<!-- https://www.rfc-editor.org/rfc/rfc7155#section-4.4.10.5.7 -->
 			<data type="UTF8String"/>
 		</avp>
 
-		<avp name="Framed-IPv6-Pool" code="100" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Framed-IPv6-Pool" code="100" must="M" must-not="V">
 			<!-- https://www.rfc-editor.org/rfc/rfc7155#section-4.4.10.5.8 -->
 			<data type="OctetString"/>
 		</avp>
 
-		<avp name="Framed-IPX-Network" code="23" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Framed-IPX-Network" code="23" must="M" must-not="V">
 			<!-- https://www.rfc-editor.org/rfc/rfc7155#section-4.4.10.6.1-->
 			<data type="Unsigned32"/>
 		</avp>
 
-		<avp name="Framed-Appletalk-Link" code="37" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Framed-Appletalk-Link" code="37" must="M" must-not="V">
 			<!-- https://www.rfc-editor.org/rfc/rfc7155#section-4.4.10.7.1-->
 			<data type="Unsigned32"/>
 		</avp>
 
-		<avp name="Framed-Appletalk-Network" code="38" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Framed-Appletalk-Network" code="38" must="M" must-not="V">
 			<!-- https://www.rfc-editor.org/rfc/rfc7155#section-4.4.10.7.2-->
 			<data type="Unsigned32"/>
 		</avp>
 
-		<avp name="Framed-Appletalk-Zone" code="39" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Framed-Appletalk-Zone" code="39" must="M" must-not="V">
 			<!-- https://www.rfc-editor.org/rfc/rfc7155#section-4.4.10.7.3-->
 			<data type="OctetString"/>
 		</avp>
 
-		<avp name="ARAP-Features" code="71" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="ARAP-Features" code="71" must="M" must-not="V">
 			<!-- https://www.rfc-editor.org/rfc/rfc7155#section-4.4.10.8.1-->
 			<data type="OctetString"/>
 		</avp>
 
-		<avp name="ARAP-Zone-Access" code="72" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="ARAP-Zone-Access" code="72" must="M" must-not="V">
 			<!-- https://www.rfc-editor.org/rfc/rfc7155#section-4.4.10.8.2 -->
 			<data type="Enumerated">
 				<!-- http://www.iana.org/assignments/radius-types/radius-types.xhtml#radius-types-16 -->
@@ -743,17 +761,17 @@
 			</data>
 		</avp>
 
-		<avp name="Login-IP-Host" code="14" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Login-IP-Host" code="14" must="M" must-not="V">
 			<!-- https://www.rfc-editor.org/rfc/rfc7155#section-4.4.11.1-->
 			<data type="OctetString"/>
 		</avp>
 
-		<avp name="Login-IPv6-Host" code="98" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Login-IPv6-Host" code="98" must="M" must-not="V">
 			<!-- https://www.rfc-editor.org/rfc/rfc7155#section-4.4.11.2-->
 			<data type="OctetString"/>
 		</avp>
 
-		<avp name="Login-Service" code="15" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Login-Service" code="15" must="M" must-not="V">
 			<!-- https://www.rfc-editor.org/rfc/rfc7155#section-4.4.11.3 -->
 			<data type="Enumerated">
 				<!-- http://www.iana.org/assignments/radius-types/radius-types.xhtml#radius-types-8 -->
@@ -764,37 +782,36 @@
 				<item code="4" name="LAT"/>
 				<item code="5" name="X25-PAD"/>
 				<item code="6" name="X25-T3POS"/>
-				<item code="7" name="Unassigned"/>
 				<item code="8" name="TCP Clear Quiet (suppresses any NAS-generated connect string)"/>
 			</data>
 		</avp>
 
-		<avp name="Login-TCP-Port" code="16" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Login-TCP-Port" code="16" must="M" must-not="V">
 			<!-- https://www.rfc-editor.org/rfc/rfc7155#section-4.4.11.4.1-->
 			<data type="Unsigned32"/>
 		</avp>
 
-		<avp name="Login-LAT-Service" code="34" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Login-LAT-Service" code="34" must="M" must-not="V">
 			<!-- https://www.rfc-editor.org/rfc/rfc7155#section-4.4.11.5.1-->
 			<data type="OctetString"/>
 		</avp>
 
-		<avp name="Login-LAT-Node" code="35" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Login-LAT-Node" code="35" must="M" must-not="V">
 			<!-- https://www.rfc-editor.org/rfc/rfc7155#section-4.4.11.5.2-->
 			<data type="OctetString"/>
 		</avp>
 
-		<avp name="Login-LAT-Group" code="36" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Login-LAT-Group" code="36" must="M" must-not="V">
 			<!-- https://www.rfc-editor.org/rfc/rfc7155#section-4.4.11.5.3-->
 			<data type="OctetString"/>
 		</avp>
 
-		<avp name="Login-LAT-Port" code="63" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Login-LAT-Port" code="63" must="M" must-not="V">
 			<!-- https://www.rfc-editor.org/rfc/rfc7155#section-4.4.11.5.4-->
 			<data type="OctetString"/>
 		</avp>
 
-		<avp name="Tunneling" code="401" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Tunneling" code="401" must="M" must-not="V">
 			<!-- https://www.rfc-editor.org/rfc/rfc7155#section-4.5.1-->
 			<data type="Grouped">
 				<rule avp="Tunnel-Type" required="true" max="1"/>
@@ -810,7 +827,7 @@
 			</data>
 		</avp>
 
-		<avp name="Tunnel-Type" code="64" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Tunnel-Type" code="64" must="M" must-not="V">
 			<!-- https://www.rfc-editor.org/rfc/rfc7155#section-4.5.2 -->
 			<data type="Enumerated">
 				<!-- http://www.iana.org/assignments/radius-types/radius-types.xhtml#radius-types-14 -->
@@ -830,7 +847,7 @@
 			</data>
 		</avp>
 
-		<avp name="Tunnel-Medium-Type" code="65" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Tunnel-Medium-Type" code="65" must="M" must-not="V">
 			<!-- https://www.rfc-editor.org/rfc/rfc7155#section-4.5.3 -->
 			<data type="Enumerated">
 				<!-- http://www.iana.org/assignments/radius-types/radius-types.xhtml#radius-types-15 -->
@@ -852,72 +869,72 @@
 			</data>
 		</avp>
 
-		<avp name="Tunnel-Client-Endpoint" code="66" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Tunnel-Client-Endpoint" code="66" must="M" must-not="V">
 			<!-- https://www.rfc-editor.org/rfc/rfc7155#section-4.5.4 -->
 			<data type="UTF8String"/>
 		</avp>
 
-		<avp name="Tunnel-Server-Endpoint" code="67" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Tunnel-Server-Endpoint" code="67" must="M" must-not="V">
 			<!-- https://www.rfc-editor.org/rfc/rfc7155#section-4.5.5 -->
 			<data type="UTF8String"/>
 		</avp>
 
-		<avp name="Tunnel-Password" code="69" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Tunnel-Password" code="69" must="M" must-not="V">
 			<!-- https://www.rfc-editor.org/rfc/rfc7155#section-4.5.6 -->
 			<data type="OctetString"/>
 		</avp>
 
-		<avp name="Tunnel-Private-Group-Id" code="81" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Tunnel-Private-Group-Id" code="81" must="M" must-not="V">
 			<!-- https://www.rfc-editor.org/rfc/rfc7155#section-4.5.7 -->
 			<data type="OctetString"/>
 		</avp>
 
-		<avp name="Tunnel-Assignment-Id" code="82" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Tunnel-Assignment-Id" code="82" must="M" must-not="V">
 			<!-- https://www.rfc-editor.org/rfc/rfc7155#section-4.5.8 -->
 			<data type="OctetString"/>
 		</avp>
 
-		<avp name="Tunnel-Preference" code="83" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Tunnel-Preference" code="83" must="M" must-not="V">
 			<!-- https://www.rfc-editor.org/rfc/rfc7155#section-4.5.9 -->
 			<data type="Unsigned32"/>
 		</avp>
 
-		<avp name="Tunnel-Client-Auth-Id" code="90" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Tunnel-Client-Auth-Id" code="90" must="M" must-not="V">
 			<!-- https://www.rfc-editor.org/rfc/rfc7155#section-4.5.10 -->
 			<data type="UTF8String"/>
 		</avp>
 
-		<avp name="Tunnel-Server-Auth-Id" code="91" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Tunnel-Server-Auth-Id" code="91" must="M" must-not="V">
 			<!-- https://www.rfc-editor.org/rfc/rfc7155#section-4.5.11 -->
 			<data type="UTF8String"/>
 		</avp>
 
-		<avp name="Accounting-Input-Octets" code="363" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Accounting-Input-Octets" code="363" must="M" must-not="V">
 			<!-- https://www.rfc-editor.org/rfc/rfc7155#section-4.6.1 -->
 			<data type="Unsigned64"/>
 		</avp>
 
-		<avp name="Accounting-Output-Octets" code="364" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Accounting-Output-Octets" code="364" must="M" must-not="V">
 			<!-- https://www.rfc-editor.org/rfc/rfc7155#section-4.6.2 -->
 			<data type="Unsigned64"/>
 		</avp>
 
-		<avp name="Accounting-Input-Packets" code="365" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Accounting-Input-Packets" code="365" must="M" must-not="V">
 			<!-- https://www.rfc-editor.org/rfc/rfc7155#section-4.6.3 -->
 			<data type="Unsigned64"/>
 		</avp>
 
-		<avp name="Accounting-Output-Packets" code="366" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Accounting-Output-Packets" code="366" must="M" must-not="V">
 			<!-- https://www.rfc-editor.org/rfc/rfc7155#section-4.6.4 -->
 			<data type="Unsigned64"/>
 		</avp>
 
-		<avp name="Acct-Session-Time" code="46" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Acct-Session-Time" code="46" must="M" must-not="V">
 			<!-- https://www.rfc-editor.org/rfc/rfc7155#section-4.6.5 -->
 			<data type="Unsigned32"/>
 		</avp>
 
-		<avp name="Acct-Authentic" code="45" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Acct-Authentic" code="45" must="M" must-not="V">
 			<!-- https://www.rfc-editor.org/rfc/rfc7155#section-4.6.6 -->
 			<data type="Enumerated">
 				<!-- http://www.iana.org/assignments/radius-types/radius-types.xhtml#radius-types-11 -->
@@ -928,7 +945,7 @@
 			</data>
 		</avp>
 
-		<avp name="Accounting-Auth-Method" code="406" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Accounting-Auth-Method" code="406" must="M" must-not="V">
 			<!-- https://www.rfc-editor.org/rfc/rfc7155#section-4.6.7 -->
 			<data type="Enumerated">
 				<!-- http://www.iana.org/assignments/aaa-parameters/aaa-parameters.xhtml#aaa-parameters-26 -->
@@ -941,43 +958,43 @@
 			</data>
 		</avp>
 
-		<avp name="Acct-Delay-Time" code="41" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Acct-Delay-Time" code="41" must="M" must-not="V">
 			<!-- https://www.rfc-editor.org/rfc/rfc7155#section-4.6.8 -->
 			<data type="Unsigned32"/>
 		</avp>
 
-		<avp name="Acct-Link-Count" code="51" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Acct-Link-Count" code="51" must="M" must-not="V">
 			<!-- https://www.rfc-editor.org/rfc/rfc7155#section-4.6.9 -->
 			<data type="Unsigned32"/>
 		</avp>
 
-		<avp name="Acct-Tunnel-Connection" code="68" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Acct-Tunnel-Connection" code="68" must="M" must-not="V">
 			<!-- https://www.rfc-editor.org/rfc/rfc7155#section-4.6.10 -->
 			<data type="OctetString"/>
 		</avp>
 
-		<avp name="Acct-Tunnel-Packets-Lost" code="86" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Acct-Tunnel-Packets-Lost" code="86" must="M" must-not="V">
 			<!-- https://www.rfc-editor.org/rfc/rfc7155#section-4.6.11 -->
 			<data type="Unsigned32"/>
 		</avp>
 		<!-- RFC 7155 §§3.1, 4.2; RFC 2865 §5.4 and the IANA RADIUS Types registry.
-		     RFC 7155 references this translated attribute but omits its Diameter type table. -->
-		<avp name="NAS-IP-Address" code="4" must="M" may="P" must-not="V" may-encrypt="Y"><data type="OctetString"/></avp>
+		     RFC 7155 assigns no Diameter flag rule to this translated attribute: M is optional. RFC 6733 §4.1 prohibits V for vendor zero. -->
+		<avp name="NAS-IP-Address" code="4" may="M" must-not="V"><data type="OctetString"/></avp>
 
 		<!-- RFC 7155 §§3.1, 4.2; RFC 3162 §2.1 and the IANA RADIUS Types registry.
-		     RFC 7155 references this translated attribute but omits its Diameter type table. -->
-		<avp name="NAS-IPv6-Address" code="95" must="M" may="P" must-not="V" may-encrypt="Y"><data type="OctetString"/></avp>
+		     RFC 7155 assigns no Diameter flag rule to this translated attribute: M is optional. RFC 6733 §4.1 prohibits V for vendor zero. -->
+		<avp name="NAS-IPv6-Address" code="95" may="M" must-not="V"><data type="OctetString"/></avp>
 
 		<!-- RFC 7155 §§3.1, 4.2; RFC 2865 §5.32 and the IANA RADIUS Types registry.
-		     RFC 7155 references this translated attribute but omits its Diameter type table. -->
-		<avp name="NAS-Identifier" code="32" must="M" may="P" must-not="V" may-encrypt="Y"><data type="UTF8String"/></avp>
+		     RFC 7155 assigns no Diameter flag rule to this translated attribute: M is optional. RFC 6733 §4.1 prohibits V for vendor zero. -->
+		<avp name="NAS-Identifier" code="32" may="M" must-not="V"><data type="UTF8String"/></avp>
 
 		<!-- RFC 7155 §§3.1, 4.2; RFC 2865 §5.24 and the IANA RADIUS Types registry.
-		     RFC 7155 references this translated attribute but omits its Diameter type table. -->
-		<avp name="State" code="24" must="M" may="P" must-not="V" may-encrypt="Y"><data type="OctetString"/></avp>
+		     RFC 7155 assigns no Diameter flag rule to this translated attribute: M is optional. RFC 6733 §4.1 prohibits V for vendor zero. -->
+		<avp name="State" code="24" may="M" must-not="V"><data type="OctetString"/></avp>
 
-		<!-- RFC 7155 Errata 6119 (Verified), proposed §4.7.1. -->
-		<avp name="Origin-AAA-Protocol" code="408" must="M" may="P" must-not="V" may-encrypt="Y">
+		<!-- RFC 7155 §4.7.1 (Verified Errata 6119). -->
+		<avp name="Origin-AAA-Protocol" code="408" must="M" must-not="V">
 			<data type="Enumerated"><item code="1" name="RADIUS"/></data>
 		</avp>
 		

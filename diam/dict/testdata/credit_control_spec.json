@@ -1,0 +1,1569 @@
+{
+  "source": "RFC 8506 \u00a7\u00a73, 8; IANA AAA Parameters delegated by \u00a712",
+  "url": "https://www.rfc-editor.org/rfc/rfc8506.txt",
+  "rfc_sha256": "8a486839f1995b87c79dafdc4ebf0d04ab88392adeb00987f5170b2bc621204c",
+  "iana_url": "https://www.iana.org/assignments/aaa-parameters/aaa-parameters.xml",
+  "iana_sha256": "67e1f78147ac95886436dc9459611f1821159fd3d411d98f2781db2b4820b720",
+  "avps": [
+    {
+      "name": "CC-Correlation-Id",
+      "code": 411,
+      "section": "8.1",
+      "type": "OctetString",
+      "must": "-",
+      "may": "M",
+      "must_not": "V"
+    },
+    {
+      "name": "CC-Input-Octets",
+      "code": 412,
+      "section": "8.24",
+      "type": "Unsigned64",
+      "must": "M",
+      "may": "-",
+      "must_not": "V"
+    },
+    {
+      "name": "CC-Money",
+      "code": 413,
+      "section": "8.22",
+      "type": "Grouped",
+      "must": "M",
+      "may": "-",
+      "must_not": "V",
+      "rules": [
+        {
+          "name": "Unit-Value",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Currency-Code",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        }
+      ]
+    },
+    {
+      "name": "CC-Output-Octets",
+      "code": 414,
+      "section": "8.25",
+      "type": "Unsigned64",
+      "must": "M",
+      "may": "-",
+      "must_not": "V"
+    },
+    {
+      "name": "CC-Request-Number",
+      "code": 415,
+      "section": "8.2",
+      "type": "Unsigned32",
+      "must": "M",
+      "may": "-",
+      "must_not": "V"
+    },
+    {
+      "name": "CC-Request-Type",
+      "code": 416,
+      "section": "8.3",
+      "type": "Enumerated",
+      "must": "M",
+      "may": "-",
+      "must_not": "V",
+      "items": {
+        "1": "INITIAL_REQUEST",
+        "2": "UPDATE_REQUEST",
+        "3": "TERMINATION_REQUEST",
+        "4": "EVENT_REQUEST"
+      }
+    },
+    {
+      "name": "CC-Service-Specific-Units",
+      "code": 417,
+      "section": "8.26",
+      "type": "Unsigned64",
+      "must": "M",
+      "may": "-",
+      "must_not": "V"
+    },
+    {
+      "name": "CC-Session-Failover",
+      "code": 418,
+      "section": "8.4",
+      "type": "Enumerated",
+      "must": "M",
+      "may": "-",
+      "must_not": "V",
+      "items": {
+        "0": "FAILOVER_NOT_SUPPORTED",
+        "1": "FAILOVER_SUPPORTED"
+      }
+    },
+    {
+      "name": "CC-Sub-Session-Id",
+      "code": 419,
+      "section": "8.5",
+      "type": "Unsigned64",
+      "must": "M",
+      "may": "-",
+      "must_not": "V"
+    },
+    {
+      "name": "CC-Time",
+      "code": 420,
+      "section": "8.21",
+      "type": "Unsigned32",
+      "must": "M",
+      "may": "-",
+      "must_not": "V"
+    },
+    {
+      "name": "CC-Total-Octets",
+      "code": 421,
+      "section": "8.23",
+      "type": "Unsigned64",
+      "must": "M",
+      "may": "-",
+      "must_not": "V"
+    },
+    {
+      "name": "CC-Unit-Type",
+      "code": 454,
+      "section": "8.32",
+      "type": "Enumerated",
+      "must": "M",
+      "may": "-",
+      "must_not": "V",
+      "items": {
+        "0": "TIME",
+        "1": "MONEY",
+        "2": "TOTAL-OCTETS",
+        "3": "INPUT-OCTETS",
+        "4": "OUTPUT-OCTETS",
+        "5": "SERVICE-SPECIFIC-UNITS"
+      }
+    },
+    {
+      "name": "Check-Balance-Result",
+      "code": 422,
+      "section": "8.6",
+      "type": "Enumerated",
+      "must": "M",
+      "may": "-",
+      "must_not": "V",
+      "items": {
+        "0": "ENOUGH_CREDIT",
+        "1": "NO_CREDIT"
+      }
+    },
+    {
+      "name": "Cost-Information",
+      "code": 423,
+      "section": "8.7",
+      "type": "Grouped",
+      "must": "M",
+      "may": "-",
+      "must_not": "V",
+      "rules": [
+        {
+          "name": "Unit-Value",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Currency-Code",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Cost-Unit",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        }
+      ]
+    },
+    {
+      "name": "Cost-Unit",
+      "code": 424,
+      "section": "8.12",
+      "type": "UTF8String",
+      "must": "M",
+      "may": "-",
+      "must_not": "V"
+    },
+    {
+      "name": "Credit-Control",
+      "code": 426,
+      "section": "8.13",
+      "type": "Enumerated",
+      "must": "M",
+      "may": "-",
+      "must_not": "V",
+      "items": {
+        "0": "CREDIT_AUTHORIZATION",
+        "1": "RE_AUTHORIZATION"
+      }
+    },
+    {
+      "name": "Credit-Control-Failure-Handling",
+      "code": 427,
+      "section": "8.14",
+      "type": "Enumerated",
+      "must": "M",
+      "may": "-",
+      "must_not": "V",
+      "items": {
+        "0": "TERMINATE",
+        "1": "CONTINUE",
+        "2": "RETRY_AND_TERMINATE"
+      }
+    },
+    {
+      "name": "Currency-Code",
+      "code": 425,
+      "section": "8.11",
+      "type": "Unsigned32",
+      "must": "M",
+      "may": "-",
+      "must_not": "V"
+    },
+    {
+      "name": "Direct-Debiting-Failure-Handling",
+      "code": 428,
+      "section": "8.15",
+      "type": "Enumerated",
+      "must": "M",
+      "may": "-",
+      "must_not": "V",
+      "items": {
+        "0": "TERMINATE_OR_BUFFER",
+        "1": "CONTINUE"
+      }
+    },
+    {
+      "name": "Exponent",
+      "code": 429,
+      "section": "8.9",
+      "type": "Integer32",
+      "must": "M",
+      "may": "-",
+      "must_not": "V"
+    },
+    {
+      "name": "Final-Unit-Action",
+      "code": 449,
+      "section": "8.35",
+      "type": "Enumerated",
+      "must": "M",
+      "may": "-",
+      "must_not": "V",
+      "items": {
+        "0": "TERMINATE",
+        "1": "REDIRECT",
+        "2": "RESTRICT_ACCESS"
+      }
+    },
+    {
+      "name": "Final-Unit-Indication",
+      "code": 430,
+      "section": "8.34",
+      "type": "Grouped",
+      "must": "M",
+      "may": "-",
+      "must_not": "V",
+      "rules": [
+        {
+          "name": "Final-Unit-Action",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Restriction-Filter-Rule",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "Filter-Id",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "Redirect-Server",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        }
+      ]
+    },
+    {
+      "name": "QoS-Final-Unit-Indication",
+      "code": 669,
+      "section": "8.68",
+      "type": "Grouped",
+      "must": "-",
+      "may": "M",
+      "must_not": "V",
+      "rules": [
+        {
+          "name": "Final-Unit-Action",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Filter-Rule",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "Filter-Id",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "Redirect-Server-Extension",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        }
+      ]
+    },
+    {
+      "name": "Granted-Service-Unit",
+      "code": 431,
+      "section": "8.17",
+      "type": "Grouped",
+      "must": "M",
+      "may": "-",
+      "must_not": "V",
+      "rules": [
+        {
+          "name": "Tariff-Time-Change",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "CC-Time",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "CC-Money",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "CC-Total-Octets",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "CC-Input-Octets",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "CC-Output-Octets",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "CC-Service-Specific-Units",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        }
+      ]
+    },
+    {
+      "name": "G-S-U-Pool-Identifier",
+      "code": 453,
+      "section": "8.31",
+      "type": "Unsigned32",
+      "must": "M",
+      "may": "-",
+      "must_not": "V"
+    },
+    {
+      "name": "G-S-U-Pool-Reference",
+      "code": 457,
+      "section": "8.30",
+      "type": "Grouped",
+      "must": "M",
+      "may": "-",
+      "must_not": "V",
+      "rules": [
+        {
+          "name": "G-S-U-Pool-Identifier",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "CC-Unit-Type",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Unit-Value",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        }
+      ]
+    },
+    {
+      "name": "Multiple-Services-Credit-Control",
+      "code": 456,
+      "section": "8.16",
+      "type": "Grouped",
+      "must": "M",
+      "may": "-",
+      "must_not": "V",
+      "rules": [
+        {
+          "name": "Granted-Service-Unit",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Requested-Service-Unit",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Used-Service-Unit",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "Tariff-Change-Usage",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Service-Identifier",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "Rating-Group",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "G-S-U-Pool-Reference",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "Validity-Time",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Result-Code",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Final-Unit-Indication",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "QoS-Final-Unit-Indication",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        }
+      ]
+    },
+    {
+      "name": "Multiple-Services-Indicator",
+      "code": 455,
+      "section": "8.40",
+      "type": "Enumerated",
+      "must": "M",
+      "may": "-",
+      "must_not": "V",
+      "items": {
+        "0": "MULTIPLE_SERVICES_NOT_SUPPORTED",
+        "1": "MULTIPLE_SERVICES_SUPPORTED"
+      }
+    },
+    {
+      "name": "Rating-Group",
+      "code": 432,
+      "section": "8.29",
+      "type": "Unsigned32",
+      "must": "M",
+      "may": "-",
+      "must_not": "V"
+    },
+    {
+      "name": "Redirect-Address-Type",
+      "code": 433,
+      "section": "8.38",
+      "type": "Enumerated",
+      "must": "M",
+      "may": "-",
+      "must_not": "V",
+      "items": {
+        "0": "IPv4 Address",
+        "1": "IPv6 Address",
+        "2": "URL",
+        "3": "SIP URI"
+      }
+    },
+    {
+      "name": "Redirect-Server",
+      "code": 434,
+      "section": "8.37",
+      "type": "Grouped",
+      "must": "M",
+      "may": "-",
+      "must_not": "V",
+      "rules": [
+        {
+          "name": "Redirect-Address-Type",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Redirect-Server-Address",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        }
+      ]
+    },
+    {
+      "name": "Redirect-Server-Address",
+      "code": 435,
+      "section": "8.39",
+      "type": "UTF8String",
+      "must": "M",
+      "may": "-",
+      "must_not": "V"
+    },
+    {
+      "name": "Redirect-Server-Extension",
+      "code": 665,
+      "section": "8.64",
+      "type": "Grouped",
+      "must": "-",
+      "may": "M",
+      "must_not": "V",
+      "rules": [
+        {
+          "name": "Redirect-Address-IPAddress",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Redirect-Address-URL",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Redirect-Address-SIP-URI",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        }
+      ]
+    },
+    {
+      "name": "Redirect-Address-IPAddress",
+      "code": 666,
+      "section": "8.65",
+      "type": "Address",
+      "must": "-",
+      "may": "M",
+      "must_not": "V"
+    },
+    {
+      "name": "Redirect-Address-URL",
+      "code": 667,
+      "section": "8.66",
+      "type": "UTF8String",
+      "must": "-",
+      "may": "M",
+      "must_not": "V"
+    },
+    {
+      "name": "Redirect-Address-SIP-URI",
+      "code": 668,
+      "section": "8.67",
+      "type": "UTF8String",
+      "must": "-",
+      "may": "M",
+      "must_not": "V"
+    },
+    {
+      "name": "Requested-Action",
+      "code": 436,
+      "section": "8.41",
+      "type": "Enumerated",
+      "must": "M",
+      "may": "-",
+      "must_not": "V",
+      "items": {
+        "0": "DIRECT_DEBITING",
+        "1": "REFUND_ACCOUNT",
+        "2": "CHECK_BALANCE",
+        "3": "PRICE_ENQUIRY"
+      }
+    },
+    {
+      "name": "Requested-Service-Unit",
+      "code": 437,
+      "section": "8.18",
+      "type": "Grouped",
+      "must": "M",
+      "may": "-",
+      "must_not": "V",
+      "rules": [
+        {
+          "name": "CC-Time",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "CC-Money",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "CC-Total-Octets",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "CC-Input-Octets",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "CC-Output-Octets",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "CC-Service-Specific-Units",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        }
+      ]
+    },
+    {
+      "name": "Restriction-Filter-Rule",
+      "code": 438,
+      "section": "8.36",
+      "type": "IPFilterRule",
+      "must": "M",
+      "may": "-",
+      "must_not": "V"
+    },
+    {
+      "name": "Service-Context-Id",
+      "code": 461,
+      "section": "8.42",
+      "type": "UTF8String",
+      "must": "M",
+      "may": "-",
+      "must_not": "V"
+    },
+    {
+      "name": "Service-Identifier",
+      "code": 439,
+      "section": "8.28",
+      "type": "Unsigned32",
+      "must": "M",
+      "may": "-",
+      "must_not": "V"
+    },
+    {
+      "name": "Service-Parameter-Info",
+      "code": 440,
+      "section": "8.43",
+      "type": "Grouped",
+      "must": "-",
+      "may": "M",
+      "must_not": "V",
+      "rules": [
+        {
+          "name": "Service-Parameter-Type",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Service-Parameter-Value",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        }
+      ]
+    },
+    {
+      "name": "Service-Parameter-Type",
+      "code": 441,
+      "section": "8.44",
+      "type": "Unsigned32",
+      "must": "-",
+      "may": "M",
+      "must_not": "V"
+    },
+    {
+      "name": "Service-Parameter-Value",
+      "code": 442,
+      "section": "8.45",
+      "type": "OctetString",
+      "must": "-",
+      "may": "M",
+      "must_not": "V"
+    },
+    {
+      "name": "Subscription-Id",
+      "code": 443,
+      "section": "8.46",
+      "type": "Grouped",
+      "must": "M",
+      "may": "-",
+      "must_not": "V",
+      "rules": [
+        {
+          "name": "Subscription-Id-Type",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Subscription-Id-Data",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        }
+      ]
+    },
+    {
+      "name": "Subscription-Id-Data",
+      "code": 444,
+      "section": "8.48",
+      "type": "UTF8String",
+      "must": "M",
+      "may": "-",
+      "must_not": "V"
+    },
+    {
+      "name": "Subscription-Id-Type",
+      "code": 450,
+      "section": "8.47",
+      "type": "Enumerated",
+      "must": "M",
+      "may": "-",
+      "must_not": "V",
+      "items": {
+        "0": "END_USER_E164",
+        "1": "END_USER_IMSI",
+        "2": "END_USER_SIP_URI",
+        "3": "END_USER_NAI",
+        "4": "END_USER_PRIVATE"
+      }
+    },
+    {
+      "name": "Subscription-Id-Extension",
+      "code": 659,
+      "section": "8.58",
+      "type": "Grouped",
+      "must": "-",
+      "may": "M",
+      "must_not": "V",
+      "rules": [
+        {
+          "name": "Subscription-Id-E164",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Subscription-Id-IMSI",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Subscription-Id-SIP-URI",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Subscription-Id-NAI",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Subscription-Id-Private",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        }
+      ]
+    },
+    {
+      "name": "Subscription-Id-E164",
+      "code": 660,
+      "section": "8.59",
+      "type": "UTF8String",
+      "must": "-",
+      "may": "M",
+      "must_not": "V"
+    },
+    {
+      "name": "Subscription-Id-IMSI",
+      "code": 661,
+      "section": "8.60",
+      "type": "UTF8String",
+      "must": "-",
+      "may": "M",
+      "must_not": "V"
+    },
+    {
+      "name": "Subscription-Id-SIP-URI",
+      "code": 662,
+      "section": "8.61",
+      "type": "UTF8String",
+      "must": "-",
+      "may": "M",
+      "must_not": "V"
+    },
+    {
+      "name": "Subscription-Id-NAI",
+      "code": 663,
+      "section": "8.62",
+      "type": "UTF8String",
+      "must": "-",
+      "may": "M",
+      "must_not": "V"
+    },
+    {
+      "name": "Subscription-Id-Private",
+      "code": 664,
+      "section": "8.63",
+      "type": "UTF8String",
+      "must": "-",
+      "may": "M",
+      "must_not": "V"
+    },
+    {
+      "name": "Tariff-Change-Usage",
+      "code": 452,
+      "section": "8.27",
+      "type": "Enumerated",
+      "must": "M",
+      "may": "-",
+      "must_not": "V",
+      "items": {
+        "0": "UNIT_BEFORE_TARIFF_CHANGE",
+        "1": "UNIT_AFTER_TARIFF_CHANGE",
+        "2": "UNIT_INDETERMINATE"
+      }
+    },
+    {
+      "name": "Tariff-Time-Change",
+      "code": 451,
+      "section": "8.20",
+      "type": "Time",
+      "must": "M",
+      "may": "-",
+      "must_not": "V"
+    },
+    {
+      "name": "Unit-Value",
+      "code": 445,
+      "section": "8.8",
+      "type": "Grouped",
+      "must": "M",
+      "may": "-",
+      "must_not": "V",
+      "rules": [
+        {
+          "name": "Value-Digits",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Exponent",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        }
+      ]
+    },
+    {
+      "name": "Used-Service-Unit",
+      "code": 446,
+      "section": "8.19",
+      "type": "Grouped",
+      "must": "M",
+      "may": "-",
+      "must_not": "V",
+      "rules": [
+        {
+          "name": "Tariff-Change-Usage",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "CC-Time",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "CC-Money",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "CC-Total-Octets",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "CC-Input-Octets",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "CC-Output-Octets",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "CC-Service-Specific-Units",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        }
+      ]
+    },
+    {
+      "name": "User-Equipment-Info",
+      "code": 458,
+      "section": "8.49",
+      "type": "Grouped",
+      "must": "-",
+      "may": "M",
+      "must_not": "V",
+      "rules": [
+        {
+          "name": "User-Equipment-Info-Type",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "User-Equipment-Info-Value",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        }
+      ]
+    },
+    {
+      "name": "User-Equipment-Info-Type",
+      "code": 459,
+      "section": "8.50",
+      "type": "Enumerated",
+      "must": "-",
+      "may": "M",
+      "must_not": "V",
+      "items": {
+        "0": "IMEISV",
+        "1": "MAC",
+        "2": "EUI64",
+        "3": "MODIFIED_EUI64"
+      }
+    },
+    {
+      "name": "User-Equipment-Info-Value",
+      "code": 460,
+      "section": "8.51",
+      "type": "OctetString",
+      "must": "-",
+      "may": "M",
+      "must_not": "V"
+    },
+    {
+      "name": "User-Equipment-Info-Extension",
+      "code": 653,
+      "section": "8.52",
+      "type": "Grouped",
+      "must": "-",
+      "may": "M",
+      "must_not": "V",
+      "rules": [
+        {
+          "name": "User-Equipment-Info-IMEISV",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "User-Equipment-Info-MAC",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "User-Equipment-Info-EUI64",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "User-Equipment-Info-ModifiedEUI64",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "User-Equipment-Info-IMEI",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        }
+      ]
+    },
+    {
+      "name": "User-Equipment-Info-IMEISV",
+      "code": 654,
+      "section": "8.53",
+      "type": "OctetString",
+      "must": "-",
+      "may": "M",
+      "must_not": "V"
+    },
+    {
+      "name": "User-Equipment-Info-MAC",
+      "code": 655,
+      "section": "8.54",
+      "type": "OctetString",
+      "must": "-",
+      "may": "M",
+      "must_not": "V"
+    },
+    {
+      "name": "User-Equipment-Info-EUI64",
+      "code": 656,
+      "section": "8.55",
+      "type": "OctetString",
+      "must": "-",
+      "may": "M",
+      "must_not": "V"
+    },
+    {
+      "name": "User-Equipment-Info-ModifiedEUI64",
+      "code": 657,
+      "section": "8.56",
+      "type": "OctetString",
+      "must": "-",
+      "may": "M",
+      "must_not": "V"
+    },
+    {
+      "name": "User-Equipment-Info-IMEI",
+      "code": 658,
+      "section": "8.57",
+      "type": "OctetString",
+      "must": "-",
+      "may": "M",
+      "must_not": "V"
+    },
+    {
+      "name": "Value-Digits",
+      "code": 447,
+      "section": "8.10",
+      "type": "Integer64",
+      "must": "M",
+      "may": "-",
+      "must_not": "V"
+    },
+    {
+      "name": "Validity-Time",
+      "code": 448,
+      "section": "8.33",
+      "type": "Unsigned32",
+      "must": "M",
+      "may": "-",
+      "must_not": "V"
+    }
+  ],
+  "commands": [
+    {
+      "section": "3.1",
+      "code": 272,
+      "request": true,
+      "proxiable": true,
+      "rules": [
+        {
+          "name": "Session-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": true
+        },
+        {
+          "name": "Origin-Host",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Origin-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Destination-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Auth-Application-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Service-Context-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "CC-Request-Type",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "CC-Request-Number",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Destination-Host",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "User-Name",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "CC-Sub-Session-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Acct-Multi-Session-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Origin-State-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Event-Timestamp",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Subscription-Id",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "Subscription-Id-Extension",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "Service-Identifier",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Termination-Cause",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Requested-Service-Unit",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Requested-Action",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Used-Service-Unit",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "Multiple-Services-Indicator",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Multiple-Services-Credit-Control",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "Service-Parameter-Info",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "CC-Correlation-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "User-Equipment-Info",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "User-Equipment-Info-Extension",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Proxy-Info",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "Route-Record",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        }
+      ]
+    },
+    {
+      "section": "3.2",
+      "code": 272,
+      "request": false,
+      "proxiable": true,
+      "rules": [
+        {
+          "name": "Session-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": true
+        },
+        {
+          "name": "Result-Code",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Origin-Host",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Origin-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Auth-Application-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "CC-Request-Type",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "CC-Request-Number",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "User-Name",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "CC-Session-Failover",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "CC-Sub-Session-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Acct-Multi-Session-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Origin-State-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Event-Timestamp",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Granted-Service-Unit",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Multiple-Services-Credit-Control",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "Cost-Information",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Final-Unit-Indication",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "QoS-Final-Unit-Indication",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Check-Balance-Result",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Credit-Control-Failure-Handling",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Direct-Debiting-Failure-Handling",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Validity-Time",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Redirect-Host",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "Redirect-Host-Usage",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Redirect-Max-Cache-Time",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Proxy-Info",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "Route-Record",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "Failed-AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        }
+      ]
+    }
+  ]
+}

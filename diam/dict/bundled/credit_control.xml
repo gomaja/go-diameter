@@ -74,49 +74,50 @@
 			</answer>
 		</command>
 
-		<avp name="CC-Correlation-Id" code="411" must="-" may="M" must-not="V" may-encrypt="Y">
+		<avp name="CC-Correlation-Id" code="411" must="-" may="M" must-not="V">
 			<!-- RFC 8506 (March 2019) §8 AVP flag table; §8.1. -->
 			<data type="OctetString"/>
 		</avp>
 
-		<avp name="CC-Input-Octets" code="412" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="CC-Input-Octets" code="412" must="M" may="-" must-not="V">
 			<!-- RFC 8506 (March 2019) §8 AVP flag table; §8.24. -->
 			<data type="Unsigned64"/>
 		</avp>
 
-		<avp name="CC-Money" code="413" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="CC-Money" code="413" must="M" may="-" must-not="V">
 			<!-- RFC 8506 (March 2019) §8 AVP flag table; §8.22. -->
 			<data type="Grouped">
 				<rule avp="Unit-Value" required="true" max="1"/>
-				<rule avp="Currency-Code" required="true" max="1"/>
+				<rule avp="Currency-Code" required="false" max="1"/>
 			</data>
 		</avp>
 
-		<avp name="CC-Output-Octets" code="414" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="CC-Output-Octets" code="414" must="M" may="-" must-not="V">
 			<!-- RFC 8506 (March 2019) §8 AVP flag table; §8.25. -->
 			<data type="Unsigned64"/>
 		</avp>
 
-		<avp name="CC-Request-Number" code="415" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="CC-Request-Number" code="415" must="M" may="-" must-not="V">
 			<!-- RFC 8506 (March 2019) §8 AVP flag table; §8.2. -->
 			<data type="Unsigned32"/>
 		</avp>
 
-		<avp name="CC-Request-Type" code="416" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="CC-Request-Type" code="416" must="M" may="-" must-not="V">
 			<!-- RFC 8506 (March 2019) §8 AVP flag table; §8.3. -->
 			<data type="Enumerated">
 				<item code="1" name="INITIAL_REQUEST"/>
 				<item code="2" name="UPDATE_REQUEST"/>
 				<item code="3" name="TERMINATION_REQUEST"/>
+				<item code="4" name="EVENT_REQUEST"/>
 			</data>
 		</avp>
 
-		<avp name="CC-Service-Specific-Units" code="417" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="CC-Service-Specific-Units" code="417" must="M" may="-" must-not="V">
 			<!-- RFC 8506 (March 2019) §8 AVP flag table; §8.26. -->
 			<data type="Unsigned64"/>
 		</avp>
 
-		<avp name="CC-Session-Failover" code="418" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="CC-Session-Failover" code="418" must="M" may="-" must-not="V">
 			<!-- RFC 8506 (March 2019) §8 AVP flag table; §8.4. -->
 			<data type="Enumerated">
 				<item code="0" name="FAILOVER_NOT_SUPPORTED"/>
@@ -124,22 +125,22 @@
 			</data>
 		</avp>
 
-		<avp name="CC-Sub-Session-Id" code="419" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="CC-Sub-Session-Id" code="419" must="M" may="-" must-not="V">
 			<!-- RFC 8506 (March 2019) §8 AVP flag table; §8.5. -->
 			<data type="Unsigned64"/>
 		</avp>
 
-		<avp name="CC-Time" code="420" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="CC-Time" code="420" must="M" may="-" must-not="V">
 			<!-- RFC 8506 (March 2019) §8 AVP flag table; §8.21. -->
 			<data type="Unsigned32"/>
 		</avp>
 
-		<avp name="CC-Total-Octets" code="421" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="CC-Total-Octets" code="421" must="M" may="-" must-not="V">
 			<!-- RFC 8506 (March 2019) §8 AVP flag table; §8.23. -->
 			<data type="Unsigned64"/>
 		</avp>
 
-		<avp name="CC-Unit-Type" code="454" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="CC-Unit-Type" code="454" must="M" may="-" must-not="V">
 			<!-- RFC 8506 (March 2019) §8 AVP flag table; §8.32. -->
 			<data type="Enumerated">
 				<item code="0" name="TIME"/>
@@ -151,7 +152,7 @@
 			</data>
 		</avp>
 
-		<avp name="Check-Balance-Result" code="422" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Check-Balance-Result" code="422" must="M" may="-" must-not="V">
 			<!-- RFC 8506 (March 2019) §8 AVP flag table; §8.6. -->
 			<data type="Enumerated">
 				<item code="0" name="ENOUGH_CREDIT"/>
@@ -159,21 +160,21 @@
 			</data>
 		</avp>
 
-		<avp name="Cost-Information" code="423" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Cost-Information" code="423" must="M" may="-" must-not="V">
 			<!-- RFC 8506 (March 2019) §8 AVP flag table; §8.7. -->
 			<data type="Grouped">
 				<rule avp="Unit-Value" required="true" max="1"/>
 				<rule avp="Currency-Code" required="true" max="1"/>
-				<rule avp="Cost-Unit" required="true" max="1"/>
+				<rule avp="Cost-Unit" required="false" max="1"/>
 			</data>
 		</avp>
 
-		<avp name="Cost-Unit" code="424" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Cost-Unit" code="424" must="M" may="-" must-not="V">
 			<!-- RFC 8506 (March 2019) §8 AVP flag table; §8.12. -->
 			<data type="UTF8String"/>
 		</avp>
 
-		<avp name="Credit-Control" code="426" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Credit-Control" code="426" must="M" may="-" must-not="V">
 			<!-- RFC 8506 (March 2019) §8 AVP flag table; §8.13. -->
 			<data type="Enumerated">
 				<item code="0" name="CREDIT_AUTHORIZATION"/>
@@ -181,7 +182,7 @@
 			</data>
 		</avp>
 
-		<avp name="Credit-Control-Failure-Handling" code="427" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Credit-Control-Failure-Handling" code="427" must="M" may="-" must-not="V">
 			<!-- RFC 8506 (March 2019) §8 AVP flag table; §8.14. -->
 			<data type="Enumerated">
 				<item code="0" name="TERMINATE"/>
@@ -190,12 +191,12 @@
 			</data>
 		</avp>
 
-		<avp name="Currency-Code" code="425" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Currency-Code" code="425" must="M" may="-" must-not="V">
 			<!-- RFC 8506 (March 2019) §8 AVP flag table; §8.11. -->
 			<data type="Unsigned32"/>
 		</avp>
 
-		<avp name="Direct-Debiting-Failure-Handling" code="428" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Direct-Debiting-Failure-Handling" code="428" must="M" may="-" must-not="V">
 			<!-- RFC 8506 (March 2019) §8 AVP flag table; §8.15. -->
 			<data type="Enumerated">
 				<item code="0" name="TERMINATE_OR_BUFFER"/>
@@ -203,12 +204,12 @@
 			</data>
 		</avp>
 
-		<avp name="Exponent" code="429" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Exponent" code="429" must="M" may="-" must-not="V">
 			<!-- RFC 8506 (March 2019) §8 AVP flag table; §8.9. -->
 			<data type="Integer32"/>
 		</avp>
 
-		<avp name="Final-Unit-Action" code="449" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Final-Unit-Action" code="449" must="M" may="-" must-not="V">
 			<!-- RFC 8506 (March 2019) §8 AVP flag table; §8.35. -->
 			<data type="Enumerated">
 				<item code="0" name="TERMINATE"/>
@@ -217,7 +218,7 @@
 			</data>
 		</avp>
 
-		<avp name="Final-Unit-Indication" code="430" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Final-Unit-Indication" code="430" must="M" may="-" must-not="V">
 			<!-- RFC 8506 (March 2019) §8 AVP flag table; §8.34. -->
 			<data type="Grouped">
 				<rule avp="Final-Unit-Action" required="true" max="1"/>
@@ -227,7 +228,7 @@
 			</data>
 		</avp>
 
-		<avp name="Granted-Service-Unit" code="431" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Granted-Service-Unit" code="431" must="M" may="-" must-not="V">
 			<!-- RFC 8506 (March 2019) §8 AVP flag table; §8.17. -->
 			<data type="Grouped">
 				<rule avp="Tariff-Time-Change" required="false" max="1"/>
@@ -237,16 +238,16 @@
 				<rule avp="CC-Input-Octets" required="false" max="1"/>
 				<rule avp="CC-Output-Octets" required="false" max="1"/>
 				<rule avp="CC-Service-Specific-Units" required="false" max="1"/>
-				<!-- *[ AVP ]-->
+				<rule avp="AVP" required="false"/>
 			</data>
 		</avp>
 
-		<avp name="G-S-U-Pool-Identifier" code="453" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="G-S-U-Pool-Identifier" code="453" must="M" may="-" must-not="V">
 			<!-- RFC 8506 (March 2019) §8 AVP flag table; §8.31. -->
 			<data type="Unsigned32"/>
 		</avp>
 
-		<avp name="G-S-U-Pool-Reference" code="457" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="G-S-U-Pool-Reference" code="457" must="M" may="-" must-not="V">
 			<!-- RFC 8506 (March 2019) §8 AVP flag table; §8.30. -->
 			<data type="Grouped">
 				<rule avp="G-S-U-Pool-Identifier" required="true" max="1"/>
@@ -255,7 +256,7 @@
 			</data>
 		</avp>
 
-		<avp name="Multiple-Services-Credit-Control" code="456" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Multiple-Services-Credit-Control" code="456" must="M" may="-" must-not="V">
 			<!-- RFC 8506 (March 2019) §8 AVP flag table; §8.16. -->
 			<data type="Grouped">
 				<rule avp="Granted-Service-Unit" required="false" max="1"/>
@@ -269,11 +270,11 @@
 				<rule avp="Result-Code" required="false" max="1"/>
 				<rule avp="Final-Unit-Indication" required="false" max="1"/>
 				<rule avp="QoS-Final-Unit-Indication" required="false" max="1"/>
-				<!-- *[ AVP ]-->
+				<rule avp="AVP" required="false"/>
 			</data>
 		</avp>
 
-		<avp name="Multiple-Services-Indicator" code="455" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Multiple-Services-Indicator" code="455" must="M" may="-" must-not="V">
 			<!-- RFC 8506 (March 2019) §8 AVP flag table; §8.40. -->
 			<data type="Enumerated">
 				<item code="0" name="MULTIPLE_SERVICES_NOT_SUPPORTED"/>
@@ -281,12 +282,12 @@
 			</data>
 		</avp>
 
-		<avp name="Rating-Group" code="432" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Rating-Group" code="432" must="M" may="-" must-not="V">
 			<!-- RFC 8506 (March 2019) §8 AVP flag table; §8.29. -->
 			<data type="Unsigned32"/>
 		</avp>
 
-		<avp name="Redirect-Address-Type" code="433" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Redirect-Address-Type" code="433" must="M" may="-" must-not="V">
 			<!-- RFC 8506 (March 2019) §8 AVP flag table; §8.38. -->
 			<data type="Enumerated">
 				<item code="0" name="IPv4 Address"/>
@@ -296,7 +297,7 @@
 			</data>
 		</avp>
 
-		<avp name="Redirect-Server" code="434" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Redirect-Server" code="434" must="M" may="-" must-not="V">
 			<!-- RFC 8506 (March 2019) §8 AVP flag table; §8.37. -->
 			<data type="Grouped">
 				<rule avp="Redirect-Address-Type" required="true" max="1"/>
@@ -304,12 +305,12 @@
 			</data>
 		</avp>
 
-		<avp name="Redirect-Server-Address" code="435" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Redirect-Server-Address" code="435" must="M" may="-" must-not="V">
 			<!-- RFC 8506 (March 2019) §8 AVP flag table; §8.39. -->
 			<data type="UTF8String"/>
 		</avp>
 
-		<avp name="Requested-Action" code="436" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Requested-Action" code="436" must="M" may="-" must-not="V">
 			<!-- RFC 8506 (March 2019) §8 AVP flag table; §8.41. -->
 			<data type="Enumerated">
 				<item code="0" name="DIRECT_DEBITING"/>
@@ -319,7 +320,7 @@
 			</data>
 		</avp>
 
-		<avp name="Requested-Service-Unit" code="437" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Requested-Service-Unit" code="437" must="M" may="-" must-not="V">
 			<!-- RFC 8506 (March 2019) §8 AVP flag table; §8.18. -->
 			<data type="Grouped">
 				<rule avp="CC-Time" required="false" max="1"/>
@@ -328,26 +329,26 @@
 				<rule avp="CC-Input-Octets" required="false" max="1"/>
 				<rule avp="CC-Output-Octets" required="false" max="1"/>
 				<rule avp="CC-Service-Specific-Units" required="false" max="1"/>
-				<!-- *[ AVP ]-->
+				<rule avp="AVP" required="false"/>
 			</data>
 		</avp>
 
-		<avp name="Restriction-Filter-Rule" code="438" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Restriction-Filter-Rule" code="438" must="M" may="-" must-not="V">
 			<!-- RFC 8506 (March 2019) §8 AVP flag table; §8.36. -->
 			<data type="IPFilterRule"/>
 		</avp>
 
-		<avp name="Service-Context-Id" code="461" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Service-Context-Id" code="461" must="M" may="-" must-not="V">
 			<!-- RFC 8506 (March 2019) §8 AVP flag table; §8.42. -->
 			<data type="UTF8String"/>
 		</avp>
 
-		<avp name="Service-Identifier" code="439" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Service-Identifier" code="439" must="M" may="-" must-not="V">
 			<!-- RFC 8506 (March 2019) §8 AVP flag table; §8.28. -->
 			<data type="Unsigned32"/>
 		</avp>
 
-		<avp name="Service-Parameter-Info" code="440" must="-" may="M" must-not="V" may-encrypt="Y">
+		<avp name="Service-Parameter-Info" code="440" must="-" may="M" must-not="V">
 			<!-- RFC 8506 (March 2019) §8 AVP flag table; §8.43. -->
 			<data type="Grouped">
 				<rule avp="Service-Parameter-Type" required="true" max="1"/>
@@ -355,17 +356,17 @@
 			</data>
 		</avp>
 
-		<avp name="Service-Parameter-Type" code="441" must="-" may="M" must-not="V" may-encrypt="Y">
+		<avp name="Service-Parameter-Type" code="441" must="-" may="M" must-not="V">
 			<!-- RFC 8506 (March 2019) §8 AVP flag table; §8.44. -->
 			<data type="Unsigned32"/>
 		</avp>
 
-		<avp name="Service-Parameter-Value" code="442" must="-" may="M" must-not="V" may-encrypt="Y">
+		<avp name="Service-Parameter-Value" code="442" must="-" may="M" must-not="V">
 			<!-- RFC 8506 (March 2019) §8 AVP flag table; §8.45. -->
 			<data type="OctetString"/>
 		</avp>
 
-		<avp name="Subscription-Id" code="443" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Subscription-Id" code="443" must="M" may="-" must-not="V">
 			<!-- RFC 8506 (March 2019) §8 AVP flag table; §8.46. -->
 			<data type="Grouped">
 				<rule avp="Subscription-Id-Type" required="true" max="1"/>
@@ -373,12 +374,12 @@
 			</data>
 		</avp>
 
-		<avp name="Subscription-Id-Data" code="444" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Subscription-Id-Data" code="444" must="M" may="-" must-not="V">
 			<!-- RFC 8506 (March 2019) §8 AVP flag table; §8.48. -->
 			<data type="UTF8String"/>
 		</avp>
 
-		<avp name="Subscription-Id-Type" code="450" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Subscription-Id-Type" code="450" must="M" may="-" must-not="V">
 			<!-- RFC 8506 (March 2019) §8 AVP flag table; §8.47. -->
 			<data type="Enumerated">
 				<item code="0" name="END_USER_E164"/>
@@ -389,7 +390,7 @@
 			</data>
 		</avp>
 
-		<avp name="Tariff-Change-Usage" code="452" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Tariff-Change-Usage" code="452" must="M" may="-" must-not="V">
 			<!-- RFC 8506 (March 2019) §8 AVP flag table; §8.27. -->
 			<data type="Enumerated">
 				<item code="0" name="UNIT_BEFORE_TARIFF_CHANGE"/>
@@ -398,20 +399,20 @@
 			</data>
 		</avp>
 
-		<avp name="Tariff-Time-Change" code="451" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Tariff-Time-Change" code="451" must="M" may="-" must-not="V">
 			<!-- RFC 8506 (March 2019) §8 AVP flag table; §8.20. -->
 			<data type="Time"/>
 		</avp>
 
-		<avp name="Unit-Value" code="445" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Unit-Value" code="445" must="M" may="-" must-not="V">
 			<!-- RFC 8506 (March 2019) §8 AVP flag table; §8.8. -->
 			<data type="Grouped">
 				<rule avp="Value-Digits" required="true" max="1"/>
-				<rule avp="Exponent" required="true" max="1"/>
+				<rule avp="Exponent" required="false" max="1"/>
 			</data>
 		</avp>
 
-		<avp name="Used-Service-Unit" code="446" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Used-Service-Unit" code="446" must="M" may="-" must-not="V">
 			<!-- RFC 8506 (March 2019) §8 AVP flag table; §8.19. -->
 			<data type="Grouped">
 				<rule avp="Tariff-Change-Usage" required="false" max="1"/>
@@ -421,11 +422,11 @@
 				<rule avp="CC-Input-Octets" required="false" max="1"/>
 				<rule avp="CC-Output-Octets" required="false" max="1"/>
 				<rule avp="CC-Service-Specific-Units" required="false" max="1"/>
-				<!-- *[ AVP ]-->
+				<rule avp="AVP" required="false"/>
 			</data>
 		</avp>
 
-		<avp name="User-Equipment-Info" code="458" must="-" may="M" must-not="V" may-encrypt="Y">
+		<avp name="User-Equipment-Info" code="458" must="-" may="M" must-not="V">
 			<!-- RFC 8506 (March 2019) §8 AVP flag table; §8.49. -->
 			<data type="Grouped">
 				<rule avp="User-Equipment-Info-Type" required="true" max="1"/>
@@ -433,7 +434,7 @@
 			</data>
 		</avp>
 
-		<avp name="User-Equipment-Info-Type" code="459" must="-" may="M" must-not="V" may-encrypt="Y">
+		<avp name="User-Equipment-Info-Type" code="459" must="-" may="M" must-not="V">
 			<!-- RFC 8506 (March 2019) §8 AVP flag table; §8.50. -->
 			<data type="Enumerated">
 				<item code="0" name="IMEISV"/>
@@ -443,7 +444,7 @@
 			</data>
 		</avp>
 
-		<avp name="User-Equipment-Info-Value" code="460" must="-" may="M" must-not="V" may-encrypt="Y">
+		<avp name="User-Equipment-Info-Value" code="460" must="-" may="M" must-not="V">
 			<!-- RFC 8506 (March 2019) §8 AVP flag table; §8.51. -->
 			<data type="OctetString"/>
 		</avp>
@@ -453,7 +454,7 @@
 			<data type="Grouped"/>
 		</avp>
 
-		<avp name="User-Equipment-Info-Extension" code="653" must="-" may="M" must-not="V" may-encrypt="Y">
+		<avp name="User-Equipment-Info-Extension" code="653" must="-" may="M" must-not="V">
 			<!-- RFC 8506 (March 2019) §8 AVP flag table; §8.52. -->
 			<data type="Grouped">
 				<rule avp="User-Equipment-Info-IMEISV" required="false" max="1"/>
@@ -468,32 +469,32 @@
 			</data>
 		</avp>
 
-		<avp name="User-Equipment-Info-IMEISV" code="654" must="-" may="M" must-not="V" may-encrypt="Y">
+		<avp name="User-Equipment-Info-IMEISV" code="654" must="-" may="M" must-not="V">
 			<!-- RFC 8506 (March 2019) §8 AVP flag table; §8.53. -->
 			<data type="OctetString"/>
 		</avp>
 
-		<avp name="User-Equipment-Info-MAC" code="655" must="-" may="M" must-not="V" may-encrypt="Y">
+		<avp name="User-Equipment-Info-MAC" code="655" must="-" may="M" must-not="V">
 			<!-- RFC 8506 (March 2019) §8 AVP flag table; §8.54. -->
 			<data type="OctetString"/>
 		</avp>
 
-		<avp name="User-Equipment-Info-EUI64" code="656" must="-" may="M" must-not="V" may-encrypt="Y">
+		<avp name="User-Equipment-Info-EUI64" code="656" must="-" may="M" must-not="V">
 			<!-- RFC 8506 (March 2019) §8 AVP flag table; §8.55. -->
 			<data type="OctetString"/>
 		</avp>
 
-		<avp name="User-Equipment-Info-ModifiedEUI64" code="657" must="-" may="M" must-not="V" may-encrypt="Y">
+		<avp name="User-Equipment-Info-ModifiedEUI64" code="657" must="-" may="M" must-not="V">
 			<!-- RFC 8506 (March 2019) §8 AVP flag table; §8.56. -->
 			<data type="OctetString"/>
 		</avp>
 
-		<avp name="User-Equipment-Info-IMEI" code="658" must="-" may="M" must-not="V" may-encrypt="Y">
+		<avp name="User-Equipment-Info-IMEI" code="658" must="-" may="M" must-not="V">
 			<!-- RFC 8506 (March 2019) §8 AVP flag table; §8.57. -->
 			<data type="OctetString"/>
 		</avp>
 
-		<avp name="Subscription-Id-Extension" code="659" must="-" may="M" must-not="V" may-encrypt="Y">
+		<avp name="Subscription-Id-Extension" code="659" must="-" may="M" must-not="V">
 			<!-- RFC 8506 (March 2019) §8 AVP flag table; §8.58. -->
 			<data type="Grouped">
 				<rule avp="Subscription-Id-E164" required="false" max="1"/>
@@ -501,77 +502,81 @@
 				<rule avp="Subscription-Id-SIP-URI" required="false" max="1"/>
 				<rule avp="Subscription-Id-NAI" required="false" max="1"/>
 				<rule avp="Subscription-Id-Private" required="false" max="1"/>
-				<!-- *[ AVP ]-->
+				<!-- RFC 8506 §8.58 permits one optional extension; exactly one
+				     included AVP is a sender requirement beyond this grammar. -->
+				<rule avp="AVP" required="false" max="1"/>
 			</data>
 		</avp>
 
-		<avp name="Subscription-Id-E164" code="660" must="-" may="M" must-not="V" may-encrypt="Y">
+		<avp name="Subscription-Id-E164" code="660" must="-" may="M" must-not="V">
 			<!-- RFC 8506 (March 2019) §8 AVP flag table; §8.59. -->
 			<data type="UTF8String"/>
 		</avp>
 
-		<avp name="Subscription-Id-IMSI" code="661" must="-" may="M" must-not="V" may-encrypt="Y">
+		<avp name="Subscription-Id-IMSI" code="661" must="-" may="M" must-not="V">
 			<!-- RFC 8506 (March 2019) §8 AVP flag table; §8.60. -->
 			<data type="UTF8String"/>
 		</avp>
 
-		<avp name="Subscription-Id-SIP-URI" code="662" must="-" may="M" must-not="V" may-encrypt="Y">
+		<avp name="Subscription-Id-SIP-URI" code="662" must="-" may="M" must-not="V">
 			<!-- RFC 8506 (March 2019) §8 AVP flag table; §8.61. -->
 			<data type="UTF8String"/>
 		</avp>
 
-		<avp name="Subscription-Id-NAI" code="663" must="-" may="M" must-not="V" may-encrypt="Y">
+		<avp name="Subscription-Id-NAI" code="663" must="-" may="M" must-not="V">
 			<!-- RFC 8506 (March 2019) §8 AVP flag table; §8.62. -->
 			<data type="UTF8String"/>
 		</avp>
 
-		<avp name="Subscription-Id-Private" code="664" must="-" may="M" must-not="V" may-encrypt="Y">
+		<avp name="Subscription-Id-Private" code="664" must="-" may="M" must-not="V">
 			<!-- RFC 8506 (March 2019) §8 AVP flag table; §8.63. -->
 			<data type="UTF8String"/>
 		</avp>
 
-		<avp name="Redirect-Server-Extension" code="665" must="-" may="M" must-not="V" may-encrypt="Y">
+		<avp name="Redirect-Server-Extension" code="665" must="-" may="M" must-not="V">
 			<!-- RFC 8506 (March 2019) §8 AVP flag table; §8.64. -->
 			<data type="Grouped">
 				<rule avp="Redirect-Address-IPAddress" required="false" max="1"/>
 				<rule avp="Redirect-Address-URL" required="false" max="1"/>
 				<rule avp="Redirect-Address-SIP-URI" required="false" max="1"/>
-				<!-- *[ AVP ]-->
+				<!-- RFC 8506 §8.64 permits one optional extension; exactly one
+				     included AVP is a sender requirement beyond this grammar. -->
+				<rule avp="AVP" required="false" max="1"/>
 			</data>
 		</avp>
 
-		<avp name="Redirect-Address-IPAddress" code="666" must="-" may="M" must-not="V" may-encrypt="Y">
+		<avp name="Redirect-Address-IPAddress" code="666" must="-" may="M" must-not="V">
 			<!-- RFC 8506 (March 2019) §8 AVP flag table; §8.65. -->
 			<data type="Address"/>
 		</avp>
 
-		<avp name="Redirect-Address-URL" code="667" must="-" may="M" must-not="V" may-encrypt="Y">
+		<avp name="Redirect-Address-URL" code="667" must="-" may="M" must-not="V">
 			<!-- RFC 8506 (March 2019) §8 AVP flag table; §8.66. -->
 			<data type="UTF8String"/>
 		</avp>
 
-		<avp name="Redirect-Address-SIP-URI" code="668" must="-" may="M" must-not="V" may-encrypt="Y">
+		<avp name="Redirect-Address-SIP-URI" code="668" must="-" may="M" must-not="V">
 			<!-- RFC 8506 (March 2019) §8 AVP flag table; §8.67. -->
 			<data type="UTF8String"/>
 		</avp>
 
-		<avp name="QoS-Final-Unit-Indication" code="669" must="-" may="M" must-not="V" may-encrypt="Y">
+		<avp name="QoS-Final-Unit-Indication" code="669" must="-" may="M" must-not="V">
 			<!-- RFC 8506 (March 2019) §8 AVP flag table; §8.68. -->
 			<data type="Grouped">
 				<rule avp="Final-Unit-Action" required="true" max="1"/>
 				<rule avp="Filter-Rule" required="false"/>
 				<rule avp="Filter-Id" required="false"/>
 				<rule avp="Redirect-Server-Extension" required="false" max="1"/>
-				<!-- *[ AVP ]-->
+				<rule avp="AVP" required="false"/>
 			</data>
 		</avp>
 
-		<avp name="Value-Digits" code="447" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Value-Digits" code="447" must="M" may="-" must-not="V">
 			<!-- RFC 8506 (March 2019) §8 AVP flag table; §8.10. -->
 			<data type="Integer64"/>
 		</avp>
 
-		<avp name="Validity-Time" code="448" must="M" may="-" must-not="V" may-encrypt="Y">
+		<avp name="Validity-Time" code="448" must="M" may="-" must-not="V">
 			<!-- RFC 8506 (March 2019) §8 AVP flag table; §8.33. -->
 			<data type="Unsigned32"/>
 		</avp>

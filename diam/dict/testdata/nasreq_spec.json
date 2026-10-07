@@ -1,0 +1,3415 @@
+{
+  "supplemental": [
+    {
+      "name": "NAS-IP-Address",
+      "code": 4,
+      "vendor": 0,
+      "type": "OctetString",
+      "radius_type": "ipv4addr",
+      "must": "",
+      "may": "M",
+      "must_not": "V",
+      "flag_note": "RFC 7155 assigns no Diameter flag rule to this referenced RADIUS attribute; M is optional, and V prohibition follows RFC 6733 \u00a74.1",
+      "reference": "RFC 7155 \u00a7\u00a73.1\u20133.10; IANA RADIUS Attribute Types; RFC 6733 \u00a74.1"
+    },
+    {
+      "name": "NAS-IPv6-Address",
+      "code": 95,
+      "vendor": 0,
+      "type": "OctetString",
+      "radius_type": "ipv6addr",
+      "must": "",
+      "may": "M",
+      "must_not": "V",
+      "flag_note": "RFC 7155 assigns no Diameter flag rule to this referenced RADIUS attribute; M is optional, and V prohibition follows RFC 6733 \u00a74.1",
+      "reference": "RFC 7155 \u00a7\u00a73.1\u20133.10; IANA RADIUS Attribute Types; RFC 6733 \u00a74.1"
+    },
+    {
+      "name": "NAS-Identifier",
+      "code": 32,
+      "vendor": 0,
+      "type": "UTF8String",
+      "radius_type": "text",
+      "must": "",
+      "may": "M",
+      "must_not": "V",
+      "flag_note": "RFC 7155 assigns no Diameter flag rule to this referenced RADIUS attribute; M is optional, and V prohibition follows RFC 6733 \u00a74.1",
+      "reference": "RFC 7155 \u00a7\u00a73.1\u20133.10; IANA RADIUS Attribute Types; RFC 6733 \u00a74.1"
+    },
+    {
+      "name": "State",
+      "code": 24,
+      "vendor": 0,
+      "type": "OctetString",
+      "radius_type": "string",
+      "must": "",
+      "may": "M",
+      "must_not": "V",
+      "flag_note": "RFC 7155 assigns no Diameter flag rule to this referenced RADIUS attribute; M is optional, and V prohibition follows RFC 6733 \u00a74.1",
+      "reference": "RFC 7155 \u00a7\u00a73.1\u20133.10; IANA RADIUS Attribute Types; RFC 6733 \u00a74.1"
+    }
+  ],
+  "source": "RFC 7155 \u00a7\u00a73\u20134, Verified Errata 5993\u20135995 and 6119; IANA RADIUS and AAA parameter registries",
+  "rfc_sha256": "f100a5a47def22bda012369e8926f5d17c57b9a73a0fe4daeac16bb01b272cd5",
+  "radius_sha256": "870352bc393645882a5e0c7210d13e055c04741af47372cf068819628e75e238",
+  "aaa_sha256": "67e1f78147ac95886436dc9459611f1821159fd3d411d98f2781db2b4820b720",
+  "avps": [
+    {
+      "name": "NAS-Port",
+      "section": "4.2.2",
+      "code": 5,
+      "vendor": 0,
+      "type": "Unsigned32",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "rules": null
+    },
+    {
+      "name": "NAS-Port-Id",
+      "section": "4.2.3",
+      "code": 87,
+      "vendor": 0,
+      "type": "UTF8String",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "rules": null
+    },
+    {
+      "name": "NAS-Port-Type",
+      "section": "4.2.4",
+      "code": 61,
+      "vendor": 0,
+      "type": "Enumerated",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "rules": null,
+      "items": {
+        "0": "Async",
+        "1": "Sync",
+        "2": "ISDN Sync",
+        "3": "ISDN Async V.120",
+        "4": "ISDN Async V.110",
+        "5": "Virtual",
+        "6": "PIAFS",
+        "7": "HDLC Clear Channel",
+        "8": "X.25",
+        "9": "X.75",
+        "10": "G.3 Fax",
+        "11": "SDSL - Symmetric DSL",
+        "12": "ADSL-CAP - Asymmetric DSL, Carrierless Amplitude Phase Modulation",
+        "13": "ADSL-DMT - Asymmetric DSL, Discrete Multi-Tone",
+        "14": "IDSL - ISDN Digital Subscriber Line",
+        "15": "Ethernet",
+        "16": "xDSL - Digital Subscriber Line of unknown type",
+        "17": "Cable",
+        "18": "Wireless - Other",
+        "19": "Wireless - IEEE 802.11",
+        "20": "Token-Ring",
+        "21": "FDDI",
+        "22": "Wireless - CDMA2000",
+        "23": "Wireless - UMTS",
+        "24": "Wireless - 1X-EV",
+        "25": "IAPP",
+        "26": "FTTP - Fiber to the Premises",
+        "27": "Wireless - IEEE 802.16",
+        "28": "Wireless - IEEE 802.20",
+        "29": "Wireless - IEEE 802.22",
+        "30": "PPPoA - PPP over ATM",
+        "31": "PPPoEoA - PPP over Ethernet over ATM",
+        "32": "PPPoEoE - PPP over Ethernet over Ethernet",
+        "33": "PPPoEoVLAN - PPP over Ethernet over VLAN",
+        "34": "PPPoEoQinQ - PPP over Ethernet over IEEE 802.1QinQ",
+        "35": "xPON - Passive Optical Network",
+        "36": "Wireless - XGP",
+        "37": "WiMAX Pre-Release 8 IWK Function",
+        "38": "WIMAX-WIFI-IWK: WiMAX WIFI Interworking",
+        "39": "WIMAX-SFF: Signaling Forwarding Function for LTE/3GPP2",
+        "40": "WIMAX-HA-LMA: WiMAX HA and or LMA function",
+        "41": "WIMAX-DHCP: WIMAX DCHP service",
+        "42": "WIMAX-LBS: WiMAX location based service",
+        "43": "WIMAX-WVS: WiMAX voice service"
+      },
+      "registry": "https://www.iana.org/assignments/radius-types/radius-types.xhtml#radius-types-13"
+    },
+    {
+      "name": "Called-Station-Id",
+      "section": "4.2.5",
+      "code": 30,
+      "vendor": 0,
+      "type": "UTF8String",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "rules": null
+    },
+    {
+      "name": "Calling-Station-Id",
+      "section": "4.2.6",
+      "code": 31,
+      "vendor": 0,
+      "type": "UTF8String",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "rules": null
+    },
+    {
+      "name": "Connect-Info",
+      "section": "4.2.7",
+      "code": 77,
+      "vendor": 0,
+      "type": "UTF8String",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "rules": null
+    },
+    {
+      "name": "Originating-Line-Info",
+      "section": "4.2.8",
+      "code": 94,
+      "vendor": 0,
+      "type": "OctetString",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "rules": null
+    },
+    {
+      "name": "Reply-Message",
+      "section": "4.2.9",
+      "code": 18,
+      "vendor": 0,
+      "type": "UTF8String",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "rules": null
+    },
+    {
+      "name": "User-Password",
+      "section": "4.3.1",
+      "code": 2,
+      "vendor": 0,
+      "type": "OctetString",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "rules": null
+    },
+    {
+      "name": "Password-Retry",
+      "section": "4.3.2",
+      "code": 75,
+      "vendor": 0,
+      "type": "Unsigned32",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "rules": null
+    },
+    {
+      "name": "Prompt",
+      "section": "4.3.3",
+      "code": 76,
+      "vendor": 0,
+      "type": "Enumerated",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "rules": null,
+      "items": {
+        "0": "No Echo",
+        "1": "Echo"
+      },
+      "registry": "https://www.iana.org/assignments/radius-types/radius-types.xhtml#radius-types-17"
+    },
+    {
+      "name": "CHAP-Auth",
+      "section": "4.3.4",
+      "code": 402,
+      "vendor": 0,
+      "type": "Grouped",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "rules": [
+        {
+          "name": "CHAP-Algorithm",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "CHAP-Ident",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "CHAP-Response",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        }
+      ]
+    },
+    {
+      "name": "CHAP-Algorithm",
+      "section": "4.3.5",
+      "code": 403,
+      "vendor": 0,
+      "type": "Enumerated",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "rules": null,
+      "items": {
+        "5": "CHAP with MD5"
+      }
+    },
+    {
+      "name": "CHAP-Ident",
+      "section": "4.3.6",
+      "code": 404,
+      "vendor": 0,
+      "type": "OctetString",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "rules": null
+    },
+    {
+      "name": "CHAP-Response",
+      "section": "4.3.7",
+      "code": 405,
+      "vendor": 0,
+      "type": "OctetString",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "rules": null
+    },
+    {
+      "name": "CHAP-Challenge",
+      "section": "4.3.8",
+      "code": 60,
+      "vendor": 0,
+      "type": "OctetString",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "rules": null
+    },
+    {
+      "name": "ARAP-Password",
+      "section": "4.3.9",
+      "code": 70,
+      "vendor": 0,
+      "type": "OctetString",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "rules": null
+    },
+    {
+      "name": "ARAP-Challenge-Response",
+      "section": "4.3.10",
+      "code": 84,
+      "vendor": 0,
+      "type": "OctetString",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "rules": null
+    },
+    {
+      "name": "ARAP-Security",
+      "section": "4.3.11",
+      "code": 73,
+      "vendor": 0,
+      "type": "Unsigned32",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "rules": null
+    },
+    {
+      "name": "ARAP-Security-Data",
+      "section": "4.3.12",
+      "code": 74,
+      "vendor": 0,
+      "type": "OctetString",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "rules": null
+    },
+    {
+      "name": "Service-Type",
+      "section": "4.4.1",
+      "code": 6,
+      "vendor": 0,
+      "type": "Enumerated",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "rules": null,
+      "items": {
+        "1": "Login",
+        "2": "Framed",
+        "3": "Callback Login",
+        "4": "Callback Framed",
+        "5": "Outbound",
+        "6": "Administrative",
+        "7": "NAS Prompt",
+        "8": "Authenticate Only",
+        "9": "Callback NAS Prompt",
+        "10": "Call Check",
+        "11": "Callback Administrative",
+        "12": "Voice",
+        "13": "Fax",
+        "14": "Modem Relay",
+        "15": "IAPP-Register",
+        "16": "IAPP-AP-Check",
+        "17": "Authorize Only",
+        "18": "Framed-Management",
+        "19": "Additional-Authorization"
+      },
+      "registry": "https://www.iana.org/assignments/radius-types/radius-types.xhtml#radius-types-4"
+    },
+    {
+      "name": "Callback-Number",
+      "section": "4.4.2",
+      "code": 19,
+      "vendor": 0,
+      "type": "UTF8String",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "rules": null
+    },
+    {
+      "name": "Callback-Id",
+      "section": "4.4.3",
+      "code": 20,
+      "vendor": 0,
+      "type": "UTF8String",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "rules": null
+    },
+    {
+      "name": "Idle-Timeout",
+      "section": "4.4.4",
+      "code": 28,
+      "vendor": 0,
+      "type": "Unsigned32",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "rules": null
+    },
+    {
+      "name": "Port-Limit",
+      "section": "4.4.5",
+      "code": 62,
+      "vendor": 0,
+      "type": "Unsigned32",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "rules": null
+    },
+    {
+      "name": "NAS-Filter-Rule",
+      "section": "4.4.6",
+      "code": 400,
+      "vendor": 0,
+      "type": "IPFilterRule",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "rules": null
+    },
+    {
+      "name": "Filter-Id",
+      "section": "4.4.7",
+      "code": 11,
+      "vendor": 0,
+      "type": "UTF8String",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "rules": null
+    },
+    {
+      "name": "Configuration-Token",
+      "section": "4.4.8",
+      "code": 78,
+      "vendor": 0,
+      "type": "OctetString",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "rules": null
+    },
+    {
+      "name": "QoS-Filter-Rule",
+      "section": "4.4.9",
+      "code": 407,
+      "vendor": 0,
+      "type": "QoSFilterRule",
+      "must": "",
+      "may": "M",
+      "must_not": "V",
+      "rules": null,
+      "published_must_not": "",
+      "flag_note": "RFC 6733 \u00a74.1 prohibits V for vendor-zero IETF AVPs; RFC 7155 \u00a7\u00a74.1.1/4.4.9 leaves its table cell blank. Reported Erratum 6029 is not applied."
+    },
+    {
+      "name": "Framed-Protocol",
+      "section": "4.4.10.1",
+      "code": 7,
+      "vendor": 0,
+      "type": "Enumerated",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "rules": null,
+      "items": {
+        "1": "PPP",
+        "2": "SLIP",
+        "3": "AppleTalk Remote Access Protocol (ARAP)",
+        "4": "Gandalf proprietary SingleLink/MultiLink protocol",
+        "5": "Xylogics proprietary IPX/SLIP",
+        "6": "X.75 Synchronous",
+        "7": "GPRS PDP Context"
+      },
+      "registry": "https://www.iana.org/assignments/radius-types/radius-types.xhtml#radius-types-5"
+    },
+    {
+      "name": "Framed-Routing",
+      "section": "4.4.10.2",
+      "code": 10,
+      "vendor": 0,
+      "type": "Enumerated",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "rules": null,
+      "items": {
+        "0": "None",
+        "1": "Send routing packets",
+        "2": "Listen for routing packets",
+        "3": "Send and Listen"
+      },
+      "registry": "https://www.iana.org/assignments/radius-types/radius-types.xhtml#radius-types-6"
+    },
+    {
+      "name": "Framed-MTU",
+      "section": "4.4.10.3",
+      "code": 12,
+      "vendor": 0,
+      "type": "Unsigned32",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "rules": null
+    },
+    {
+      "name": "Framed-Compression",
+      "section": "4.4.10.4",
+      "code": 13,
+      "vendor": 0,
+      "type": "Enumerated",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "rules": null,
+      "items": {
+        "0": "None",
+        "1": "VJ TCP/IP header compression",
+        "2": "IPX header compression",
+        "3": "Stac-LZS compression"
+      },
+      "registry": "https://www.iana.org/assignments/radius-types/radius-types.xhtml#radius-types-7"
+    },
+    {
+      "name": "Framed-IP-Address",
+      "section": "4.4.10.5.1",
+      "code": 8,
+      "vendor": 0,
+      "type": "OctetString",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "rules": null
+    },
+    {
+      "name": "Framed-IP-Netmask",
+      "section": "4.4.10.5.2",
+      "code": 9,
+      "vendor": 0,
+      "type": "OctetString",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "rules": null
+    },
+    {
+      "name": "Framed-Route",
+      "section": "4.4.10.5.3",
+      "code": 22,
+      "vendor": 0,
+      "type": "UTF8String",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "rules": null
+    },
+    {
+      "name": "Framed-Pool",
+      "section": "4.4.10.5.4",
+      "code": 88,
+      "vendor": 0,
+      "type": "OctetString",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "rules": null
+    },
+    {
+      "name": "Framed-Interface-Id",
+      "section": "4.4.10.5.5",
+      "code": 96,
+      "vendor": 0,
+      "type": "Unsigned64",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "rules": null
+    },
+    {
+      "name": "Framed-IPv6-Prefix",
+      "section": "4.4.10.5.6",
+      "code": 97,
+      "vendor": 0,
+      "type": "OctetString",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "rules": null
+    },
+    {
+      "name": "Framed-IPv6-Route",
+      "section": "4.4.10.5.7",
+      "code": 99,
+      "vendor": 0,
+      "type": "UTF8String",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "rules": null
+    },
+    {
+      "name": "Framed-IPv6-Pool",
+      "section": "4.4.10.5.8",
+      "code": 100,
+      "vendor": 0,
+      "type": "OctetString",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "rules": null
+    },
+    {
+      "name": "Framed-IPX-Network",
+      "section": "4.4.10.6.1",
+      "code": 23,
+      "vendor": 0,
+      "type": "Unsigned32",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "rules": null
+    },
+    {
+      "name": "Framed-Appletalk-Link",
+      "section": "4.4.10.7.1",
+      "code": 37,
+      "vendor": 0,
+      "type": "Unsigned32",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "rules": null
+    },
+    {
+      "name": "Framed-Appletalk-Network",
+      "section": "4.4.10.7.2",
+      "code": 38,
+      "vendor": 0,
+      "type": "Unsigned32",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "rules": null
+    },
+    {
+      "name": "Framed-Appletalk-Zone",
+      "section": "4.4.10.7.3",
+      "code": 39,
+      "vendor": 0,
+      "type": "OctetString",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "rules": null
+    },
+    {
+      "name": "ARAP-Features",
+      "section": "4.4.10.8.1",
+      "code": 71,
+      "vendor": 0,
+      "type": "OctetString",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "rules": null
+    },
+    {
+      "name": "ARAP-Zone-Access",
+      "section": "4.4.10.8.2",
+      "code": 72,
+      "vendor": 0,
+      "type": "Enumerated",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "rules": null,
+      "items": {
+        "1": "Only allow access to default zone",
+        "2": "Use zone filter inclusively",
+        "3": "Not used",
+        "4": "Use zone filter exclusively"
+      },
+      "registry": "https://www.iana.org/assignments/radius-types/radius-types.xhtml#radius-types-16"
+    },
+    {
+      "name": "Login-IP-Host",
+      "section": "4.4.11.1",
+      "code": 14,
+      "vendor": 0,
+      "type": "OctetString",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "rules": null
+    },
+    {
+      "name": "Login-IPv6-Host",
+      "section": "4.4.11.2",
+      "code": 98,
+      "vendor": 0,
+      "type": "OctetString",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "rules": null
+    },
+    {
+      "name": "Login-Service",
+      "section": "4.4.11.3",
+      "code": 15,
+      "vendor": 0,
+      "type": "Enumerated",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "rules": null,
+      "items": {
+        "0": "Telnet",
+        "1": "Rlogin",
+        "2": "TCP Clear",
+        "3": "PortMaster (proprietary)",
+        "4": "LAT",
+        "5": "X25-PAD",
+        "6": "X25-T3POS",
+        "8": "TCP Clear Quiet (suppresses any NAS-generated connect string)"
+      },
+      "registry": "https://www.iana.org/assignments/radius-types/radius-types.xhtml#radius-types-8"
+    },
+    {
+      "name": "Login-TCP-Port",
+      "section": "4.4.11.4.1",
+      "code": 16,
+      "vendor": 0,
+      "type": "Unsigned32",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "rules": null
+    },
+    {
+      "name": "Login-LAT-Service",
+      "section": "4.4.11.5.1",
+      "code": 34,
+      "vendor": 0,
+      "type": "OctetString",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "rules": null
+    },
+    {
+      "name": "Login-LAT-Node",
+      "section": "4.4.11.5.2",
+      "code": 35,
+      "vendor": 0,
+      "type": "OctetString",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "rules": null
+    },
+    {
+      "name": "Login-LAT-Group",
+      "section": "4.4.11.5.3",
+      "code": 36,
+      "vendor": 0,
+      "type": "OctetString",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "rules": null
+    },
+    {
+      "name": "Login-LAT-Port",
+      "section": "4.4.11.5.4",
+      "code": 63,
+      "vendor": 0,
+      "type": "OctetString",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "rules": null
+    },
+    {
+      "name": "Tunneling",
+      "section": "4.5.1",
+      "code": 401,
+      "vendor": 0,
+      "type": "Grouped",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "rules": [
+        {
+          "name": "Tunnel-Type",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Tunnel-Medium-Type",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Tunnel-Client-Endpoint",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Tunnel-Server-Endpoint",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Tunnel-Preference",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Tunnel-Client-Auth-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Tunnel-Server-Auth-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Tunnel-Assignment-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Tunnel-Password",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Tunnel-Private-Group-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        }
+      ]
+    },
+    {
+      "name": "Tunnel-Type",
+      "section": "4.5.2",
+      "code": 64,
+      "vendor": 0,
+      "type": "Enumerated",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "rules": null,
+      "items": {
+        "1": "Point-to-Point Tunneling Protocol (PPTP)",
+        "2": "Layer Two Forwarding (L2F)",
+        "3": "Layer Two Tunneling Protocol (L2TP)",
+        "4": "Ascend Tunnel Management Protocol (ATMP)",
+        "5": "Virtual Tunneling Protocol (VTP)",
+        "6": "IP Authentication Header in the Tunnel-mode (AH)",
+        "7": "IP-in-IP Encapsulation (IP-IP)",
+        "8": "Minimal IP-in-IP Encapsulation (MIN-IP-IP)",
+        "9": "IP Encapsulating Security Payload in the Tunnel-mode (ESP)",
+        "10": "Generic Route Encapsulation (GRE)",
+        "11": "Bay Dial Virtual Services (DVS)",
+        "12": "IP-in-IP Tunneling",
+        "13": "Virtual LANs (VLAN)"
+      },
+      "registry": "https://www.iana.org/assignments/radius-types/radius-types.xhtml#radius-types-14"
+    },
+    {
+      "name": "Tunnel-Medium-Type",
+      "section": "4.5.3",
+      "code": 65,
+      "vendor": 0,
+      "type": "Enumerated",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "rules": null,
+      "items": {
+        "1": "IPv4 (IP version 4)",
+        "2": "IPv6 (IP version 6)",
+        "3": "NSAP",
+        "4": "HDLC (8-bit multidrop)",
+        "5": "BBN 1822",
+        "6": "802 (includes all 802 media plus Ethernet \"canonical format\")",
+        "7": "E.163 (POTS)",
+        "8": "E.164 (SMDS, Frame Relay, ATM)",
+        "9": "F.69 (Telex)",
+        "10": "X.121 (X.25, Frame Relay)",
+        "11": "IPX",
+        "12": "Appletalk",
+        "13": "Decnet IV",
+        "14": "Banyan Vines",
+        "15": "E.164 with NSAP format subaddress"
+      },
+      "registry": "https://www.iana.org/assignments/radius-types/radius-types.xhtml#radius-types-15"
+    },
+    {
+      "name": "Tunnel-Client-Endpoint",
+      "section": "4.5.4",
+      "code": 66,
+      "vendor": 0,
+      "type": "UTF8String",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "rules": null
+    },
+    {
+      "name": "Tunnel-Server-Endpoint",
+      "section": "4.5.5",
+      "code": 67,
+      "vendor": 0,
+      "type": "UTF8String",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "rules": null
+    },
+    {
+      "name": "Tunnel-Password",
+      "section": "4.5.6",
+      "code": 69,
+      "vendor": 0,
+      "type": "OctetString",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "rules": null
+    },
+    {
+      "name": "Tunnel-Private-Group-Id",
+      "section": "4.5.7",
+      "code": 81,
+      "vendor": 0,
+      "type": "OctetString",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "rules": null
+    },
+    {
+      "name": "Tunnel-Assignment-Id",
+      "section": "4.5.8",
+      "code": 82,
+      "vendor": 0,
+      "type": "OctetString",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "rules": null
+    },
+    {
+      "name": "Tunnel-Preference",
+      "section": "4.5.9",
+      "code": 83,
+      "vendor": 0,
+      "type": "Unsigned32",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "rules": null
+    },
+    {
+      "name": "Tunnel-Client-Auth-Id",
+      "section": "4.5.10",
+      "code": 90,
+      "vendor": 0,
+      "type": "UTF8String",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "rules": null
+    },
+    {
+      "name": "Tunnel-Server-Auth-Id",
+      "section": "4.5.11",
+      "code": 91,
+      "vendor": 0,
+      "type": "UTF8String",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "rules": null
+    },
+    {
+      "name": "Accounting-Input-Octets",
+      "section": "4.6.1",
+      "code": 363,
+      "vendor": 0,
+      "type": "Unsigned64",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "rules": null
+    },
+    {
+      "name": "Accounting-Output-Octets",
+      "section": "4.6.2",
+      "code": 364,
+      "vendor": 0,
+      "type": "Unsigned64",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "rules": null
+    },
+    {
+      "name": "Accounting-Input-Packets",
+      "section": "4.6.3",
+      "code": 365,
+      "vendor": 0,
+      "type": "Unsigned64",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "rules": null
+    },
+    {
+      "name": "Accounting-Output-Packets",
+      "section": "4.6.4",
+      "code": 366,
+      "vendor": 0,
+      "type": "Unsigned64",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "rules": null
+    },
+    {
+      "name": "Acct-Session-Time",
+      "section": "4.6.5",
+      "code": 46,
+      "vendor": 0,
+      "type": "Unsigned32",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "rules": null
+    },
+    {
+      "name": "Acct-Authentic",
+      "section": "4.6.6",
+      "code": 45,
+      "vendor": 0,
+      "type": "Enumerated",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "rules": null,
+      "items": {
+        "1": "RADIUS",
+        "2": "Local",
+        "3": "Remote",
+        "4": "Diameter"
+      },
+      "registry": "https://www.iana.org/assignments/radius-types/radius-types.xhtml#radius-types-11"
+    },
+    {
+      "name": "Accounting-Auth-Method",
+      "section": "4.6.7",
+      "code": 406,
+      "vendor": 0,
+      "type": "Enumerated",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "rules": null,
+      "items": {
+        "1": "PAP",
+        "2": "CHAP",
+        "3": "MS-CHAP-1",
+        "4": "MS-CHAP-2",
+        "5": "EAP",
+        "7": "None"
+      },
+      "registry": "https://www.iana.org/assignments/aaa-parameters/aaa-parameters.xhtml#aaa-parameters-26"
+    },
+    {
+      "name": "Acct-Delay-Time",
+      "section": "4.6.8",
+      "code": 41,
+      "vendor": 0,
+      "type": "Unsigned32",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "rules": null
+    },
+    {
+      "name": "Acct-Link-Count",
+      "section": "4.6.9",
+      "code": 51,
+      "vendor": 0,
+      "type": "Unsigned32",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "rules": null
+    },
+    {
+      "name": "Acct-Tunnel-Connection",
+      "section": "4.6.10",
+      "code": 68,
+      "vendor": 0,
+      "type": "OctetString",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "rules": null
+    },
+    {
+      "name": "Acct-Tunnel-Packets-Lost",
+      "section": "4.6.11",
+      "code": 86,
+      "vendor": 0,
+      "type": "Unsigned32",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "rules": null
+    },
+    {
+      "name": "Origin-AAA-Protocol",
+      "section": "4.7.1 / Errata 6119",
+      "code": 408,
+      "vendor": 0,
+      "type": "Enumerated",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "items": {
+        "1": "RADIUS"
+      }
+    }
+  ],
+  "commands": [
+    {
+      "section": "3.1",
+      "name": "AA-Request",
+      "code": 265,
+      "request": true,
+      "proxiable": true,
+      "rules": [
+        {
+          "name": "Session-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": true
+        },
+        {
+          "name": "Auth-Application-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Origin-Host",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Origin-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Destination-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Auth-Request-Type",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Destination-Host",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "NAS-Identifier",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "NAS-IP-Address",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "NAS-IPv6-Address",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "NAS-Port",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "NAS-Port-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "NAS-Port-Type",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Origin-AAA-Protocol",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Origin-State-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Port-Limit",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "User-Name",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "User-Password",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Service-Type",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "State",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Authorization-Lifetime",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Auth-Grace-Period",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Auth-Session-State",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Callback-Number",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Called-Station-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Calling-Station-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Originating-Line-Info",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Connect-Info",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "CHAP-Auth",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "CHAP-Challenge",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Framed-Compression",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "Framed-Interface-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Framed-IP-Address",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Framed-IPv6-Prefix",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "Framed-IP-Netmask",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Framed-MTU",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Framed-Protocol",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "ARAP-Password",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "ARAP-Security",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "ARAP-Security-Data",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "Login-IP-Host",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "Login-IPv6-Host",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "Login-LAT-Group",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Login-LAT-Node",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Login-LAT-Port",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Login-LAT-Service",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Tunneling",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "Proxy-Info",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "Route-Record",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        }
+      ]
+    },
+    {
+      "section": "3.2",
+      "name": "AA-Answer",
+      "code": 265,
+      "request": false,
+      "proxiable": true,
+      "rules": [
+        {
+          "name": "Session-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": true
+        },
+        {
+          "name": "Auth-Application-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Auth-Request-Type",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Result-Code",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Origin-Host",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Origin-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "User-Name",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Service-Type",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Class",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "Configuration-Token",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "Acct-Interim-Interval",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Error-Message",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Error-Reporting-Host",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Failed-AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "Idle-Timeout",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Authorization-Lifetime",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Auth-Grace-Period",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Auth-Session-State",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Re-Auth-Request-Type",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Multi-Round-Time-Out",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Session-Timeout",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "State",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Reply-Message",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "Origin-AAA-Protocol",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Origin-State-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Filter-Id",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "Password-Retry",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Port-Limit",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Prompt",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "ARAP-Challenge-Response",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "ARAP-Features",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "ARAP-Security",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "ARAP-Security-Data",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "ARAP-Zone-Access",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Callback-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Callback-Number",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Framed-Appletalk-Link",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Framed-Appletalk-Network",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "Framed-Appletalk-Zone",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Framed-Compression",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "Framed-Interface-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Framed-IP-Address",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Framed-IPv6-Prefix",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "Framed-IPv6-Pool",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Framed-IPv6-Route",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "Framed-IP-Netmask",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Framed-Route",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "Framed-Pool",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Framed-IPX-Network",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Framed-MTU",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Framed-Protocol",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Framed-Routing",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Login-IP-Host",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "Login-IPv6-Host",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "Login-LAT-Group",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Login-LAT-Node",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Login-LAT-Port",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Login-LAT-Service",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Login-Service",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Login-TCP-Port",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "NAS-Filter-Rule",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "QoS-Filter-Rule",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "Tunneling",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "Redirect-Host",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "Redirect-Host-Usage",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Redirect-Max-Cache-Time",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Proxy-Info",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        }
+      ]
+    },
+    {
+      "section": "3.3",
+      "name": "RA-Request",
+      "code": 258,
+      "request": true,
+      "proxiable": true,
+      "rules": [
+        {
+          "name": "Session-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": true
+        },
+        {
+          "name": "Origin-Host",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Origin-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Destination-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Destination-Host",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Auth-Application-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Re-Auth-Request-Type",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "User-Name",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Origin-AAA-Protocol",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Origin-State-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "NAS-Identifier",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "NAS-IP-Address",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "NAS-IPv6-Address",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "NAS-Port",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "NAS-Port-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "NAS-Port-Type",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Service-Type",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Framed-IP-Address",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Framed-IPv6-Prefix",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Framed-Interface-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Called-Station-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Calling-Station-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Originating-Line-Info",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Acct-Session-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Acct-Multi-Session-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "State",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Class",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "Reply-Message",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Proxy-Info",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "Route-Record",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        }
+      ]
+    },
+    {
+      "section": "3.4",
+      "name": "RA-Answer",
+      "code": 258,
+      "request": false,
+      "proxiable": true,
+      "rules": [
+        {
+          "name": "Session-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": true
+        },
+        {
+          "name": "Result-Code",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Origin-Host",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Origin-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "User-Name",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Origin-AAA-Protocol",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Origin-State-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Error-Message",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Error-Reporting-Host",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Failed-AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "Redirect-Host",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "Redirect-Host-Usage",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Redirect-Max-Cache-Time",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Service-Type",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Configuration-Token",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "Idle-Timeout",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Authorization-Lifetime",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Auth-Grace-Period",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Re-Auth-Request-Type",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "State",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Class",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "Reply-Message",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "Prompt",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Proxy-Info",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        }
+      ]
+    },
+    {
+      "section": "3.5",
+      "name": "ST-Request",
+      "code": 275,
+      "request": true,
+      "proxiable": true,
+      "rules": [
+        {
+          "name": "Session-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": true
+        },
+        {
+          "name": "Origin-Host",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Origin-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Destination-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Auth-Application-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Termination-Cause",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "User-Name",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Destination-Host",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Class",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "Origin-AAA-Protocol",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Origin-State-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Proxy-Info",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "Route-Record",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        }
+      ]
+    },
+    {
+      "section": "3.6",
+      "name": "ST-Answer",
+      "code": 275,
+      "request": false,
+      "proxiable": true,
+      "rules": [
+        {
+          "name": "Session-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": true
+        },
+        {
+          "name": "Result-Code",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Origin-Host",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Origin-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "User-Name",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Class",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "Error-Message",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Error-Reporting-Host",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Failed-AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "Origin-AAA-Protocol",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Origin-State-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Redirect-Host",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "Redirect-Host-Usage",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Redirect-Max-Cache-Time",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Proxy-Info",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        }
+      ]
+    },
+    {
+      "section": "3.7",
+      "name": "AS-Request",
+      "code": 274,
+      "request": true,
+      "proxiable": true,
+      "rules": [
+        {
+          "name": "Session-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": true
+        },
+        {
+          "name": "Origin-Host",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Origin-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Destination-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Destination-Host",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Auth-Application-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "User-Name",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Origin-AAA-Protocol",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Origin-State-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "NAS-Identifier",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "NAS-IP-Address",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "NAS-IPv6-Address",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "NAS-Port",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "NAS-Port-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "NAS-Port-Type",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Service-Type",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Framed-IP-Address",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Framed-IPv6-Prefix",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Framed-Interface-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Called-Station-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Calling-Station-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Originating-Line-Info",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Acct-Session-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Acct-Multi-Session-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "State",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Class",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "Reply-Message",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "Proxy-Info",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "Route-Record",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        }
+      ]
+    },
+    {
+      "section": "3.8",
+      "name": "AS-Answer",
+      "code": 274,
+      "request": false,
+      "proxiable": true,
+      "rules": [
+        {
+          "name": "Session-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": true
+        },
+        {
+          "name": "Result-Code",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Origin-Host",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Origin-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "User-Name",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Origin-AAA-Protocol",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Origin-State-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "State",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Error-Message",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Error-Reporting-Host",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Failed-AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "Redirect-Host",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "Redirect-Host-Usage",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Redirect-Max-Cache-Time",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Proxy-Info",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        }
+      ]
+    },
+    {
+      "section": "3.9",
+      "name": "AC-Request",
+      "code": 271,
+      "request": true,
+      "proxiable": true,
+      "rules": [
+        {
+          "name": "Session-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": true
+        },
+        {
+          "name": "Origin-Host",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Origin-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Destination-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Accounting-Record-Type",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Accounting-Record-Number",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Acct-Application-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "User-Name",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Accounting-Sub-Session-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Acct-Session-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Acct-Multi-Session-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Origin-AAA-Protocol",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Origin-State-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Destination-Host",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Event-Timestamp",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Acct-Delay-Time",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "NAS-Identifier",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "NAS-IP-Address",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "NAS-IPv6-Address",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "NAS-Port",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "NAS-Port-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "NAS-Port-Type",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Class",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "Service-Type",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Termination-Cause",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Accounting-Input-Octets",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Accounting-Input-Packets",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Accounting-Output-Octets",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Accounting-Output-Packets",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Acct-Authentic",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Accounting-Auth-Method",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Acct-Link-Count",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Acct-Session-Time",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Acct-Tunnel-Connection",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Acct-Tunnel-Packets-Lost",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Callback-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Callback-Number",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Called-Station-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Calling-Station-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Connect-Info",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "Originating-Line-Info",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Authorization-Lifetime",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Session-Timeout",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Idle-Timeout",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Port-Limit",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Accounting-Realtime-Required",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Acct-Interim-Interval",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Filter-Id",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "NAS-Filter-Rule",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "QoS-Filter-Rule",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "Framed-Appletalk-Link",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Framed-Appletalk-Network",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Framed-Appletalk-Zone",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Framed-Compression",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Framed-Interface-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Framed-IP-Address",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Framed-IP-Netmask",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Framed-IPv6-Prefix",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "Framed-IPv6-Pool",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Framed-IPv6-Route",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "Framed-IPX-Network",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Framed-MTU",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Framed-Pool",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Framed-Protocol",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Framed-Route",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "Framed-Routing",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Login-IP-Host",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "Login-IPv6-Host",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "Login-LAT-Group",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Login-LAT-Node",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Login-LAT-Port",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Login-LAT-Service",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Login-Service",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Login-TCP-Port",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Tunneling",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "Proxy-Info",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "Route-Record",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        }
+      ]
+    },
+    {
+      "section": "3.10",
+      "name": "AC-Answer",
+      "code": 271,
+      "request": false,
+      "proxiable": true,
+      "rules": [
+        {
+          "name": "Session-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": true
+        },
+        {
+          "name": "Result-Code",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Origin-Host",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Origin-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Accounting-Record-Type",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Accounting-Record-Number",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Acct-Application-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "User-Name",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Accounting-Sub-Session-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Acct-Session-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Acct-Multi-Session-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Event-Timestamp",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Error-Message",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Error-Reporting-Host",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Failed-AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "Origin-AAA-Protocol",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Origin-State-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "NAS-Identifier",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "NAS-IP-Address",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "NAS-IPv6-Address",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "NAS-Port",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "NAS-Port-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "NAS-Port-Type",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Service-Type",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Termination-Cause",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Accounting-Realtime-Required",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Acct-Interim-Interval",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Class",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "Proxy-Info",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        }
+      ]
+    }
+  ]
+}

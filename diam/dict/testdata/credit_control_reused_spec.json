@@ -1,0 +1,101 @@
+{
+  "source": "RFC 6733 \u00a76.7.2 and \u00a77.5; RFC 5777 \u00a73.2",
+  "rfc6733_url": "https://www.rfc-editor.org/rfc/rfc6733.txt",
+  "rfc6733_sha256": "b0117adedd43f9f44e444f64cd7360709c351aa27ea288d9c664c2800da8fa26",
+  "rfc5777_url": "https://www.rfc-editor.org/rfc/rfc5777.txt",
+  "rfc5777_sha256": "fac6d1f959730137007f1eec4826d6e2bd1f937ecfd26ee31e70796174ee8fc8",
+  "known_shared_gaps": [
+    {
+      "name": "Proxy-Info",
+      "code": 284,
+      "source": "RFC 6733 \u00a76.7.2",
+      "type": "Grouped",
+      "rules": [
+        {
+          "name": "Proxy-Host",
+          "min": 1,
+          "max": 1
+        },
+        {
+          "name": "Proxy-State",
+          "min": 1,
+          "max": 1
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null
+        }
+      ],
+      "known_shared_rule_count": 2
+    },
+    {
+      "name": "Failed-AVP",
+      "code": 279,
+      "source": "RFC 6733 \u00a77.5",
+      "type": "Grouped",
+      "rules": [
+        {
+          "name": "AVP",
+          "min": 1,
+          "max": null
+        }
+      ],
+      "known_shared_rule_count": 0
+    },
+    {
+      "name": "Filter-Rule",
+      "code": 509,
+      "source": "RFC 5777 \u00a73.2",
+      "type": "Grouped",
+      "rules": [
+        {
+          "name": "Filter-Rule-Precedence",
+          "min": 0,
+          "max": 1
+        },
+        {
+          "name": "Classifier",
+          "min": 0,
+          "max": 1
+        },
+        {
+          "name": "Time-Of-Day-Condition",
+          "min": 0,
+          "max": null
+        },
+        {
+          "name": "Treatment-Action",
+          "min": 0,
+          "max": 1
+        },
+        {
+          "name": "QoS-Semantics",
+          "min": 0,
+          "max": 1
+        },
+        {
+          "name": "QoS-Profile-Template",
+          "min": 0,
+          "max": 1
+        },
+        {
+          "name": "QoS-Parameters",
+          "min": 0,
+          "max": 1
+        },
+        {
+          "name": "Excess-Treatment",
+          "min": 0,
+          "max": 1
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null
+        }
+      ],
+      "known_shared_rule_count": 0
+    }
+  ]
+}
