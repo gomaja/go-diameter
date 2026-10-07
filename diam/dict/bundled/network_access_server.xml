@@ -289,7 +289,9 @@
 				<!-- RFC 7155 §3.8; Verified Errata 5993. -->
 				<rule avp="Redirect-Host" required="false"/>
 				<rule avp="Redirect-Host-Usage" required="false" max="1"/>
-				<!-- RFC 7155 §3.8 references the RFC 6733 §6.14 Redirect-Max-Cache-Time AVP. -->
+				<!-- RFC 7155 §3.8 prints Redirected-Max-Cache-Time, which no AVP defines and no
+				     erratum corrects (5993 covers Redirected-Host*, 5994 only §3.4). It is
+				     RFC 6733 §6.14 Redirect-Max-Cache-Time (262), as in §§3.2 and 3.6. -->
 				<rule avp="Redirect-Max-Cache-Time" required="false" max="1"/>
 				<rule avp="Proxy-Info" required="false"/>
 				<rule avp="AVP" required="false"/>

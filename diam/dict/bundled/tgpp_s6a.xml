@@ -2414,7 +2414,9 @@
             </data>
         </avp>
 
-        <!-- TS 29.336 V20.0.0 §8.4.81; TS 29.272 V19.6.0 Table 7.3.1/2. -->
+        <!-- TS 29.336 V20.0.0 §8.4.81, Table 8.4.1-1. TS 29.272 V19.6.0 Table 7.3.1/2
+             prints the AVP name in this row's M-bit cell, so its NOTE 1 blank-cell
+             rule leaves the defining specification's flags in force. -->
         <avp name="Battery-Indicator" code="3185" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
             <data type="Unsigned32"/>
         </avp>

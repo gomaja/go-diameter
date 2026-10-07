@@ -14,6 +14,10 @@ and cardinality. RAT-dependent Report-Interval labels are checked by code;
 TS 32.422 V20.3.0 §5.10.5 assigns different durations for different RATs.
 The base overload/load definitions are pinned separately by
 `overload_spec_test.go`, and the S6a overrides by `s6a_rfc_spec_test.go`.
+TS 29.272 V19.6.0 Table 7.3.1/2 prints `Battery-Indicator` in the M-bit cell
+of the Battery-Indicator row instead of a setting. That is not one of the
+table's values, so NOTE 1's rule for a blank cell applies and the defining
+TS 29.336 V20.0.0 Table 8.4.1-1 governs: V set, M not set.
 
 `gx_spec.json` covers TS 29.212 V20.0.0 (2026-09): all 130 AVPs in
 Table 5.3.0.1, 40 Enumerated registries (235 values), 30 Grouped grammars,
@@ -220,6 +224,9 @@ Table 5.3.0.1, one Enumerated registry with two values, two Grouped grammars,
 eight reused roots in Table 5.4, and all six command bodies in §§5.6.2–5.6.7.
 The ordered rule counts are 18, 21, 14, 17, 13 and 17. The Sy entries and
 command grammars were extracted directly from the specification's Word XML.
+Its reference [13], cited for TCP in §5, reads "IETF RFC 791: Transmission
+Control Protocol"; RFC 791 is the Internet Protocol, and TCP is RFC 9293,
+which obsoletes RFC 793. The dictionary does not depend on the transport.
 The [3GPP portal](https://portal.3gpp.org/desktopmodules/Specifications/SpecificationDetails.aspx?specificationId=1679)
 confirmed V19.0.0 as the latest version on 2026-10-07. The
 [official archive](https://www.3gpp.org/ftp/Specs/archive/29_series/29.219/29219-j00.zip)
@@ -584,7 +591,10 @@ The archived source bytes have these SHA-256 digests:
 | [IANA AAA registry](https://www.iana.org/assignments/aaa-parameters/aaa-parameters.xml) | `67e1f78147ac95886436dc9459611f1821159fd3d411d98f2781db2b4820b720` |
 
 NASREQ applies RFC 7155 Verified Errata 5993–5995 to the command names and
-6119 to Origin-AAA-Protocol. Reported Erratum 6029 is not applied:
+6119 to Origin-AAA-Protocol. The ASA grammar of §3.8 also prints
+Redirected-Max-Cache-Time, which neither 5993 (Redirected-Host*) nor 5994
+(§3.4 only) covers; the dictionary uses RFC 6733 §6.14's
+Redirect-Max-Cache-Time (262), as §§3.2 and 3.6 do. Reported Erratum 6029 is not applied:
 QoS-Filter-Rule retains the published M policy; V is prohibited independently
 by RFC 6733 §4.1 for vendor-zero IETF AVPs, despite the blank application-table
 cell. The fixture records both the printed cell and the governing base rule. All ten command bodies

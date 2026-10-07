@@ -89,30 +89,67 @@ to exact document sections and, where relevant, errata IDs.
 
 Core IETF references:
 
-- [RFC 6733](https://www.rfc-editor.org/rfc/rfc6733): Diameter Base Protocol.
-- [RFC 7075](https://www.rfc-editor.org/rfc/rfc7075): update to RFC 6733.
-- [RFC 8553](https://www.rfc-editor.org/rfc/rfc8553): update to RFC 6733.
+- [RFC 6733](https://www.rfc-editor.org/rfc/rfc6733): Diameter Base Protocol,
+  updated by [RFC 7075](https://www.rfc-editor.org/rfc/rfc7075) and
+  [RFC 8553](https://www.rfc-editor.org/rfc/rfc8553).
+- [RFC 7683](https://www.rfc-editor.org/rfc/rfc7683) (updated by
+  [RFC 8581](https://www.rfc-editor.org/rfc/rfc8581)),
+  [RFC 8583](https://www.rfc-editor.org/rfc/rfc8583) and
+  [RFC 7944](https://www.rfc-editor.org/rfc/rfc7944): overload control, load
+  information and DRMP.
 - [RFC 8506](https://www.rfc-editor.org/rfc/rfc8506): Diameter
-  Credit-Control Application.
+  Credit-Control Application, with
+  [RFC 5777](https://www.rfc-editor.org/rfc/rfc5777) traffic classification
+  and QoS.
 - [RFC 7155](https://www.rfc-editor.org/rfc/rfc7155): Diameter Network Access
   Server Application.
 - [RFC 5516](https://www.rfc-editor.org/rfc/rfc5516): 3GPP EPS Diameter
   command-code registration.
 
-The embedded dictionary set also includes application dictionaries for:
+The bundled dictionaries (`dict.Bundled`) and the documents they follow:
 
-- Base protocol.
-- Credit-Control.
-- Gx.
-- Network Access Server.
-- 3GPP Cx/Dx (TS 29.229 V19.1.0).
-- 3GPP Sh (TS 29.329 V19.1.0).
-- 3GPP Ro/Rf.
-- 3GPP Rx.
-- 3GPP S6a.
-- 3GPP S13.
-- 3GPP SWx.
-- Diameter Sy.
+| Bundle | Applications | Specification |
+| --- | --- | --- |
+| `Base` | 0 Common Messages, 3 Base Accounting | RFC 6733, RFC 7075, RFC 7683, RFC 8581, RFC 8583, RFC 7944 |
+| `CreditControl` | 4 Credit-Control | RFC 8506, RFC 5777 |
+| `NASREQ` | 1 Network Access Server | RFC 7155 |
+| `RoRf` | 4 Ro, 3 Rf | 3GPP TS 32.299 V19.0.0 |
+| `Gx` | 16777238 | 3GPP TS 29.212 V20.0.0 |
+| `Rx` | 16777236 | 3GPP TS 29.214 V20.0.0 |
+| `Sy` | 16777302 | 3GPP TS 29.219 V19.0.0 |
+| `Cx` | 16777216 Cx/Dx | 3GPP TS 29.229 V19.1.0 |
+| `Sh` | 16777217 | 3GPP TS 29.329 V19.1.0 |
+| `S6a` | 16777251 S6a/S6d | 3GPP TS 29.272 V19.6.0 |
+| `S13` | 16777252 S13/S13' | 3GPP TS 29.272 V19.6.0 |
+| `S6c` | 16777312 | 3GPP TS 29.338 V19.3.0 |
+| `SGd` | 16777313 SGd/Gdd | 3GPP TS 29.338 V19.3.0 |
+| `SWx` | 16777265 | 3GPP TS 29.273 V19.2.0 |
+
+Each was the latest published version when its dictionary was last audited.
+AVPs a specification reuses from another document follow that document's
+version, cited next to the definition in the XML. Specification defects found
+while extracting the dictionaries, and how each is resolved, are recorded in
+the XML comments and in [diam/dict/testdata/README.md](diam/dict/testdata/README.md).
+
+### Errata
+
+Verified errata are applied as corrections to their RFCs; the dictionary XML
+cites the ones it depends on. Errata in other states are not applied. For the
+core references above, these are all the Held and Reported ones (RFC 5516,
+RFC 7075, RFC 7944, RFC 8506, RFC 8553, RFC 8581 and RFC 8583 have none),
+with the reason the code is consistent whichever way each is resolved:
+
+| Erratum | State | Disposition |
+| --- | --- | --- |
+| RFC 6733 4210 | Held | Rewords the Disconnect-Cause value descriptions; no protocol change. |
+| RFC 6733 4234 | Held | Corrects "Disconnection-Reason" to Disconnect-Cause in prose; the dictionary already uses Disconnect-Cause. |
+| RFC 6733 5084 | Held | Origin-State-Id wrapping from 4294967295 to 0. The library infers nothing from a peer's Origin-State-Id; it sends the configured value and omits 0 (§8.16), so how a persisted value wraps is the application's choice. |
+| RFC 6733 6832 | Reported | DIAMETER_OUT_OF_SPACE (4002) applies to any request, not only accounting; the library does not restrict where it is used. |
+| RFC 7155 6029 | Reported | QoS-Filter-Rule's flag cell is blank; the dictionary permits M and forbids V (RFC 6733 §4.1), which fits either reading. |
+| RFC 5777 2337 | Held | Its corrected text renames code 569; the dictionary keeps the published Absolute-End-Fractional-Seconds. |
+| RFC 7683 5277, 5278 | Reported | OC-Feature-Vector is a bit field; the dictionary types it Unsigned64 with no enumerated values, which fits either reading. |
+
+RFC 6733 Rejected errata 4209, 4462, 4463, 4473, 4931 and 6833 are not applied.
 
 Dictionaries make application AVPs and commands available to the stack. They do
 not replace the application-specific business logic, session policy, charging
