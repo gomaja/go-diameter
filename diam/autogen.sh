@@ -28,6 +28,28 @@ export LC_ALL
 
 dict=dict/bundled/*.xml
 
+# Read each opening tag as one record, including multiline tags. Extract each
+# attribute by name so XML attribute order cannot hide a declaration.
+xml_attributes() {
+ awk -v element="$1" -v first="$2" -v second="$3" '
+ BEGIN { RS = ">" }
+ function attribute(key, value) {
+  if (match(record, "[[:space:]]" key "[[:space:]]*=[[:space:]]*\"[^\"]*\"")) {
+   value = substr(record, RSTART, RLENGTH)
+   sub(/^[^"]*"/, "", value)
+   sub(/"$/, "", value)
+   return value
+  }
+  return ""
+ }
+ {
+  if (match($0, "<" element "[[:space:]]")) {
+   record = substr($0, RSTART)
+   print attribute(first) "\t" attribute(second)
+  }
+ }' $dict
+}
+
 ## Generate commands.go
 src=commands.go
 
@@ -44,17 +66,14 @@ package diam
 const (
 EOF
 
-cat $dict | "$SED" \
-	-e 's/-//g' \
-	-ne 's/.*command code="\(.*\)" .* name="\(.*\)".*/\2 = \1/p' \
-	| "$SED" -e 's/^[[:lower:]]/\u&/' | sort -u >> $src
+xml_attributes command code name | awk -F '\t' '{ print $2 " = " $1 }' \
+ | "$SED" -e 's/-//g' -e 's/^[[:lower:]]/\u&/' | sort -u >> $src
 
 printf ')\n// Short Command Names\nconst (\n' >> $src
 
-cat $dict | "$SED" \
-	-e 's/-//g' \
-	-ne 's/.*command code="[0-9]*".*\s.*short="\([^"]*\).*/\1R = "\1R"\n\1A = "\1A"/p' \
-	| "$SED" -e 's/^[[:lower:]]/\u&/' | sort -u >> $src
+xml_attributes command code short | awk -F '\t' '
+ { gsub(/-/, "", $2); print $2 "R = \"" $2 "R\"\n" $2 "A = \"" $2 "A\"" }' \
+ | "$SED" -e 's/^[[:lower:]]/\u&/' | sort -u >> $src
 
 echo ')' >> $src
 cat << EOF >> $src
@@ -80,10 +99,9 @@ package diam
 const (
 EOF
 
-cat $dict | "$SED" \
-    -e :1 -e 's/\("[^"]*\)[[:space:]]\([^"]*"\)/\1_\2/g;t1' \
-    -ne 's/\s*<application\s*id="\([0-9]*\)".*name="\(.*\)".*/\U\2_APP_ID = \1/p' \
-    | sort -u | sort -nk 3 >> $src
+xml_attributes application id name | awk -F '\t' '
+ { gsub(/[[:space:]]/, "_", $2); print toupper($2) "_APP_ID = " $1 }' \
+ | sort -u | sort -nk 3 >> $src
 
 printf ')\n' >> $src
 go fmt $src

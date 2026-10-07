@@ -8,7 +8,11 @@ import (
 )
 
 func nameDefinition(app, code, vendor uint32, name, typ string) string {
-	return fmt.Sprintf(`<application id="%d"><avp name="%s" code="%d" vendor-id="%d"><data type="%s"/></avp></application>`, app, name, code, vendor, typ)
+	parents := ""
+	if app == 16777238 {
+		parents = ` inherits="4"`
+	}
+	return fmt.Sprintf(`<application id="%d"%s><avp name="%s" code="%d" vendor-id="%d"><data type="%s"/></avp></application>`, app, parents, name, code, vendor, typ)
 }
 
 func TestLoadAVPNameScope(t *testing.T) {

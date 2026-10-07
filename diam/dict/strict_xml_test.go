@@ -89,6 +89,9 @@ func TestStrictDictionaryXMLLoadIsAtomic(t *testing.T) {
 }
 
 func FuzzStrictDictionaryXML(f *testing.F) {
+	f.Add([]byte(`<diameter><application id="40" inherits="41 42"/><application id="41" inherits="42"/></diameter>`))
+	f.Add([]byte(`<diameter><application id="40" inherits="41"/><application id="41" inherits="40"/></diameter>`))
+	f.Add([]byte(`<diameter><application id="40" inherits="4294967296"/></diameter>`))
 	f.Add([]byte(strictXMLSample))
 	f.Add([]byte(strings.Replace(strictXMLSample, `max="1"`, `mmax="1"`, 1)))
 	f.Add([]byte(`<diameter xmlns="urn:foreign"/>`))

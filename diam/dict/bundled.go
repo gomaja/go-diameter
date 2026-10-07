@@ -46,7 +46,7 @@ const (
 	NASREQ Bundled = "network_access_server.xml"
 	// Cx is the 3GPP Cx/Dx interface, TS 29.229 V19.1.0 (application 16777216).
 	Cx Bundled = "tgpp_cx.xml"
-	// RoRf adds the 3GPP charging AVPs of TS 32.299 to application 4.
+	// RoRf adds TS 32.299 charging AVPs and commands to Ro (4) and Rf (3).
 	RoRf Bundled = "tgpp_ro_rf.xml"
 	// Rx is the 3GPP Rx reference point, TS 29.214 (application 16777236).
 	Rx Bundled = "tgpp_rx.xml"

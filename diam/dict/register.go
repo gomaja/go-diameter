@@ -33,11 +33,11 @@ type registration struct {
 // effect.
 //
 // An AVP is identified by its code and vendor (RFC 6733 (October 2012)
-// §4.1). Look it up with FindAVP, or use FindAVPByName for its unique name
-// within the application's scope.
+// §4.1). Look it up with FindAVP, or use FindAVPByName for the definition
+// selected by name in the application's inheritance scope.
 //
 // The AVPs belong to app as if a dictionary declaring app had defined them,
-// so the applications that inherit from app (see parentAppIds) see them
+// so the applications that inherit from app through loaded XML declarations see them
 // too, in every lookup and when decoding, whether a dictionary declares
 // them or not. Registering declares no application: app is not advertised in
 // capability exchange because of it. Registrations stay in place when
@@ -58,7 +58,13 @@ type registration struct {
 // and vendor, or with the same name, is refused with an error wrapping
 // ErrAVPConflict, even if app also has an identical one; otherwise a
 // definition identical to one that app already has is ignored. RegisterAVP
-// registers all the definitions or, returning an error, none.
+// registers all the definitions or, returning an error, none. For every name
+// an application does not define in its own loaded or registered AVPs, its
+// non-base direct parents that resolve the name must agree on its code/vendor.
+// Each parent's final view includes ancestors and base fallback. Registration
+// that introduces disagreement fails with ErrAVPConflict naming the child, name,
+// both parents and both identities. Base is not compared separately, whether
+// explicit or implicit; code/vendor precedence remains breadth-first.
 func (p *Parser) RegisterAVP(app uint32, avps ...*AVP) error {
 	owner := &App{ID: app}
 	defs := make([]*AVP, 0, len(avps))

@@ -27,7 +27,7 @@ func TestRegisteredAVPsAdvertiseNoApplication(t *testing.T) {
 	for i, app := range after {
 		ids[i] = app.ID
 	}
-	if !reflect.DeepEqual(ids, []uint32{3, 4, 16777238, 1, 4}) {
-		t.Fatalf("supported application IDs = %v, want [3 4 16777238 1 4]", ids)
+	if !reflect.DeepEqual(ids, []uint32{3, 4, 16777238, 1, 4, 3}) {
+		t.Fatalf("supported application IDs = %v, want [3 4 16777238 1 4 3]", ids)
 	}
 }

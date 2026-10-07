@@ -34,7 +34,7 @@ func names(values ...string) map[string]bool {
 // same applies to every attribute.
 var dictionaryElements = map[string]dictionaryElement{
 	"diameter":    {children: names("application")},
-	"application": {children: names("vendor", "command", "avp"), attrs: names("id", "type", "name")},
+	"application": {children: names("vendor", "command", "avp"), attrs: names("id", "type", "name", "inherits")},
 	"vendor":      {attrs: names("id", "name")},
 	"command":     {children: names("request", "answer"), attrs: names("code", "name", "short")},
 	"request":     {children: names("rule"), attrs: names("proxiable")},

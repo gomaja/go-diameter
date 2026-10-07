@@ -61,7 +61,11 @@ func TestLoadNameReuseUsesFinalState(t *testing.T) {
 }
 
 func groupedDefinition(app, code uint32, name, member string) string {
-	return fmt.Sprintf(`<application id="%d"><avp name="%s" code="%d"><data type="Grouped"><rule avp="%s"/><rule avp="AVP"/></data></avp></application>`, app, name, code, member)
+	parents := ""
+	if app == 16777238 {
+		parents = ` inherits="4"`
+	}
+	return fmt.Sprintf(`<application id="%d"%s><avp name="%s" code="%d"><data type="Grouped"><rule avp="%s"/><rule avp="AVP"/></data></avp></application>`, app, parents, name, code, member)
 }
 
 func TestLoadGroupedRuleResolution(t *testing.T) {

@@ -10,6 +10,7 @@ import (
 	"encoding/xml"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/gomaja/go-diameter/diam/datatype"
 )
@@ -21,13 +22,73 @@ type File struct {
 }
 
 // App defines a diameter application in XML and its multiple AVPs.
+//
+// Inherits lists the applications whose AVPs the application reuses, as
+// whitespace-separated decimal uint32 IDs. Each non-base parent must be
+// declared by a dictionary in the same Load or an earlier one; registering
+// AVPs alone does not declare an application. An undeclared parent fails with
+// ErrNotFound, naming the child and parent. Base 0 is valid without a base
+// dictionary and remains the last fallback. Relay (0xffffffff, RFC 6733
+// (October 2012) §2.4) cannot be a parent, even when declared. Cycles reject
+// the entire Load with ErrParentCycle; published Snapshots keep their
+// relationships.
+//
+// Repeated declarations unite their parent lists in load order, without
+// duplicates. Own AVPs win, then ancestors in breadth-first declaration order,
+// then base application 0. Commands and vendors are not inherited; command
+// lookup keeps its separate fallback to base commands. For every name the
+// child does not define in its own loaded or registered AVPs, its non-base
+// direct parents that resolve the name must agree on its code/vendor. Each
+// parent's final view includes ancestors and base fallback. Disagreement fails
+// with ErrAVPConflict, naming the child, name, both parents and both identities.
+// Base is not compared as a separate parent, whether explicit or implicit.
+// Single-chain name shadowing remains allowed. An application no dictionary
+// declares falls back only to base.
 type App struct {
-	ID      uint32     `xml:"id,attr"`   // Application Id
-	Type    string     `xml:"type,attr"` // "acct" selects accounting; all other values default to auth during capabilities exchange.
-	Name    string     `xml:"name,attr"` // Application name
-	Vendor  []*Vendor  `xml:"vendor"`    // Ordered vendor declarations; see ApplicationVendor.
-	Command []*Command `xml:"command"`   // Diameter commands
-	AVP     []*AVP     `xml:"avp"`       // Each application support multiple AVPs
+	Inherits ApplicationIDs `xml:"inherits,attr"`
+	ID       uint32         `xml:"id,attr"`   // Application Id
+	Type     string         `xml:"type,attr"` // "acct" selects accounting; all other values default to auth during capabilities exchange.
+	Name     string         `xml:"name,attr"` // Application name
+	Vendor   []*Vendor      `xml:"vendor"`    // Ordered vendor declarations; see ApplicationVendor.
+	Command  []*Command     `xml:"command"`   // Diameter commands
+	AVP      []*AVP         `xml:"avp"`       // Each application support multiple AVPs
+}
+
+// ApplicationIDs is an ordered XML list of decimal application identifiers.
+// An omitted attribute means no parents; an explicitly empty list is invalid.
+type ApplicationIDs []uint32
+
+// UnmarshalXMLAttr accepts one or more whitespace-separated decimal uint32 IDs.
+func (ids *ApplicationIDs) UnmarshalXMLAttr(attr xml.Attr) error {
+	fields := strings.Fields(attr.Value)
+	if len(fields) == 0 {
+		return fmt.Errorf("invalid inherits %q: expected application IDs", attr.Value)
+	}
+	parsed := make(ApplicationIDs, 0, len(fields))
+	for _, field := range fields {
+		if strings.ContainsFunc(field, func(r rune) bool { return r < '0' || r > '9' }) {
+			return fmt.Errorf("invalid inherits %q: expected decimal uint32", attr.Value)
+		}
+		id, err := strconv.ParseUint(field, 10, 32)
+		if err != nil {
+			return fmt.Errorf("invalid inherits %q: %w", attr.Value, err)
+		}
+		parsed = append(parsed, uint32(id))
+	}
+	*ids = parsed
+	return nil
+}
+
+// MarshalXMLAttr omits an absent list and writes decimal IDs separated by spaces.
+func (ids ApplicationIDs) MarshalXMLAttr(name xml.Name) (xml.Attr, error) {
+	if len(ids) == 0 {
+		return xml.Attr{}, nil
+	}
+	fields := make([]string, len(ids))
+	for i, id := range ids {
+		fields[i] = strconv.FormatUint(uint64(id), 10)
+	}
+	return xml.Attr{Name: name, Value: strings.Join(fields, " ")}, nil
 }
 
 // IsVendorSpecificApplication reports whether id belongs to the IANA AAA

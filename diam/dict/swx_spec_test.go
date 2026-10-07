@@ -18,14 +18,7 @@ type swxRuleSpec struct {
 	MustNot string `json:"must_not"`
 }
 
-type swxSharedMetadataGap struct {
-	May               string
-	SourceApplication uint32 `json:"source_application"`
-	Reason            string
-}
-
 type swxAVPSpec struct {
-	KnownSharedMetadataGap         *swxSharedMetadataGap `json:"known_shared_metadata_gap"`
 	Name, Section, Type, Must, May string
 	Code, Vendor                   uint32
 	MustNot                        string `json:"must_not"`
@@ -61,7 +54,7 @@ func TestSWxReusedAVPSpec(t *testing.T) {
 				t.Fatal("reused AVP lacks independently sourced metadata")
 			}
 			m := want.Metadata
-			if a.Code != m.Code || a.VendorID != m.Vendor || (m.Type != "" && a.Data.TypeName != m.Type) || swxFlags(t, a.Must) != swxFlags(t, m.Must) || !swxMayMatches(t, a.May, *m) || swxFlags(t, a.MustNot) != swxFlags(t, m.MustNot) || (m.MayEncrypt != "" && strings.ToUpper(a.MayEncrypt) != m.MayEncrypt) {
+			if a.Code != m.Code || a.VendorID != m.Vendor || (m.Type != "" && a.Data.TypeName != m.Type) || swxFlags(t, a.Must) != swxFlags(t, m.Must) || swxFlags(t, a.May) != swxFlags(t, m.May) || swxFlags(t, a.MustNot) != swxFlags(t, m.MustNot) || (m.MayEncrypt != "" && strings.ToUpper(a.MayEncrypt) != m.MayEncrypt) {
 				t.Errorf("reused metadata %+v, want %+v", a, m)
 			}
 			if m.Items != nil {
@@ -145,23 +138,12 @@ func swxCheckRules(t *testing.T, got []*Rule, want []swxRuleSpec) {
 	}
 }
 
-// The source flag set stays authoritative. Only the explicitly recorded
-// informational MAY-P gap in an inherited shared definition is also accepted.
-func swxMayMatches(t *testing.T, got string, want swxAVPSpec) bool {
-	t.Helper()
-	if swxFlags(t, got) == swxFlags(t, want.May) {
-		return true
-	}
-	gap := want.KnownSharedMetadataGap
-	return gap != nil && swxFlags(t, got) == swxFlags(t, gap.May)
-}
-
 func swxCheckAVP(t *testing.T, got *AVP, want swxAVPSpec) {
 	t.Helper()
 	if swxName(got.Name) != swxName(want.Name) || got.Code != want.Code || got.VendorID != want.Vendor || got.Data.TypeName != want.Type {
 		t.Errorf("identity/type %s/%d/%d/%s, want %s/%d/%d/%s", got.Name, got.Code, got.VendorID, got.Data.TypeName, want.Name, want.Code, want.Vendor, want.Type)
 	}
-	if swxFlags(t, got.Must) != swxFlags(t, want.Must) || !swxMayMatches(t, got.May, want) || swxFlags(t, got.MustNot) != swxFlags(t, want.MustNot) || (want.MayEncrypt != "" && strings.ToUpper(got.MayEncrypt) != want.MayEncrypt) {
+	if swxFlags(t, got.Must) != swxFlags(t, want.Must) || swxFlags(t, got.May) != swxFlags(t, want.May) || swxFlags(t, got.MustNot) != swxFlags(t, want.MustNot) || (want.MayEncrypt != "" && strings.ToUpper(got.MayEncrypt) != want.MayEncrypt) {
 		t.Errorf("flags must/may/must-not/encrypt %q/%q/%q/%q, want %q/%q/%q/%q", got.Must, got.May, got.MustNot, got.MayEncrypt, want.Must, want.May, want.MustNot, want.MayEncrypt)
 	}
 	if want.Type == "Enumerated" {
@@ -257,25 +239,16 @@ func TestSWxVendorsAndLocalCoverage(t *testing.T) {
 	for _, name := range []string{"External-Identifier", "GMLC-Address", "eNodeB-ID", "User-CSG-Information"} {
 		names[swxName(name)] = true
 	}
-	gaps := 0
 	for _, a := range loadSWxCopiedSpec(t).AVPs {
 		names[swxName(a.Name)] = true
-		if gap := a.KnownSharedMetadataGap; gap != nil {
-			gaps++
-			if a.May != "" || gap.May != "P" || gap.Reason == "" || gap.SourceApplication != 4 {
-				t.Fatalf("invalid known metadata gap for %s: %+v", a.Name, gap)
-			}
-			inherited, err := Default.FindAVP(gap.SourceApplication, a.Code, a.Vendor)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if got := swxLookup(t, a.Name); got != inherited {
-				t.Errorf("%s must inherit application %d; do not copy shared MAY-P metadata into SWx", a.Name, gap.SourceApplication)
-			}
-		}
 	}
-	if gaps != 1 {
-		t.Fatalf("shared metadata gaps %d, want 1", gaps)
+	// TS 32.299 V19.0.0 Table 7.2.0.1: BSSID has no MAY-P and is inherited.
+	inherited, err := Default.FindAVPByName(4, "BSSID")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if swxLookup(t, "BSSID") != inherited {
+		t.Error("BSSID must inherit the corrected charging definition")
 	}
 	if len(app.AVP) != 38 {
 		t.Fatalf("local definitions %d, want 38", len(app.AVP))

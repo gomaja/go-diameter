@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <diameter>
     <!-- 3GPP TS 29.272 V19.6.0 §§7.2, 7.3; Tables 7.3.1/1 and 7.3.1/2. -->
-    <application id="16777251" type="auth" name="TGPP S6A">
+    <!-- TS 29.272 V19.6.0 §7.3, Table 7.3.1/2 reuses AVPs supplied by the S6c/SMS dictionary (TS 29.338 V19.3.0 §5.3.3.1). -->
+    <application id="16777251" type="auth" name="TGPP S6A" inherits="16777312">
         <!-- proxiable: each request CCF is "REQ, PXY", each answer "PXY" (3GPP TS 29.272 V19.6.0 §§7.2.3-7.2.18). -->
         <vendor id="10415" name="TGPP"/>
 
@@ -2535,5 +2536,10 @@
             <data type="OctetString"/>
         </avp>
 
+
+        <!-- TS 29.272 V19.6.0 Table 7.3.1/2 NOTE 1 delegates flags to TS 29.061 V20.1.0 Table 9a, §16.4.7.2: V required, M forbidden. -->
+        <avp name="TGPP-Charging-Characteristics" code="13" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <data type="UTF8String"/>
+        </avp>
     </application>
 </diameter>

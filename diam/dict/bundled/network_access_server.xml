@@ -651,7 +651,7 @@
 				<item code="1" name="PPP"/>
 				<item code="2" name="SLIP"/>
 				<item code="3" name="AppleTalk Remote Access Protocol (ARAP)"/>
-				<item code="4" name="Gandalf proprietary SingleLink/MultiLink protocol	"/>
+				<item code="4" name="Gandalf proprietary SingleLink/MultiLink protocol"/>
 				<item code="5" name="Xylogics proprietary IPX/SLIP"/>
 				<item code="6" name="X.75 Synchronous"/>
 				<item code="7" name="GPRS PDP Context"/>
@@ -679,7 +679,7 @@
 			<data type="Enumerated">
 				<!-- http://www.iana.org/assignments/radius-types/radius-types.xhtml#radius-types-7 -->
 				<item code="0" name="None"/>
-				<item code="1" name="VJ TCP/IP header compression	"/>
+				<item code="1" name="VJ TCP/IP header compression"/>
 				<item code="2" name="IPX header compression"/>
 				<item code="3" name="Stac-LZS compression"/>
 			</data>

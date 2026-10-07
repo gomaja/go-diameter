@@ -375,13 +375,9 @@ exact enumeration labels and values, PXY, recursive closure and vendor declarati
 including optional nested members, and all ten command bodies.
 `sms_vendor_spec_test.go` exercises CER vendor advertisement for every bundle.
 
-The source fixtures preserve explicit `shared_dictionary_gap` records for
-shared files excluded from this refresh. Tests pin these known deviations
-separately instead of treating them as normative expectations:
-
-- `tgpp_ro_rf.xml` retains MAY-P for User-CSG-Information, absent from
-  TS 32.299 V19.0.0 Table 7.2.0.1. Its source M,V flags and grouped grammar
-  are inherited by S6c/SGd; the shared metadata gap remains explicit.
+S6c/SGd now use the corrected shared source metadata directly: no MAY-P
+for User-CSG-Information and no legacy encryption annotations for it or
+3GPP-AAA-Server-Name. Their former shared-gap allowances are removed.
 
 User-CSG-Information and eNodeB-ID retain their defining M,V flags in
 S6c/SGd (TS 32.299 V19.0.0 Table 7.2.0.1; TS 29.217 V19.0.0 Table 5.3.1.1).
@@ -407,7 +403,7 @@ exclude unlisted non-base AVPs from required support. When these definitions
 are exposed by inheritance, the defining specification governs: an absent
 row does not authorize importing another application's flag or grammar override.
 S6a and SGd locally restore the two TS 29.173 node grammars; SWx inherits the
-S6a copies. Keeping the parent map requires four Grouped copies, whereas
+S6a copies. Keeping the declared inheritance requires four Grouped copies, whereas
 reparenting S6a directly to Ro/Rf would require 16 definitions to preserve its
 command and grouped-member closure; eNodeB-ID is already defined locally in
 S6a. SWx locally restores the source M,V flags
@@ -516,13 +512,9 @@ SWx interpretation and normalization:
   Grouped. RFC 5447 and RFC 5778 Verified Errata 3034/3035 correct the
   MIP6-Agent-Info name. Their grammars retain their extension points.
 - Base RFC 6733 §4.5 and RFC 8506 §8 flag tables no longer have the older
-  P-bit permission column. The base definitions now match their source;
-  Ro/Rf's BSSID still retains informational `may="P"`. Its fixture records
-  a `known_shared_metadata_gap` entry while retaining the canonical
-  source metadata. Tests accept only the source MAY set or the documented
-  legacy `P` set, and require inheritance instead of SWx-local copies.
-  This BSSID metadata gap has no validation behavior effect and remains
-  for the Ro/Rf dictionary audit.
+  P-bit permission column. BSSID inherits TS 32.299 V19.0.0 Table 7.2.0.1's
+  corrected metadata without MAY-P. Source flags are compared exactly;
+  the former shared-metadata allowance is removed.
 - TS 29.273 V19.2.0 §8.2.2.2 omits PXY in the published PPR header,
   while its PPA includes PXY; §8.2.2.3 likewise uses PXY in SAR/SAA.
   The dictionary and fixture require PXY on both PPR and PPA under
@@ -623,9 +615,9 @@ and seven missing Grouped extension points. Subscription-Id-Extension and
 Redirect-Server-Extension permit one extension, as printed in §§8.58/8.64;
 User-Equipment-Info-Extension retains §8.52's existing singleton bound.
 The exact-one-member sender requirements remain outside static grammar
-validation. CCR preserves the pre-existing Service-Information addition
-from Ro/Rf separately from its RFC rules. All other non-RFC 8506 additions
-remain outside this refresh.
+validation. CCR/CCA preserve every RFC rule alongside the TS 32.299 additions.
+The charging fixture records the exact union, including the MSCC and
+Used-Service-Unit extensions described below.
 
 Tests compare the effective application 1/4 views, source metadata,
 enumerations, recursive reused members, fixed positions, cardinalities,
@@ -711,13 +703,14 @@ RFC 8506 §8.68 QoS-Final-Unit-Indication reaches Filter-Rule directly and
 through Multiple-Services-Credit-Control. Gx/Rx command bodies are unchanged;
 their extension points can carry inherited IETF AVPs. Their vendor-specific
 QoS-Information, QoS-Class-Identifier, Flow-Information and Flow-Description
-remain separate. Base, accounting, NASREQ, Cx, Sh and S13 do not inherit these
-AVPs. No command, application or vendor declarations change.
+remain separate. Base, NASREQ, Cx, Sh and S13 do not inherit these AVPs. Rf accounting
+(application 3) inherits their application-4 definitions for its charging
+tree only when Ro/Rf is loaded. Without Ro/Rf, Base, NASREQ, Cx and Sh
+keep application 3 limited to the 63 RFC 6733 base AVPs.
 
 Vendor-Id is the only external named member (RFC 6733 §5.3.3), inherited
 from base; its canonical metadata is in `credit_control_reused_spec.json`.
-The bounded shared MAY-P metadata allowance covers Vendor-Id pending the
-separate base refresh. QoS-Resources and QoS-Capability enclose rules and
+Vendor-Id uses the corrected base definition without a MAY-P allowance. QoS-Resources and QoS-Capability enclose rules and
 profile templates. RFC 5624's TMOD-1/TMOD-2, Bandwidth and PHB-Class are
 profile-specific extensions, not named members of QoS-Parameters, and remain
 outside this fixture. RFC 5866 defines a separate, unbundled QoS application.
@@ -887,3 +880,183 @@ Newly added Proxy-Info remains subject to sending rules, and echo provenance nev
 Gx/Rx/Sy and S6c/SGd/SWx base reuse fixtures now pin the corrected definitions.
 S6c owns DRMP's M,V prohibition and SGd inherits that identical definition.
 Extraction tooling and packet captures stay outside the repository.
+
+`rorf_spec.json` covers the effective Credit-Control/Ro application (4):
+744 AVPs, 164 Grouped grammars, and 134 Enumerated types. Of these, 132
+registries contain 893 values; API-Network-Service-Node and ICMP-Code retain
+open value sets. ICMP-Code depends on the enclosing ICMP type (RFC 5777
+§4.1.8.13), so its distinct namespaces are not flattened.
+The source is TS 32.299 V19.0.0, Table 7.2.0.1 and §§7.1–7.4, together with
+its defining references. The charging XML contains 626 AVP definitions: all 401
+previous definitions were audited, 334 changed semantically, and 225 were
+added. Of the 418 AVPs defined directly by Table 7.2.0.1, all 418 are included;
+the three table/clause conflicts below use explicit best-evidence choices.
+
+The [3GPP portal](https://portal.3gpp.org/desktopmodules/Specifications/SpecificationDetails.aspx?specificationId=1916)
+listed V19.0.0 as the latest version on 2026-10-07. The publisher archive
+refused direct retrieval, so extraction used the retained publisher archive
+and checked its digest. The Word document SHA-256 is
+`415b17b88fda715aedc9a3e8582007508474872e57f74273692be52f12f23b06`.
+The input archive digests are:
+
+| Document | Archive | SHA-256 |
+| --- | --- | --- |
+| TS 29.061 V20.1.0 | `29061-k10.zip` | `848ae9641136231195f7e8c1d045c8ad8ac7bab22541ba860b7851fdaa936f8f` |
+| TS 29.128 V19.2.0 | `29128-j20.zip` | `45b628c03f5f78d26ea4dbd426ccbabc1a5744cb2e29e532dec2c8abbd23e6a4` |
+| TS 29.140 V6.4.0 | Publisher PDF | Archive unavailable |
+| TS 29.173 V19.0.0 | `29173-j00.zip` | `8eee10735b41a304f5c2aca65a502dfa5f03607e9a545fff77e333f7bde895b3` |
+| TS 29.212 V20.0.0 | `29212-k00.zip` | `2a18b6817f72e7f52961e939142497e1cd5ec0c90f52a2057c57374ea5a00958` |
+| TS 29.214 V20.0.0 | `29214-k00.zip` | `639cbcba519539918c8965fdf6399307094b16d87306878d0ed588ac6335659c` |
+| TS 29.217 V19.0.0 | `29217-j00.zip` | `801543a65e9405e401c389245d4d9cc6ac6e82af5cb108ec5f985f4d1cb6ed19` |
+| TS 29.229 V19.1.0 | `29229-j10.zip` | `376b8793234f2f952a9f52a37771c56e51677e160160e5d48b1bf29585ac3b1e` |
+| TS 29.272 V19.6.0 | `29272-j60.zip` | `c40fd1834046f87655f4c7c1acd137b0f8f658a91f6cc83a215592ca8326a4b1` |
+| TS 29.273 V19.2.0 | `29273-j20.zip` | `9ca4a7c8de3ce7fa82ac5ed6c39088ca69799137944df0d90ba6caf4697b1531` |
+| TS 29.329 V19.1.0 | `29329-j10.zip` | `4ca3f84834a42780785b09a6227b2755392d01bb61fa85c5ed347e2df298fd5c` |
+| TS 29.336 V20.0.0 | `29336-k00.zip` | `038bbadbcdc3a6715a06371f30aa31846cba37d4687f1379df1b0bdd29d044ac` |
+| TS 29.338 V19.3.0 | `29338-j30.zip` | `d996894136580cf53f7451cb24ceffbcaa1c41bc985a078fe18724cc465160e0` |
+| TS 29.343 V19.0.0 | `29343-j00.zip` | `b876659d814bc7c1cc7692110d344eed88131994eb32c9c00fc2f0c1ae920c37` |
+| TS 29.345 V19.0.0 | `29345-j00.zip` | `2ee31cc8cd34eee634c2b4f3926498b9948cb8fa3a5ac24f738cbbf1eb920907` |
+| TS 29.368 V19.0.0 | `29368-j00.zip` | `c16f41e806bd03ba704f36c77da14ada8ce5e4fa1e559f3ab7075d132ee310ac` |
+| TS 32.299 V19.0.0 | `32299-j00.zip` | `afabe3636ed612045a13916bc30bc7ceaa63364c2d8098b98d60d5893b09ce02` |
+
+Referenced grammars and registries use the cited source clauses, including
+previous independently extracted Gx/Rx, S6a, SWx and RFC fixtures. XML is used
+only to preserve established identifier spellings, not to supply specification
+values. Word paragraph tabs and line breaks are preserved when extracting CCF;
+multiple members in one paragraph are split before parsing cardinalities.
+Exact flag sets, enum labels/values, rule order, fixed positions and member
+prohibitions are compared against `dict.Default`. Enum labels use the same
+typographic normalization as the cross-application enumeration test.
+
+Additional defining sources are the
+[OMA charging dictionary](https://www.openmobilealliance.org/release/Charging_Data/V1_0-20110201-A/OMA-DDS-Charging_Data-V1_0-20110201-A.pdf)
+V1.0 20110201-A Table 11 and §§6.2.4, 8.5.5, 8.5.6, 8.5.10;
+[ETSI ES 283 034 V2.2.0](https://www.etsi.org/deliver/etsi_es/283000_283099/283034/02.02.00_60/es_283034v020200p.pdf)
+Table 10 and §§7.3.3, 7.3.14; and 3GPP2 X.S0057-0 v2.0 §5.6.2.1.1.
+The 3GPP2 entry retains the existing independently sourced identity; its
+publisher document could not be retrieved again. OMA and ETSI publisher PDFs
+were read without obtaining downloadable archives. The two VAS/VASP entries
+use [TS 29.140 V6.4.0](https://www.etsi.org/deliver/etsi_ts/129100_129199/129140/06.04.00_60/ts_129140v060400p.pdf)
+Table 6.3 and §§6.3.3–6.3.4: the portal identifies Release 7 as withdrawn.
+Type-Number uses §7.2.238 and the 89 assigned well-known values in the
+[OMNA WSP registry](https://oma-knowledge-base.openmobilealliance.org/omna/wsp/wsp_content_type_codes.html)
+on 2026-10-07. Reserved gaps and the separate registered/experimental ranges
+are not manufactured as enum values; the registry's `multipart/byterantes`
+spelling is retained.
+
+The following source details affect interpretation:
+
+- TS 32.299 CR 0774 (S5-171184, SP-170138, approved into V14.3.0)
+  removed the P/encryption columns. Charging-owned BSSID and
+  User-CSG-Information consequently have no MAY-P. Referenced AVPs retain
+  their defining source's metadata. TS 32.299 §7.2.0 requires M for translated
+  RADIUS VSAs; other applications' M-clearing reuse policies are local to them.
+- Stray spaces in AVP names, `M.V`, Application-Port-Identifer, and
+  Monitored-HPLMN-Identifier are normalized to defining-source spellings.
+  The latter resolves to Monitored-PLMN-Identifier (§7.2.111Aa), not the
+  distinct Monitoring-UE-HPLMN-Identifier (§7.2.111Ab).
+  RAN-Start-Time/RAN-End-Time in the table denote the Timestamp definitions
+  in §§7.2.160Da, 7.2.160Dc. These are identifier normalizations, not new codes.
+- Charging 3GPP-PS-Data-Off-Status is code 4406, distinct from the Gx code
+  2847. Its dictionary identifier is `Ro-PS-Data-Off-Status`, preserving
+  unambiguous lookup and generated constants for both wire identities.
+- The three 3GPP-OC AVPs in Annex B have blank V cells in the table.
+  RFC 6733 §4.1 requires V when the Vendor-ID field is present; their M
+  prohibition is retained.
+- RFC extension points remain present when a reuse note merely restricts
+  named members. Nested source grammars retain member-scoped flag rules;
+  changing a member rule does not change that AVP in another parent.
+
+`rorf_commands_spec.json` independently records six charging command bodies:
+ACR/ACA in application 3 (§§6.2.2–6.2.3), and CCR/CCA/RAR/RAA in application 4
+(§§6.4.2–6.4.5). It also records MSCC, Used-Service-Unit and User-Equipment-Info
+(§§7.1.9, 7.1.14, 7.1.17). `effective_rules` composes each source with the
+current RFC 6733/8506 fixture, preserving RFC order, cardinalities, fixed
+positions, extension points and member flags. Charging-only rules are inserted
+before the wildcard. The earlier shared-baseline allowances are removed.
+
+Application 4 keeps a single CCR/CCA definition in `credit_control.xml`, with
+MSCC and Used-Service-Unit extended there. `tgpp_ro_rf.xml` contributes the
+Ro RAR/RAA and an application-3 Rf ACR/ACA declaration. The Rf declaration carries `inherits="4"`, so its charging tree resolves
+through application 4 and NASREQ/base without duplicate AVPs. Selections
+Base, NASREQ, Cx and Sh without Ro/Rf expose exactly the 63 base AVPs to
+application 3 and retain the pure RFC accounting grammar. The former global
+parent map incorrectly exposed NASREQ AVPs to accounting whenever NASREQ
+was loaded without Ro/Rf;
+XML declarations remove that leakage. Existing bundle dependencies already provide the full
+closure; every subset is tested with strict Load validation.
+
+The union deliberately retains RFC 8506 §3.2's repeated Failed-AVP rather
+than narrowing it to TS 32.299 §6.4.3's singleton. RFC 6733 §7.5, Verified Erratum 4808 (Failed-AVP can be present only once)
+and Verified Erratum 4615 specify a single Failed-AVP container. This remains
+a conflict with RFC 8506 §3.2; the union preserves its repeated grammar
+without claiming that the errata merely recommend a singleton. The undefined
+Redirect-Host-Cache-Time spelling in TS 32.299 §6.4.5 maps to RFC 6733 §6.14's
+Redirect-Max-Cache-Time (262); it does not allocate a new wire identity.
+
+Wire tests exercise all 744 AVPs, every command's required prefix and every
+optional member individually, singleton/repeated boundaries, known AVPs through
+the wildcard, missing required fields, P bits and fixed Session-Id. The RFC
+tests project the union onto their source members and compare every original
+rule exactly; the charging tests independently pin the complete union.
+
+Integration applies local M-clearing definitions in Gx (Selection-Mode and
+Charging-Characteristics, TS 29.212 V20.0.0 Table 5.4.0.1), Rx (SGSN-MCC-MNC,
+User-Location-Info and MS-TimeZone, TS 29.214 V20.0.0 Table 5.4.0.1), and S6a
+(Charging-Characteristics). TS 29.272 V19.6.0 Table 7.3.1/2 NOTE 1 delegates
+to TS 29.061 V20.1.0 Table 9a and §16.4.7.2: V required, M forbidden.
+SWx inherits this identical S6a definition; TS 29.273 V19.2.0 Table 8.2.3.0/2
+supplies no override. Ro's §7.2.0 policy does not govern S6a or SWx. Event-Timestamp,
+Result-Code, Vendor-Id and the complete RFC 5777 Filter-Rule tree inherit the
+corrected definitions without shared-gap allowances.
+
+Rf declares 3GPP (10415), ETSI (13019) and 3GPP2 (5535), as required by
+TS 32.299 §§7.2–7.4 and RFC 6733 §5.3.6. An explicitly selected application-3
+CER therefore advertises those vendors. Every other effective application's
+vendor set and every selectable bundle's inferred vendor set are unchanged.
+Base-only accounting advertises no vendors. The application list contains the
+base and Rf contributions to ID 3, as it already did for Credit-Control/Ro ID 4.
+
+The following specification conflicts remain open; choices are recorded in
+`source_conflicts`, next to their XML definitions, and in their defining clauses:
+
+- Civic-Address-Information: Table 7.2.0.1 says UTF8String; §7.2.35B says
+  OctetString and refers to the Location-Data encoding. OctetString is used.
+  Introducing CR 0800r1 is S5-182340, approved as SP-180427.
+- Monitoring-Event-Configuration-Activity and Monitoring-Event-Functionality:
+  the table says Integer32; §§7.2.111AaA–7.2.111AaB say Enumerated and list
+  four and two values respectively. Enumerated and those values are used.
+  Introducing CR 0718r1 is S5-161260, approved as SP-160035.
+- A fresh CR database check still identifies those documents, but all four
+  contribution downloads return access denied. Clause-level definitions and
+  numeric registries are the best available evidence, not a claim that the
+  CR contents resolve the conflicts. Their optional parent rules are restored.
+- M2M-Information's oneM2M definition remains unavailable. Network-Element
+  (§7.2.66aA) and Submission-Timestamp (§7.2.112aA) are named without a
+  definition/table entry. Their optional rules remain in `omitted_rules`.
+- API-Network-Service-Node delegates its enum registry to TS 23.682 without
+  numeric assignments in the extracted clause; its value set remains open.
+
+RFC Editor JSON, Datatracker filtered relationships and errata were checked
+on 2026-10-07. RFC 8506 replaces 4006; RFC 7155 replaces 4005; RFC 6733
+replaces 3588 and is updated by 7075/8553; RFC 7683 is updated by 8581.
+RFCs 7944 and 8583 remain current. Older payload references also include
+4566 (replaced by 8866) and 3066 (replaced by 4646/4647; 4646 by 5646).
+RFC 5234 with update 7405 is the current ABNF source. DIME is concluded.
+The current Diameter corrections are applied as described in the RFC fixture
+notes above, including Verified Erratum 4803. Held and Rejected errata remain
+unapplied: RFC 6733 Held 4210/4234/5084, Rejected
+4209/4462/4463/4473/4931/6833; RFC 5234 Held 2820/2914/6172/6173,
+Rejected 1423/3096/4040/4564/5110/4361; RFC 7405 Rejected 5334.
+RFC 8506 has no errata. These fixtures audit Diameter definitions, not the
+internal SIP, SDP, location, charging-record or radio encodings carried in
+opaque AVP payloads. Extraction tooling remains outside the repository.
+
+Enumeration extraction processes every line of a Word paragraph, including
+Node-Functionality's multi-value paragraphs (§7.2.113): all values 0–21 are
+retained, with 18 TDF and 19 TWAG. ProSe-Range-Class 6–255 (§7.2.154J) and
+SM-Service-Type 11–99/100–199 (§7.2.213) are documented ranges, not individual
+values. SM-Message-Type's printed `2.` (§7.2.207) is value 2, SM Service Request.
+Layout tabs are normalized; every bundled enum label is checked for control
+characters and range fragments. All 134 Enumerated definitions were rechecked
+against the full clause text or their independently extracted source registries.

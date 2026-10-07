@@ -122,13 +122,13 @@ func TestCreditControlAVPSpec(t *testing.T) {
 					t.Errorf("enum %d=%q, want %q", item.Code, item.Name, name)
 				}
 			}
-			checkCreditControlRules(t, got.Data.Rule, want.Rules)
+			roRfCreditControlRules(t, got.Data.Rule, want.Rules, want.Name)
 		})
 	}
 }
 
-// RFC 8506 §§3.1–3.2. TS 32.299's application-4 Service-Information
-// extension remains in the CCR immediately before the RFC extension point.
+// RFC 8506 §§3.1–3.2 remain intact within the charging union.
+// TestRoRfSharedGrammars pins every TS 32.299 addition and rejects extra rules.
 func TestCreditControlCommandSpec(t *testing.T) {
 	for _, want := range loadCreditControlSpec(t).Commands {
 		t.Run(want.Section, func(t *testing.T) {
@@ -143,14 +143,11 @@ func TestCreditControlCommandSpec(t *testing.T) {
 			if got.Proxiable == nil || *got.Proxiable != want.Proxiable {
 				t.Errorf("proxiable constraint %v, want %t", got.Proxiable, want.Proxiable)
 			}
-			rules := got.Rule
-			if want.Request {
-				if len(rules) != len(want.Rules)+1 || rules[len(rules)-2].AVP != "Service-Information" || rules[len(rules)-2].Required || !rules[len(rules)-2].MaxSet || rules[len(rules)-2].Max != 1 {
-					t.Fatalf("unexpected Ro/Rf extension in CCR: %+v", rules)
-				}
-				rules = append(append([]*Rule(nil), rules[:len(rules)-2]...), rules[len(rules)-1])
+			names := make([]string, len(want.Rules))
+			for i, rule := range want.Rules {
+				names[i] = rule.Name
 			}
-			checkCreditControlRules(t, rules, want.Rules)
+			checkCreditControlRules(t, roRfRFCOnlyRules(got.Rule, names), want.Rules)
 		})
 	}
 }
@@ -181,7 +178,7 @@ func TestCreditControlInheritedAVPSpec(t *testing.T) {
 					t.Errorf("app %d %s: enum %d=%s", appID, want.Name, item.Code, item.Name)
 				}
 			}
-			checkCreditControlRules(t, got.Data.Rule, want.Rules)
+			roRfCreditControlRules(t, got.Data.Rule, want.Rules, want.Name)
 		}
 		if inherited < 40 {
 			t.Errorf("app %d inherits only %d RFC 8506 definitions", appID, inherited)
@@ -227,7 +224,7 @@ func TestCreditControlReferencedGroupedSources(t *testing.T) {
 			if got.Name != want.Name || got.Data.TypeName != want.Type {
 				t.Errorf("identity/type = %s/%s, want %s/%s", got.Name, got.Data.TypeName, want.Name, want.Type)
 			}
-			checkCreditControlRules(t, got.Data.Rule, want.Rules)
+			roRfCreditControlRules(t, got.Data.Rule, want.Rules, want.Name)
 		})
 	}
 }
@@ -318,7 +315,7 @@ func checkCreditControlReusedSourceClosure(t *testing.T, dictionary *Parser) {
 				t.Errorf("%s enum %d=%s, source %s", name, item.Code, item.Name, label)
 			}
 		}
-		checkCreditControlRules(t, got.Data.Rule, want.Rules)
+		roRfCreditControlRules(t, got.Data.Rule, want.Rules, want.Name)
 		for _, rule := range want.Rules {
 			pending = append(pending, rule.Name)
 		}

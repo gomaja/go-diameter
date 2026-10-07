@@ -88,7 +88,9 @@ func TestBaseAVPSpec(t *testing.T) {
 	if len(app.AVP) != len(s.AVPs) {
 		t.Errorf("uncovered base definitions: %d versus %d", len(app.AVP), len(s.AVPs))
 	}
-	acct, err := Default.App(3)
+	// The base-only bundle contributes no local accounting definitions.
+	// RoRf adds application-3 command extensions when selected.
+	acct, err := New(Base).App(3)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -113,7 +115,15 @@ func TestBaseCommandSpec(t *testing.T) {
 				if got.Proxiable == nil || *got.Proxiable != want.Proxiable {
 					t.Error("incorrect PXY rule")
 				}
-				rxCheckRules(t, got.Rule, want.Rules)
+				rules := got.Rule
+				if app == 3 && want.Code == 271 {
+					names := make([]string, len(want.Rules))
+					for i, r := range want.Rules {
+						names[i] = r.Name
+					}
+					rules = roRfRFCOnlyRules(rules, names)
+				}
+				rxCheckRules(t, rules, want.Rules)
 			})
 		}
 	}

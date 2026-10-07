@@ -13,32 +13,6 @@ import (
 	"github.com/gomaja/go-diameter/diam/datatype"
 )
 
-// parentAppIds map allows for hierarchical AVP search dependencies
-// If an AVP code was not found in the app's dictionary, the search will continue in the parent app
-// dictionary and only then in base diameter dictionary
-// Parent cycles are rejected during lookup and dictionary loading.
-// Snapshots are indexed from it, so it must not change while Parsers are in use.
-var parentAppIds map[uint32]uint32 = map[uint32]uint32{
-	// TS 29.229 V19.1.0 §§6.3.13, 6.3.53-55 reuse NAS framed-address AVPs;
-	// their current definitions are RFC 7155 §§4.4.10.5.1, 4.4.10.5.5-6.
-	16777216: 1,
-	// TS 29.329 V19.1.0 §§6.3.9, 6.3.11-15, 6.3.19-21 reuse Cx AVPs.
-	16777217: 16777216,
-	// 3GPP TS 29.338 V19.3.0 §§5.3.3.1, 6.3.3.1, Tables 5.3.3.1/2, 6.3.3.1/2.
-	16777312: 4,
-	16777313: 16777312,
-	// S6a reuses TS 29.272 AVPs present in the S6c SMS dictionary.
-	16777251: 16777312,
-	16777238: 4,
-	// 3GPP TS 29.214 V20.0.0 §5.4 reuses charging AVPs on Rx.
-	16777236: 4,
-	// 3GPP TS 29.219 V19.0.0 §5.4 (Table 5.4) reuses charging AVPs on Sy.
-	16777302: 4,
-	// 3GPP TS 29.273 V19.2.0 §8.2.3.0/Table 8.2.3.0/2 reuses S6a and charging AVPs on SWx.
-	16777265: 16777251,
-	4:        1,
-}
-
 // Apps returns the applications declared by the loaded dictionaries, in
 // load order. Registering AVPs declares no application.
 func (s *Snapshot) Apps() []*App {
@@ -121,31 +95,25 @@ func (p *Parser) AVP(appid, code, vendorID uint32) (*AVP, bool) {
 // vendorID 0 selects the IETF code space. No vendor value is a wildcard.
 // The application's own definitions take precedence over its nearest parent,
 // then more distant ancestors and base application 0 (RFC 6733 §2).
-// Undeclared applications inherit too. A miss returns nil and an error wrapping
-// ErrNotFound. An inheritance cycle returns an error wrapping ErrParentCycle.
+// Undeclared applications fall back only to base. A miss returns nil and an error wrapping
+// ErrNotFound. Inheritance cycles are rejected when loading the dictionary.
 func (s *Snapshot) FindAVP(appid, code, vendorID uint32) (*AVP, error) {
 	a, err := s.lookupAVP(appid, code, vendorID)
 	if err == nil {
 		return a, nil
-	}
-	if err == ErrParentCycle {
-		return nil, fmt.Errorf("application %d: %w", appid, err)
 	}
 	return nil, fmt.Errorf("application %d: AVP code %d vendor %d: %w", appid, code, vendorID, err)
 }
 
 // lookupAVP is the allocation-free core shared by AVP and FindAVP.
 func (s *Snapshot) lookupAVP(appid, code, vendorID uint32) (*AVP, error) {
-	for app, steps := appid, 0; steps <= len(parentAppIds)+1; steps++ {
-		if a, ok := s.avpcode[codeIdx{app, code, vendorID}]; ok {
-			return a, nil
-		}
-		if app == 0 {
-			return nil, ErrNotFound
-		}
-		app = parentAppIds[app]
+	if a, ok := s.avpcode[codeIdx{appid, code, vendorID}]; ok {
+		return a, nil
 	}
-	return nil, ErrParentCycle
+	if a, ok := s.avpcode[codeIdx{0, code, vendorID}]; ok {
+		return a, nil
+	}
+	return nil, ErrNotFound
 }
 
 // FindAVP is Snapshot.FindAVP on the current Snapshot. Lookups that must
@@ -155,25 +123,22 @@ func (p *Parser) FindAVP(appid, code, vendorID uint32) (*AVP, error) {
 }
 
 // FindAVPByName returns the AVP named name in appid, using the same
-// inheritance order as FindAVP. Names are unique within each application;
-// rules use these names (RFC 6733 (October 2012) §§3.2, 4.4).
-// A miss returns nil and an error wrapping ErrNotFound; an inheritance cycle
-// returns an error wrapping ErrParentCycle.
+// inheritance order as FindAVP. Own names may shadow inherited names. For
+// other names, all non-base direct parents that resolve the name must agree
+// on its code/vendor in their final views, including ancestors and base.
+// Base is not compared as a separate parent. Load and RegisterAVP validate
+// this agreement without changing breadth-first code/vendor precedence.
+// Rules use these names (RFC 6733 (October 2012) §§3.2, 4.4).
+// A miss returns nil and an error wrapping ErrNotFound.
 func (s *Snapshot) FindAVPByName(appid uint32, name string) (*AVP, error) {
-	for app, steps := appid, 0; steps <= len(parentAppIds)+1; steps++ {
-		if avp, ok := s.avpname[appNameIdx{app, name}]; ok {
-			// An inherited name cannot revive a wire identity renamed by a
-			// nearer application. Resolve in the original application's scope.
-			if resolved, found := s.AVP(appid, avp.Code, avp.VendorID); found && resolved.Name == name {
+	for _, app := range [...]uint32{appid, 0} {
+		if a, ok := s.avpname[appNameIdx{app, name}]; ok {
+			if resolved, found := s.AVP(appid, a.Code, a.VendorID); found && resolved.Name == name {
 				return resolved, nil
 			}
 		}
-		if app == 0 {
-			return nil, fmt.Errorf("application %d: AVP name %q: %w", appid, name, ErrNotFound)
-		}
-		app = parentAppIds[app]
 	}
-	return nil, fmt.Errorf("application %d: %w", appid, ErrParentCycle)
+	return nil, fmt.Errorf("application %d: AVP name %q: %w", appid, name, ErrNotFound)
 }
 
 // FindAVPByName is Snapshot.FindAVPByName on the current Snapshot.

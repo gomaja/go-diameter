@@ -231,12 +231,9 @@ func TestRegisteredGroupedAVPDecodesAndValidates(t *testing.T) {
 	}
 }
 
-// TestDecodeInheritsInUndeclaredApplication decodes a Gx message with a
-// dictionary that declares application 4 but not Gx. Gx inherits from
-// application 4 (parentAppIds), so its AVPs, loaded or registered, decode as
-// in a dictionary declaring Gx, and a mandatory one is not unknown (RFC 6733
-// §4.1).
-func TestDecodeInheritsInUndeclaredApplication(t *testing.T) {
+// Undeclared applications do not acquire parents from their numeric IDs.
+// Loaded and registered AVPs outside base remain unknown (RFC 6733 §4.1).
+func TestDecodeDoesNotInheritInUndeclaredApplication(t *testing.T) {
 	const gx = 16777238
 	text, _, _ := updateTestCodes(1)
 	registered := dict.New(dict.Base)
@@ -262,8 +259,8 @@ func TestDecodeInheritsInUndeclaredApplication(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if v, ok := decoded.Data.(datatype.UTF8String); !ok || v != "text-1" {
-				t.Errorf("DecodeAVP: %T %v, want UTF8String text-1", decoded.Data, decoded.Data)
+			if _, ok := decoded.Data.(datatype.Unknown); !ok {
+				t.Errorf("DecodeAVP: %T, want Unknown", decoded.Data)
 			}
 			m := NewRequest(CreditControl, gx, p)
 			m.AddAVP(a)
@@ -275,10 +272,10 @@ func TestDecodeInheritsInUndeclaredApplication(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if v, ok := read.AVP[0].Data.(datatype.UTF8String); !ok || v != "text-1" {
-				t.Errorf("ReadMessage: %T %v, want UTF8String text-1", read.AVP[0].Data, read.AVP[0].Data)
+			if _, ok := read.AVP[0].Data.(datatype.Unknown); !ok {
+				t.Errorf("ReadMessage: %T, want Unknown", read.AVP[0].Data)
 			}
-			if unknown := read.UnknownMandatoryAVPs(); len(unknown) != 0 {
+			if unknown := read.UnknownMandatoryAVPs(); len(unknown) != 1 || unknown[0].Code != text {
 				t.Errorf("unknown mandatory AVPs: %v", unknown)
 			}
 		})

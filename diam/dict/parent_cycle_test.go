@@ -7,61 +7,28 @@ import (
 )
 
 func TestParentAppIDsAcyclic(t *testing.T) {
-	for start := range parentAppIds {
-		seen := map[uint32]bool{}
-		for app := start; ; {
-			if seen[app] {
-				t.Fatalf("parent application cycle from %d at %d", start, app)
-			}
-			seen[app] = true
-			parent, ok := parentAppIds[app]
-			if !ok {
-				break
-			}
-			app = parent
-		}
-	}
-}
-
-func withParentAppCycle(t *testing.T) {
-	t.Helper()
-	previous, existed := parentAppIds[1]
-	parentAppIds[1] = 4 // existing 4 -> 1 now cycles
-	t.Cleanup(func() {
-		if existed {
-			parentAppIds[1] = previous
-		} else {
-			delete(parentAppIds, 1)
-		}
-	})
-}
-
-func TestFindAVPByNameTerminatesOnParentCycle(t *testing.T) {
-	withParentAppCycle(t)
-	for label, lookup := range map[string]vendorLookup{"parser": Default, "snapshot": Default.Snapshot()} {
-		a, err := lookup.FindAVPByName(4, "Not-Defined")
-		if a != nil || !errors.Is(err, ErrParentCycle) || errors.Is(err, ErrNotFound) {
-			t.Errorf("%s: lookup = %v, %v; want nil and ErrParentCycle", label, a, err)
-		}
-	}
-}
-
-func TestFindAVPTerminatesOnParentCycle(t *testing.T) {
-	withParentAppCycle(t)
-	avp, err := Default.FindAVP(16777238, 999999, 99999)
-	if avp != nil || !errors.Is(err, ErrParentCycle) || errors.Is(err, ErrNotFound) {
-		t.Fatalf("lookup = %v, %v; want nil and ErrParentCycle", avp, err)
+	if err := Default.Snapshot().validateParents(); err != nil {
+		t.Fatal(err)
 	}
 }
 
 func TestLoadTerminatesOnParentCycle(t *testing.T) {
-	withParentAppCycle(t)
-	p, err := NewParser()
-	if err != nil {
+	p := new(Parser)
+	if err := p.Load(strings.NewReader(`<diameter><application id="40" inherits="41"/><application id="41"/></diameter>`)); err != nil {
 		t.Fatal(err)
 	}
-	err = p.Load(strings.NewReader(`<diameter><application id="4" type="auth"/></diameter>`))
-	if err == nil || !strings.Contains(err.Error(), "cycle") {
+	before := p.Snapshot()
+	err := p.Load(strings.NewReader(`<diameter><application id="41" inherits="40"/></diameter>`))
+	if !errors.Is(err, ErrParentCycle) {
 		t.Fatalf("load error = %v, want parent cycle", err)
+	}
+	if p.Snapshot() != before {
+		t.Fatal("cycle changed published snapshot")
+	}
+	if a, err := p.FindAVP(40, 999, 0); a != nil || !errors.Is(err, ErrNotFound) {
+		t.Errorf("lookup after rejection: %v, %v", a, err)
+	}
+	if a, err := p.FindAVPByName(40, "missing"); a != nil || !errors.Is(err, ErrNotFound) {
+		t.Errorf("name lookup after rejection: %v, %v", a, err)
 	}
 }

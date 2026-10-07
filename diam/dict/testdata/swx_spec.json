@@ -2458,12 +2458,7 @@
         "must": "M,V",
         "may": "",
         "must_not": "",
-        "source": "TS 32.299 V19.0.0 Table 7.2.0.1: 3GPP specific AVPs; \u00a77.2.30A",
-        "known_shared_metadata_gap": {
-          "may": "P",
-          "source_application": 4,
-          "reason": "The inherited shared dictionary retains legacy MAY-P metadata. It is informational, with no validation behavior change; accept either the source flag set or this documented legacy flag set until the shared dictionary is refreshed."
-        }
+        "source": "TS 32.299 V19.0.0 Table 7.2.0.1: 3GPP specific AVPs; \u00a77.2.30A"
       }
     },
     {

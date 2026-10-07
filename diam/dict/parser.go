@@ -99,20 +99,35 @@ func (p *Parser) LoadFile(filenames ...string) error {
 // Load loads XML streams together as one atomic change. Streams may depend
 // on definitions in later streams. No readers is a no-op.
 //
+// Each non-base inherits parent must be declared in this load or an earlier
+// one; an undeclared parent returns an error wrapping ErrNotFound that names
+// the child and the parent. Base 0 is always a valid parent, even without a
+// base dictionary, and remains the last fallback. Relay (0xffffffff, RFC 6733
+// (October 2012) §2.4) cannot be a parent, even if declared. Parent cycles
+// return ErrParentCycle.
+//
 // A definition replaces an earlier loaded definition in the same application
 // with the same code and vendor, removing the earlier name if it changes.
-// Names must be unique in the final state of the load: a replacement may
+// Own names must be unique in the final state of the load: a replacement may
 // rename an AVP and another definition may reuse its former name in either
-// order. A remaining name clash is refused with ErrAVPConflict. A child
-// application may shadow an ancestor's name. Every command request/answer
-// rule and Grouped member rule must resolve by name after replacements and
-// inheritance, except the AVP wildcard (RFC 6733 (October 2012) §§3.2, 4.4).
-// Member prohibitions allow only M/P and must not contradict resolved
-// members' required flags; contradictions return ErrAVPConflict.
-// An unresolved rule returns an error wrapping ErrAVPConflict and ErrNotFound.
-// A dictionary that changes a registered definition is refused with
-// ErrAVPConflict. Duplicate commands in one application are refused as well.
-// Load either publishes all streams or, on any error, nothing.
+// order. A remaining own-name clash is refused with ErrAVPConflict. For each
+// name the child does not define in its own loaded or registered AVPs, its
+// non-base direct parents that resolve the name must agree on its code/vendor.
+// Each parent's final view includes ancestors and base fallback. Disagreement
+// returns ErrAVPConflict naming the child, name, both parents and identities.
+// Base is not compared as a separate parent, whether explicit or implicit.
+// Code/vendor precedence stays breadth-first; single-chain name shadowing
+// remains allowed (for example Sh and Cx User-Data).
+//
+// Every command request/answer rule and Grouped member rule must resolve by
+// name after replacements and inheritance, except the AVP wildcard (RFC 6733
+// (October 2012) §§3.2, 4.4). An unresolved rule returns an error wrapping
+// ErrAVPConflict and ErrNotFound. Member prohibitions allow only M/P and must
+// not contradict resolved members' required flags; contradictions return
+// ErrAVPConflict. A dictionary that changes a registered definition is
+// refused with ErrAVPConflict. Duplicate commands in one application are
+// refused as well. Load either publishes all streams or, on any error,
+// nothing.
 func (p *Parser) Load(readers ...io.Reader) error {
 	files := make([]*File, 0, len(readers))
 	for _, r := range readers {

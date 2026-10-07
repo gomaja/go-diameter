@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <diameter>
     <!-- 3GPP TS 29.338 V19.3.0 §4.1, §6.3.2.2, Table 6.3.2.2/1. -->
-    <application id="16777313" type="auth" name="TGPP SGd">
+    <!-- TS 29.338 V19.3.0 §6.3.3.1, Table 6.3.3.1/2 reuses the S6c/SMS AVP definitions. -->
+    <application id="16777313" type="auth" name="TGPP SGd" inherits="16777312">
         <!-- proxiable: each request CCF is "REQ, PXY", each answer "PXY" (3GPP TS 29.338 V19.3.0 §§6.3.2.3-6.3.2.6). -->
         <vendor id="10415" name="TGPP"/>
         <!-- 3GPP TS 29.338 V19.3.0 §§6.3.2.3-6.3.2.4, Table 6.3.2.2/1. -->

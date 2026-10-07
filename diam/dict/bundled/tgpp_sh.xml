@@ -2,7 +2,8 @@
 <diameter>
     <!-- 3GPP TS 29.329 V19.1.0 §§6.1, 6.3. Sh-ee (clause 8) is not covered: its application ID is still pending.
          AVP P is reserved and SHOULD be zero (RFC 6733 §4.1). -->
-    <application id="16777217" type="auth" name="TGPP Sh">
+    <!-- TS 29.329 V19.1.0 §§6.3.9, 6.3.11–6.3.15, 6.3.19–6.3.21 reuse Cx AVPs. -->
+    <application id="16777217" type="auth" name="TGPP Sh" inherits="16777216">
         <vendor id="10415" name="TGPP"/>
         <!-- 3GPP TS 29.329 V19.1.0 §§6.1.1, 6.1.2. -->
         <command code="306" short="UD" name="User-Data">
