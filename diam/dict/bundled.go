@@ -116,17 +116,10 @@ func AllBundled() []Bundled {
 	return all
 }
 
-// Default is a Parser with every bundled dictionary loaded.
-var Default = New(AllBundled()...)
-
-// New returns a Parser with the selected bundled dictionaries and their
-// dependencies loaded. It loads the complete selection atomically in file name
-// order, so order and duplicates in dicts do not affect the result. With no
-// dictionaries it returns an empty Parser, as NewParser does.
-//
-// Any selection of Bundled constants is valid. New panics if a value is not a
-// bundled dictionary. For custom XML streams or files, use Load or NewParser.
-func New(dicts ...Bundled) *Parser {
+// bundledClosure returns dicts and their transitive dependencies, without
+// duplicates, in file name order. It panics if a value is not a bundled
+// dictionary.
+func bundledClosure(dicts []Bundled) []Bundled {
 	selected := make(map[Bundled]bool)
 	var include func(Bundled)
 	include = func(b Bundled) {
@@ -145,11 +138,26 @@ func New(dicts ...Bundled) *Parser {
 	for _, b := range dicts {
 		include(b)
 	}
-	dicts = make([]Bundled, 0, len(selected))
+	closure := make([]Bundled, 0, len(selected))
 	for b := range selected {
-		dicts = append(dicts, b)
+		closure = append(closure, b)
 	}
-	slices.Sort(dicts)
+	slices.Sort(closure)
+	return closure
+}
+
+// Default is a Parser with every bundled dictionary loaded.
+var Default = New(AllBundled()...)
+
+// New returns a Parser with the selected bundled dictionaries and their
+// dependencies loaded. It loads the complete selection atomically in file name
+// order, so order and duplicates in dicts do not affect the result. With no
+// dictionaries it returns an empty Parser, as NewParser does.
+//
+// Any selection of Bundled constants is valid. New panics if a value is not a
+// bundled dictionary. For custom XML streams or files, use Load or NewParser.
+func New(dicts ...Bundled) *Parser {
+	dicts = bundledClosure(dicts)
 	files := make([]*File, 0, len(dicts))
 	for _, b := range dicts {
 		files = append(files, bundledFiles()[b])
