@@ -113,6 +113,11 @@ func GetBridge(c diam.Conn) *Bridge {
 
 // Pump messages from one side to the other.
 func Pump(src, dst diam.Conn, srcChan, dstChan chan *diam.Message) {
+	notifier, ok := diam.ConnAs[diam.CloseNotifier](src)
+	if !ok {
+		src.Close()
+		return
+	}
 	for {
 		select {
 		case m := <-srcChan:
@@ -129,7 +134,7 @@ func Pump(src, dst diam.Conn, srcChan, dstChan chan *diam.Message) {
 			if _, err := m.WriteTo(src); err != nil {
 				src.Close() // triggers the case below
 			}
-		case <-src.(diam.CloseNotifier).CloseNotify():
+		case <-notifier.CloseNotify():
 			liveMu.Lock()
 			defer liveMu.Unlock()
 			if _, ok := liveBridge[src.RemoteAddr().String()]; ok {

@@ -397,7 +397,7 @@ func TestClient_WatchdogSlowObserverDoesNotTimeoutSuccessfulAnswer(t *testing.T)
 		t.Fatal("timeout waiting for answer observer")
 	}
 	select {
-	case <-c.(diam.CloseNotifier).CloseNotify():
+	case <-mustConnAs[diam.CloseNotifier](t, c).CloseNotify():
 		t.Fatal("watchdog closed a healthy connection while the answer observer was blocked")
 	case <-timedOut:
 		t.Fatal("watchdog timed out a healthy connection while the answer observer was blocked")
@@ -410,7 +410,7 @@ func TestClient_WatchdogSlowObserverDoesNotTimeoutSuccessfulAnswer(t *testing.T)
 		t.Fatal("timeout waiting for answer observer to return")
 	}
 	select {
-	case <-c.(diam.CloseNotifier).CloseNotify():
+	case <-mustConnAs[diam.CloseNotifier](t, c).CloseNotify():
 		t.Fatal("watchdog closed a healthy connection after the answer observer returned")
 	case <-timedOut:
 		t.Fatal("watchdog timed out a healthy connection after the answer observer returned")
@@ -449,7 +449,7 @@ func TestClient_Watchdog_Timeout(t *testing.T) {
 	}
 	defer c.Close()
 	select {
-	case <-c.(diam.CloseNotifier).CloseNotify():
+	case <-mustConnAs[diam.CloseNotifier](t, c).CloseNotify():
 	case <-time.After(500 * time.Millisecond):
 		t.Fatal("Timeout waiting for watchdog to disconnect client")
 	}

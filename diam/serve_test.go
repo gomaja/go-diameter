@@ -211,9 +211,14 @@ func handleCER(errc chan error, useTLS bool) diam.HandlerFunc {
 		if err != nil {
 			errc <- err
 		}
-		c.(diam.CloseNotifier).CloseNotify()
+		notifier, ok := diam.ConnAs[diam.CloseNotifier](c)
+		if !ok {
+			errc <- fmt.Errorf("connection does not expose CloseNotifier")
+			return
+		}
+		notifier.CloseNotify()
 		go func() {
-			<-c.(diam.CloseNotifier).CloseNotify()
+			<-notifier.CloseNotify()
 		}()
 		//log.Println("Client", c.RemoteAddr(), "disconnected")
 	}
@@ -282,7 +287,12 @@ func handleCEA(errc chan error, wait chan struct{}) diam.HandlerFunc {
 			return
 		}
 		// Initialize & start close notifier
-		closeNotifyChan := c.(diam.CloseNotifier).CloseNotify()
+		notifier, ok := diam.ConnAs[diam.CloseNotifier](c)
+		if !ok {
+			errc <- fmt.Errorf("connection does not expose CloseNotifier")
+			return
+		}
+		closeNotifyChan := notifier.CloseNotify()
 		// Wait on close notify chan outside of main serve loop, closeNotifier routine is started by
 		// liveSwitchReader.Read to avoid io.Pipe deadlock issue
 		go func() {

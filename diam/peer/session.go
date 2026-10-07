@@ -248,22 +248,30 @@ func (s *session) writer() {
 }
 func (s *session) watch() {
 	defer s.m.wg.Done()
-	// Server's DispatchDone waits for its read loop and concurrent handlers.
-	// CloseNotify alone can race a handler that has decoded but not queued an
-	// answer. Other transports fall back to CloseNotify.
-	if n, ok := s.c.(interface{ DispatchDone() <-chan struct{} }); ok {
-		select {
-		case <-n.DispatchDone():
-		case <-s.closed:
-		}
-	} else if n, ok := s.c.(diam.CloseNotifier); ok {
-		select {
-		case <-n.CloseNotify():
-		case <-s.closed:
-		}
-	} else {
-		<-s.closed
+	select {
+	case <-connectionDone(s.c):
+	case <-s.closed:
 	}
 	s.closeObserved()
 	s.m.unregister(s)
+}
+
+// connectionDone honors the first wrapper exposing either lifecycle interface.
+// At the same layer DispatchDone takes precedence: it waits for already-decoded
+// answers to reach handlers before peer failover. An outer CloseNotifier still
+// intercepts closure instead of being bypassed for an inner DispatchDone.
+func connectionDone(c diam.Conn) <-chan struct{} {
+	for c != nil {
+		switch n := c.(type) {
+		case interface{ DispatchDone() <-chan struct{} }:
+			return n.DispatchDone()
+		case diam.CloseNotifier:
+			return n.CloseNotify()
+		case interface{ Unwrap() diam.Conn }:
+			c = n.Unwrap()
+		default:
+			return nil
+		}
+	}
+	return nil
 }

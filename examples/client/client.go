@@ -152,7 +152,12 @@ func main() {
 		}
 		log.Println("Client connected, handshake ok")
 		backoff = 1
-		<-c.(diam.CloseNotifier).CloseNotify()
+		notifier, ok := diam.ConnAs[diam.CloseNotifier](c)
+		if !ok {
+			c.Close()
+			log.Fatal("connection does not expose CloseNotifier")
+		}
+		<-notifier.CloseNotify()
 		log.Println("Client disconnected")
 	}
 }

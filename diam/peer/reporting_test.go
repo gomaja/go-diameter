@@ -374,7 +374,7 @@ func TestManagerMessageErrorAdmissionFailureOwnsServerClose(t *testing.T) {
 	if _, err = remote.Read(b[:]); !errors.Is(err, io.EOF) {
 		t.Fatalf("connection was not closed: %v", err)
 	}
-	done, ok := c.(interface{ DispatchDone() <-chan struct{} })
+	done, ok := diam.ConnAs[interface{ DispatchDone() <-chan struct{} }](c)
 	if !ok {
 		t.Fatal("Server connection has no dispatch completion barrier")
 	}

@@ -104,7 +104,7 @@ func TestDisconnectReceivesDPAAndCloses(t *testing.T) {
 		t.Fatal("Disconnect did not finish after DPA")
 	}
 	select {
-	case <-client.(diam.CloseNotifier).CloseNotify():
+	case <-mustConnAs[diam.CloseNotifier](t, client).CloseNotify():
 	case <-time.After(time.Second):
 		t.Fatal("transport remained open after DPA")
 	}
@@ -138,7 +138,7 @@ func TestDisconnectTimesOutAndCloses(t *testing.T) {
 		t.Fatal("Disconnect did not time out")
 	}
 	select {
-	case <-client.(diam.CloseNotifier).CloseNotify():
+	case <-mustConnAs[diam.CloseNotifier](t, client).CloseNotify():
 	case <-time.After(time.Second):
 		t.Fatal("transport remained open after timeout")
 	}
@@ -153,7 +153,7 @@ func TestDisconnectClosedConnectionReturnsError(t *testing.T) {
 	peer := <-smHandshakes
 	client.Close()
 	select {
-	case <-peer.(diam.CloseNotifier).CloseNotify():
+	case <-mustConnAs[diam.CloseNotifier](t, peer).CloseNotify():
 	case <-time.After(time.Second):
 		t.Fatal("server did not observe transport closure")
 	}
@@ -193,7 +193,7 @@ func TestDisconnectIgnoresWrongHopID(t *testing.T) {
 		t.Fatal("no timeout after wrong-hop DPA")
 	}
 	select {
-	case <-client.(diam.CloseNotifier).CloseNotify():
+	case <-mustConnAs[diam.CloseNotifier](t, client).CloseNotify():
 	case <-time.After(time.Second):
 		t.Fatal("transport remained open after timeout")
 	}
@@ -228,7 +228,7 @@ func TestDisconnectRejectsMalformedDPA(t *testing.T) {
 		t.Fatal("no timeout after malformed DPA")
 	}
 	select {
-	case <-client.(diam.CloseNotifier).CloseNotify():
+	case <-mustConnAs[diam.CloseNotifier](t, client).CloseNotify():
 	case <-time.After(time.Second):
 		t.Fatal("transport remained open after timeout")
 	}
@@ -267,7 +267,7 @@ func TestDisconnectIgnoresDPAOnAnotherConnection(t *testing.T) {
 		t.Fatal("no timeout after other connection's DPA")
 	}
 	select {
-	case <-first.(diam.CloseNotifier).CloseNotify():
+	case <-mustConnAs[diam.CloseNotifier](t, first).CloseNotify():
 	case <-time.After(time.Second):
 		t.Fatal("first transport remained open after timeout")
 	}

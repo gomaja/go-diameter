@@ -41,7 +41,7 @@ func handleDPR(sm *StateMachine) diam.HandlerFunc {
 			c.Close()
 			return
 		}
-		if notifier, ok := c.(diam.CloseNotifier); ok {
+		if notifier, ok := diam.ConnAs[diam.CloseNotifier](c); ok {
 			timeout := sm.cfg.DPRCloseTimeout
 			if timeout <= 0 {
 				timeout = 5 * time.Second

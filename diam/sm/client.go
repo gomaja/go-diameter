@@ -492,7 +492,12 @@ func (cli *Client) nextWatchdogInterval() time.Duration {
 }
 
 func (cli *Client) watchdog(c diam.Conn, dwac chan struct{}, activity *watchdogActivity) {
-	disconnect := c.(diam.CloseNotifier).CloseNotify()
+	notifier, ok := diam.ConnAs[diam.CloseNotifier](c)
+	if !ok {
+		logMessage(c, nil, slog.LevelWarn, "sm: watchdog disabled: connection does not expose CloseNotifier", nil)
+		return
+	}
+	disconnect := notifier.CloseNotify()
 	var osid = uint32(cli.Handler.cfg.OriginStateID)
 	// RFC 3539 §3.4.1 and Appendix A: established peers start in OKAY.
 	// Pending remains set after non-DWA traffic until the answer arrives.

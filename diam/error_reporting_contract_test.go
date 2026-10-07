@@ -105,7 +105,7 @@ func TestServeMuxLogsEveryUnhandledMessage(t *testing.T) {
 				select {
 				case c := <-accepted:
 					select {
-					case <-c.(interface{ DispatchDone() <-chan struct{} }).DispatchDone():
+					case <-mustConnAs[interface{ DispatchDone() <-chan struct{} }](t, c).DispatchDone():
 					case <-ctx.Done():
 						t.Fatal("dispatch did not finish")
 					}

@@ -177,7 +177,7 @@ func TestWatchdogRecoversFromSuspectOnAnswer(t *testing.T) {
 		t.Fatal("watchdog did not resume after recovery")
 	}
 	select {
-	case <-c.(diam.CloseNotifier).CloseNotify():
+	case <-mustConnAs[diam.CloseNotifier](t, c).CloseNotify():
 		t.Fatal("recovered connection closed")
 	default:
 	}
