@@ -162,6 +162,7 @@
 		</avp>
 
 		<avp name="Allocation-Retention-Priority" code="1034" must="V" may="P" must-not="M" may-encrypt="Y" vendor-id="10415">
+			<!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.32; inherited by Gx. -->
 			<data type="Grouped">
 				<rule avp="Priority-Level" required="true" max="1"/>
 				<rule avp="Pre-emption-Capability" required="false" max="1"/>
@@ -306,6 +307,7 @@
 		</avp>
 
 		<avp name="Bearer-Identifier" code="1020" must="V,M" may="P" must-not="-" may-encrypt="Y" vendor-id="10415">
+			<!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.20; inherited by Gx. -->
 			<!-- 3GPP TS 29.212 section 5.3.20 -->
 			<data type="OctetString"/>
 		</avp>
@@ -633,18 +635,22 @@
 		</avp>
 
 		<avp name="Guaranteed-Bitrate-DL" code="1025" must="V,M" may="P" must-not="-" may-encrypt="Y" vendor-id="10415">
+			<!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.25; inherited by Gx. -->
 			<data type="Unsigned32"/>
 		</avp>
 
 		<avp name="Guaranteed-Bitrate-UL" code="1026" must="V,M" may="P" must-not="-" may-encrypt="Y" vendor-id="10415">
+			<!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.26; inherited by Gx. -->
 			<data type="Unsigned32"/>
 		</avp>
 
 		<avp name="Extended-GBR-DL" code="2850" must="V" may="P" must-not="M" may-encrypt="Y" vendor-id="10415">
+			<!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.136; inherited by Gx. -->
 			<data type="Unsigned32"/>
 		</avp>
 
 		<avp name="Extended-GBR-UL" code="2851" must="V" may="P" must-not="M" may-encrypt="Y" vendor-id="10415">
+			<!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.137; inherited by Gx. -->
 			<data type="Unsigned32"/>
 		</avp>
 
@@ -1465,6 +1471,7 @@
 		</avp>
 
 		<avp name="Presence-Reporting-Area-Identifier" code="2821" must="V"	may="P" must-not="M" may-encrypt="Y" vendor-id="10415">
+			<!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.108; inherited by Gx. -->
 			<data type="OctetString"/>
 		</avp>
 
@@ -1478,6 +1485,7 @@
 		</avp>
 
 		<avp name="Presence-Reporting-Area-Status" code="2823" must="V"	may="P" must-not="M" may-encrypt="Y" vendor-id="10415">
+			<!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.110; inherited by Gx. -->
 			<data type="Unsigned32"/>
 		</avp>
 
@@ -1497,10 +1505,12 @@
 		</avp>
 
 		<avp name="Priority-Level" code="1046" must="V"	may="P" must-not="M" may-encrypt="Y" vendor-id="10415">
+			<!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.45; inherited by Gx. -->
 			<data type="Unsigned32"/>
 		</avp>
 
 		<avp name="Pre-emption-Capability" code="1047" must="V" may="P" must-not="M" may-encrypt="Y" vendor-id="10415">
+			<!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.46; inherited by Gx. -->
 			<data type="Enumerated">
 				<item code="0" name="PRE-EMPTION_CAPABILITY_ENABLED"/>
 				<item code="1" name="PRE-EMPTION_CAPABILITY_DISABLED"/>
@@ -1508,6 +1518,7 @@
 		</avp>
 
 		<avp name="Pre-emption-Vulnerability" code="1048" must="V" may="P" must-not="M" may-encrypt="Y" vendor-id="10415">
+			<!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.47; inherited by Gx. -->
 			<data type="Enumerated">
 				<item code="0" name="PRE-EMPTION_VULNERABILITY_ENABLED"/>
 				<item code="1" name="PRE-EMPTION_VULNERABILITY_DISABLED"/>
@@ -1595,6 +1606,7 @@
 		</avp>
 
 		<avp name="QoS-Information" code="1016" must="V,M"	may="P" must-not="-" may-encrypt="Y" vendor-id="10415">
+			<!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.16; inherited by Gx. -->
 			<data type="Grouped">
 				<rule avp="QoS-Class-Identifier" required="false" max="1"/>
 				<rule avp="Max-Requested-Bandwidth-UL" required="false" max="1"/>
@@ -1618,6 +1630,7 @@
 
 		<!-- TS 29.212 V20.0.0 §5.3.17; TS 29.272 V19.6.0 Table 7.3.1/2. -->
 		<avp name="QoS-Class-Identifier" code="1028" vendor-id="10415" must="M,V" may="P" may-encrypt="Y">
+			<!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.17; inherited by Gx. -->
 			<data type="Enumerated">
 				<item code="1" name="QCI_1"/>
 				<item code="2" name="QCI_2"/>
@@ -1672,6 +1685,7 @@
 
 		<!-- TS 29.212 V20.0.0 §5.3.31 and Table 5.3.0.1; TS 29.214 V20.0.0 Annex E.6 confirms the TRUSTED-N3GA spelling. -->
 		<avp name="RAT-Type" code="1032" must="V"	may="P" must-not="M" may-encrypt="Y" vendor-id="10415">
+			<!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.31; inherited by Gx. -->
 			<data type="Enumerated">
 				<item code="0" name="WLAN"/>
 				<item code="1" name="VIRTUAL"/>
@@ -2280,6 +2294,7 @@
 		</avp>
 
 		<avp name="TDF-IP-Address" code="1091" must="V"	may="P" must-not="M" may-encrypt="Y" vendor-id="10415">
+			<!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.81; inherited by Gx. -->
 			<data type="Address"/>
 		</avp>
 
@@ -2479,6 +2494,7 @@
 		</avp>
 
 		<avp name="User-Location-Info-Time" code="2812" must="V"	may="P" must-not="M" may-encrypt="Y" vendor-id="10415">
+			<!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.101; inherited by Gx. -->
 			<data type="Time"/>
 		</avp>
 
@@ -2562,10 +2578,12 @@
 		</avp>
 
 		<avp name="Extended-APN-AMBR-DL" code="2848" must="V" must-not="M" may= "P" may-encrypt="Y" vendor-id="10415">
+			<!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.134; inherited by Gx. -->
 			<data type="Unsigned32"/>
 		</avp>
 
 		<avp name="Extended-APN-AMBR-UL" code="2849" must="V" must-not="M" may="P" may-encrypt="Y" vendor-id="10415">
+			<!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.135; inherited by Gx. -->
 			<data type="Unsigned32"/>
 		</avp>
 
@@ -2613,8 +2631,9 @@
 		<!-- OMA-DDS-Charging_Data V1.0 20110201-A AVP table; 3GPP TS 32.299 V19.0.0 §7.2.0. -->
 		<avp name="Application-Service-Type" code="2102" vendor-id="10415" must="V,M" may="P" may-encrypt="N"><data type="Enumerated"/></avp>
 
-		<!-- 3GPP TS 29.212 V20.0.0 §5.3.27. The Gx scope defines the same code separately. -->
+		<!-- 3GPP TS 29.212 V20.0.0 §5.3.27. -->
 		<avp name="IP-CAN-Type" code="1027" vendor-id="10415" must="V,M" may="P" may-encrypt="Y">
+			<!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.27; inherited by Gx. -->
 			<data type="Enumerated">
 				<item code="0" name="3GPP-GPRS"/>
 				<item code="1" name="DOCSIS"/>

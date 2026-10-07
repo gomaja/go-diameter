@@ -328,7 +328,8 @@
 		</avp>
 		
 		<avp name="Content-Version" code="552" vendor-id="10415" must="V" may-encrypt="Y">
-			<data type="Unsigned32"/>
+			<!-- TS 29.214 V20.0.0 §5.3.49. -->
+			<data type="Unsigned64"/>
 		</avp>
 		
 		<avp name="Media-Component-Status" code="549" vendor-id="10415" must="V" may-encrypt="Y">
@@ -565,8 +566,9 @@
 		</avp>
 		
 		<avp name="Callee-Information" code="565" vendor-id="10415" must="V" may-encrypt="Y">
+			<!-- TS 29.214 V20.0.0 §5.3.62: Called-Party-Address is optional. -->
 			<data type="Grouped">
-				<rule avp="Called-Party-Address" required="true" max="1"/>
+				<rule avp="Called-Party-Address" required="false" max="1"/>
 				<rule avp="Requested-Party-Address" required="false"/>
 				<rule avp="Called-Asserted-Identity" required="false"/>
 				<rule avp="AVP" required="false"/>
@@ -618,6 +620,8 @@
 			<data type="Enumerated">
 				<item code="0" name="USER_LOCATION"/>
 				<item code="1" name="MS_TIME_ZONE"/>
+				<!-- TS 29.214 V20.0.0 §5.3.34. -->
+				<item code="2" name="UE_SAT_INFO"/>
 			</data>
 		</avp>
 		
@@ -1131,7 +1135,8 @@
         	</avp>
 		
 		<avp name="Load-Value" code="652" must-not="V">
-            		<data type="Unsigned32"/>
+			<!-- RFC 8583 (August 2019) §7.3. -->
+			<data type="Unsigned64"/>
         	</avp>
 		
 		 <avp name="Load-Type" code="651" must-not="V">

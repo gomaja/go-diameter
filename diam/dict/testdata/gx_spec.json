@@ -1,0 +1,5968 @@
+{
+  "document": "3GPP TS 29.212 V20.0.0 (2026-09)",
+  "source": "https://www.3gpp.org/ftp/Specs/archive/29_series/29.212/29212-k00.zip",
+  "sha256": "5711cb649ab840050492caec9b9983009ba6774a3f326967e9305ee40cb5fbbb",
+  "avps": [
+    {
+      "name": "3GPP-PS-Data-Off-Status",
+      "code": 2847,
+      "section": "5.3.133",
+      "type": "Enumerated",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y",
+      "items": {
+        "0": "ACTIVE",
+        "1": "INACTIVE"
+      }
+    },
+    {
+      "name": "Access-Availability-Change-Reason",
+      "code": 2833,
+      "section": "5.3.121",
+      "type": "Unsigned32",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y"
+    },
+    {
+      "name": "Access-Network-Charging-Identifier-Gx",
+      "code": 1022,
+      "section": "5.3.22",
+      "type": "Grouped",
+      "vendor": 10415,
+      "must": "M,V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "",
+      "may_encrypt": "Y",
+      "rules": [
+        {
+          "name": "Access-Network-Charging-Identifier-Value",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Access-Network-Charging-Identifier-Value}"
+        },
+        {
+          "name": "Charging-Rule-Base-Name",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Charging-Rule-Base-Name ]"
+        },
+        {
+          "name": "Charging-Rule-Name",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Charging-Rule-Name ]"
+        },
+        {
+          "name": "IP-CAN-Session-Charging-Scope",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ IP-CAN-Session-Charging-Scope ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ AVP ]"
+        }
+      ]
+    },
+    {
+      "name": "Allocation-Retention-Priority",
+      "code": 1034,
+      "section": "5.3.32",
+      "type": "Grouped",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y",
+      "rules": [
+        {
+          "name": "Priority-Level",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Priority-Level }"
+        },
+        {
+          "name": "Pre-emption-Capability",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Pre-emption-Capability ]"
+        },
+        {
+          "name": "Pre-emption-Vulnerability",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Pre-emption-Vulnerability ]"
+        }
+      ]
+    },
+    {
+      "name": "AN-GW-Address",
+      "code": 1050,
+      "section": "5.3.49",
+      "type": "Address",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y"
+    },
+    {
+      "name": "AN-GW-Status",
+      "code": 2811,
+      "section": "5.3.100",
+      "type": "Enumerated",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y",
+      "items": {
+        "0": "AN_GW_FAILED"
+      }
+    },
+    {
+      "name": "APN-Aggregate-Max-Bitrate-DL",
+      "code": 1040,
+      "section": "5.3.39",
+      "type": "Unsigned32",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y"
+    },
+    {
+      "name": "APN-Aggregate-Max-Bitrate-UL",
+      "code": 1041,
+      "section": "5.3.40",
+      "type": "Unsigned32",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y"
+    },
+    {
+      "name": "Application-Detection-Information",
+      "code": 1098,
+      "section": "5.3.91",
+      "type": "Grouped",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y",
+      "rules": [
+        {
+          "name": "TDF-Application-Identifier",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ TDF-Application-Identifier }"
+        },
+        {
+          "name": "TDF-Application-Instance-Identifier",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ TDF-Application-Instance-Identifier ]"
+        },
+        {
+          "name": "Flow-Information",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Flow-Information ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ AVP ]"
+        }
+      ]
+    },
+    {
+      "name": "Bearer-Control-Mode",
+      "code": 1023,
+      "section": "5.3.23",
+      "type": "Enumerated",
+      "vendor": 10415,
+      "must": "M,V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "",
+      "may_encrypt": "Y",
+      "items": {
+        "0": "UE_ONLY",
+        "1": "RESERVED",
+        "2": "UE_NW"
+      }
+    },
+    {
+      "name": "Bearer-Identifier",
+      "code": 1020,
+      "section": "5.3.20",
+      "type": "OctetString",
+      "vendor": 10415,
+      "must": "M,V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "",
+      "may_encrypt": "Y"
+    },
+    {
+      "name": "Bearer-Operation",
+      "code": 1021,
+      "section": "5.3.21",
+      "type": "Enumerated",
+      "vendor": 10415,
+      "must": "M,V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "",
+      "may_encrypt": "Y",
+      "items": {
+        "0": "TERMINATION",
+        "1": "ESTABLISHMENT",
+        "2": "MODIFICATION"
+      }
+    },
+    {
+      "name": "Bearer-Usage",
+      "code": 1000,
+      "section": "5.3.1",
+      "type": "Enumerated",
+      "vendor": 10415,
+      "must": "M,V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "",
+      "may_encrypt": "Y",
+      "items": {
+        "0": "GENERAL",
+        "1": "IMS_SIGNALLING"
+      }
+    },
+    {
+      "name": "Charging-Correlation-Indicator",
+      "code": 1073,
+      "section": "5.3.67",
+      "type": "Enumerated",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y",
+      "items": {
+        "0": "CHARGING_IDENTIFIER_REQUIRED"
+      }
+    },
+    {
+      "name": "Charging-Rule-Base-Name",
+      "code": 1004,
+      "section": "5.3.5",
+      "type": "UTF8String",
+      "vendor": 10415,
+      "must": "M,V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "",
+      "may_encrypt": "Y"
+    },
+    {
+      "name": "Charging-Rule-Definition",
+      "code": 1003,
+      "section": "5.3.4",
+      "type": "Grouped",
+      "vendor": 10415,
+      "must": "M,V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "",
+      "may_encrypt": "Y",
+      "rules": [
+        {
+          "name": "Charging-Rule-Name",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Charging-Rule-Name }"
+        },
+        {
+          "name": "Service-Identifier",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Service-Identifier ]"
+        },
+        {
+          "name": "Rating-Group",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Rating-Group ]"
+        },
+        {
+          "name": "Flow-Information",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Flow-Information ]"
+        },
+        {
+          "name": "Default-Bearer-Indication",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Default-Bearer-Indication ]"
+        },
+        {
+          "name": "TDF-Application-Identifier",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ TDF-Application-Identifier ]"
+        },
+        {
+          "name": "Flow-Status",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Flow-Status ]"
+        },
+        {
+          "name": "QoS-Information",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ QoS-Information ]"
+        },
+        {
+          "name": "PS-to-CS-Session-Continuity",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ PS-to-CS-Session-Continuity ]"
+        },
+        {
+          "name": "Reporting-Level",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Reporting-Level ]"
+        },
+        {
+          "name": "Online",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Online ]"
+        },
+        {
+          "name": "Offline",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Offline ]"
+        },
+        {
+          "name": "Max-PLR-DL",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Max-PLR-DL ]"
+        },
+        {
+          "name": "Max-PLR-UL",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Max-PLR-UL ]"
+        },
+        {
+          "name": "Metering-Method",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Metering-Method ]"
+        },
+        {
+          "name": "Precedence",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Precedence ]"
+        },
+        {
+          "name": "AF-Charging-Identifier",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ AF-Charging-Identifier ]"
+        },
+        {
+          "name": "Flows",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Flows ]"
+        },
+        {
+          "name": "Monitoring-Key",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Monitoring-Key]"
+        },
+        {
+          "name": "Redirect-Information",
+          "min": 0,
+          "max": 2,
+          "fixed": false,
+          "abnf": "0*2 [ Redirect-Information ]"
+        },
+        {
+          "name": "Mute-Notification",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Mute-Notification ]"
+        },
+        {
+          "name": "AF-Signalling-Protocol",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ AF-Signalling-Protocol ]"
+        },
+        {
+          "name": "Sponsor-Identity",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Sponsor-Identity ]"
+        },
+        {
+          "name": "Application-Service-Provider-Identity",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Application-Service-Provider-Identity ]"
+        },
+        {
+          "name": "Required-Access-Info",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Required-Access-Info ]"
+        },
+        {
+          "name": "Sharing-Key-DL",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Sharing-Key-DL ]"
+        },
+        {
+          "name": "Sharing-Key-UL",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Sharing-Key-UL ]"
+        },
+        {
+          "name": "Traffic-Steering-Policy-Identifier-DL",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Traffic-Steering-Policy-Identifier-DL ]"
+        },
+        {
+          "name": "Traffic-Steering-Policy-Identifier-UL",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Traffic-Steering-Policy-Identifier-UL ]"
+        },
+        {
+          "name": "Content-Version",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Content-Version ]"
+        },
+        {
+          "name": "Calling-Party-Address",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Calling-Party-Address ]"
+        },
+        {
+          "name": "Callee-Information",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Callee-Information ]"
+        },
+        {
+          "name": "UHRR-Enable-Indication",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ UHRR-Enable-Indication ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ AVP ]"
+        }
+      ]
+    },
+    {
+      "name": "Charging-Rule-Install",
+      "code": 1001,
+      "section": "5.3.2",
+      "type": "Grouped",
+      "vendor": 10415,
+      "must": "M,V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "",
+      "may_encrypt": "Y",
+      "rules": [
+        {
+          "name": "Charging-Rule-Definition",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Charging-Rule-Definition ]"
+        },
+        {
+          "name": "Charging-Rule-Name",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Charging-Rule-Name ]"
+        },
+        {
+          "name": "Charging-Rule-Base-Name",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Charging-Rule-Base-Name ]"
+        },
+        {
+          "name": "Bearer-Identifier",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Bearer-Identifier ]"
+        },
+        {
+          "name": "Monitoring-Flags",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Monitoring-Flags ]"
+        },
+        {
+          "name": "Rule-Activation-Time",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Rule-Activation-Time ]"
+        },
+        {
+          "name": "Rule-Deactivation-Time",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Rule-Deactivation-Time ]"
+        },
+        {
+          "name": "Resource-Allocation-Notification",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Resource-Allocation-Notification ]"
+        },
+        {
+          "name": "Charging-Correlation-Indicator",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Charging-Correlation-Indicator ]"
+        },
+        {
+          "name": "IP-CAN-Type",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ IP-CAN-Type ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ AVP ]"
+        }
+      ]
+    },
+    {
+      "name": "Charging-Rule-Name",
+      "code": 1005,
+      "section": "5.3.6",
+      "type": "OctetString",
+      "vendor": 10415,
+      "must": "M,V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "",
+      "may_encrypt": "Y"
+    },
+    {
+      "name": "Charging-Rule-Remove",
+      "code": 1002,
+      "section": "5.3.3",
+      "type": "Grouped",
+      "vendor": 10415,
+      "must": "M,V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "",
+      "may_encrypt": "Y",
+      "rules": [
+        {
+          "name": "Charging-Rule-Name",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Charging-Rule-Name ]"
+        },
+        {
+          "name": "Charging-Rule-Base-Name",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Charging-Rule-Base-Name ]"
+        },
+        {
+          "name": "Required-Access-Info",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Required-Access-Info ]"
+        },
+        {
+          "name": "Resource-Release-Notification",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Resource-Release-Notification ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ AVP ]"
+        }
+      ]
+    },
+    {
+      "name": "Charging-Rule-Report",
+      "code": 1018,
+      "section": "5.3.18",
+      "type": "Grouped",
+      "vendor": 10415,
+      "must": "M,V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "",
+      "may_encrypt": "Y",
+      "rules": [
+        {
+          "name": "Charging-Rule-Name",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Charging-Rule-Name ]"
+        },
+        {
+          "name": "Charging-Rule-Base-Name",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Charging-Rule-Base-Name ]"
+        },
+        {
+          "name": "Bearer-Identifier",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Bearer-Identifier ]"
+        },
+        {
+          "name": "PCC-Rule-Status",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ PCC-Rule-Status ]"
+        },
+        {
+          "name": "Rule-Failure-Code",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Rule-Failure-Code ]"
+        },
+        {
+          "name": "Final-Unit-Indication",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Final-Unit-Indication ]"
+        },
+        {
+          "name": "RAN-NAS-Release-Cause",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ RAN-NAS-Release-Cause ]"
+        },
+        {
+          "name": "Content-Version",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Content-Version ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ AVP ]"
+        }
+      ]
+    },
+    {
+      "name": "CoA-Information",
+      "code": 1039,
+      "section": "5.3.37",
+      "type": "Grouped",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y",
+      "rules": [
+        {
+          "name": "Tunnel-Information",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Tunnel-Information }"
+        },
+        {
+          "name": "CoA-IP-Address",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ CoA-IP-Address }"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ AVP ]"
+        }
+      ]
+    },
+    {
+      "name": "CoA-IP-Address",
+      "code": 1035,
+      "section": "5.3.33",
+      "type": "Address",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y"
+    },
+    {
+      "name": "Conditional-APN-Aggregate-Max-Bitrate",
+      "code": 2818,
+      "section": "5.3.105",
+      "type": "Grouped",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y",
+      "rules": [
+        {
+          "name": "APN-Aggregate-Max-Bitrate-UL",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ APN-Aggregate-Max-Bitrate-UL ]"
+        },
+        {
+          "name": "APN-Aggregate-Max-Bitrate-DL",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ APN-Aggregate-Max-Bitrate-DL ]"
+        },
+        {
+          "name": "Extended-APN-AMBR-UL",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Extended-APN-AMBR-UL ]"
+        },
+        {
+          "name": "Extended-APN-AMBR-DL",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Extended-APN-AMBR-DL ]"
+        },
+        {
+          "name": "IP-CAN-Type",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ IP-CAN-Type ]"
+        },
+        {
+          "name": "RAT-Type",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ RAT-Type ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ AVP ]"
+        }
+      ]
+    },
+    {
+      "name": "Conditional-Policy-Information",
+      "code": 2840,
+      "section": "5.3.128",
+      "type": "Grouped",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y",
+      "rules": [
+        {
+          "name": "Execution-Time",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Execution-Time ]"
+        },
+        {
+          "name": "Default-EPS-Bearer-QoS",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Default-EPS-Bearer-QoS ]"
+        },
+        {
+          "name": "APN-Aggregate-Max-Bitrate-UL",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ APN-Aggregate-Max-Bitrate-UL ]"
+        },
+        {
+          "name": "APN-Aggregate-Max-Bitrate-DL",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ APN-Aggregate-Max-Bitrate-DL ]"
+        },
+        {
+          "name": "Extended-APN-AMBR-UL",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Extended-APN-AMBR-UL ]"
+        },
+        {
+          "name": "Extended-APN-AMBR-DL",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Extended-APN-AMBR-DL ]"
+        },
+        {
+          "name": "Conditional-APN-Aggregate-Max-Bitrate",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Conditional-APN-Aggregate-Max-Bitrate ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ AVP ]"
+        }
+      ]
+    },
+    {
+      "name": "Credit-Management-Status",
+      "code": 1082,
+      "section": "5.3.102",
+      "type": "Unsigned32",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y"
+    },
+    {
+      "name": "CSG-Information-Reporting",
+      "code": 1071,
+      "section": "5.3.64",
+      "type": "Enumerated",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y",
+      "items": {
+        "0": "CHANGE_CSG_CELL",
+        "1": "CHANGE_CSG_SUBSCRIBED_HYBRID_CELL",
+        "2": "CHANGE_CSG_UNSUBSCRIBED_HYBRID_CELL"
+      }
+    },
+    {
+      "name": "Default-Access",
+      "code": 2829,
+      "section": "5.3.120",
+      "type": "Enumerated",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y",
+      "items": {
+        "0": "3GPP-GPRS",
+        "1": "DOCSIS",
+        "2": "xDSL",
+        "3": "WiMAX",
+        "4": "3GPP2",
+        "5": "3GPP-EPS",
+        "6": "Non-3GPP-EPS",
+        "7": "FBA",
+        "8": "3GPP-5GS",
+        "9": "Non-3GPP-5GS"
+      },
+      "values_section": "5.3.27 (by reference from 5.3.120)"
+    },
+    {
+      "name": "Default-Bearer-Indication",
+      "code": 2844,
+      "section": "5.3.132",
+      "type": "Enumerated",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y",
+      "items": {
+        "0": "BIND_TO_DEF_BEARER",
+        "1": "BIND_TO_APPLICABLE_BEARER"
+      }
+    },
+    {
+      "name": "Default-EPS-Bearer-QoS",
+      "code": 1049,
+      "section": "5.3.48",
+      "type": "Grouped",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y",
+      "rules": [
+        {
+          "name": "QoS-Class-Identifier",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ QoS-Class-Identifier ]"
+        },
+        {
+          "name": "Allocation-Retention-Priority",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Allocation-Retention-Priority ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ AVP ]"
+        }
+      ]
+    },
+    {
+      "name": "Default-QoS-Information",
+      "code": 2816,
+      "section": "5.3.103",
+      "type": "Grouped",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y",
+      "rules": [
+        {
+          "name": "QoS-Class-Identifier",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ QoS-Class-Identifier ]"
+        },
+        {
+          "name": "Max-Requested-Bandwidth-UL",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Max-Requested-Bandwidth-UL ]"
+        },
+        {
+          "name": "Max-Requested-Bandwidth-DL",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Max-Requested-Bandwidth-DL ]"
+        },
+        {
+          "name": "Default-QoS-Name",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Default-QoS-Name ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ AVP ]"
+        }
+      ]
+    },
+    {
+      "name": "Default-QoS-Name",
+      "code": 2817,
+      "section": "5.3.104",
+      "type": "UTF8String",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y"
+    },
+    {
+      "name": "Event-Report-Indication",
+      "code": 1033,
+      "section": "5.3.30",
+      "type": "Grouped",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y",
+      "rules": [
+        {
+          "name": "AN-Trusted",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ AN-Trusted ]"
+        },
+        {
+          "name": "Event-Trigger",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Event-Trigger ]"
+        },
+        {
+          "name": "User-CSG-Information",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ User-CSG-Information ]"
+        },
+        {
+          "name": "IP-CAN-Type",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ IP-CAN-Type ]"
+        },
+        {
+          "name": "AN-GW-Address",
+          "min": 0,
+          "max": 2,
+          "fixed": false,
+          "abnf": "0*2 [ AN-GW-Address ]"
+        },
+        {
+          "name": "3GPP-SGSN-Address",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ 3GPP-SGSN-Address ]"
+        },
+        {
+          "name": "3GPP-SGSN-Ipv6-Address",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ 3GPP-SGSN-Ipv6-Address ]"
+        },
+        {
+          "name": "3GPP-SGSN-MCC-MNC",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ 3GPP-SGSN-MCC-MNC ]"
+        },
+        {
+          "name": "Framed-IP-Address",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Framed-IP-Address ]"
+        },
+        {
+          "name": "RAT-Type",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ RAT-Type ]"
+        },
+        {
+          "name": "RAI",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ RAI ]"
+        },
+        {
+          "name": "3GPP-User-Location-Info",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ 3GPP-User-Location-Info ]"
+        },
+        {
+          "name": "Trace-Data",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Trace-Data ]"
+        },
+        {
+          "name": "Trace-Reference",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Trace-Reference ]"
+        },
+        {
+          "name": "3GPP2-BSID",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ 3GPP2-BSID ]"
+        },
+        {
+          "name": "3GPP-MS-TimeZone",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ 3GPP-MS-TimeZone ]"
+        },
+        {
+          "name": "Routing-IP-Address",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Routing-IP-Address ]"
+        },
+        {
+          "name": "UE-Local-IP-Address",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ UE-Local-IP-Address ]"
+        },
+        {
+          "name": "HeNB-Local-IP-Address",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ HeNB-Local-IP-Address ]"
+        },
+        {
+          "name": "UDP-Source-Port",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ UDP-Source-Port ]"
+        },
+        {
+          "name": "Presence-Reporting-Area-Information",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Presence-Reporting-Area-Information ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ AVP ]"
+        }
+      ]
+    },
+    {
+      "name": "Event-Trigger",
+      "code": 1006,
+      "section": "5.3.7",
+      "type": "Enumerated",
+      "vendor": 10415,
+      "must": "M,V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "",
+      "may_encrypt": "Y",
+      "items": {
+        "0": "SGSN_CHANGE",
+        "1": "QOS_CHANGE",
+        "2": "RAT_CHANGE",
+        "3": "TFT_CHANGE",
+        "4": "PLMN_CHANGE",
+        "5": "LOSS_OF_BEARER",
+        "6": "RECOVERY_OF_BEARER",
+        "7": "IP-CAN_CHANGE",
+        "11": "QOS_CHANGE_EXCEEDING_AUTHORIZATION",
+        "12": "RAI_CHANGE",
+        "13": "USER_LOCATION_CHANGE",
+        "14": "NO_EVENT_TRIGGERS",
+        "15": "OUT_OF_CREDIT",
+        "16": "REALLOCATION_OF_CREDIT",
+        "17": "REVALIDATION_TIMEOUT",
+        "18": "UE_IP_ADDRESS_ALLOCATE",
+        "19": "UE_IP_ADDRESS_RELEASE",
+        "20": "DEFAULT_EPS_BEARER_QOS_CHANGE",
+        "21": "AN_GW_CHANGE",
+        "22": "SUCCESSFUL_RESOURCE_ALLOCATION",
+        "23": "RESOURCE_MODIFICATION_REQUEST",
+        "24": "PGW_TRACE_CONTROL",
+        "25": "UE_TIME_ZONE_CHANGE",
+        "26": "TAI_CHANGE",
+        "27": "ECGI_CHANGE",
+        "28": "CHARGING_CORRELATION_EXCHANGE",
+        "29": "APN-AMBR_MODIFICATION_FAILURE",
+        "30": "USER_CSG_INFORMATION_CHANGE",
+        "33": "USAGE_REPORT",
+        "34": "DEFAULT-EPS-BEARER-QOS_MODIFICATION_FAILURE",
+        "35": "USER_CSG_HYBRID_SUBSCRIBED_INFORMATION_CHANGE",
+        "36": "USER_CSG_HYBRID_UNSUBSCRIBED_INFORMATION_CHANGE",
+        "37": "ROUTING_RULE_CHANGE",
+        "39": "APPLICATION_START",
+        "40": "APPLICATION_STOP",
+        "42": "CS_TO_PS_HANDOVER",
+        "43": "UE_LOCAL_IP_ADDRESS_CHANGE",
+        "44": "H(E)NB_LOCAL_IP_ADDRESS_CHANGE",
+        "45": "ACCESS_NETWORK_INFO_REPORT",
+        "46": "CREDIT_MANAGEMENT_SESSION_FAILURE",
+        "47": "DEFAULT_QOS_CHANGE",
+        "48": "CHANGE_OF_UE_PRESENCE_IN_PRESENCE_REPORTING_AREA_REPORT",
+        "49": "ADDITION_OF_ACCESS",
+        "50": "REMOVAL_OF_ACCESS",
+        "51": "UNAVAILABLITY_OF_ACCESS",
+        "52": "AVAILABLITY_OF_ACCESS",
+        "53": "RESOURCE_RELEASE",
+        "54": "ENODEB_CHANGE",
+        "55": "3GPP_PS_DATA_OFF_CHANGE",
+        "56": "UE_STATUS_RESUME",
+        "57": "SUCCESSFUL_QOS_UPDATE",
+        "58": "UHRR_CAP_REPORT"
+      }
+    },
+    {
+      "name": "Execution-Time",
+      "code": 2839,
+      "section": "5.3.127",
+      "type": "Time",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y"
+    },
+    {
+      "name": "Extended-APN-AMBR-DL",
+      "code": 2848,
+      "section": "5.3.134",
+      "type": "Unsigned32",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y"
+    },
+    {
+      "name": "Extended-APN-AMBR-UL",
+      "code": 2849,
+      "section": "5.3.135",
+      "type": "Unsigned32",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y"
+    },
+    {
+      "name": "Extended-GBR-DL",
+      "code": 2850,
+      "section": "5.3.136",
+      "type": "Unsigned32",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y"
+    },
+    {
+      "name": "Extended-GBR-UL",
+      "code": 2851,
+      "section": "5.3.137",
+      "type": "Unsigned32",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y"
+    },
+    {
+      "name": "Flow-Direction",
+      "code": 1080,
+      "section": "5.3.65",
+      "type": "Enumerated",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y",
+      "items": {
+        "0": "UNSPECIFIED",
+        "1": "DOWNLINK",
+        "2": "UPLINK",
+        "3": "BIDIRECTIONAL"
+      }
+    },
+    {
+      "name": "Flow-Information",
+      "code": 1058,
+      "section": "5.3.53",
+      "type": "Grouped",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y",
+      "rules": [
+        {
+          "name": "Flow-Description",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Flow-Description ]"
+        },
+        {
+          "name": "Packet-Filter-Identifier",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Packet-Filter-Identifier ]"
+        },
+        {
+          "name": "Packet-Filter-Usage",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Packet-Filter-Usage ]"
+        },
+        {
+          "name": "ToS-Traffic-Class",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ ToS-Traffic-Class ]"
+        },
+        {
+          "name": "Security-Parameter-Index",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Security-Parameter-Index ]"
+        },
+        {
+          "name": "Flow-Label",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Flow-Label ]"
+        },
+        {
+          "name": "Flow-Direction",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Flow-Direction ]"
+        },
+        {
+          "name": "Routing-Rule-Identifier",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Routing-Rule-Identifier ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ AVP ]"
+        }
+      ]
+    },
+    {
+      "name": "Flow-Label",
+      "code": 1057,
+      "section": "5.3.52",
+      "type": "OctetString",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y"
+    },
+    {
+      "name": "Fixed-User-Location-Info",
+      "code": 2825,
+      "section": "5.3.112",
+      "type": "Grouped",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y",
+      "rules": [
+        {
+          "name": "SSID",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ SSID ]"
+        },
+        {
+          "name": "BSSID",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ BSSID ]"
+        },
+        {
+          "name": "Logical-Access-ID",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Logical-Access-ID ]"
+        },
+        {
+          "name": "Physical-Access-ID",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Physical-Access-ID ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ AVP ]"
+        }
+      ]
+    },
+    {
+      "name": "Guaranteed-Bitrate-DL",
+      "code": 1025,
+      "section": "5.3.25",
+      "type": "Unsigned32",
+      "vendor": 10415,
+      "must": "M,V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "",
+      "may_encrypt": "Y"
+    },
+    {
+      "name": "Guaranteed-Bitrate-UL",
+      "code": 1026,
+      "section": "5.3.26",
+      "type": "Unsigned32",
+      "vendor": 10415,
+      "must": "M,V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "",
+      "may_encrypt": "Y"
+    },
+    {
+      "name": "HeNB-Local-IP-Address",
+      "code": 2804,
+      "section": "5.3.95",
+      "type": "Address",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y"
+    },
+    {
+      "name": "IP-CAN-Session-Charging-Scope",
+      "code": 2827,
+      "section": "5.3.114",
+      "type": "Enumerated",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y",
+      "items": {
+        "0": "IP-CAN_SESSION_SCOPE"
+      }
+    },
+    {
+      "name": "IP-CAN-Type",
+      "code": 1027,
+      "section": "5.3.27",
+      "type": "Enumerated",
+      "vendor": 10415,
+      "must": "M,V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "",
+      "may_encrypt": "Y",
+      "items": {
+        "0": "3GPP-GPRS",
+        "1": "DOCSIS",
+        "2": "xDSL",
+        "3": "WiMAX",
+        "4": "3GPP2",
+        "5": "3GPP-EPS",
+        "6": "Non-3GPP-EPS",
+        "7": "FBA",
+        "8": "3GPP-5GS",
+        "9": "Non-3GPP-5GS"
+      }
+    },
+    {
+      "name": "Max-PLR-DL",
+      "code": 2852,
+      "section": "5.3.138",
+      "type": "Unsigned32",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y",
+      "type_source": "TS 29.212 V20.0.0 §§5.3.138–139; CR 1665r2, CP-181017 (CT#80), incorporated in V15.3.0"
+    },
+    {
+      "name": "Max-PLR-UL",
+      "code": 2853,
+      "section": "5.3.139",
+      "type": "Unsigned32",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y",
+      "type_source": "TS 29.212 V20.0.0 §§5.3.138–139; CR 1665r2, CP-181017 (CT#80), incorporated in V15.3.0"
+    },
+    {
+      "name": "Metering-Method",
+      "code": 1007,
+      "section": "5.3.8",
+      "type": "Enumerated",
+      "vendor": 10415,
+      "must": "M,V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "",
+      "may_encrypt": "Y",
+      "items": {
+        "0": "DURATION",
+        "1": "VOLUME",
+        "2": "DURATION_VOLUME",
+        "3": "EVENT"
+      }
+    },
+    {
+      "name": "Monitoring-Flags",
+      "code": 2828,
+      "section": "5.3.115",
+      "type": "Unsigned32",
+      "vendor": 10415,
+      "must": "V",
+      "may": "",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y"
+    },
+    {
+      "name": "Monitoring-Key",
+      "code": 1066,
+      "section": "5.3.59",
+      "type": "OctetString",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y"
+    },
+    {
+      "name": "Mute-Notification",
+      "code": 2809,
+      "section": "5.3.98",
+      "type": "Enumerated",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y",
+      "items": {
+        "0": "MUTE_REQUIRED"
+      }
+    },
+    {
+      "name": "Monitoring-Time",
+      "code": 2810,
+      "section": "5.3.99",
+      "type": "Time",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y"
+    },
+    {
+      "name": "NBIFOM-Mode",
+      "code": 2830,
+      "section": "5.3.117",
+      "type": "Enumerated",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y",
+      "items": {
+        "0": "UE_INITIATED",
+        "1": "NETWORK_INITIATED"
+      }
+    },
+    {
+      "name": "NBIFOM-Support",
+      "code": 2831,
+      "section": "5.3.116",
+      "type": "Enumerated",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y",
+      "items": {
+        "0": "NBIFOM_NOT_SUPPORTED",
+        "1": "NBIFOM_SUPPORTED"
+      }
+    },
+    {
+      "name": "NetLoc-Access-Support",
+      "code": 2824,
+      "section": "5.3.111",
+      "type": "Unsigned32",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y"
+    },
+    {
+      "name": "Network-Request-Support",
+      "code": 1024,
+      "section": "5.3.24",
+      "type": "Enumerated",
+      "vendor": 10415,
+      "must": "M,V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "",
+      "may_encrypt": "Y",
+      "items": {
+        "0": "NETWORK_REQUEST NOT SUPPORTED",
+        "1": "NETWORK_REQUEST SUPPORTED"
+      }
+    },
+    {
+      "name": "Offline",
+      "code": 1008,
+      "section": "5.3.9",
+      "type": "Enumerated",
+      "vendor": 10415,
+      "must": "M,V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "",
+      "may_encrypt": "Y",
+      "items": {
+        "0": "DISABLE_OFFLINE",
+        "1": "ENABLE_OFFLINE"
+      }
+    },
+    {
+      "name": "Online",
+      "code": 1009,
+      "section": "5.3.10",
+      "type": "Enumerated",
+      "vendor": 10415,
+      "must": "M,V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "",
+      "may_encrypt": "Y",
+      "items": {
+        "0": "DISABLE_ONLINE",
+        "1": "ENABLE_ONLINE"
+      }
+    },
+    {
+      "name": "Packet-Filter-Content",
+      "code": 1059,
+      "section": "5.3.54",
+      "type": "IPFilterRule",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y"
+    },
+    {
+      "name": "Packet-Filter-Identifier",
+      "code": 1060,
+      "section": "5.3.55",
+      "type": "OctetString",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y"
+    },
+    {
+      "name": "Packet-Filter-Information",
+      "code": 1061,
+      "section": "5.3.56",
+      "type": "Grouped",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y",
+      "rules": [
+        {
+          "name": "Packet-Filter-Identifier",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Packet-Filter-Identifier ]"
+        },
+        {
+          "name": "Precedence",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Precedence ]"
+        },
+        {
+          "name": "Packet-Filter-Content",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Packet-Filter-Content ]"
+        },
+        {
+          "name": "ToS-Traffic-Class",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ ToS-Traffic-Class ]"
+        },
+        {
+          "name": "Security-Parameter-Index",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Security-Parameter-Index ]"
+        },
+        {
+          "name": "Flow-Label",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Flow-Label ]"
+        },
+        {
+          "name": "Flow-Direction",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Flow-Direction ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ AVP ]"
+        }
+      ]
+    },
+    {
+      "name": "Packet-Filter-Operation",
+      "code": 1062,
+      "section": "5.3.57",
+      "type": "Enumerated",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y",
+      "items": {
+        "0": "DELETION",
+        "1": "ADDITION",
+        "2": "MODIFICATION"
+      }
+    },
+    {
+      "name": "Packet-Filter-Usage",
+      "code": 1072,
+      "section": "5.3.66",
+      "type": "Enumerated",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y",
+      "items": {
+        "1": "SEND_TO_UE"
+      }
+    },
+    {
+      "name": "PCC-Rule-Status",
+      "code": 1019,
+      "section": "5.3.19",
+      "type": "Enumerated",
+      "vendor": 10415,
+      "must": "M,V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "",
+      "may_encrypt": "Y",
+      "items": {
+        "0": "ACTIVE",
+        "1": "INACTIVE",
+        "2": "TEMPORARILY INACTIVE"
+      }
+    },
+    {
+      "name": "PDN-Connection-ID",
+      "code": 1065,
+      "section": "5.3.58",
+      "type": "OctetString",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "",
+      "may_encrypt": "Y"
+    },
+    {
+      "name": "PRA-Install",
+      "code": 2845,
+      "section": "5.3.130",
+      "type": "Grouped",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "",
+      "rules": [
+        {
+          "name": "Presence-Reporting-Area-Information",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Presence-Reporting-Area-Information ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ AVP ]"
+        }
+      ]
+    },
+    {
+      "name": "PRA-Remove",
+      "code": 2846,
+      "section": "5.3.131",
+      "type": "Grouped",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "",
+      "rules": [
+        {
+          "name": "Presence-Reporting-Area-Identifier",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Presence-Reporting-Area-Identifier ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ AVP ]"
+        }
+      ]
+    },
+    {
+      "name": "Precedence",
+      "code": 1010,
+      "section": "5.3.11",
+      "type": "Unsigned32",
+      "vendor": 10415,
+      "must": "M,V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "",
+      "may_encrypt": "Y"
+    },
+    {
+      "name": "Pre-emption-Capability",
+      "code": 1047,
+      "section": "5.3.46",
+      "type": "Enumerated",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y",
+      "items": {
+        "0": "PRE-EMPTION_CAPABILITY_ENABLED",
+        "1": "PRE-EMPTION_CAPABILITY_DISABLED"
+      }
+    },
+    {
+      "name": "Pre-emption-Vulnerability",
+      "code": 1048,
+      "section": "5.3.47",
+      "type": "Enumerated",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y",
+      "items": {
+        "0": "PRE-EMPTION_VULNERABILITY_ENABLED",
+        "1": "PRE-EMPTION_VULNERABILITY_DISABLED"
+      }
+    },
+    {
+      "name": "Presence-Reporting-Area-Elements-List",
+      "code": 2820,
+      "section": "5.3.107",
+      "type": "OctetString",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y"
+    },
+    {
+      "name": "Presence-Reporting-Area-Identifier",
+      "code": 2821,
+      "section": "5.3.108",
+      "type": "OctetString",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y"
+    },
+    {
+      "name": "Presence-Reporting-Area-Information",
+      "code": 2822,
+      "section": "5.3.109",
+      "type": "Grouped",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y",
+      "rules": [
+        {
+          "name": "Presence-Reporting-Area-Identifier",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Presence-Reporting-Area-Identifier ]"
+        },
+        {
+          "name": "Presence-Reporting-Area-Status",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Presence-Reporting-Area-Status ]"
+        },
+        {
+          "name": "Presence-Reporting-Area-Elements-List",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Presence-Reporting-Area-Elements-List ]"
+        },
+        {
+          "name": "Presence-Reporting-Area-Node",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Presence-Reporting-Area-Node ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ AVP ]"
+        }
+      ]
+    },
+    {
+      "name": "Presence-Reporting-Area-Node",
+      "code": 2855,
+      "section": "5.3.141",
+      "type": "Unsigned32",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y"
+    },
+    {
+      "name": "Presence-Reporting-Area-Status",
+      "code": 2823,
+      "section": "5.3.110",
+      "type": "Unsigned32",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y"
+    },
+    {
+      "name": "Priority-Level",
+      "code": 1046,
+      "section": "5.3.45",
+      "type": "Unsigned32",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y"
+    },
+    {
+      "name": "PS-to-CS-Session-Continuity",
+      "code": 1099,
+      "section": "5.3.84",
+      "type": "Enumerated",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "",
+      "may_encrypt": "Y",
+      "items": {
+        "0": "VIDEO_PS2CS_CONT_CANDIDATE"
+      }
+    },
+    {
+      "name": "QoS-Class-Identifier",
+      "code": 1028,
+      "section": "5.3.17",
+      "type": "Enumerated",
+      "vendor": 10415,
+      "must": "M,V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "",
+      "may_encrypt": "Y",
+      "items": {
+        "1": "QCI_1",
+        "2": "QCI_2",
+        "3": "QCI_3",
+        "4": "QCI_4",
+        "5": "QCI_5",
+        "6": "QCI_6",
+        "7": "QCI_7",
+        "8": "QCI_8",
+        "9": "QCI_9",
+        "65": "QCI_65",
+        "66": "QCI_66",
+        "67": "QCI_67",
+        "69": "QCI_69",
+        "70": "QCI_70",
+        "71": "QCI_71",
+        "72": "QCI_72",
+        "73": "QCI_73",
+        "74": "QCI_74",
+        "75": "QCI_75",
+        "76": "QCI_76",
+        "79": "QCI_79",
+        "80": "QCI_80",
+        "82": "QCI_82",
+        "83": "QCI_83",
+        "84": "QCI_84",
+        "85": "QCI_85"
+      }
+    },
+    {
+      "name": "QoS-Information",
+      "code": 1016,
+      "section": "5.3.16",
+      "type": "Grouped",
+      "vendor": 10415,
+      "must": "M,V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "",
+      "may_encrypt": "Y",
+      "rules": [
+        {
+          "name": "QoS-Class-Identifier",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ QoS-Class-Identifier ]"
+        },
+        {
+          "name": "Max-Requested-Bandwidth-UL",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Max-Requested-Bandwidth-UL ]"
+        },
+        {
+          "name": "Max-Requested-Bandwidth-DL",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Max-Requested-Bandwidth-DL ]"
+        },
+        {
+          "name": "Extended-Max-Requested-BW-UL",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Extended-Max-Requested-BW-UL ]"
+        },
+        {
+          "name": "Extended-Max-Requested-BW-DL",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Extended-Max-Requested-BW-DL ]"
+        },
+        {
+          "name": "Guaranteed-Bitrate-UL",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Guaranteed-Bitrate-UL ]"
+        },
+        {
+          "name": "Guaranteed-Bitrate-DL",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Guaranteed-Bitrate-DL ]"
+        },
+        {
+          "name": "Extended-GBR-UL",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Extended-GBR-UL ]"
+        },
+        {
+          "name": "Extended-GBR-DL",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Extended-GBR-DL ]"
+        },
+        {
+          "name": "Bearer-Identifier",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Bearer-Identifier ]"
+        },
+        {
+          "name": "Allocation-Retention-Priority",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Allocation-Retention-Priority ]"
+        },
+        {
+          "name": "APN-Aggregate-Max-Bitrate-UL",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ APN-Aggregate-Max-Bitrate-UL ]"
+        },
+        {
+          "name": "APN-Aggregate-Max-Bitrate-DL",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ APN-Aggregate-Max-Bitrate-DL ]"
+        },
+        {
+          "name": "Extended-APN-AMBR-UL",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Extended-APN-AMBR-UL ]"
+        },
+        {
+          "name": "Extended-APN-AMBR-DL",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Extended-APN-AMBR-DL ]"
+        },
+        {
+          "name": "Conditional-APN-Aggregate-Max-Bitrate",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Conditional-APN-Aggregate-Max-Bitrate ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ AVP ]"
+        }
+      ],
+      "flag_normalization": "Table 5.3.0.1 punctuation typo M.V means M and V"
+    },
+    {
+      "name": "QoS-Negotiation",
+      "code": 1029,
+      "section": "5.3.28",
+      "type": "Enumerated",
+      "vendor": 10415,
+      "must": "M,V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "",
+      "may_encrypt": "Y",
+      "items": {
+        "0": "NO_QoS_NEGOTIATION",
+        "1": "QoS_NEGOTIATION_SUPPORTED"
+      }
+    },
+    {
+      "name": "QoS-Upgrade",
+      "code": 1030,
+      "section": "5.3.29",
+      "type": "Enumerated",
+      "vendor": 10415,
+      "must": "M,V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "",
+      "may_encrypt": "Y",
+      "items": {
+        "0": "QoS_UPGRADE_NOT_SUPPORTED",
+        "1": "QoS_UPGRADE_SUPPORTED"
+      },
+      "flag_normalization": "Table 5.3.0.1 punctuation typo M.V means M and V"
+    },
+    {
+      "name": "RAN-NAS-Release-Cause",
+      "code": 2819,
+      "section": "5.3.106",
+      "type": "OctetString",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y"
+    },
+    {
+      "name": "RAN-Rule-Support",
+      "code": 2832,
+      "section": "5.3.122",
+      "type": "Unsigned32",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y"
+    },
+    {
+      "name": "RAT-Type",
+      "code": 1032,
+      "section": "5.3.31",
+      "type": "Enumerated",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y",
+      "items": {
+        "0": "WLAN",
+        "1": "VIRTUAL",
+        "2": "TRUSTED- N3GA",
+        "3": "WIRELINE",
+        "4": "WIRELINE-CABLE",
+        "5": "WIRELINE-BBF",
+        "1000": "UTRAN",
+        "1001": "GERAN",
+        "1002": "GAN",
+        "1003": "HSPA_EVOLUTION",
+        "1004": "EUTRAN",
+        "1005": "EUTRAN-NB-IoT",
+        "1006": "NR",
+        "1007": "LTE-M",
+        "1008": "NR-U",
+        "1011": "EUTRAN(LEO)",
+        "1012": "EUTRAN(MEO)",
+        "1013": "EUTRAN(GEO)",
+        "1014": "EUTRAN(OTHERSAT)",
+        "1021": "EUTRAN-NB-IoT(LEO)",
+        "1022": "EUTRAN-NB-IoT(MEO)",
+        "1023": "EUTRAN-NB-IoT(GEO)",
+        "1024": "EUTRAN-NB-IoT(OTHERSAT)",
+        "1031": "LTE-M(LEO)",
+        "1032": "LTE-M(MEO)",
+        "1033": "LTE-M(GEO)",
+        "1034": "LTE-M(OTHERSAT)",
+        "1035": "NR(LEO)",
+        "1036": "NR(MEO)",
+        "1037": "NR(GEO)",
+        "1038": "NR(OTHERSAT)",
+        "1039": "NR-REDCAP",
+        "1040": "NR-EREDCAP",
+        "2000": "CDMA2000_1X",
+        "2001": "HRPD",
+        "2002": "UMB",
+        "2003": "EHRPD"
+      }
+    },
+    {
+      "name": "Redirect-Information",
+      "code": 1085,
+      "section": "5.3.82",
+      "type": "Grouped",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y",
+      "rules": [
+        {
+          "name": "Redirect-Support",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Redirect-Support ]"
+        },
+        {
+          "name": "Redirect-Address-Type",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Redirect-Address-Type ]"
+        },
+        {
+          "name": "Redirect-Server-Address",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Redirect-Server-Address ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ AVP ]"
+        }
+      ]
+    },
+    {
+      "name": "Redirect-Support",
+      "code": 1086,
+      "section": "5.3.83",
+      "type": "Enumerated",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y",
+      "items": {
+        "0": "REDIRECTION_DISABLED",
+        "1": "REDIRECTION_ENABLED"
+      }
+    },
+    {
+      "name": "Removal-Of-Access",
+      "code": 2842,
+      "section": "5.3.126",
+      "type": "Enumerated",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y",
+      "items": {
+        "0": "REMOVAL_OF_ACCESS"
+      }
+    },
+    {
+      "name": "Reporting-Level",
+      "code": 1011,
+      "section": "5.3.12",
+      "type": "Enumerated",
+      "vendor": 10415,
+      "must": "M,V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "",
+      "may_encrypt": "Y",
+      "items": {
+        "0": "SERVICE_IDENTIFIER_LEVEL",
+        "1": "RATING_GROUP_LEVEL",
+        "2": "SPONSORED_CONNECTIVITY_LEVEL"
+      }
+    },
+    {
+      "name": "Resource-Allocation-Notification",
+      "code": 1063,
+      "section": "5.3.50",
+      "type": "Enumerated",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y",
+      "items": {
+        "0": "ENABLE_NOTIFICATION"
+      }
+    },
+    {
+      "name": "Resource-Release-Notification",
+      "code": 2841,
+      "section": "5.3.125",
+      "type": "Enumerated",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y",
+      "items": {
+        "0": "ENABLE_NOTIFICATION"
+      }
+    },
+    {
+      "name": "Revalidation-Time",
+      "code": 1042,
+      "section": "5.3.41",
+      "type": "Time",
+      "vendor": 10415,
+      "must": "M,V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "",
+      "may_encrypt": "Y"
+    },
+    {
+      "name": "Routing-Filter",
+      "code": 1078,
+      "section": "5.3.72",
+      "type": "Grouped",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y",
+      "rules": [
+        {
+          "name": "Flow-Description",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Flow-Description }"
+        },
+        {
+          "name": "Flow-Direction",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Flow-Direction }"
+        },
+        {
+          "name": "ToS-Traffic-Class",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ ToS-Traffic-Class ]"
+        },
+        {
+          "name": "Security-Parameter-Index",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Security-Parameter-Index ]"
+        },
+        {
+          "name": "Flow-Label",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Flow-Label ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ AVP ]"
+        }
+      ]
+    },
+    {
+      "name": "Routing-IP-Address",
+      "code": 1079,
+      "section": "5.3.73",
+      "type": "Address",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y"
+    },
+    {
+      "name": "Routing-Rule-Definition",
+      "code": 1076,
+      "section": "5.3.70",
+      "type": "Grouped",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y",
+      "rules": [
+        {
+          "name": "Routing-Rule-Identifier",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Routing-Rule-Identifier }"
+        },
+        {
+          "name": "Routing-Filter",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Routing-Filter ]"
+        },
+        {
+          "name": "Precedence",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Precedence ]"
+        },
+        {
+          "name": "Routing-IP-Address",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Routing-IP-Address ]"
+        },
+        {
+          "name": "IP-CAN-Type",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ IP-CAN-Type ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ AVP ]"
+        }
+      ]
+    },
+    {
+      "name": "Routing-Rule-Identifier",
+      "code": 1077,
+      "section": "5.3.71",
+      "type": "OctetString",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y"
+    },
+    {
+      "name": "Routing-Rule-Install",
+      "code": 1081,
+      "section": "5.3.68",
+      "type": "Grouped",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y",
+      "rules": [
+        {
+          "name": "Routing-Rule-Definition",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Routing-Rule-Definition ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ AVP ]"
+        }
+      ]
+    },
+    {
+      "name": "Routing-Rule-Remove",
+      "code": 1075,
+      "section": "5.3.69",
+      "type": "Grouped",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y",
+      "rules": [
+        {
+          "name": "Routing-Rule-Identifier",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Routing-Rule-Identifier ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ AVP ]"
+        }
+      ]
+    },
+    {
+      "name": "Routing-Rule-Failure-Code",
+      "code": 2834,
+      "section": "5.3.119",
+      "type": "Unsigned32",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y"
+    },
+    {
+      "name": "Routing-Rule-Report",
+      "code": 2835,
+      "section": "5.3.118",
+      "type": "Grouped",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y",
+      "rules": [
+        {
+          "name": "Routing-Rule-Identifier",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Routing-Rule-Identifier ]"
+        },
+        {
+          "name": "PCC-Rule-Status",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ PCC-Rule-Status ]"
+        },
+        {
+          "name": "Routing-Rule-Failure-Code",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Routing-Rule-Failure-Code ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ AVP ]"
+        }
+      ]
+    },
+    {
+      "name": "Rule-Activation-Time",
+      "code": 1043,
+      "section": "5.3.42",
+      "type": "Time",
+      "vendor": 10415,
+      "must": "M,V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "",
+      "may_encrypt": "Y"
+    },
+    {
+      "name": "Rule-Deactivation-Time",
+      "code": 1044,
+      "section": "5.3.43",
+      "type": "Time",
+      "vendor": 10415,
+      "must": "M,V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "",
+      "may_encrypt": "Y"
+    },
+    {
+      "name": "Rule-Failure-Code",
+      "code": 1031,
+      "section": "5.3.38",
+      "type": "Enumerated",
+      "vendor": 10415,
+      "must": "M,V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "",
+      "may_encrypt": "Y",
+      "items": {
+        "1": "UNKNOWN_RULE_NAME",
+        "2": "RATING_GROUP_ERROR",
+        "3": "SERVICE_IDENTIFIER_ERROR",
+        "4": "GW/PCEF_MALFUNCTION",
+        "5": "RESOURCES_LIMITATION",
+        "6": "MAX_NR_BEARERS_REACHED",
+        "7": "UNKNOWN_BEARER_ID",
+        "8": "MISSING_BEARER_ID",
+        "9": "MISSING_FLOW_INFORMATION",
+        "10": "RESOURCE_ALLOCATION_FAILURE",
+        "11": "UNSUCCESSFUL_QOS_VALIDATION",
+        "12": "INCORRECT_FLOW_INFORMATION",
+        "13": "PS_TO_CS_HANDOVER",
+        "14": "TDF_APPLICATION_IDENTIFIER_ERROR",
+        "15": "NO_BEARER_BOUND",
+        "16": "FILTER_RESTRICTIONS",
+        "17": "AN_GW_FAILED",
+        "18": "MISSING_REDIRECT_SERVER_ADDRESS",
+        "19": "CM_END_USER_SERVICE_DENIED",
+        "20": "CM_CREDIT_CONTROL_NOT_APPLICABLE",
+        "21": "CM_AUTHORIZATION_REJECTED",
+        "22": "CM_USER_UNKNOWN",
+        "23": "CM_RATING_FAILED",
+        "24": "ROUTING_RULE_REJECTION",
+        "25": "UNKNOWN_ROUTING_ACCESS_INFORMATION",
+        "26": "NO_NBIFOM_SUPPORT",
+        "27": "UE_STATE_SUSPEND",
+        "28": "TRAFFIC_STEERING_ERROR",
+        "29": "SAME_TIME_ERROR"
+      },
+      "flag_normalization": "Table 5.3.0.1 punctuation typo M.V means M and V"
+    },
+    {
+      "name": "Security-Parameter-Index",
+      "code": 1056,
+      "section": "5.3.51",
+      "type": "OctetString",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y"
+    },
+    {
+      "name": "Session-Release-Cause",
+      "code": 1045,
+      "section": "5.3.44",
+      "type": "Enumerated",
+      "vendor": 10415,
+      "must": "M,V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "",
+      "may_encrypt": "Y",
+      "items": {
+        "0": "UNSPECIFIED_REASON",
+        "1": "UE_SUBSCRIPTION_REASON",
+        "2": "INSUFFICIENT_SERVER_RESOURCES",
+        "3": "IP_CAN_SESSION_TERMINATION",
+        "4": "UE_IP_ADDRESS_RELEASE"
+      }
+    },
+    {
+      "name": "TCP-Source-Port",
+      "code": 2843,
+      "section": "5.3.129",
+      "type": "Unsigned32",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y"
+    },
+    {
+      "name": "TDF-Information",
+      "code": 1087,
+      "section": "5.3.78",
+      "type": "Grouped",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y",
+      "rules": [
+        {
+          "name": "TDF-Destination-Realm",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ TDF-Destination-Realm ]"
+        },
+        {
+          "name": "TDF-Destination-Host",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ TDF-Destination-Host ]"
+        },
+        {
+          "name": "TDF-IP-Address",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ TDF-IP-Address ]"
+        }
+      ]
+    },
+    {
+      "name": "TDF-Application-Identifier",
+      "code": 1088,
+      "section": "5.3.77",
+      "type": "OctetString",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y"
+    },
+    {
+      "name": "TDF-Application-Instance-Identifier",
+      "code": 2802,
+      "section": "5.3.92",
+      "type": "OctetString",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y"
+    },
+    {
+      "name": "TDF-Destination-Host",
+      "code": 1089,
+      "section": "5.3.80",
+      "type": "DiameterIdentity",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y"
+    },
+    {
+      "name": "TDF-Destination-Realm",
+      "code": 1090,
+      "section": "5.3.79",
+      "type": "DiameterIdentity",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y"
+    },
+    {
+      "name": "TDF-IP-Address",
+      "code": 1091,
+      "section": "5.3.81",
+      "type": "Address",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y"
+    },
+    {
+      "name": "TFT-Filter",
+      "code": 1012,
+      "section": "5.3.13",
+      "type": "IPFilterRule",
+      "vendor": 10415,
+      "must": "M,V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "",
+      "may_encrypt": "Y"
+    },
+    {
+      "name": "TFT-Packet-Filter-Information",
+      "code": 1013,
+      "section": "5.3.14",
+      "type": "Grouped",
+      "vendor": 10415,
+      "must": "M,V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "",
+      "may_encrypt": "Y",
+      "rules": [
+        {
+          "name": "Precedence",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Precedence ]"
+        },
+        {
+          "name": "TFT-Filter",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ TFT-Filter ]"
+        },
+        {
+          "name": "ToS-Traffic-Class",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ ToS-Traffic-Class ]"
+        },
+        {
+          "name": "Security-Parameter-Index",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Security-Parameter-Index ]"
+        },
+        {
+          "name": "Flow-Label",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Flow-Label ]"
+        },
+        {
+          "name": "Flow-Direction",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Flow-Direction ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ AVP ]"
+        }
+      ]
+    },
+    {
+      "name": "Traffic-Steering-Policy-Identifier-DL",
+      "code": 2836,
+      "section": "5.3.123",
+      "type": "OctetString",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y"
+    },
+    {
+      "name": "Traffic-Steering-Policy-Identifier-UL",
+      "code": 2837,
+      "section": "5.3.124",
+      "type": "OctetString",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y"
+    },
+    {
+      "name": "ToS-Traffic-Class",
+      "code": 1014,
+      "section": "5.3.15",
+      "type": "OctetString",
+      "vendor": 10415,
+      "must": "M,V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "",
+      "may_encrypt": "Y"
+    },
+    {
+      "name": "Tunnel-Header-Filter",
+      "code": 1036,
+      "section": "5.3.34",
+      "type": "IPFilterRule",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y"
+    },
+    {
+      "name": "Tunnel-Header-Length",
+      "code": 1037,
+      "section": "5.3.35",
+      "type": "Unsigned32",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y"
+    },
+    {
+      "name": "Tunnel-Information",
+      "code": 1038,
+      "section": "5.3.36",
+      "type": "Grouped",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y",
+      "rules": [
+        {
+          "name": "Tunnel-Header-Length",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Tunnel-Header-Length ]"
+        },
+        {
+          "name": "Tunnel-Header-Filter",
+          "min": 0,
+          "max": 2,
+          "fixed": false,
+          "abnf": "2 [ Tunnel-Header-Filter ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ AVP ]"
+        }
+      ]
+    },
+    {
+      "name": "UDP-Source-Port",
+      "code": 2806,
+      "section": "5.3.97",
+      "type": "Unsigned32",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y"
+    },
+    {
+      "name": "UE-Local-IP-Address",
+      "code": 2805,
+      "section": "5.3.96",
+      "type": "Address",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y"
+    },
+    {
+      "name": "UE-Status",
+      "code": 2854,
+      "section": "5.3.140",
+      "type": "Unsigned32",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y"
+    },
+    {
+      "name": "Usage-Monitoring-Information",
+      "code": 1067,
+      "section": "5.3.60",
+      "type": "Grouped",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y",
+      "rules": [
+        {
+          "name": "Monitoring-Key",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Monitoring-Key ]"
+        },
+        {
+          "name": "Granted-Service-Unit",
+          "min": 0,
+          "max": 2,
+          "fixed": false,
+          "abnf": "0*2 [ Granted-Service-Unit ]"
+        },
+        {
+          "name": "Used-Service-Unit",
+          "min": 0,
+          "max": 2,
+          "fixed": false,
+          "abnf": "0*2 [ Used-Service-Unit ]"
+        },
+        {
+          "name": "Quota-Consumption-Time",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Quota-Consumption-Time ]"
+        },
+        {
+          "name": "Usage-Monitoring-Level",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Usage-Monitoring-Level ]"
+        },
+        {
+          "name": "Usage-Monitoring-Report",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Usage-Monitoring-Report ]"
+        },
+        {
+          "name": "Usage-Monitoring-Support",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Usage-Monitoring-Support ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ AVP ]"
+        }
+      ]
+    },
+    {
+      "name": "Usage-Monitoring-Level",
+      "code": 1068,
+      "section": "5.3.61",
+      "type": "Enumerated",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y",
+      "items": {
+        "0": "SESSION_LEVEL",
+        "1": "PCC_RULE_LEVEL",
+        "2": "ADC_RULE_LEVEL"
+      }
+    },
+    {
+      "name": "Usage-Monitoring-Report",
+      "code": 1069,
+      "section": "5.3.62",
+      "type": "Enumerated",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y",
+      "items": {
+        "0": "USAGE_MONITORING_REPORT_REQUIRED"
+      }
+    },
+    {
+      "name": "Usage-Monitoring-Support",
+      "code": 1070,
+      "section": "5.3.63",
+      "type": "Enumerated",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y",
+      "items": {
+        "0": "USAGE_MONITORING_DISABLED"
+      }
+    },
+    {
+      "name": "User-Location-Info-Time",
+      "code": 2812,
+      "section": "5.3.101",
+      "type": "Time",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y"
+    },
+    {
+      "name": "PCSCF-Restoration-Indication",
+      "code": 2826,
+      "section": "5.3.113",
+      "type": "Unsigned32",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y"
+    }
+  ],
+  "commands": [
+    {
+      "section": "5.6.2",
+      "code": 272,
+      "request": true,
+      "proxiable": true,
+      "rules": [
+        {
+          "name": "Session-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": true,
+          "abnf": "< Session-Id >"
+        },
+        {
+          "name": "DRMP",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ DRMP ]"
+        },
+        {
+          "name": "Auth-Application-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Auth-Application-Id }"
+        },
+        {
+          "name": "Origin-Host",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Origin-Host }"
+        },
+        {
+          "name": "Origin-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Origin-Realm }"
+        },
+        {
+          "name": "Destination-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Destination-Realm }"
+        },
+        {
+          "name": "CC-Request-Type",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ CC-Request-Type }"
+        },
+        {
+          "name": "CC-Request-Number",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ CC-Request-Number }"
+        },
+        {
+          "name": "Credit-Management-Status",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Credit-Management-Status ]"
+        },
+        {
+          "name": "Destination-Host",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Destination-Host ]"
+        },
+        {
+          "name": "Origin-State-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Origin-State-Id ]"
+        },
+        {
+          "name": "Subscription-Id",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Subscription-Id ]"
+        },
+        {
+          "name": "OC-Supported-Features",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ OC-Supported-Features ]"
+        },
+        {
+          "name": "Supported-Features",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Supported-Features ]"
+        },
+        {
+          "name": "TDF-Information",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ TDF-Information ]"
+        },
+        {
+          "name": "Network-Request-Support",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Network-Request-Support ]"
+        },
+        {
+          "name": "Packet-Filter-Information",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Packet-Filter-Information ]"
+        },
+        {
+          "name": "Packet-Filter-Operation",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Packet-Filter-Operation ]"
+        },
+        {
+          "name": "Bearer-Identifier",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Bearer-Identifier ]"
+        },
+        {
+          "name": "Bearer-Operation",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Bearer-Operation ]"
+        },
+        {
+          "name": "Dynamic-Address-Flag",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Dynamic-Address-Flag ]"
+        },
+        {
+          "name": "Dynamic-Address-Flag-Extension",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Dynamic-Address-Flag-Extension ]"
+        },
+        {
+          "name": "PDN-Connection-Charging-ID",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ PDN-Connection-Charging-ID ]"
+        },
+        {
+          "name": "Framed-IP-Address",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Framed-IP-Address ]"
+        },
+        {
+          "name": "Framed-Ipv6-Prefix",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Framed-Ipv6-Prefix ]"
+        },
+        {
+          "name": "IP-CAN-Type",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ IP-CAN-Type ]"
+        },
+        {
+          "name": "3GPP-RAT-Type",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ 3GPP-RAT-Type ]"
+        },
+        {
+          "name": "AN-Trusted",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ AN-Trusted ]"
+        },
+        {
+          "name": "RAT-Type",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ RAT-Type ]"
+        },
+        {
+          "name": "Termination-Cause",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Termination-Cause ]"
+        },
+        {
+          "name": "User-Equipment-Info",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ User-Equipment-Info ]"
+        },
+        {
+          "name": "User-Equipment-Info-Extension",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ User-Equipment-Info-Extension ]"
+        },
+        {
+          "name": "QoS-Information",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ QoS-Information ]"
+        },
+        {
+          "name": "QoS-Negotiation",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ QoS-Negotiation ]"
+        },
+        {
+          "name": "QoS-Upgrade",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ QoS-Upgrade ]"
+        },
+        {
+          "name": "Default-EPS-Bearer-QoS",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Default-EPS-Bearer-QoS ]"
+        },
+        {
+          "name": "Default-QoS-Information",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Default-QoS-Information ]"
+        },
+        {
+          "name": "AN-GW-Address",
+          "min": 0,
+          "max": 2,
+          "fixed": false,
+          "abnf": "0*2 [ AN-GW-Address ]"
+        },
+        {
+          "name": "AN-GW-Status",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ AN-GW-Status ]"
+        },
+        {
+          "name": "3GPP-SGSN-MCC-MNC",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ 3GPP-SGSN-MCC-MNC ]"
+        },
+        {
+          "name": "3GPP-SGSN-Address",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ 3GPP-SGSN-Address ]"
+        },
+        {
+          "name": "3GPP-SGSN-Ipv6-Address",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ 3GPP-SGSN-Ipv6-Address ]"
+        },
+        {
+          "name": "3GPP-GGSN-Address",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ 3GPP-GGSN-Address ]"
+        },
+        {
+          "name": "3GPP-GGSN-Ipv6-Address",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ 3GPP-GGSN-Ipv6-Address ]"
+        },
+        {
+          "name": "3GPP-Selection-Mode",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ 3GPP-Selection-Mode ]"
+        },
+        {
+          "name": "RAI",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ RAI ]"
+        },
+        {
+          "name": "3GPP-User-Location-Info",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ 3GPP-User-Location-Info ]"
+        },
+        {
+          "name": "Fixed-User-Location-Info",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Fixed-User-Location-Info ]"
+        },
+        {
+          "name": "User-Location-Info-Time",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ User-Location-Info-Time ]"
+        },
+        {
+          "name": "User-CSG-Information",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ User-CSG-Information ]"
+        },
+        {
+          "name": "TWAN-Identifier",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ TWAN-Identifier ]"
+        },
+        {
+          "name": "3GPP-MS-TimeZone",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ 3GPP-MS-TimeZone ]"
+        },
+        {
+          "name": "RAN-NAS-Release-Cause",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ RAN-NAS-Release-Cause ]"
+        },
+        {
+          "name": "3GPP-Charging-Characteristics",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ 3GPP-Charging-Characteristics ]"
+        },
+        {
+          "name": "Called-Station-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Called-Station-Id ]"
+        },
+        {
+          "name": "PDN-Connection-ID",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ PDN-Connection-ID ]"
+        },
+        {
+          "name": "Bearer-Usage",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Bearer-Usage ]"
+        },
+        {
+          "name": "Online",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Online ]"
+        },
+        {
+          "name": "Offline",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Offline ]"
+        },
+        {
+          "name": "TFT-Packet-Filter-Information",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ TFT-Packet-Filter-Information ]"
+        },
+        {
+          "name": "Charging-Rule-Report",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Charging-Rule-Report ]"
+        },
+        {
+          "name": "Application-Detection-Information",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Application-Detection-Information ]"
+        },
+        {
+          "name": "Event-Trigger",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Event-Trigger ]"
+        },
+        {
+          "name": "Event-Report-Indication",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Event-Report-Indication ]"
+        },
+        {
+          "name": "Access-Network-Charging-Address",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Access-Network-Charging-Address ]"
+        },
+        {
+          "name": "Access-Network-Charging-Identifier-Gx",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Access-Network-Charging-Identifier-Gx ]"
+        },
+        {
+          "name": "CoA-Information",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ CoA-Information ]"
+        },
+        {
+          "name": "Usage-Monitoring-Information",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Usage-Monitoring-Information ]"
+        },
+        {
+          "name": "NBIFOM-Support",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ NBIFOM-Support ]"
+        },
+        {
+          "name": "NBIFOM-Mode",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ NBIFOM-Mode ]"
+        },
+        {
+          "name": "Default-Access",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Default-Access ]"
+        },
+        {
+          "name": "Origination-Time-Stamp",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Origination-Time-Stamp ]"
+        },
+        {
+          "name": "Maximum-Wait-Time",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Maximum-Wait-Time ]"
+        },
+        {
+          "name": "Access-Availability-Change-Reason",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Access-Availability-Change-Reason ]"
+        },
+        {
+          "name": "Routing-Rule-Install",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Routing-Rule-Install ]"
+        },
+        {
+          "name": "Routing-Rule-Remove",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Routing-Rule-Remove ]"
+        },
+        {
+          "name": "HeNB-Local-IP-Address",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ HeNB-Local-IP-Address ]"
+        },
+        {
+          "name": "UE-Local-IP-Address",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ UE-Local-IP-Address ]"
+        },
+        {
+          "name": "UDP-Source-Port",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ UDP-Source-Port ]"
+        },
+        {
+          "name": "TCP-Source-Port",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ TCP-Source-Port ]"
+        },
+        {
+          "name": "Presence-Reporting-Area-Information",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Presence-Reporting-Area-Information ]"
+        },
+        {
+          "name": "Logical-Access-ID",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Logical-Access-ID ]"
+        },
+        {
+          "name": "Physical-Access-ID",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Physical-Access-ID ]"
+        },
+        {
+          "name": "Proxy-Info",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Proxy-Info ]"
+        },
+        {
+          "name": "Route-Record",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Route-Record ]"
+        },
+        {
+          "name": "3GPP-PS-Data-Off-Status",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ 3GPP-PS-Data-Off-Status ]"
+        },
+        {
+          "name": "UHRR-Capability",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ UHRR-Capability ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ AVP ]"
+        }
+      ]
+    },
+    {
+      "section": "5.6.3",
+      "code": 272,
+      "request": false,
+      "proxiable": true,
+      "rules": [
+        {
+          "name": "Session-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": true,
+          "abnf": "< Session-Id >"
+        },
+        {
+          "name": "DRMP",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ DRMP ]"
+        },
+        {
+          "name": "Auth-Application-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Auth-Application-Id }"
+        },
+        {
+          "name": "Origin-Host",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Origin-Host }"
+        },
+        {
+          "name": "Origin-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Origin-Realm }"
+        },
+        {
+          "name": "Result-Code",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Result-Code ]"
+        },
+        {
+          "name": "Experimental-Result",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Experimental-Result ]"
+        },
+        {
+          "name": "CC-Request-Type",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ CC-Request-Type }"
+        },
+        {
+          "name": "CC-Request-Number",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ CC-Request-Number }"
+        },
+        {
+          "name": "OC-Supported-Features",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ OC-Supported-Features ]"
+        },
+        {
+          "name": "OC-OLR",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ OC-OLR ]"
+        },
+        {
+          "name": "Supported-Features",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Supported-Features ]"
+        },
+        {
+          "name": "Bearer-Control-Mode",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Bearer-Control-Mode ]"
+        },
+        {
+          "name": "Event-Trigger",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Event-Trigger ]"
+        },
+        {
+          "name": "Event-Report-Indication",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Event-Report-Indication ]"
+        },
+        {
+          "name": "Origin-State-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Origin-State-Id ]"
+        },
+        {
+          "name": "Redirect-Host",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Redirect-Host ]"
+        },
+        {
+          "name": "Redirect-Host-Usage",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Redirect-Host-Usage ]"
+        },
+        {
+          "name": "Redirect-Max-Cache-Time",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Redirect-Max-Cache-Time ]"
+        },
+        {
+          "name": "Charging-Rule-Remove",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Charging-Rule-Remove ]"
+        },
+        {
+          "name": "Charging-Rule-Install",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Charging-Rule-Install ]"
+        },
+        {
+          "name": "Charging-Information",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Charging-Information ]"
+        },
+        {
+          "name": "Online",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Online ]"
+        },
+        {
+          "name": "Offline",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Offline ]"
+        },
+        {
+          "name": "QoS-Information",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ QoS-Information ]"
+        },
+        {
+          "name": "Revalidation-Time",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Revalidation-Time ]"
+        },
+        {
+          "name": "Default-EPS-Bearer-QoS",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Default-EPS-Bearer-QoS ]"
+        },
+        {
+          "name": "Default-QoS-Information",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Default-QoS-Information ]"
+        },
+        {
+          "name": "Bearer-Usage",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Bearer-Usage ]"
+        },
+        {
+          "name": "Usage-Monitoring-Information",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Usage-Monitoring-Information ]"
+        },
+        {
+          "name": "CSG-Information-Reporting",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ CSG-Information-Reporting ]"
+        },
+        {
+          "name": "User-CSG-Information",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ User-CSG-Information ]"
+        },
+        {
+          "name": "PRA-Install",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ PRA-Install ]"
+        },
+        {
+          "name": "PRA-Remove",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ PRA-Remove ]"
+        },
+        {
+          "name": "Presence-Reporting-Area-Information",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Presence-Reporting-Area-Information ]"
+        },
+        {
+          "name": "Session-Release-Cause",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Session-Release-Cause ]"
+        },
+        {
+          "name": "NBIFOM-Support",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ NBIFOM-Support ]"
+        },
+        {
+          "name": "NBIFOM-Mode",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ NBIFOM-Mode ]"
+        },
+        {
+          "name": "Default-Access",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Default-Access ]"
+        },
+        {
+          "name": "RAN-Rule-Support",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ RAN-Rule-Support ]"
+        },
+        {
+          "name": "Routing-Rule-Report",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Routing-Rule-Report ]"
+        },
+        {
+          "name": "Conditional-Policy-Information",
+          "min": 0,
+          "max": 4,
+          "fixed": false,
+          "abnf": "0*4[ Conditional-Policy-Information ]"
+        },
+        {
+          "name": "Removal-Of-Access",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Removal-Of-Access ]"
+        },
+        {
+          "name": "IP-CAN-Type",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ IP-CAN-Type ]"
+        },
+        {
+          "name": "Error-Message",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Error-Message ]"
+        },
+        {
+          "name": "Error-Reporting-Host",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Error-Reporting-Host ]"
+        },
+        {
+          "name": "Failed-AVP",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Failed-AVP ]"
+        },
+        {
+          "name": "Proxy-Info",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Proxy-Info ]"
+        },
+        {
+          "name": "Route-Record",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Route-Record ]"
+        },
+        {
+          "name": "Load",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Load ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ AVP ]"
+        }
+      ]
+    },
+    {
+      "section": "5.6.4",
+      "code": 258,
+      "request": true,
+      "proxiable": true,
+      "rules": [
+        {
+          "name": "Session-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": true,
+          "abnf": "< Session-Id >"
+        },
+        {
+          "name": "DRMP",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ DRMP ]"
+        },
+        {
+          "name": "Auth-Application-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Auth-Application-Id }"
+        },
+        {
+          "name": "Origin-Host",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Origin-Host }"
+        },
+        {
+          "name": "Origin-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Origin-Realm }"
+        },
+        {
+          "name": "Destination-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Destination-Realm }"
+        },
+        {
+          "name": "Destination-Host",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Destination-Host }"
+        },
+        {
+          "name": "Re-Auth-Request-Type",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Re-Auth-Request-Type }"
+        },
+        {
+          "name": "Session-Release-Cause",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Session-Release-Cause ]"
+        },
+        {
+          "name": "Origin-State-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Origin-State-Id ]"
+        },
+        {
+          "name": "OC-Supported-Features",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ OC-Supported-Features ]"
+        },
+        {
+          "name": "Event-Trigger",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Event-Trigger ]"
+        },
+        {
+          "name": "Event-Report-Indication",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Event-Report-Indication ]"
+        },
+        {
+          "name": "Charging-Rule-Remove",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Charging-Rule-Remove ]"
+        },
+        {
+          "name": "Charging-Rule-Install",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Charging-Rule-Install ]"
+        },
+        {
+          "name": "Default-EPS-Bearer-QoS",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Default-EPS-Bearer-QoS ]"
+        },
+        {
+          "name": "QoS-Information",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ QoS-Information ]"
+        },
+        {
+          "name": "Default-QoS-Information",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Default-QoS-Information ]"
+        },
+        {
+          "name": "Revalidation-Time",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Revalidation-Time ]"
+        },
+        {
+          "name": "Usage-Monitoring-Information",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Usage-Monitoring-Information ]"
+        },
+        {
+          "name": "PCSCF-Restoration-Indication",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ PCSCF-Restoration-Indication ]"
+        },
+        {
+          "name": "Conditional-Policy-Information",
+          "min": 0,
+          "max": 4,
+          "fixed": false,
+          "abnf": "0*4[ Conditional-Policy-Information ]"
+        },
+        {
+          "name": "Removal-Of-Access",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Removal-Of-Access ]"
+        },
+        {
+          "name": "IP-CAN-Type",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ IP-CAN-Type ]"
+        },
+        {
+          "name": "PRA-Install",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ PRA-Install ]"
+        },
+        {
+          "name": "PRA-Remove",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ PRA-Remove ]"
+        },
+        {
+          "name": "CSG-Information-Reporting",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ CSG-Information-Reporting ]"
+        },
+        {
+          "name": "PC-Session-Recovery-Status",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ PC-Session-Recovery-Status ]"
+        },
+        {
+          "name": "Proxy-Info",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Proxy-Info ]"
+        },
+        {
+          "name": "Route-Record",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Route-Record ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ AVP ]"
+        }
+      ]
+    },
+    {
+      "section": "5.6.5",
+      "code": 258,
+      "request": false,
+      "proxiable": true,
+      "rules": [
+        {
+          "name": "Session-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": true,
+          "abnf": "< Session-Id >"
+        },
+        {
+          "name": "DRMP",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ DRMP ]"
+        },
+        {
+          "name": "Origin-Host",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Origin-Host }"
+        },
+        {
+          "name": "Origin-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Origin-Realm }"
+        },
+        {
+          "name": "Result-Code",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Result-Code ]"
+        },
+        {
+          "name": "Experimental-Result",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Experimental-Result ]"
+        },
+        {
+          "name": "Origin-State-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Origin-State-Id ]"
+        },
+        {
+          "name": "OC-Supported-Features",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ OC-Supported-Features ]"
+        },
+        {
+          "name": "OC-OLR",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ OC-OLR ]"
+        },
+        {
+          "name": "IP-CAN-Type",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ IP-CAN-Type ]"
+        },
+        {
+          "name": "RAT-Type",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ RAT-Type ]"
+        },
+        {
+          "name": "AN-Trusted",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ AN-Trusted ]"
+        },
+        {
+          "name": "AN-GW-Address",
+          "min": 0,
+          "max": 2,
+          "fixed": false,
+          "abnf": "0*2 [ AN-GW-Address ]"
+        },
+        {
+          "name": "3GPP-SGSN-MCC-MNC",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ 3GPP-SGSN-MCC-MNC ]"
+        },
+        {
+          "name": "3GPP-SGSN-Address",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ 3GPP-SGSN-Address ]"
+        },
+        {
+          "name": "3GPP-SGSN-Ipv6-Address",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ 3GPP-SGSN-Ipv6-Address ]"
+        },
+        {
+          "name": "RAI",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ RAI ]"
+        },
+        {
+          "name": "3GPP-User-Location-Info",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ 3GPP-User-Location-Info ]"
+        },
+        {
+          "name": "User-Location-Info-Time",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ User-Location-Info-Time ]"
+        },
+        {
+          "name": "NetLoc-Access-Support",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ NetLoc-Access-Support ]"
+        },
+        {
+          "name": "User-CSG-Information",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ User-CSG-Information ]"
+        },
+        {
+          "name": "3GPP-MS-TimeZone",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ 3GPP-MS-TimeZone ]"
+        },
+        {
+          "name": "Default-QoS-Information",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Default-QoS-Information ]"
+        },
+        {
+          "name": "Charging-Rule-Report",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Charging-Rule-Report]"
+        },
+        {
+          "name": "PC-Session-Recovery-Status",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ PC-Session-Recovery-Status ]"
+        },
+        {
+          "name": "Error-Message",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Error-Message ]"
+        },
+        {
+          "name": "Error-Reporting-Host",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Error-Reporting-Host ]"
+        },
+        {
+          "name": "Failed-AVP",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Failed-AVP ]"
+        },
+        {
+          "name": "Proxy-Info",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Proxy-Info ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ AVP ]"
+        }
+      ]
+    }
+  ],
+  "reused": [
+    {
+      "name": "3GPP-Charging-Characteristics",
+      "reference": "3GPP TS 29.061 [11]",
+      "clear_m": true,
+      "nested_clear_m": false,
+      "metadata": {
+        "code": 13,
+        "vendor": 10415,
+        "type": "UTF8String",
+        "must": "V",
+        "may": "P",
+        "must_not": "M",
+        "source": "TS 29.061 V20.1.0 §16.4.7 (see note)",
+        "may_encrypt": "Y"
+      }
+    },
+    {
+      "name": "3GPP-GGSN-Address",
+      "reference": "3GPP TS 29.061 [11]",
+      "clear_m": true,
+      "nested_clear_m": false,
+      "metadata": {
+        "code": 7,
+        "vendor": 10415,
+        "type": "OctetString",
+        "must": "V",
+        "may": "P",
+        "must_not": "M",
+        "source": "TS 29.061 V20.1.0 §16.4.7 (see note)",
+        "may_encrypt": "Y"
+      }
+    },
+    {
+      "name": "3GPP-GGSN-Ipv6-Address",
+      "reference": "3GPP TS 29.061 [11]",
+      "clear_m": true,
+      "nested_clear_m": false,
+      "metadata": {
+        "code": 16,
+        "vendor": 10415,
+        "type": "OctetString",
+        "must": "V",
+        "may": "P",
+        "must_not": "M",
+        "source": "TS 29.061 V20.1.0 §16.4.7 (see note)",
+        "may_encrypt": "Y"
+      }
+    },
+    {
+      "name": "3GPP-MS-TimeZone",
+      "reference": "3GPP TS 29.061 [11]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "metadata": {
+        "code": 23,
+        "vendor": 10415,
+        "type": "OctetString",
+        "must": "M,V",
+        "may": "P",
+        "must_not": "",
+        "source": "TS 29.061 V20.1.0 §16.4.7(see Note)",
+        "may_encrypt": "Y",
+        "flag_source": "TS 29.212 V20.0.0 §5.4"
+      }
+    },
+    {
+      "name": "3GPP-RAT-Type",
+      "reference": "3GPP TS 29.061 [11]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "metadata": {
+        "code": 21,
+        "vendor": 10415,
+        "type": "OctetString",
+        "must": "M,V",
+        "may": "P",
+        "must_not": "",
+        "source": "TS 29.061 V20.1.0 §16.4.7(see Note)",
+        "may_encrypt": "Y",
+        "flag_source": "TS 29.212 V20.0.0 §5.4"
+      }
+    },
+    {
+      "name": "3GPP-Selection-Mode",
+      "reference": "3GPP TS 29.061 [11]",
+      "clear_m": true,
+      "nested_clear_m": false,
+      "metadata": {
+        "code": 12,
+        "vendor": 10415,
+        "type": "UTF8String",
+        "must": "V",
+        "may": "P",
+        "must_not": "M",
+        "source": "TS 29.061 V20.1.0 §16.4.7 (see note)",
+        "may_encrypt": "Y"
+      }
+    },
+    {
+      "name": "3GPP-SGSN-Address",
+      "reference": "3GPP TS 29.061 [11]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "metadata": {
+        "code": 6,
+        "vendor": 10415,
+        "type": "OctetString",
+        "must": "M,V",
+        "may": "P",
+        "must_not": "",
+        "source": "TS 29.061 V20.1.0 §16.4.7 (see note)",
+        "may_encrypt": "Y",
+        "flag_source": "TS 29.212 V20.0.0 §5.4"
+      }
+    },
+    {
+      "name": "3GPP-SGSN-Ipv6-Address",
+      "reference": "3GPP TS 29.061 [11]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "metadata": {
+        "code": 15,
+        "vendor": 10415,
+        "type": "OctetString",
+        "must": "M,V",
+        "may": "P",
+        "must_not": "",
+        "source": "TS 29.061 V20.1.0 §16.4.7 (see note)",
+        "may_encrypt": "Y",
+        "flag_source": "TS 29.212 V20.0.0 §5.4"
+      }
+    },
+    {
+      "name": "3GPP-SGSN-MCC-MNC",
+      "reference": "3GPP TS 29.061 [11]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "metadata": {
+        "code": 18,
+        "vendor": 10415,
+        "type": "UTF8String",
+        "must": "M,V",
+        "may": "P",
+        "must_not": "",
+        "source": "TS 29.061 V20.1.0 §16.4.7 (see note)",
+        "may_encrypt": "Y",
+        "flag_source": "TS 29.212 V20.0.0 §5.4"
+      }
+    },
+    {
+      "name": "3GPP-User-Location-Info",
+      "reference": "3GPP TS 29.061 [11]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "metadata": {
+        "code": 22,
+        "vendor": 10415,
+        "type": "OctetString",
+        "must": "M,V",
+        "may": "P",
+        "must_not": "",
+        "source": "TS 29.061 V20.1.0 §16.4.7(see Note)",
+        "may_encrypt": "Y",
+        "flag_source": "TS 29.212 V20.0.0 §5.4"
+      }
+    },
+    {
+      "name": "3GPP2-BSID",
+      "reference": "3GPP2 X.S0057 [24]",
+      "clear_m": true,
+      "nested_clear_m": false,
+      "registry": {
+        "vendor": 5535,
+        "code": 9010,
+        "source": "3GPP2 Assigned Numbers, Diameter 3GPP2 AVPs, X.S0057"
+      }
+    },
+    {
+      "name": "AccessNetwork-Charging-Address",
+      "reference": "3GPP TS 29.214 [10]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "metadata": {
+        "code": 501,
+        "vendor": 10415,
+        "type": "Address",
+        "must": "M,V",
+        "may": "P",
+        "must_not": "",
+        "source": "TS 29.214 V20.0.0 §5.3.2",
+        "may_encrypt": "Y"
+      }
+    },
+    {
+      "name": "AccessNetwork-Charging-Identifier-Value",
+      "reference": "3GPP TS 29.214 [10]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "metadata": {
+        "code": 503,
+        "vendor": 10415,
+        "type": "OctetString",
+        "must": "M,V",
+        "may": "P",
+        "must_not": "",
+        "source": "TS 29.214 V20.0.0 §5.3.4",
+        "may_encrypt": "Y"
+      }
+    },
+    {
+      "name": "AF-Charging-Identifier",
+      "reference": "3GPP TS 29.214 [10]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "metadata": {
+        "code": 505,
+        "vendor": 10415,
+        "type": "OctetString",
+        "must": "M,V",
+        "may": "P",
+        "must_not": "",
+        "source": "TS 29.214 V20.0.0 §5.3.6",
+        "may_encrypt": "Y"
+      }
+    },
+    {
+      "name": "AF-Signalling-Protocol",
+      "reference": "3GPP TS 29.214 [10]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "metadata": {
+        "code": 529,
+        "vendor": 10415,
+        "type": "Enumerated",
+        "must": "V",
+        "may": "P",
+        "must_not": "M",
+        "source": "TS 29.214 V20.0.0 §5.3.26",
+        "may_encrypt": "Y"
+      }
+    },
+    {
+      "name": "AN-Trusted",
+      "reference": "3GPP TS 29.273 [48]",
+      "clear_m": true,
+      "nested_clear_m": false,
+      "metadata": {
+        "code": 1503,
+        "vendor": 10415,
+        "type": "Enumerated",
+        "must": "V",
+        "may": "",
+        "must_not": "M,P",
+        "source": "TS 29.273 V19.2.0 §5.2.3.9"
+      }
+    },
+    {
+      "name": "Application-Service-Provider-Identity",
+      "reference": "3GPP TS 29.214 [10]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "metadata": {
+        "code": 532,
+        "vendor": 10415,
+        "type": "UTF8String",
+        "must": "V",
+        "may": "P",
+        "must_not": "M",
+        "source": "TS 29.214 V20.0.0 §5.3.29",
+        "may_encrypt": "Y"
+      }
+    },
+    {
+      "name": "BSSID",
+      "reference": "3GPP TS 32.299 [19]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "metadata": {
+        "code": 2716,
+        "vendor": 10415,
+        "type": "UTF8String",
+        "must": "V,M",
+        "may": "",
+        "must_not": "",
+        "source": "TS 32.299 V19.0.0 §Table 7.2.0.1"
+      }
+    },
+    {
+      "name": "Called-Station-Id",
+      "reference": "IETF RFC 4005 [12]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "metadata": {
+        "code": 30,
+        "vendor": 0,
+        "type": "UTF8String",
+        "must": "M",
+        "may": "",
+        "must_not": "V",
+        "source": "RFC 7155 (April 2014) §4.2.5"
+      }
+    },
+    {
+      "name": "Callee-Information",
+      "reference": "3GPP TS 29.214 [10]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "metadata": {
+        "code": 565,
+        "vendor": 10415,
+        "type": "Grouped",
+        "must": "V",
+        "may": "P",
+        "must_not": "M",
+        "source": "TS 29.214 V20.0.0 §5.3.62",
+        "may_encrypt": "Y"
+      }
+    },
+    {
+      "name": "Calling-Party-Address",
+      "reference": "3GPP TS 32.299 [19]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "metadata": {
+        "code": 831,
+        "vendor": 10415,
+        "type": "UTF8String",
+        "must": "V,M",
+        "may": "",
+        "must_not": "",
+        "source": "TS 32.299 V19.0.0 §Table 7.2.0.1"
+      }
+    },
+    {
+      "name": "CC-Request-Number",
+      "reference": "IETF RFC 8506 [66]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "metadata": {
+        "code": 415,
+        "vendor": 0,
+        "must": "M",
+        "may": "",
+        "must_not": "V",
+        "source": "RFC 8506 (March 2019) §8.2"
+      }
+    },
+    {
+      "name": "CC-Request-Type",
+      "reference": "IETF RFC 8506 [66]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "metadata": {
+        "code": 416,
+        "vendor": 0,
+        "must": "M",
+        "may": "",
+        "must_not": "V",
+        "source": "RFC 8506 (March 2019) §8.3"
+      }
+    },
+    {
+      "name": "Charging-Information",
+      "reference": "3GPP TS 29.229 [14]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "metadata": {
+        "code": 618,
+        "vendor": 10415,
+        "type": "Grouped",
+        "must": "M,V",
+        "may": "",
+        "must_not": "",
+        "source": "TS 29.229 V19.1.0 §6.3.19",
+        "may_encrypt": "N"
+      }
+    },
+    {
+      "name": "Content-Version",
+      "reference": "3GPP TS 29.214 [10]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "metadata": {
+        "code": 552,
+        "vendor": 10415,
+        "type": "Unsigned64",
+        "must": "V",
+        "may": "P",
+        "must_not": "M",
+        "source": "TS 29.214 V20.0.0 §5.3.49",
+        "may_encrypt": "Y"
+      }
+    },
+    {
+      "name": "DRMP",
+      "reference": "IETF RFC 7944 [53]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "metadata": {
+        "code": 301,
+        "vendor": 0,
+        "type": "Enumerated",
+        "must": "",
+        "may": "",
+        "must_not": "V",
+        "source": "RFC 7944 (August 2016) §9.1"
+      }
+    },
+    {
+      "name": "Dynamic-Address-Flag",
+      "reference": "3GPP TS 32.299 [19]",
+      "clear_m": true,
+      "nested_clear_m": false,
+      "metadata": {
+        "code": 2051,
+        "vendor": 10415,
+        "type": "Enumerated",
+        "must": "V",
+        "may": "",
+        "must_not": "M",
+        "source": "TS 32.299 V19.0.0 §Table 7.2.0.1"
+      }
+    },
+    {
+      "name": "Dynamic-Address-Flag-Extension",
+      "reference": "3GPP TS 32.299 [19]",
+      "clear_m": true,
+      "nested_clear_m": false,
+      "metadata": {
+        "code": 2068,
+        "vendor": 10415,
+        "type": "Enumerated",
+        "must": "V",
+        "may": "",
+        "must_not": "M",
+        "source": "TS 32.299 V19.0.0 §Table 7.2.0.1"
+      }
+    },
+    {
+      "name": "Extended-Max-Requested-BW-DL",
+      "reference": "3GPP TS 29.214 [10]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "metadata": {
+        "code": 554,
+        "vendor": 10415,
+        "type": "Unsigned32",
+        "must": "V",
+        "may": "P",
+        "must_not": "M",
+        "source": "TS 29.214 V20.0.0 §5.3.52",
+        "may_encrypt": "Y"
+      }
+    },
+    {
+      "name": "Extended-Max-Requested-BW-UL",
+      "reference": "3GPP TS 29.214 [10]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "metadata": {
+        "code": 555,
+        "vendor": 10415,
+        "type": "Unsigned32",
+        "must": "V",
+        "may": "P",
+        "must_not": "M",
+        "source": "TS 29.214 V20.0.0 §5.3.53",
+        "may_encrypt": "Y"
+      }
+    },
+    {
+      "name": "Final-Unit-Indication",
+      "reference": "IETF RFC 8506 [66]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "metadata": {
+        "code": 430,
+        "vendor": 0,
+        "must": "M",
+        "may": "",
+        "must_not": "V",
+        "source": "RFC 8506 (March 2019) §8.34"
+      }
+    },
+    {
+      "name": "Flow-Description",
+      "reference": "3GPP TS 29.214 [10],5.4.2",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "metadata": {
+        "code": 507,
+        "vendor": 10415,
+        "type": "IPFilterRule",
+        "must": "M,V",
+        "may": "P",
+        "must_not": "",
+        "source": "TS 29.214 V20.0.0 §5.3.8",
+        "may_encrypt": "Y"
+      }
+    },
+    {
+      "name": "Flows",
+      "reference": "3GPP TS 29.214 [10]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "metadata": {
+        "code": 510,
+        "vendor": 10415,
+        "type": "Grouped",
+        "must": "M,V",
+        "may": "P",
+        "must_not": "",
+        "source": "TS 29.214 V20.0.0 §5.3.10",
+        "may_encrypt": "Y"
+      }
+    },
+    {
+      "name": "Flow-Status",
+      "reference": "3GPP TS 29.214 [10]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "metadata": {
+        "code": 511,
+        "vendor": 10415,
+        "type": "Enumerated",
+        "must": "M,V",
+        "may": "P",
+        "must_not": "",
+        "source": "TS 29.214 V20.0.0 §5.3.11",
+        "may_encrypt": "Y"
+      }
+    },
+    {
+      "name": "Framed-IP-Address",
+      "reference": "IETF RFC 4005 [12]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "metadata": {
+        "code": 8,
+        "vendor": 0,
+        "type": "OctetString",
+        "must": "M",
+        "may": "",
+        "must_not": "V",
+        "source": "RFC 7155 (April 2014) §4.4.10.5.1"
+      }
+    },
+    {
+      "name": "Framed-Ipv6-Prefix",
+      "reference": "IETF RFC 4005 [12]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "metadata": {
+        "code": 97,
+        "vendor": 0,
+        "type": "OctetString",
+        "must": "M",
+        "may": "",
+        "must_not": "V",
+        "source": "RFC 7155 (April 2014) §4.4.10.5.6"
+      }
+    },
+    {
+      "name": "Granted-Service-Unit",
+      "reference": "IETF RFC 8506 [66]",
+      "clear_m": true,
+      "nested_clear_m": true,
+      "metadata": {
+        "code": 431,
+        "vendor": 0,
+        "must": "",
+        "may": "",
+        "must_not": "M,V",
+        "source": "RFC 8506 (March 2019) §8.17"
+      }
+    },
+    {
+      "name": "Load",
+      "reference": "IETF RFC 8583 [60]",
+      "clear_m": true,
+      "nested_clear_m": true,
+      "metadata": {
+        "code": 650,
+        "vendor": 0,
+        "type": "Grouped",
+        "must": "",
+        "may": "",
+        "must_not": "M,V",
+        "source": "RFC 8583 (August 2019) §7.1"
+      }
+    },
+    {
+      "name": "Logical-Access-ID",
+      "reference": "3GPP TS 283 034 [37]",
+      "clear_m": true,
+      "nested_clear_m": false,
+      "metadata": {
+        "code": 302,
+        "vendor": 13019,
+        "type": "OctetString",
+        "must": "V",
+        "may": "",
+        "must_not": "M",
+        "may_encrypt": "Y",
+        "source": "ETSI ES 283 034 V2.2.0 Table 10, §7.3.3"
+      }
+    },
+    {
+      "name": "Max-Requested-Bandwidth-UL",
+      "reference": "3GPP TS 29.214 [10]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "metadata": {
+        "code": 516,
+        "vendor": 10415,
+        "type": "Unsigned32",
+        "must": "M,V",
+        "may": "P",
+        "must_not": "",
+        "source": "TS 29.214 V20.0.0 §5.3.15",
+        "may_encrypt": "Y"
+      }
+    },
+    {
+      "name": "Max-Requested-Bandwidth-DL",
+      "reference": "3GPP TS 29.214 [10]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "metadata": {
+        "code": 515,
+        "vendor": 10415,
+        "type": "Unsigned32",
+        "must": "M,V",
+        "may": "P",
+        "must_not": "",
+        "source": "TS 29.214 V20.0.0 §5.3.14",
+        "may_encrypt": "Y"
+      }
+    },
+    {
+      "name": "Maximum-Wait-Time",
+      "reference": "3GPP TS 29.273 [48]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "metadata": {
+        "code": 1537,
+        "vendor": 10415,
+        "type": "Unsigned32",
+        "must": "V",
+        "may": "",
+        "must_not": "M,P",
+        "source": "TS 29.273 V19.2.0 §9.2.3.2.7"
+      }
+    },
+    {
+      "name": "OC-OLR",
+      "reference": "IETF RFC 7683 [49]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "metadata": {
+        "code": 623,
+        "vendor": 0,
+        "type": "Grouped",
+        "must": "",
+        "may": "",
+        "must_not": "V",
+        "source": "RFC 7683 (October 2015) §7.3"
+      }
+    },
+    {
+      "name": "OC-Supported-Features",
+      "reference": "IETF RFC 7683 [49]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "metadata": {
+        "code": 621,
+        "vendor": 0,
+        "type": "Grouped",
+        "must": "",
+        "may": "",
+        "must_not": "V",
+        "source": "RFC 7683 (October 2015) §7.1"
+      }
+    },
+    {
+      "name": "Origination-Time-Stamp",
+      "reference": "3GPP TS 29.273 [48]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "metadata": {
+        "code": 1536,
+        "vendor": 10415,
+        "type": "Unsigned64",
+        "must": "V",
+        "may": "",
+        "must_not": "M,P",
+        "source": "TS 29.273 V19.2.0 §9.2.3.2.6"
+      }
+    },
+    {
+      "name": "PC-Session-Recovery-Status",
+      "reference": "3GPP TS 29.214 [10]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "metadata": {
+        "code": 584,
+        "vendor": 10415,
+        "type": "Enumerated",
+        "must": "V",
+        "may": "P",
+        "must_not": "M",
+        "source": "TS 29.214 V20.0.0 §5.3.81",
+        "may_encrypt": "Y",
+        "items": {
+          "0": "SESSION_RESTORATION_REQUEST",
+          "1": "SESSION_RESTORATION_TRIGGERED",
+          "2": "SESSION_RESTORATION_NOT_TRIGGERED",
+          "3": "SESSION_NOT_FOUND"
+        }
+      }
+    },
+    {
+      "name": "PDN-Connection-Charging-ID",
+      "reference": "3GPP TS 32.299 [19]",
+      "clear_m": true,
+      "nested_clear_m": false,
+      "metadata": {
+        "code": 2050,
+        "vendor": 10415,
+        "type": "Unsigned32",
+        "must": "V",
+        "may": "",
+        "must_not": "M",
+        "source": "TS 32.299 V19.0.0 §Table 7.2.0.1"
+      }
+    },
+    {
+      "name": "Physical-Access-ID",
+      "reference": "ETSI TS 283 034 [37]",
+      "clear_m": true,
+      "nested_clear_m": false,
+      "metadata": {
+        "code": 313,
+        "vendor": 13019,
+        "type": "UTF8String",
+        "must": "V",
+        "may": "",
+        "must_not": "M",
+        "may_encrypt": "Y",
+        "source": "ETSI ES 283 034 V2.2.0 Table 10, §7.3.14"
+      }
+    },
+    {
+      "name": "Quota-Consumption-Time",
+      "reference": "3GPP TS 32.299 [19]",
+      "clear_m": true,
+      "nested_clear_m": false,
+      "metadata": {
+        "code": 881,
+        "vendor": 10415,
+        "type": "Unsigned32",
+        "must": "V",
+        "may": "",
+        "must_not": "M",
+        "source": "TS 32.299 V19.0.0 §Table 7.2.0.1"
+      }
+    },
+    {
+      "name": "RAI",
+      "reference": "3GPP TS 29.061 [11]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "metadata": {
+        "code": 909,
+        "vendor": 10415,
+        "type": "UTF8String",
+        "must": "M,V",
+        "may": "P",
+        "must_not": "",
+        "source": "TS 29.061 V20.1.0 §17.7.12",
+        "may_encrypt": "Y",
+        "flag_source": "TS 29.212 V20.0.0 §5.4"
+      }
+    },
+    {
+      "name": "Rating-Group",
+      "reference": "IETF RFC 8506 [66]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "metadata": {
+        "code": 432,
+        "vendor": 0,
+        "must": "M",
+        "may": "",
+        "must_not": "V",
+        "source": "RFC 8506 (March 2019) §8.29"
+      }
+    },
+    {
+      "name": "Redirect-Address-Type",
+      "reference": "IETF RFC 8506 [66]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "metadata": {
+        "code": 433,
+        "vendor": 0,
+        "must": "M",
+        "may": "",
+        "must_not": "V",
+        "source": "RFC 8506 (March 2019) §8.38"
+      }
+    },
+    {
+      "name": "Redirect-Server-Address",
+      "reference": "IETF RFC 8506 [66]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "metadata": {
+        "code": 435,
+        "vendor": 0,
+        "must": "M",
+        "may": "",
+        "must_not": "V",
+        "source": "RFC 8506 (March 2019) §8.39"
+      }
+    },
+    {
+      "name": "Required-Access-Info",
+      "reference": "3GPP TS 29.214 [10]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "metadata": {
+        "code": 536,
+        "vendor": 10415,
+        "type": "Enumerated",
+        "must": "V",
+        "may": "P",
+        "must_not": "M",
+        "source": "TS 29.214 V20.0.0 §5.3.34",
+        "may_encrypt": "Y",
+        "items": {
+          "0": "USER_LOCATION",
+          "1": "MS_TIME_ZONE",
+          "2": "UE_SAT_INFO"
+        }
+      }
+    },
+    {
+      "name": "Service-Identifier",
+      "reference": "IETF RFC 8506 [66]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "metadata": {
+        "code": 439,
+        "vendor": 0,
+        "must": "M",
+        "may": "",
+        "must_not": "V",
+        "source": "RFC 8506 (March 2019) §8.28"
+      }
+    },
+    {
+      "name": "Sharing-Key-DL",
+      "reference": "3GPP TS 29.214 [10]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "metadata": {
+        "code": 539,
+        "vendor": 10415,
+        "type": "Unsigned32",
+        "must": "V",
+        "may": "P",
+        "must_not": "M",
+        "source": "TS 29.214 V20.0.0 §5.3.37",
+        "may_encrypt": "Y"
+      }
+    },
+    {
+      "name": "Sharing-Key-UL",
+      "reference": "3GPP TS 29.214 [10]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "metadata": {
+        "code": 540,
+        "vendor": 10415,
+        "type": "Unsigned32",
+        "must": "V",
+        "may": "P",
+        "must_not": "M",
+        "source": "TS 29.214 V20.0.0 §5.3.38",
+        "may_encrypt": "Y"
+      }
+    },
+    {
+      "name": "Sponsor-Identity",
+      "reference": "3GPP TS 29.214 [10]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "metadata": {
+        "code": 531,
+        "vendor": 10415,
+        "type": "UTF8String",
+        "must": "V",
+        "may": "P",
+        "must_not": "M",
+        "source": "TS 29.214 V20.0.0 §5.3.28",
+        "may_encrypt": "Y"
+      }
+    },
+    {
+      "name": "SSID",
+      "reference": "3GPP TS 29.273 [48]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "metadata": {
+        "code": 1524,
+        "vendor": 10415,
+        "type": "UTF8String",
+        "must": "V",
+        "may": "",
+        "must_not": "M,P",
+        "source": "TS 29.273 V19.2.0 §5.2.3.22"
+      }
+    },
+    {
+      "name": "Subscription-Id",
+      "reference": "IETF RFC 8506 [66]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "metadata": {
+        "code": 443,
+        "vendor": 0,
+        "must": "M",
+        "may": "",
+        "must_not": "V",
+        "source": "RFC 8506 (March 2019) §8.46"
+      }
+    },
+    {
+      "name": "Supported-Features",
+      "reference": "3GPP TS 29.229 [14]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "metadata": {
+        "code": 628,
+        "vendor": 10415,
+        "type": "Grouped",
+        "must": "V",
+        "may": "M",
+        "must_not": "",
+        "source": "TS 29.229 V19.1.0 §6.3.29",
+        "may_encrypt": "N"
+      }
+    },
+    {
+      "name": "Trace-Data",
+      "reference": "3GPP TS 29.272 [26]",
+      "clear_m": true,
+      "nested_clear_m": true,
+      "metadata": {
+        "code": 1458,
+        "vendor": 10415,
+        "type": "Grouped",
+        "must": "V",
+        "may": "",
+        "must_not": "M",
+        "source": "TS 29.272 V19.6.0 §7.3.63",
+        "may_encrypt": "N"
+      }
+    },
+    {
+      "name": "Trace-Reference",
+      "reference": "3GPP TS 29.272 [26]",
+      "clear_m": true,
+      "nested_clear_m": false,
+      "metadata": {
+        "code": 1459,
+        "vendor": 10415,
+        "type": "OctetString",
+        "must": "V",
+        "may": "",
+        "must_not": "M",
+        "source": "TS 29.272 V19.6.0 §7.3.64",
+        "may_encrypt": "N"
+      }
+    },
+    {
+      "name": "UHRR-Capability",
+      "reference": "3GPP TS 29.214 [10]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "metadata": {
+        "code": 585,
+        "vendor": 10415,
+        "type": "Enumerated",
+        "must": "V",
+        "may": "P",
+        "must_not": "M",
+        "source": "TS 29.214 V20.0.0 §5.3.82",
+        "may_encrypt": "Y",
+        "items": {
+          "0": "UHRR_NOT_SUPPORTED",
+          "1": "UHRR_SUPPORTED"
+        }
+      }
+    },
+    {
+      "name": "UHRR-Enable-Indication",
+      "reference": "3GPP TS 29.214 [10]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "metadata": {
+        "code": 586,
+        "vendor": 10415,
+        "type": "Enumerated",
+        "must": "V",
+        "may": "P",
+        "must_not": "M",
+        "source": "TS 29.214 V20.0.0 §5.3.83",
+        "may_encrypt": "Y",
+        "items": {
+          "0": "UHRR_DISABLED",
+          "1": "UHRR_ENABLED"
+        }
+      }
+    },
+    {
+      "name": "TWAN-Identifier",
+      "reference": "3GPP TS 29.061 [11]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "metadata": {
+        "code": 29,
+        "vendor": 10415,
+        "type": "OctetString",
+        "must": "M,V",
+        "may": "P",
+        "must_not": "",
+        "source": "TS 29.061 V20.1.0 §16.4.7(see Note)",
+        "may_encrypt": "Y",
+        "flag_source": "TS 29.212 V20.0.0 §5.4"
+      }
+    },
+    {
+      "name": "User-CSG-Information",
+      "reference": "3GPP TS 32.299 [19]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "metadata": {
+        "code": 2319,
+        "vendor": 10415,
+        "type": "Grouped",
+        "must": "V,M",
+        "may": "",
+        "must_not": "",
+        "source": "TS 32.299 V19.0.0 §Table 7.2.0.1"
+      }
+    },
+    {
+      "name": "User-Equipment-Info",
+      "reference": "IETF RFC 8506 [66]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "metadata": {
+        "code": 458,
+        "vendor": 0,
+        "must": "",
+        "may": "M",
+        "must_not": "V",
+        "source": "RFC 8506 (March 2019) §8.49"
+      }
+    },
+    {
+      "name": "User-Equipment-Info-Extension",
+      "reference": "IETF RFC 8506 [66]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "metadata": {
+        "code": 653,
+        "vendor": 0,
+        "must": "",
+        "may": "M",
+        "must_not": "V",
+        "source": "RFC 8506 (March 2019) §8.52"
+      }
+    },
+    {
+      "name": "Used-Service-Unit",
+      "reference": "IETF RFC 8506 [66]",
+      "clear_m": true,
+      "nested_clear_m": true,
+      "metadata": {
+        "code": 446,
+        "vendor": 0,
+        "must": "",
+        "may": "",
+        "must_not": "M,V",
+        "source": "RFC 8506 (March 2019) §8.19"
+      }
+    }
+  ]
+}

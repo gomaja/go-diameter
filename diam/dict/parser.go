@@ -107,6 +107,8 @@ func (p *Parser) LoadFile(filenames ...string) error {
 // application may shadow an ancestor's name. Every command request/answer
 // rule and Grouped member rule must resolve by name after replacements and
 // inheritance, except the AVP wildcard (RFC 6733 (October 2012) §§3.2, 4.4).
+// Member prohibitions allow only M/P and must not contradict resolved
+// members' required flags; contradictions return ErrAVPConflict.
 // An unresolved rule returns an error wrapping ErrAVPConflict and ErrNotFound.
 // A dictionary that changes a registered definition is refused with
 // ErrAVPConflict. Duplicate commands in one application are refused as well.
@@ -166,6 +168,11 @@ func parseFile(r io.Reader) (*File, error) {
 	}
 	for _, app := range f.App {
 		for _, avp := range app.AVP {
+			for _, rule := range []struct{ name, value string }{{"must", avp.Must}, {"may", avp.May}, {"must-not", avp.MustNot}} {
+				if _, err := parseFlags(rule.value); err != nil {
+					return nil, fmt.Errorf("AVP %s %s flags: %w", avp.Name, rule.name, err)
+				}
+			}
 			// Link AVP to its Application
 			avp.App = app
 			if err := updateType(avp); err != nil {
@@ -307,8 +314,8 @@ func printCommandRules(w io.Writer, rules []*Rule) {
 		if rule.Required && min == 0 {
 			min = 1
 		}
-		writef(w, "\t\t\t% -40s required=%-5t min=%d max=%d\n",
-			rule.AVP, rule.Required, min, rule.Max)
+		writef(w, "\t\t\t% -40s required=%-5t min=%d max=%d must-not=%q\n",
+			rule.AVP, rule.Required, min, rule.Max, rule.MustNot)
 	}
 }
 
@@ -329,8 +336,8 @@ func printAVP(w io.Writer, avp *AVP) {
 	if len(avp.Data.Rule) > 0 {
 		writef(w, "\t\tRules:\n")
 		for _, rule := range avp.Data.Rule {
-			writef(w, "\t\t\t% -40s required=%-5t min=%d max=%d\n",
-				rule.AVP, rule.Required, rule.Min, rule.Max)
+			writef(w, "\t\t\t% -40s required=%-5t min=%d max=%d must-not=%q\n",
+				rule.AVP, rule.Required, rule.Min, rule.Max, rule.MustNot)
 		}
 	}
 }

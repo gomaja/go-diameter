@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -55,12 +56,20 @@ func TestCreditControlAVPFlagsRFC8506(t *testing.T) {
 					if avp.VendorID != 0 || !found {
 						continue
 					}
+					// TS 29.212 V20.0.0 Table 5.4.0.1 and Note 5 override
+					// the M bit of usage-monitoring units and their members.
+					if name == "gx_credit_control.xml" {
+						switch avp.Code {
+						case 412, 414, 420, 421, 431, 446:
+							want.Must, want.May, want.MustNot = "", "", "M,V"
+						}
+					}
 					seen[avp.Code] = true
 					t.Run(want.Name, func(t *testing.T) {
 						if avp.Name != want.Name {
 							t.Errorf("AVP %d/0 name = %q, want %q", avp.Code, avp.Name, want.Name)
 						}
-						if avp.Must != want.Must || avp.May != want.May || avp.MustNot != want.MustNot {
+						if strings.Trim(avp.Must, "-") != strings.Trim(want.Must, "-") || strings.Trim(avp.May, "-") != strings.Trim(want.May, "-") || strings.Trim(avp.MustNot, "-") != strings.Trim(want.MustNot, "-") {
 							t.Errorf("RFC 8506 §8 table (%s, §%s): must/may/must-not = %q/%q/%q, want %q/%q/%q",
 								want.Name, want.Section, avp.Must, avp.May, avp.MustNot, want.Must, want.May, want.MustNot)
 						}

@@ -153,7 +153,7 @@ func TestMarshalDictionaryFlags(t *testing.T) {
 	}{"mme.example", 1, 0}); err != nil {
 		t.Fatal(err)
 	}
-	if err := validateOutgoingFlags(m.AVP, m.Header.ApplicationID, m.Dictionary().Snapshot()); err != nil {
+	if err := walkOutgoingFlags(m.AVP, m.Header.ApplicationID, m.Dictionary().Snapshot(), make(map[*GroupedAVP]bool), nil); err != nil {
 		t.Fatal(err)
 	}
 }

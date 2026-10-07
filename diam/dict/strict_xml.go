@@ -42,7 +42,7 @@ var dictionaryElements = map[string]dictionaryElement{
 	"avp":         {children: names("data"), attrs: names("name", "code", "must", "may", "must-not", "may-encrypt", "vendor-id")},
 	"data":        {children: names("item", "rule"), attrs: names("type")},
 	"item":        {attrs: names("code", "name")},
-	"rule":        {attrs: names("avp", "required", "min", "max", "fixed")},
+	"rule":        {attrs: names("avp", "required", "min", "max", "fixed", "must-not")},
 }
 
 func (v *strictDictionaryXML) Token() (xml.Token, error) {
