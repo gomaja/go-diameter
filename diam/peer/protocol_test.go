@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/gomaja/go-diameter/diam"
@@ -25,6 +26,7 @@ import (
 type fakeClock struct {
 	mu     sync.Mutex
 	timers []*fakeTimer
+	armed  chan struct{}
 }
 type fakeConn struct {
 	once              sync.Once
@@ -63,8 +65,73 @@ func (c *fakeClock) AfterFunc(d time.Duration, f func()) Timer {
 	t := &fakeTimer{active: true, f: f, duration: d}
 	c.mu.Lock()
 	c.timers = append(c.timers, t)
+	if c.armed != nil {
+		close(c.armed)
+		c.armed = nil
+	}
 	c.mu.Unlock()
 	return t
+}
+
+func (c *fakeClock) timerCount() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return len(c.timers)
+}
+
+// waitTimers waits for registrations, including timers subsequently stopped or
+// fired. Mark timerCount before the triggering action to wait for new timers.
+func (c *fakeClock) waitTimers(t *testing.T, want int) {
+	t.Helper()
+	deadline := time.NewTimer(5 * time.Second)
+	defer deadline.Stop()
+	for {
+		c.mu.Lock()
+		count := len(c.timers)
+		if count >= want {
+			c.mu.Unlock()
+			return
+		}
+		if c.armed == nil {
+			c.armed = make(chan struct{})
+		}
+		armed := c.armed
+		c.mu.Unlock()
+		select {
+		case <-armed:
+		case <-deadline.C:
+			t.Fatalf("timer registrations=%d, want at least %d", c.timerCount(), want)
+		}
+	}
+}
+
+func TestFakeClockWaitTimers(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		clock := &fakeClock{}
+		clock.waitTimers(t, 0)
+		clock.AfterFunc(time.Second, func() {}).Stop()
+		mark := clock.timerCount()
+		clock.waitTimers(t, mark)
+		done := make(chan struct{}, 2)
+		for range 2 {
+			go func() {
+				clock.waitTimers(t, mark+2)
+				done <- struct{}{}
+			}()
+		}
+		synctest.Wait()
+		clock.AfterFunc(time.Second, func() {})
+		synctest.Wait()
+		select {
+		case <-done:
+			t.Fatal("wait returned before both new timers were registered")
+		default:
+		}
+		clock.AfterFunc(time.Second, func() {})
+		<-done
+		<-done
+		clock.waitTimers(t, mark+2)
+	})
 }
 func (t *fakeTimer) Stop() bool {
 	t.mu.Lock()
@@ -292,7 +359,7 @@ func TestPreCERGateAndUnknownPeer(t *testing.T) {
 				}
 				write(t, c, dwr)
 			case "timeout":
-				time.Sleep(10 * time.Millisecond)
+				clock.waitTimers(t, 1)
 				clock.fire()
 			default:
 				host := "known.example.net"
@@ -780,11 +847,15 @@ func TestInboundSurvivesOutboundNackWithoutCERTimer(t *testing.T) {
 	}
 	write(t, c, cer)
 	awaitState(t, m, WaitConnAckElect)
+	before := clock.timerCount()
 	close(release)
 	if got := code(t, read(t, c)); got != diam.Success {
 		t.Fatalf("CEA Result-Code=%d", got)
 	}
 	awaitState(t, m, ROpen)
+	// onOpen publishes ROpen before registering its watchdog. The next timer
+	// after the outbound NACK is the watchdog; state visibility is not a barrier.
+	clock.waitTimers(t, before+1)
 	clock.fire()
 	if got := m.Peers()[0].State; got != ROpen {
 		t.Fatalf("stale CER timer closed peer: %s", got)
