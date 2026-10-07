@@ -113,6 +113,11 @@ type Enum struct {
 
 // Rule defines the usage rules of an AVP.
 type Rule struct {
+	// MustNot adds outgoing M/P flag prohibitions for this member in its parent.
+	// An AVP wildcard prohibition also applies to explicitly named members.
+	// Prohibitions must not contradict a resolved member's required flags.
+	// For example, TS 29.212 V20.0.0 Table 5.4.0.1 clears M inside Load.
+	MustNot  string `xml:"must-not,attr"`
 	AVP      string `xml:"avp,attr"` // AVP Name
 	Required bool   `xml:"required,attr"`
 	Min      int    `xml:"min,attr"`
@@ -130,6 +135,9 @@ type Rule struct {
 // The value receiver covers both Rule and *Rule.
 func (r Rule) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
 	start.Attr = append(start.Attr, xml.Attr{Name: xml.Name{Local: "avp"}, Value: r.AVP})
+	if r.MustNot != "" {
+		start.Attr = append(start.Attr, xml.Attr{Name: xml.Name{Local: "must-not"}, Value: r.MustNot})
+	}
 	if r.Required {
 		start.Attr = append(start.Attr, xml.Attr{Name: xml.Name{Local: "required"}, Value: "true"})
 	}
@@ -147,6 +155,7 @@ func (r Rule) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
 
 func (r *Rule) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
 	type rawRule struct {
+		MustNot  string `xml:"must-not,attr"`
 		AVP      string `xml:"avp,attr"`
 		Required bool   `xml:"required,attr"`
 		Min      int    `xml:"min,attr"`
@@ -157,6 +166,10 @@ func (r *Rule) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
 	if err := d.DecodeElement(&raw, &start); err != nil {
 		return err
 	}
+	if _, err := parseMemberProhibitions(raw.MustNot); err != nil {
+		return fmt.Errorf("member %s must-not flags: %w", raw.AVP, err)
+	}
+	r.MustNot = raw.MustNot
 	r.AVP, r.Required, r.Min, r.Fixed = raw.AVP, raw.Required, raw.Min, raw.Fixed
 	if raw.Max != "" {
 		max, err := strconv.Atoi(raw.Max)

@@ -1,423 +1,1753 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <diameter>
-
+    <!-- RFC 6733 (October 2012) §3.2, Verified Errata 4803: Diameter Header CCF notation. -->
     <application id="16777238" type="auth" name="Gx Charging Control">
-        <!-- Diameter Gx Credit Control Application -->
-        <!-- 3GPP 29.212 -->
-        <!-- proxiable: each request CCF is "REQ, PXY", each answer "PXY" (3GPP TS 29.212 V20.0.0 §§5.6.2-5.6.5). -->
-
-        <vendor id="10415" name="TGPP"/>
+        <vendor id="10415" name="TGPP" />
         <command code="272" short="CC" name="Credit-Control">
             <request proxiable="true">
-                <!-- 3GPP 29.212 Section 5.6.2 -->
-                <rule avp="Session-Id" required="true" max="1"/>
-                <rule avp="Origin-Host" required="true" max="1"/>
-                <rule avp="Origin-Realm" required="true" max="1"/>
-                <rule avp="Destination-Realm" required="true" max="1"/>
-                <rule avp="Auth-Application-Id" required="true" max="1"/>
-                <rule avp="CC-Request-Type" required="true" max="1"/>
-                <rule avp="CC-Request-Number" required="true" max="1"/>
-                <rule avp="Destination-Host" required="false" max="1"/>
-                <rule avp="Origin-State-Id" required="false" max="1"/>
-                <rule avp="Subscription-Id" required="false" max="1"/>
-                <rule avp="Termination-Cause" required="false" max="1"/>
-                <rule avp="User-Equipment-Info" required="false" max="1"/>
-                <rule avp="Proxy-Info" required="false" max="1"/>
-                <rule avp="Route-Record" required="false" max="1"/>
-                <rule avp="Framed-IP-Address" required="false" max="1"/>
-                <rule avp="Framed-IPv6-Prefix" required="false"/>
-                <rule avp="IP-CAN-Type" required="false" max="1"/>
-                <rule avp="Called-Station-Id" required="false" max="1"/>
-                <rule avp="RAT-Type" required="false" max="1"/>
-                <rule avp="Network-Request-Support" required="false" max="1"/>
-                <rule avp="Default-EPS-Bearer-QoS" required="false" max="1"/>
-                <rule avp="AN-GW-Address" required="false" max="2"/>
-                <rule avp="Bearer-Usage" required="false" max="1"/>
-                <rule avp="Online" required="false" max="1"/>
-                <rule avp="Offline" required="false" max="1"/>
-                <rule avp="Access-Network-Charging-Identifier-Gx" required="false"/>
-                <rule avp="TGPP-SGSN-Address" required="false" max="1"/>
-                <rule avp="TGPP-GGSN-Address" required="false" max="1"/>
-                <rule avp="Supported-Features" required="false"/>
-                <rule avp="Access-Network-Charging-Address" required="false" max="1"/>
-                <rule avp="TGPP-MS-TimeZone" required="false" max="1"/>
-                <rule avp="TGPP-Selection-Mode" required="false" max="1"/>
-                <rule avp="QoS-Information" required="false" max="1"/>
-                <rule avp="TGPP-SGSN-MCC-MNC" required="false" max="1"/>
-                <rule avp="TGPP-User-Location-Info" required="false" max="1"/>
+                <!-- 3GPP TS 29.212 V20.0.0 §5.6.2. -->
+                <rule avp="Session-Id" required="true" max="1" fixed="true" />
+                <rule avp="DRMP" required="false" max="1" />
+                <rule avp="Auth-Application-Id" required="true" max="1" />
+                <rule avp="Origin-Host" required="true" max="1" />
+                <rule avp="Origin-Realm" required="true" max="1" />
+                <rule avp="Destination-Realm" required="true" max="1" />
+                <rule avp="CC-Request-Type" required="true" max="1" />
+                <rule avp="CC-Request-Number" required="true" max="1" />
+                <rule avp="Credit-Management-Status" required="false" max="1" />
+                <rule avp="Destination-Host" required="false" max="1" />
+                <rule avp="Origin-State-Id" required="false" max="1" />
+                <rule avp="Subscription-Id" required="false" />
+                <rule avp="OC-Supported-Features" required="false" max="1" />
+                <rule avp="Supported-Features" required="false" />
+                <rule avp="TDF-Information" required="false" max="1" />
+                <rule avp="Network-Request-Support" required="false" max="1" />
+                <rule avp="Packet-Filter-Information" required="false" />
+                <rule avp="Packet-Filter-Operation" required="false" max="1" />
+                <rule avp="Bearer-Identifier" required="false" max="1" />
+                <rule avp="Bearer-Operation" required="false" max="1" />
+                <rule avp="Dynamic-Address-Flag" required="false" max="1" />
+                <rule avp="Dynamic-Address-Flag-Extension" required="false" max="1" />
+                <rule avp="PDN-Connection-Charging-Id" required="false" max="1" />
+                <rule avp="Framed-IP-Address" required="false" max="1" />
+                <rule avp="Framed-IPv6-Prefix" required="false" max="1" />
+                <rule avp="IP-CAN-Type" required="false" max="1" />
+                <rule avp="TGPP-RAT-Type" required="false" max="1" />
+                <rule avp="AN-Trusted" required="false" max="1" />
+                <rule avp="RAT-Type" required="false" max="1" />
+                <rule avp="Termination-Cause" required="false" max="1" />
+                <rule avp="User-Equipment-Info" required="false" max="1" />
+                <rule avp="User-Equipment-Info-Extension" required="false" max="1" />
+                <rule avp="QoS-Information" required="false" max="1" />
+                <rule avp="QoS-Negotiation" required="false" max="1" />
+                <rule avp="QoS-Upgrade" required="false" max="1" />
+                <rule avp="Default-EPS-Bearer-QoS" required="false" max="1" />
+                <rule avp="Default-QoS-Information" required="false" max="1" />
+                <rule avp="AN-GW-Address" required="false" max="2" />
+                <rule avp="AN-GW-Status" required="false" max="1" />
+                <rule avp="TGPP-SGSN-MCC-MNC" required="false" max="1" />
+                <rule avp="TGPP-SGSN-Address" required="false" max="1" />
+                <rule avp="TGPP-SGSN-Ipv6-Address" required="false" max="1" />
+                <rule avp="TGPP-GGSN-Address" required="false" max="1" />
+                <rule avp="TGPP-GGSN-Ipv6-Address" required="false" max="1" />
+                <rule avp="TGPP-Selection-Mode" required="false" max="1" />
+                <rule avp="RAI" required="false" max="1" />
+                <rule avp="TGPP-User-Location-Info" required="false" max="1" />
+                <rule avp="Fixed-User-Location-Info" required="false" max="1" />
+                <rule avp="User-Location-Info-Time" required="false" max="1" />
+                <rule avp="User-CSG-Information" required="false" max="1" />
+                <rule avp="TWAN-Identifier" required="false" max="1" />
+                <rule avp="TGPP-MS-TimeZone" required="false" max="1" />
+                <rule avp="RAN-NAS-Release-Cause" required="false" />
+                <rule avp="TGPP-Charging-Characteristics" required="false" max="1" />
+                <rule avp="Called-Station-Id" required="false" max="1" />
+                <rule avp="PDN-Connection-ID" required="false" max="1" />
+                <rule avp="Bearer-Usage" required="false" max="1" />
+                <rule avp="Online" required="false" max="1" />
+                <rule avp="Offline" required="false" max="1" />
+                <rule avp="TFT-Packet-Filter-Information" required="false" />
+                <rule avp="Charging-Rule-Report" required="false" />
+                <rule avp="Application-Detection-Information" required="false" />
+                <rule avp="Event-Trigger" required="false" />
+                <rule avp="Event-Report-Indication" required="false" max="1" />
+                <rule avp="Access-Network-Charging-Address" required="false" max="1" />
+                <rule avp="Access-Network-Charging-Identifier-Gx" required="false" />
+                <rule avp="CoA-Information" required="false" />
+                <rule avp="Usage-Monitoring-Information" required="false" />
+                <rule avp="NBIFOM-Support" required="false" max="1" />
+                <rule avp="NBIFOM-Mode" required="false" max="1" />
+                <rule avp="Default-Access" required="false" max="1" />
+                <rule avp="Origination-Time-Stamp" required="false" max="1" />
+                <rule avp="Maximum-Wait-Time" required="false" max="1" />
+                <rule avp="Access-Availability-Change-Reason" required="false" max="1" />
+                <rule avp="Routing-Rule-Install" required="false" max="1" />
+                <rule avp="Routing-Rule-Remove" required="false" max="1" />
+                <rule avp="HeNB-Local-IP-Address" required="false" max="1" />
+                <rule avp="UE-Local-IP-Address" required="false" max="1" />
+                <rule avp="UDP-Source-Port" required="false" max="1" />
+                <rule avp="TCP-Source-Port" required="false" max="1" />
+                <rule avp="Presence-Reporting-Area-Information" required="false" />
+                <rule avp="Logical-Access-ID" required="false" max="1" />
+                <rule avp="Physical-Access-ID" required="false" max="1" />
+                <rule avp="Proxy-Info" required="false" />
+                <rule avp="Route-Record" required="false" />
+                <rule avp="TGPP-PS-Data-Off-Status" required="false" max="1" />
+                <rule avp="UHRR-Capability" required="false" max="1" />
+                <rule avp="AVP" required="false" />
             </request>
             <answer proxiable="true">
-                <!-- 3GPP 29.212 Section 5.6.3 -->
-                <rule avp="Session-Id" required="true" max="1"/>
-                <rule avp="Result-Code" required="true" max="1"/>
-                <rule avp="Origin-Host" required="true" max="1"/>
-                <rule avp="Origin-Realm" required="true" max="1"/>
-                <rule avp="CC-Request-Type" required="true" max="1"/>
-                <rule avp="CC-Request-Number" required="true" max="1"/>
-                <rule avp="Origin-State-Id" required="false" max="1"/>
-                <rule avp="Proxy-Info" required="false" max="1"/>
-                <rule avp="Route-Record" required="false" max="1"/>
-                <rule avp="Failed-AVP" required="false" max="1"/>
-                <rule avp="Charging-Rule-Install" required="false"/>
-                <rule avp="Charging-Rule-Remove" required="false"/>
-                <rule avp="Usage-Monitoring-Information" required="false"/>
-                <rule avp="Event-Trigger" required="false"/>
-                <rule avp="Revalidation-Time" required="false"/>
+                <!-- 3GPP TS 29.212 V20.0.0 §5.6.3. -->
+                <rule avp="Session-Id" required="true" max="1" fixed="true" />
+                <rule avp="DRMP" required="false" max="1" />
+                <rule avp="Auth-Application-Id" required="true" max="1" />
+                <rule avp="Origin-Host" required="true" max="1" />
+                <rule avp="Origin-Realm" required="true" max="1" />
+                <rule avp="Result-Code" required="false" max="1" />
+                <rule avp="Experimental-Result" required="false" max="1" />
+                <rule avp="CC-Request-Type" required="true" max="1" />
+                <rule avp="CC-Request-Number" required="true" max="1" />
+                <rule avp="OC-Supported-Features" required="false" max="1" />
+                <rule avp="OC-OLR" required="false" max="1" />
+                <rule avp="Supported-Features" required="false" />
+                <rule avp="Bearer-Control-Mode" required="false" max="1" />
+                <rule avp="Event-Trigger" required="false" />
+                <rule avp="Event-Report-Indication" required="false" max="1" />
+                <rule avp="Origin-State-Id" required="false" max="1" />
+                <rule avp="Redirect-Host" required="false" />
+                <rule avp="Redirect-Host-Usage" required="false" max="1" />
+                <rule avp="Redirect-Max-Cache-Time" required="false" max="1" />
+                <rule avp="Charging-Rule-Remove" required="false" />
+                <rule avp="Charging-Rule-Install" required="false" />
+                <rule avp="Charging-Information" required="false" max="1" />
+                <rule avp="Online" required="false" max="1" />
+                <rule avp="Offline" required="false" max="1" />
+                <rule avp="QoS-Information" required="false" />
+                <rule avp="Revalidation-Time" required="false" max="1" />
+                <rule avp="Default-EPS-Bearer-QoS" required="false" max="1" />
+                <rule avp="Default-QoS-Information" required="false" max="1" />
+                <rule avp="Bearer-Usage" required="false" max="1" />
+                <rule avp="Usage-Monitoring-Information" required="false" />
+                <rule avp="CSG-Information-Reporting" required="false" />
+                <rule avp="User-CSG-Information" required="false" max="1" />
+                <rule avp="PRA-Install" required="false" max="1" />
+                <rule avp="PRA-Remove" required="false" max="1" />
+                <rule avp="Presence-Reporting-Area-Information" required="false" max="1" />
+                <rule avp="Session-Release-Cause" required="false" max="1" />
+                <rule avp="NBIFOM-Support" required="false" max="1" />
+                <rule avp="NBIFOM-Mode" required="false" max="1" />
+                <rule avp="Default-Access" required="false" max="1" />
+                <rule avp="RAN-Rule-Support" required="false" max="1" />
+                <rule avp="Routing-Rule-Report" required="false" />
+                <rule avp="Conditional-Policy-Information" required="false" max="4" />
+                <rule avp="Removal-Of-Access" required="false" max="1" />
+                <rule avp="IP-CAN-Type" required="false" max="1" />
+                <rule avp="Error-Message" required="false" max="1" />
+                <rule avp="Error-Reporting-Host" required="false" max="1" />
+                <rule avp="Failed-AVP" required="false" max="1" />
+                <rule avp="Proxy-Info" required="false" />
+                <rule avp="Route-Record" required="false" />
+                <rule avp="Load" required="false" />
+                <rule avp="AVP" required="false" />
             </answer>
         </command>
-
         <command code="258" short="RA" name="Re-Auth">
             <request proxiable="true">
-                <rule avp="Session-Id" required="true" max="1"/>
-                <rule avp="Origin-Host" required="true" max="1"/>
-                <rule avp="Origin-Realm" required="true" max="1"/>
-                <rule avp="Destination-Realm" required="true" max="1"/>
-                <rule avp="Destination-Host" required="true" max="1"/>
-                <rule avp="Auth-Application-Id" required="true" max="1"/>
-                <rule avp="Re-Auth-Request-Type" required="true" max="1"/>
-                <rule avp="QoS-Information" required="false" max="1"/>
-                <rule avp="Origin-State-Id" required="false" max="1"/>
-                <rule avp="Proxy-Info" required="false"/>
-                <rule avp="Route-Record" required="false"/>
-                <rule avp="Event-Trigger" required="false"/>
-                <rule avp="Revalidation-Time" required="false"/>
+                <!-- 3GPP TS 29.212 V20.0.0 §5.6.4. -->
+                <rule avp="Session-Id" required="true" max="1" fixed="true" />
+                <rule avp="DRMP" required="false" max="1" />
+                <rule avp="Auth-Application-Id" required="true" max="1" />
+                <rule avp="Origin-Host" required="true" max="1" />
+                <rule avp="Origin-Realm" required="true" max="1" />
+                <rule avp="Destination-Realm" required="true" max="1" />
+                <rule avp="Destination-Host" required="true" max="1" />
+                <rule avp="Re-Auth-Request-Type" required="true" max="1" />
+                <rule avp="Session-Release-Cause" required="false" max="1" />
+                <rule avp="Origin-State-Id" required="false" max="1" />
+                <rule avp="OC-Supported-Features" required="false" max="1" />
+                <rule avp="Event-Trigger" required="false" />
+                <rule avp="Event-Report-Indication" required="false" max="1" />
+                <rule avp="Charging-Rule-Remove" required="false" />
+                <rule avp="Charging-Rule-Install" required="false" />
+                <rule avp="Default-EPS-Bearer-QoS" required="false" max="1" />
+                <rule avp="QoS-Information" required="false" />
+                <rule avp="Default-QoS-Information" required="false" max="1" />
+                <rule avp="Revalidation-Time" required="false" max="1" />
+                <rule avp="Usage-Monitoring-Information" required="false" />
+                <rule avp="PCSCF-Restoration-Indication" required="false" max="1" />
+                <rule avp="Conditional-Policy-Information" required="false" max="4" />
+                <rule avp="Removal-Of-Access" required="false" max="1" />
+                <rule avp="IP-CAN-Type" required="false" max="1" />
+                <rule avp="PRA-Install" required="false" max="1" />
+                <rule avp="PRA-Remove" required="false" max="1" />
+                <rule avp="CSG-Information-Reporting" required="false" />
+                <rule avp="PC-Session-Recovery-Status" required="false" max="1" />
+                <rule avp="Proxy-Info" required="false" />
+                <rule avp="Route-Record" required="false" />
+                <rule avp="AVP" required="false" />
             </request>
             <answer proxiable="true">
-                <rule avp="Session-Id" required="true" max="1"/>
-                <rule avp="Result-Code" required="true" max="1"/>
-                <rule avp="Origin-Host" required="true" max="1"/>
-                <rule avp="Origin-Realm" required="true" max="1"/>
-                <rule avp="Origin-State-Id" required="false" max="1"/>
-                <rule avp="Error-Message" required="false" max="1"/>
-                <rule avp="Error-Reporting-Host" required="false" max="1"/>
-                <rule avp="Failed-AVP" required="false" max="1"/>
-                <rule avp="Proxy-Info" required="false"/>
+                <!-- 3GPP TS 29.212 V20.0.0 §5.6.5. -->
+                <rule avp="Session-Id" required="true" max="1" fixed="true" />
+                <rule avp="DRMP" required="false" max="1" />
+                <rule avp="Origin-Host" required="true" max="1" />
+                <rule avp="Origin-Realm" required="true" max="1" />
+                <rule avp="Result-Code" required="false" max="1" />
+                <rule avp="Experimental-Result" required="false" max="1" />
+                <rule avp="Origin-State-Id" required="false" max="1" />
+                <rule avp="OC-Supported-Features" required="false" max="1" />
+                <rule avp="OC-OLR" required="false" max="1" />
+                <rule avp="IP-CAN-Type" required="false" max="1" />
+                <rule avp="RAT-Type" required="false" max="1" />
+                <rule avp="AN-Trusted" required="false" max="1" />
+                <rule avp="AN-GW-Address" required="false" max="2" />
+                <rule avp="TGPP-SGSN-MCC-MNC" required="false" max="1" />
+                <rule avp="TGPP-SGSN-Address" required="false" max="1" />
+                <rule avp="TGPP-SGSN-Ipv6-Address" required="false" max="1" />
+                <rule avp="RAI" required="false" max="1" />
+                <rule avp="TGPP-User-Location-Info" required="false" max="1" />
+                <rule avp="User-Location-Info-Time" required="false" max="1" />
+                <rule avp="NetLoc-Access-Support" required="false" max="1" />
+                <rule avp="User-CSG-Information" required="false" max="1" />
+                <rule avp="TGPP-MS-TimeZone" required="false" max="1" />
+                <rule avp="Default-QoS-Information" required="false" max="1" />
+                <rule avp="Charging-Rule-Report" required="false" />
+                <rule avp="PC-Session-Recovery-Status" required="false" max="1" />
+                <rule avp="Error-Message" required="false" max="1" />
+                <rule avp="Error-Reporting-Host" required="false" max="1" />
+                <rule avp="Failed-AVP" required="false" max="1" />
+                <rule avp="Proxy-Info" required="false" />
+                <rule avp="AVP" required="false" />
             </answer>
         </command>
-
-        <avp name="Flow-Description" code="507" must="M,V" may="P" may-encrypt="y" vendor-id="10415">
-            <!-- 3GPP 29.212 -->
-            <data type="IPFilterRule"/>
+        <avp name="CC-Input-Octets" code="412" must="" may="" must-not="M,V" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.4.0.1 Note 5; Gx nested M-bit override. RFC 8506 (March 2019) §8.24. -->
+            <data type="Unsigned64" />
         </avp>
-
-
-        <avp name="Charging-Rule-Install" code="1001" must="M,V" may="P" may-encrypt="Y" vendor-id="10415">
-            <!-- 3GPP 29.212 Section 5.3.2 -->
+        <avp name="CC-Output-Octets" code="414" must="" may="" must-not="M,V" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.4.0.1 Note 5; Gx nested M-bit override. RFC 8506 (March 2019) §8.25. -->
+            <data type="Unsigned64" />
+        </avp>
+        <avp name="CC-Time" code="420" must="" may="" must-not="M,V" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.4.0.1 Note 5; Gx nested M-bit override. RFC 8506 (March 2019) §8.21. -->
+            <data type="Unsigned32" />
+        </avp>
+        <avp name="CC-Total-Octets" code="421" must="" may="" must-not="M,V" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.4.0.1 Note 5; Gx nested M-bit override. RFC 8506 (March 2019) §8.23. -->
+            <data type="Unsigned64" />
+        </avp>
+        <avp name="Granted-Service-Unit" code="431" must="" may="" must-not="M,V" may-encrypt="Y" vendor-id="0">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.4.0.1; RFC 8506 (March 2019) §8.17. -->
             <data type="Grouped">
-                <rule avp="Charging-Rule-Name" required="false"/>
-                <rule avp="Charging-Rule-Base-Name" required="false"/>
-                <rule avp="Charging-Rule-Definition" required="false"/>
-                <rule avp="Rule-Activation-Time" required="false"/>
-                <rule avp="Rule-Deactivation-Time" required="false"/>
-                <!-- *[ AVP ]-->
+                <rule avp="CC-Time" required="false" max="1" />
+                <rule avp="CC-Total-Octets" required="false" max="1" />
+                <rule avp="CC-Input-Octets" required="false" max="1" />
+                <rule avp="CC-Output-Octets" required="false" max="1" />
+                <rule avp="Monitoring-Time" required="false" max="1" />
+                <rule avp="AVP" required="false" />
             </data>
         </avp>
-
-        <avp name="Charging-Rule-Remove" code="1002" must="V,M" may="P" must-not="-" may-encrypt="Y" vendor-id="10415">
-            <!-- 3GPP 29.212 Section 5.3.3 -->
+        <avp name="Used-Service-Unit" code="446" must="" may="" must-not="M,V" may-encrypt="Y" vendor-id="0">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.4.0.1; RFC 8506 (March 2019) §8.19. -->
             <data type="Grouped">
-                <rule avp="Charging-Rule-Name" required="false"/>
-                <rule avp="Charging-Rule-Base-Name" required="false"/>
-                <!-- *[ AVP ]-->
+                <rule avp="CC-Time" required="false" max="1" />
+                <rule avp="CC-Total-Octets" required="false" max="1" />
+                <rule avp="CC-Input-Octets" required="false" max="1" />
+                <rule avp="CC-Output-Octets" required="false" max="1" />
+                <rule avp="Monitoring-Time" required="false" max="1" />
+                <rule avp="AVP" required="false" />
             </data>
         </avp>
-
-        <avp name="Charging-Rule-Definition" code="1003" must="M,V" may="P" may-encrypt="Y" vendor-id="10415">
-            <!-- 3GPP 29.212 -->
+        <avp name="Load" code="650" vendor-id="0" must="" may="" must-not="M,V" may-encrypt="N">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.4.0.1: this AVP and all AVPs within this grouped AVP shall have the M bit cleared; RFC 8583 (August 2019) §7.1. -->
             <data type="Grouped">
-                <rule avp="Charging-Rule-Name" required="true" max="1"/>
-                <rule avp="Rating-Group" required="false" max="1"/>
-                <rule avp="Service-Identifier" required="false" max="1"/>
-                <rule avp="Flow-Information" required="false"/>
-                <rule avp="Flow-Description" required="false"/>
-                <rule avp="Precedence" required="false" max="1"/>
-                <rule avp="Monitoring-Key" required="false" max="1"/>
-                <rule avp="Redirect-Information" required="false" max="1"/>
-                <!-- *[ AVP ]-->
+                <rule avp="Load-Type" required="false" max="1" />
+                <rule avp="Load-Value" required="false" max="1" />
+                <rule avp="SourceID" required="false" max="1" />
+                <rule avp="AVP" required="false" must-not="M" />
             </data>
         </avp>
-
-        <avp name="Charging-Rule-Base-Name" code="1004" must="M,V" may="P" may-encrypt="y" vendor-id="10415">
-            <!-- 3GPP 29.212 Section 5.3.6 -->
-            <data type="UTF8String"/>
+        <avp name="3GPP2-BSID" code="9010" vendor-id="5535" must="V" may="P" may-encrypt="N" must-not="M">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.4.0.1. Gx application definition. -->
+            <data type="UTF8String" />
         </avp>
-
-        <avp name="Charging-Rule-Name" code="1005" must="M,V" may="P" may-encrypt="y" vendor-id="10415">
-            <!-- 3GPP 29.212 Section 5.3.6 -->
-            <data type="OctetString"/>
+        <avp name="TGPP-SGSN-Address" code="6" must="M,V" may="P" must-not="" may-encrypt="Y" vendor-id="10415">
+            <!-- 3GPP TS 29.212 V20.0.0 §5.4 (M shall be set; P may be set), Table 5.4.0.1; TS 29.061 V20.1.0 §16.4.7 (see note). -->
+            <data type="OctetString" />
         </avp>
-
-        <avp name="Event-Trigger" code="1006" must="M,V" may="P" may-encrypt="Y" vendor-id="10415">
-            <!-- 3GPP 29.212 Section 5.3.7 -->
-            <data type="Enumerated">
-                <item code="0" name="SGSN_CHANGE"/>
-                <item code="1" name="QOS_CHANGE"/>
-                <item code="2" name="RAT_CHANGE"/>
-                <item code="3" name="TFT_CHANGE"/>
-                <item code="4" name="PLMN_CHANGE"/>
-                <item code="5" name="LOSS_OF_BEARER"/>
-                <item code="6" name="RECOVERY_OF_BEARER"/>
-                <item code="7" name="IP-CAN_CHANGE"/>
-                <item code="11" name="QOS_CHANGE_EXCEEDING_AUTHORIZATION"/>
-                <item code="12" name="RAI_CHANGE"/>
-                <item code="13" name="USER_LOCATION_CHANGE"/>
-                <item code="14" name="NO_EVENT_TRIGGERS"/>
-                <item code="15" name="OUT_OF_CREDIT"/>
-                <item code="16" name="REALLOCATION_OF_CREDIT"/>
-                <item code="17" name="REVALIDATION_TIMEOUT"/>
-                <item code="18" name="UE_IP_ADDRESS_ALLOCATE"/>
-                <item code="19" name="UE_IP_ADDRESS_RELEASE"/>
-                <item code="20" name="DEFAULT_EPS_BEARER_QOS_CHANGE"/>
-                <item code="21" name="AN_GW_CHANGE"/>
-                <item code="22" name="SUCCESSFUL_RESOURCE_ALLOCATION"/>
-                <item code="23" name="RESOURCE_MODIFICATION_REQUEST"/>
-                <item code="24" name="PGW_TRACE_CONTROL"/>
-                <item code="25" name="UE_TIME_ZONE_CHANGE"/>
-                <item code="26" name="TAI_CHANGE"/>
-                <item code="27" name="ECGI_CHANGE"/>
-                <item code="28" name="CHARGING_CORRELATION_EXCHANGE"/>
-                <item code="29" name="APN-AMBR_MODIFICATION_FAILURE"/>
-                <item code="30" name="USER_CSG_INFORMATION_CHANGE"/>
-                <item code="33" name="USAGE_REPORT"/>
-            </data>
+        <avp name="TGPP-GGSN-Address" code="7" must="V" may="P" must-not="M" may-encrypt="Y" vendor-id="10415">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.4.0.1; TS 29.061 V20.1.0 §16.4.7 (see note). -->
+            <data type="OctetString" />
         </avp>
-
-        <avp name="Revalidation-Time" code="1042" must="M,V" may="P" may-encrypt="y" vendor-id="10415">
-            <!-- 3GPP 29.212  Section 5.3.41 -->
-            <data type="Time"/>
+        <avp name="TGPP-SGSN-Ipv6-Address" code="15" vendor-id="10415" must="M,V" may="P" may-encrypt="Y" must-not="">
+            <!-- 3GPP TS 29.212 V20.0.0 §5.4 (M shall be set; P may be set), Table 5.4.0.1; TS 29.061 V20.1.0 §16.4.7 (see note). -->
+            <data type="OctetString" />
         </avp>
-
-        <avp name="Precedence" code="1010" must="M,V" may="P" may-encrypt="y" vendor-id="10415">
-            <!-- 3GPP 29.212 -->
-            <data type="Unsigned32"/>
+        <avp name="TGPP-GGSN-Ipv6-Address" code="16" vendor-id="10415" must="V" may="P" may-encrypt="Y" must-not="M">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.4.0.1; TS 29.061 V20.1.0 §16.4.7 (see note). -->
+            <data type="OctetString" />
         </avp>
-
-        <avp name="ToS-Traffic-Class" code="1014" must="M,V" may="P" may-encrypt="y" vendor-id="10415">
-            <!-- 3GPP 29.212 Section 5.3.15 -->
-            <data type="Unsigned32"/>
+        <avp name="TGPP-SGSN-MCC-MNC" code="18" must="M,V" may="P" must-not="" may-encrypt="Y" vendor-id="10415">
+            <!-- 3GPP TS 29.212 V20.0.0 §5.4 (M shall be set; P may be set), Table 5.4.0.1; TS 29.061 V20.1.0 §16.4.7 (see note). -->
+            <data type="UTF8String" />
         </avp>
-
-        <avp name="IP-CAN-Type" code="1027" must="M,V" may="P" may-encrypt="Y" vendor-id="10415">
-            <!-- 3GPP 29.212 Section 5.3.27 -->
-            <data type="Enumerated">
-                <item code="0" name="3GPP-GPRS"/>
-                <item code="1" name="DOCSIS"/>
-                <item code="2" name="xDSL"/>
-                <item code="3" name="WiMAX"/>
-                <item code="4" name="3GPP2"/>
-                <item code="5" name="3GPP-EPS"/>
-                <item code="6" name="Non-3GPP-EPS"/>
-                <item code="7" name="FBA"/>
-                <item code="8" name="3GPP-5GS"/>
-                <item code="9" name="Non-3GPP-5GS"/>
-            </data>
+        <avp name="TGPP-RAT-Type" code="21" must="M,V" may="P" must-not="" may-encrypt="Y" vendor-id="10415">
+            <!-- 3GPP TS 29.212 V20.0.0 §5.4 (M shall be set; P may be set), Table 5.4.0.1; TS 29.061 V20.1.0 §16.4.7(see Note). -->
+            <data type="OctetString" />
         </avp>
-
-        <avp name="Rule-Activation-Time" code="1043" must="M,V" may="P" may-encrypt="y" vendor-id="10415">
-            <!-- 3GPP 29.212 -->
-            <data type="Time"/>
+        <avp name="TGPP-User-Location-Info" code="22" must="M,V" may="P" must-not="" may-encrypt="Y" vendor-id="10415">
+            <!-- 3GPP TS 29.212 V20.0.0 §5.4 (M shall be set; P may be set), Table 5.4.0.1; TS 29.061 V20.1.0 §16.4.7(see Note). -->
+            <data type="OctetString" />
         </avp>
-
-        <avp name="Rule-Deactivation-Time" code="1044" must="M,V" may="P" may-encrypt="y" vendor-id="10415">
-            <!-- 3GPP 29.212 -->
-            <data type="Time"/>
+        <avp name="TGPP-MS-TimeZone" code="23" must="M,V" may="P" must-not="" may-encrypt="Y" vendor-id="10415">
+            <!-- 3GPP TS 29.212 V20.0.0 §5.4 (M shall be set; P may be set), Table 5.4.0.1; TS 29.061 V20.1.0 §16.4.7(see Note). -->
+            <data type="OctetString" />
         </avp>
-
-        <avp name="Security-Parameter-Index" code="1056" must="V" must-not="M" may="P" may-encrypt="y" vendor-id="10415">
-            <!-- 3GPP 29.212 Section 5.3.51 -->
-            <data type="OctetString"/>
+        <avp name="TWAN-Identifier" code="29" must="M,V" may="P" must-not="" may-encrypt="Y" vendor-id="10415">
+            <!-- 3GPP TS 29.212 V20.0.0 §5.4 (M shall be set; P may be set), Table 5.4.0.1; TS 29.061 V20.1.0 §16.4.7(see Note). -->
+            <data type="OctetString" />
         </avp>
-
-        <avp name="Flow-Label" code="1057" must="V" must-not="M" may="P" may-encrypt="y" vendor-id="10415">
-            <!-- 3GPP 29.212 Section 5.3.52 -->
-            <data type="OctetString"/>
+        <avp name="Access-Network-Charging-Address" code="501" vendor-id="10415" must="M,V" may-encrypt="Y" may="P" must-not="">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.4.0.1; TS 29.214 V20.0.0 §5.3.2. -->
+            <data type="Address" />
         </avp>
-
-        <avp name="Flow-Information" code="1058" must="V" must-not="M" may="P" may-encrypt="Y" vendor-id="10415">
-            <!-- 3GPP 29.212 Section 5.3.53 -->
+        <avp name="Flow-Description" code="507" vendor-id="10415" must="M,V" may-encrypt="Y" may="P" must-not="">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.4.0.1; TS 29.214 V20.0.0 §5.3.8. -->
+            <data type="IPFilterRule" />
+        </avp>
+        <avp name="Flows" code="510" vendor-id="10415" must="M,V" may-encrypt="Y" may="P" must-not="">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.4.0.1; TS 29.214 V20.0.0 §5.3.10. -->
             <data type="Grouped">
-                <rule avp="Flow-Description" required="false" max="1"/>
-                <rule avp="Packet-Filter-Identifier" required="false" max="1"/>
-                <rule avp="Packet-Filter-Usage" required="false" max="1"/>
-                <rule avp="ToS-Traffic-Class" required="false" max="1"/>
-                <rule avp="Security-Parameter-Index" required="false" max="1"/>
-                <rule avp="Flow-Label" required="false" max="1"/>
-                <rule avp="Flow-Direction" required="false" max="1"/>
+                <rule avp="Media-Component-Number" required="true" max="1" />
+                <rule avp="Flow-Number" required="false" />
+                <rule avp="Content-Version" required="false" />
+                <rule avp="Final-Unit-Action" required="false" max="1" />
+                <rule avp="Media-Component-Status" required="false" max="1" />
+                <rule avp="AVP" required="false" />
             </data>
         </avp>
-
-        <avp name="Packet-Filter-Identifier" code="1060" must="V" must-not="M" may="P" may-encrypt="y" vendor-id="10415">
-            <!-- 3GPP 29.212 Section 5.3.55 -->
-            <data type="OctetString"/>
+        <avp name="Flow-Status" code="511" vendor-id="10415" must="M,V" may-encrypt="Y" may="P" must-not="">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.4.0.1; TS 29.214 V20.0.0 §5.3.11. -->
+            <data type="Enumerated">
+                <item code="0" name="ENABLED-UPLINK" />
+                <item code="1" name="ENABLED-DOWNLINK" />
+                <item code="2" name="ENABLED" />
+                <item code="3" name="DISABLED" />
+                <item code="4" name="REMOVED" />
+            </data>
         </avp>
-
-        <avp name="Monitoring-Key" code="1066" must="V" may="P" must-not="M" may-encrypt="y" vendor-id="10415">
-            <!-- 3GPP 29.212 -->
-            <data type="OctetString"/>
+        <avp name="AF-Signalling-Protocol" code="529" vendor-id="10415" must="V" may-encrypt="Y" may="P" must-not="M">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.4.0.1; TS 29.214 V20.0.0 §5.3.26. -->
+            <data type="Enumerated">
+                <item code="0" name="NO_INFORMATION" />
+                <item code="1" name="SIP" />
+            </data>
         </avp>
-
-        <avp name="Usage-Monitoring-Information" code="1067" must="V" may="P" must-not="M,V" may-encrypt="y" vendor-id="10415">
-            <!-- 3GPP 29.212 -->
+        <avp name="Application-Service-Provider-Identity" code="532" vendor-id="10415" must="V" may-encrypt="Y" may="P" must-not="M">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.4.0.1; TS 29.214 V20.0.0 §5.3.29. -->
+            <data type="UTF8String" />
+        </avp>
+        <avp name="Required-Access-Info" code="536" vendor-id="10415" must="V" may-encrypt="Y" may="P" must-not="M">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.4.0.1; TS 29.214 V20.0.0 §5.3.34. -->
+            <data type="Enumerated">
+                <item code="0" name="USER_LOCATION" />
+                <item code="1" name="MS_TIME_ZONE" />
+                <!-- TS 29.214 V20.0.0 §5.3.34. -->
+                <item code="2" name="UE_SAT_INFO" />
+            </data>
+        </avp>
+        <avp name="Sharing-Key-DL" code="539" vendor-id="10415" must="V" may-encrypt="Y" may="P" must-not="M">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.4.0.1; TS 29.214 V20.0.0 §5.3.37. -->
+            <data type="Unsigned32" />
+        </avp>
+        <avp name="Sharing-Key-UL" code="540" vendor-id="10415" must="V" may-encrypt="Y" may="P" must-not="M">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.4.0.1; TS 29.214 V20.0.0 §5.3.38. -->
+            <data type="Unsigned32" />
+        </avp>
+        <avp name="Media-Component-Status" code="549" vendor-id="10415" must="V" may-encrypt="Y" may="P" must-not="M">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.4.0.1; reused member definition. -->
+            <data type="Unsigned32" />
+        </avp>
+        <avp name="Content-Version" code="552" vendor-id="10415" must="V" may-encrypt="Y" may="P" must-not="M">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.4.0.1; TS 29.214 V20.0.0 §5.3.49. -->
+            <data type="Unsigned64" />
+        </avp>
+        <avp name="Callee-Information" code="565" vendor-id="10415" must="V" may-encrypt="Y" may="P" must-not="M">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.4.0.1; TS 29.214 V20.0.0 §5.3.62. -->
+            <!-- TS 29.214 V20.0.0 §5.3.62: Called-Party-Address is optional. -->
             <data type="Grouped">
-                <rule avp="Monitoring-Key" required="false" max="1"/>
-                <rule avp="Granted-Service-Unit" required="false" max="2"/>
-                <rule avp="Used-Service-Unit" required="false" max="2"/>
-                <rule avp="Usage-Monitoring-Level" required="false" max="1"/>
-                <rule avp="Usage-Monitoring-Report" required="false" max="1"/>
-                <rule avp="Usage-Monitoring-Support" required="false" max="1"/>
+                <rule avp="Called-Party-Address" required="false" max="1" />
+                <rule avp="Requested-Party-Address" required="false" />
+                <rule avp="Called-Asserted-Identity" required="false" />
+                <rule avp="AVP" required="false" />
             </data>
         </avp>
-
-        <avp name="Usage-Monitoring-Level" code="1068" must="V" may="P" must-not="M" may-encrypt="y" vendor-id="10415">
-            <!-- 3GPP 29.212 -->
+        <avp name="PC-Session-Recovery-Status" code="584" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.4.0.1; TS 29.214 V20.0.0 §5.3.81. -->
             <data type="Enumerated">
-                <item code="0" name="SESSION_LEVEL"/>
-                <item code="1" name="PCC_RULE_LEVEL"/>
+                <item code="0" name="SESSION_RESTORATION_REQUEST" />
+                <item code="1" name="SESSION_RESTORATION_TRIGGERED" />
+                <item code="2" name="SESSION_RESTORATION_NOT_TRIGGERED" />
+                <item code="3" name="SESSION_NOT_FOUND" />
             </data>
         </avp>
-
-        <avp name="Usage-Monitoring-Report" code="1069" must="V" may="P" must-not="M" may-encrypt="y" vendor-id="10415">
-            <!-- 3GPP 29.212 -->
+        <avp name="UHRR-Capability" code="585" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.4.0.1; TS 29.214 V20.0.0 §5.3.82. -->
             <data type="Enumerated">
-                <item code="0" name="USAGE_MONITORING_REPORT"/>
+                <item code="0" name="UHRR_NOT_SUPPORTED" />
+                <item code="1" name="UHRR_SUPPORTED" />
             </data>
         </avp>
-
-        <avp name="Usage-Monitoring-Support" code="1070" must="V" may="P" must-not="M" may-encrypt="y" vendor-id="10415">
-            <!-- 3GPP 29.212 -->
+        <avp name="UHRR-Enable-Indication" code="586" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.4.0.1; TS 29.214 V20.0.0 §5.3.83. -->
             <data type="Enumerated">
-                <item code="0" name="USAGE_MONITORING_SUPPORT"/>
+                <item code="0" name="UHRR_DISABLED" />
+                <item code="1" name="UHRR_ENABLED" />
             </data>
         </avp>
-
-        <avp name="Packet-Filter-Usage" code="1072" must="V" must-not="M" may="P" may-encrypt="Y" vendor-id="10415">
-            <!-- 3GPP 29.212 Section 5.3.66 -->
-            <data type="Enumerated">
-                <item code="1" name="SEND_TO_UE"/>
-            </data>
-        </avp>
-
-        <avp name="Flow-Direction" code="1080" must="V" must-not="M" may="P" may-encrypt="Y" vendor-id="10415">
-            <!-- 3GPP 29.212 Section 5.3.65 -->
-            <data type="Enumerated">
-                <item code="0" name="UNSPECIFIED"/>
-                <item code="1" name="DOWNLINK"/>
-                <item code="2" name="UPLINK"/>
-                <item code="3" name="BIDIRECTIONAL"/>
-            </data>
-        </avp>
-
-        <avp name="Redirect-Information" code="1085" must="V" may="P" must-not="M" may-encrypt="Y" vendor-id="10415">
-            <!-- 3GPP 29.212 Section 5.3.82 -->
+        <avp name="Charging-Information" code="618" vendor-id="10415" must="M,V" may="" must-not="" may-encrypt="N">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.4.0.1; TS 29.229 V19.1.0 §6.3.19. -->
             <data type="Grouped">
-                <rule avp="Redirect-Support" required="true" max="1"/>
-                <rule avp="Redirect-Address-Type" required="false" max="1"/>
-                <rule avp="Redirect-Server-Address" required="false" max="1"/>
-                <!-- *[ AVP ]-->
+                <rule avp="Primary-Event-Charging-Function-Name" required="false" max="1" />
+                <rule avp="Secondary-Event-Charging-Function-Name" required="false" max="1" />
+                <rule avp="Primary-Charging-Collection-Function-Name" required="false" max="1" />
+                <rule avp="Secondary-Charging-Collection-Function-Name" required="false" max="1" />
+                <rule avp="AVP" required="false" />
             </data>
         </avp>
-
-        <avp name="Redirect-Support" code="1086" must="V" may="P" must-not="M" may-encrypt="Y" vendor-id="10415">
-            <!-- 3GPP 29.212 Section 5.3.83 -->
+        <avp name="Primary-Event-Charging-Function-Name" code="619" vendor-id="10415" must="M,V" may="" must-not="" may-encrypt="N">
+            <!-- TS 29.229 V19.1.0 §6.3.20, Table 6.3.1; TS 29.212 V20.0.0 Table 5.4.0.1. -->
+            <data type="DiameterURI" />
+        </avp>
+        <avp name="Secondary-Event-Charging-Function-Name" code="620" vendor-id="10415" must="M,V" may="" must-not="" may-encrypt="N">
+            <!-- TS 29.229 V19.1.0 §6.3.21, Table 6.3.1; TS 29.212 V20.0.0 Table 5.4.0.1. -->
+            <data type="DiameterURI" />
+        </avp>
+        <avp name="Primary-Charging-Collection-Function-Name" code="621" vendor-id="10415" must="M,V" may="" must-not="" may-encrypt="N">
+            <!-- TS 29.229 V19.1.0 §6.3.22, Table 6.3.1; TS 29.212 V20.0.0 Table 5.4.0.1. -->
+            <data type="DiameterURI" />
+        </avp>
+        <avp name="Secondary-Charging-Collection-Function-Name" code="622" vendor-id="10415" must="M,V" may="" must-not="" may-encrypt="N">
+            <!-- TS 29.229 V19.1.0 §6.3.23, Table 6.3.1; TS 29.212 V20.0.0 Table 5.4.0.1. -->
+            <data type="DiameterURI" />
+        </avp>
+        <avp name="Calling-Party-Address" code="831" must="V,M" may="" must-not="" may-encrypt="N" vendor-id="10415">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.4.0.1; TS 32.299 V19.0.0 §Table 7.2.0.1. -->
+            <data type="UTF8String" />
+        </avp>
+        <avp name="Quota-Consumption-Time" code="881" must="V" may="" must-not="M" may-encrypt="N" vendor-id="10415">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.4.0.1; TS 32.299 V19.0.0 §Table 7.2.0.1. -->
+            <data type="Unsigned32" />
+        </avp>
+        <avp name="Bearer-Usage" code="1000" vendor-id="10415" must="M,V" may="P" must-not="" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.1. -->
             <data type="Enumerated">
-                <item code="0" name="REDIRECTION_DISABLED"/>
-                <item code="1" name="REDIRECTION_ENABLED"/>
+                <item code="0" name="GENERAL" />
+                <item code="1" name="IMS_SIGNALLING" />
             </data>
         </avp>
-
-        <avp name="Network-Request-Support" code="1024" must="M,V" may="P" may-encrypt="y" vendor-id="10415">
-            <!-- 3GPP 29.212 Section 5.3.24 -->
-            <data type="Enumerated">
-                <item code="0" name="NETWORK_REQUEST_NOT_SUPPORTED"/>
-                <item code="1" name="NETWORK_REQUEST_SUPPORTED"/>
-            </data>
-        </avp>
-
-        <avp name="Offline" code="1008" must="M,V" may="P" may-encrypt="y" vendor-id="10415">
-            <!-- 3GPP 29.212 Section 5.3.9 -->
-            <data type="Enumerated">
-                <item code="0" name="DISABLE_OFFLINE"/>
-                <item code="1" name="ENABLE_OFFLINE"/>
-            </data>
-        </avp>
-
-        <avp name="Online" code="1009" must="M,V" may="P" may-encrypt="y" vendor-id="10415">
-            <!-- 3GPP 29.212 Section 5.3.10 -->
-            <data type="Enumerated">
-                <item code="0" name="DISABLE_ONLINE"/>
-                <item code="1" name="ENABLE_ONLINE"/>
-            </data>
-        </avp>
-
-        <avp name="Default-EPS-Bearer-QoS" code="1049" must="V" may="P" must-not="M" may-encrypt="y" vendor-id="10415">
-            <!-- 3GPP 29.212 Section 5.3.48 -->
+        <avp name="Charging-Rule-Install" code="1001" vendor-id="10415" must="M,V" may="P" must-not="" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.2. -->
             <data type="Grouped">
-                <rule avp="QoS-Class-Identifier" required="false" max="1"/>
-                <rule avp="Allocation-Retention-Priority" required="false" max="1"/>
-                <!-- *[ AVP ]-->
+                <rule avp="Charging-Rule-Definition" required="false" />
+                <rule avp="Charging-Rule-Name" required="false" />
+                <rule avp="Charging-Rule-Base-Name" required="false" />
+                <rule avp="Bearer-Identifier" required="false" max="1" />
+                <rule avp="Monitoring-Flags" required="false" max="1" />
+                <rule avp="Rule-Activation-Time" required="false" max="1" />
+                <rule avp="Rule-Deactivation-Time" required="false" max="1" />
+                <rule avp="Resource-Allocation-Notification" required="false" max="1" />
+                <rule avp="Charging-Correlation-Indicator" required="false" max="1" />
+                <rule avp="IP-CAN-Type" required="false" max="1" />
+                <rule avp="AVP" required="false" />
             </data>
         </avp>
-
-        <avp name="AN-GW-Address" code="1050" must="V" may="P" must-not="M" may-encrypt="y" vendor-id="10415">
-            <!-- 3GPP 29.212 Section 5.3.49 -->
-            <data type="Address"/>
+        <avp name="Charging-Rule-Remove" code="1002" vendor-id="10415" must="M,V" may="P" must-not="" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.3. -->
+            <data type="Grouped">
+                <rule avp="Charging-Rule-Name" required="false" />
+                <rule avp="Charging-Rule-Base-Name" required="false" />
+                <rule avp="Required-Access-Info" required="false" />
+                <rule avp="Resource-Release-Notification" required="false" max="1" />
+                <rule avp="AVP" required="false" />
+            </data>
         </avp>
-
-        <avp name="Bearer-Usage" code="1000" must="M,V" may="P" may-encrypt="y" vendor-id="10415">
-            <!-- 3GPP 29.212 Section 5.3.1 -->
+        <avp name="Charging-Rule-Definition" code="1003" vendor-id="10415" must="M,V" may="P" must-not="" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.4. -->
+            <data type="Grouped">
+                <rule avp="Charging-Rule-Name" required="true" max="1" />
+                <rule avp="Service-Identifier" required="false" max="1" />
+                <rule avp="Rating-Group" required="false" max="1" />
+                <rule avp="Flow-Information" required="false" />
+                <rule avp="Default-Bearer-Indication" required="false" max="1" />
+                <rule avp="TDF-Application-Identifier" required="false" max="1" />
+                <rule avp="Flow-Status" required="false" max="1" />
+                <rule avp="QoS-Information" required="false" max="1" />
+                <rule avp="PS-to-CS-Session-Continuity" required="false" max="1" />
+                <rule avp="Reporting-Level" required="false" max="1" />
+                <rule avp="Online" required="false" max="1" />
+                <rule avp="Offline" required="false" max="1" />
+                <rule avp="Max-PLR-DL" required="false" max="1" />
+                <rule avp="Max-PLR-UL" required="false" max="1" />
+                <rule avp="Metering-Method" required="false" max="1" />
+                <rule avp="Precedence" required="false" max="1" />
+                <rule avp="AF-Charging-Identifier" required="false" max="1" />
+                <rule avp="Flows" required="false" />
+                <rule avp="Monitoring-Key" required="false" max="1" />
+                <rule avp="Redirect-Information" required="false" max="2" />
+                <rule avp="Mute-Notification" required="false" max="1" />
+                <rule avp="AF-Signalling-Protocol" required="false" max="1" />
+                <rule avp="Sponsor-Identity" required="false" max="1" />
+                <rule avp="Application-Service-Provider-Identity" required="false" max="1" />
+                <rule avp="Required-Access-Info" required="false" />
+                <rule avp="Sharing-Key-DL" required="false" max="1" />
+                <rule avp="Sharing-Key-UL" required="false" max="1" />
+                <rule avp="Traffic-Steering-Policy-Identifier-DL" required="false" max="1" />
+                <rule avp="Traffic-Steering-Policy-Identifier-UL" required="false" max="1" />
+                <rule avp="Content-Version" required="false" max="1" />
+                <rule avp="Calling-Party-Address" required="false" />
+                <rule avp="Callee-Information" required="false" max="1" />
+                <rule avp="UHRR-Enable-Indication" required="false" max="1" />
+                <rule avp="AVP" required="false" />
+            </data>
+        </avp>
+        <avp name="Charging-Rule-Base-Name" code="1004" vendor-id="10415" must="M,V" may="P" must-not="" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.5. -->
+            <data type="UTF8String" />
+        </avp>
+        <avp name="Charging-Rule-Name" code="1005" vendor-id="10415" must="M,V" may="P" must-not="" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.6. -->
+            <data type="OctetString" />
+        </avp>
+        <avp name="Event-Trigger" code="1006" vendor-id="10415" must="M,V" may="P" must-not="" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.7. -->
             <data type="Enumerated">
-                <item code="0" name="GENERAL"/>
-                <item code="1" name="IMS_SIGNALLING"/>
+                <item code="0" name="SGSN_CHANGE" />
+                <item code="1" name="QOS_CHANGE" />
+                <item code="2" name="RAT_CHANGE" />
+                <item code="3" name="TFT_CHANGE" />
+                <item code="4" name="PLMN_CHANGE" />
+                <item code="5" name="LOSS_OF_BEARER" />
+                <item code="6" name="RECOVERY_OF_BEARER" />
+                <item code="7" name="IP-CAN_CHANGE" />
+                <item code="11" name="QOS_CHANGE_EXCEEDING_AUTHORIZATION" />
+                <item code="12" name="RAI_CHANGE" />
+                <item code="13" name="USER_LOCATION_CHANGE" />
+                <item code="14" name="NO_EVENT_TRIGGERS" />
+                <item code="15" name="OUT_OF_CREDIT" />
+                <item code="16" name="REALLOCATION_OF_CREDIT" />
+                <item code="17" name="REVALIDATION_TIMEOUT" />
+                <item code="18" name="UE_IP_ADDRESS_ALLOCATE" />
+                <item code="19" name="UE_IP_ADDRESS_RELEASE" />
+                <item code="20" name="DEFAULT_EPS_BEARER_QOS_CHANGE" />
+                <item code="21" name="AN_GW_CHANGE" />
+                <item code="22" name="SUCCESSFUL_RESOURCE_ALLOCATION" />
+                <item code="23" name="RESOURCE_MODIFICATION_REQUEST" />
+                <item code="24" name="PGW_TRACE_CONTROL" />
+                <item code="25" name="UE_TIME_ZONE_CHANGE" />
+                <item code="26" name="TAI_CHANGE" />
+                <item code="27" name="ECGI_CHANGE" />
+                <item code="28" name="CHARGING_CORRELATION_EXCHANGE" />
+                <item code="29" name="APN-AMBR_MODIFICATION_FAILURE" />
+                <item code="30" name="USER_CSG_INFORMATION_CHANGE" />
+                <item code="33" name="USAGE_REPORT" />
+                <item code="34" name="DEFAULT-EPS-BEARER-QOS_MODIFICATION_FAILURE" />
+                <item code="35" name="USER_CSG_HYBRID_SUBSCRIBED_INFORMATION_CHANGE" />
+                <item code="36" name="USER_CSG_HYBRID_UNSUBSCRIBED_INFORMATION_CHANGE" />
+                <item code="37" name="ROUTING_RULE_CHANGE" />
+                <item code="39" name="APPLICATION_START" />
+                <item code="40" name="APPLICATION_STOP" />
+                <item code="42" name="CS_TO_PS_HANDOVER" />
+                <item code="43" name="UE_LOCAL_IP_ADDRESS_CHANGE" />
+                <item code="44" name="H(E)NB_LOCAL_IP_ADDRESS_CHANGE" />
+                <item code="45" name="ACCESS_NETWORK_INFO_REPORT" />
+                <item code="46" name="CREDIT_MANAGEMENT_SESSION_FAILURE" />
+                <item code="47" name="DEFAULT_QOS_CHANGE" />
+                <item code="48" name="CHANGE_OF_UE_PRESENCE_IN_PRESENCE_REPORTING_AREA_REPORT" />
+                <item code="49" name="ADDITION_OF_ACCESS" />
+                <item code="50" name="REMOVAL_OF_ACCESS" />
+                <item code="51" name="UNAVAILABLITY_OF_ACCESS" />
+                <item code="52" name="AVAILABLITY_OF_ACCESS" />
+                <item code="53" name="RESOURCE_RELEASE" />
+                <item code="54" name="ENODEB_CHANGE" />
+                <item code="55" name="3GPP_PS_DATA_OFF_CHANGE" />
+                <item code="56" name="UE_STATUS_RESUME" />
+                <item code="57" name="SUCCESSFUL_QOS_UPDATE" />
+                <item code="58" name="UHRR_CAP_REPORT" />
             </data>
         </avp>
-
-        <avp name="Access-Network-Charging-Identifier-Gx" code="1022" must="M,V" may="P" may-encrypt="y" vendor-id="10415">
-            <!-- 3GPP 29.212 Section 5.3.22 -->
+        <avp name="Metering-Method" code="1007" vendor-id="10415" must="M,V" may="P" must-not="" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.8. -->
+            <data type="Enumerated">
+                <item code="0" name="DURATION" />
+                <item code="1" name="VOLUME" />
+                <item code="2" name="DURATION_VOLUME" />
+                <item code="3" name="EVENT" />
+            </data>
+        </avp>
+        <avp name="Offline" code="1008" vendor-id="10415" must="M,V" may="P" must-not="" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.9. -->
+            <data type="Enumerated">
+                <item code="0" name="DISABLE_OFFLINE" />
+                <item code="1" name="ENABLE_OFFLINE" />
+            </data>
+        </avp>
+        <avp name="Online" code="1009" vendor-id="10415" must="M,V" may="P" must-not="" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.10. -->
+            <data type="Enumerated">
+                <item code="0" name="DISABLE_ONLINE" />
+                <item code="1" name="ENABLE_ONLINE" />
+            </data>
+        </avp>
+        <avp name="Precedence" code="1010" vendor-id="10415" must="M,V" may="P" must-not="" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.11. -->
+            <data type="Unsigned32" />
+        </avp>
+        <avp name="Reporting-Level" code="1011" vendor-id="10415" must="M,V" may="P" must-not="" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.12. -->
+            <data type="Enumerated">
+                <item code="0" name="SERVICE_IDENTIFIER_LEVEL" />
+                <item code="1" name="RATING_GROUP_LEVEL" />
+                <item code="2" name="SPONSORED_CONNECTIVITY_LEVEL" />
+            </data>
+        </avp>
+        <avp name="TFT-Filter" code="1012" vendor-id="10415" must="M,V" may="P" must-not="" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.13. -->
+            <data type="IPFilterRule" />
+        </avp>
+        <avp name="TFT-Packet-Filter-Information" code="1013" vendor-id="10415" must="M,V" may="P" must-not="" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.14. -->
             <data type="Grouped">
-                <rule avp="Access-Network-Charging-Identifier-Value" required="true" max="1"/>
-                <rule avp="Charging-Rule-Base-Name" required="false"/>
-                <rule avp="Charging-Rule-Name" required="false"/>
-                <!-- *[ AVP ]-->
+                <rule avp="Precedence" required="false" max="1" />
+                <rule avp="TFT-Filter" required="false" max="1" />
+                <rule avp="ToS-Traffic-Class" required="false" max="1" />
+                <rule avp="Security-Parameter-Index" required="false" max="1" />
+                <rule avp="Flow-Label" required="false" max="1" />
+                <rule avp="Flow-Direction" required="false" max="1" />
+                <rule avp="AVP" required="false" />
             </data>
         </avp>
-
-        <avp name="TGPP-SGSN-Address" code="6" must="V" may="P" must-not="M" may-encrypt="y" vendor-id="10415">
-            <!-- 3GPP 29.061 Table 9a -->
-            <data type="OctetString"/>
+        <avp name="ToS-Traffic-Class" code="1014" vendor-id="10415" must="M,V" may="P" must-not="" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.15. -->
+            <data type="OctetString" />
         </avp>
-
-        <avp name="TGPP-GGSN-Address" code="7" must="V" may="P" must-not="M" may-encrypt="y" vendor-id="10415">
-            <!-- 3GPP 29.061 Table 9a -->
-            <data type="OctetString"/>
-        </avp>
-
-        <avp name="Access-Network-Charging-Address" code="501" must="M,V" may="P" may-encrypt="y" vendor-id="10415">
-            <!-- 3GPP TS 29.214 Section 5.3.2 -->
-            <data type="Address"/>
-        </avp>
-
-        <avp name="TGPP-MS-TimeZone" code="23" must="V" may="P" must-not="M" may-encrypt="y" vendor-id="10415">
-            <!-- 3GPP 29.061 Table 9a -->
-            <data type="OctetString"/>
-        </avp>
-
-        <avp name="TFT-Filter" code="1012" must="M,V" may="P" may-encrypt="y" vendor-id="10415">
-            <!-- 3GPP 29.212 5.3.13-->
-            <data type="IPFilterRule"/>
-        </avp>
-
-        <avp name="TFT-Packet-Filter-Information" code="1013" must="M,V" may="P" may-encrypt="y" vendor-id="10415">
-            <!-- 3GPP 29.212 5.3.14-->
+        <avp name="Charging-Rule-Report" code="1018" vendor-id="10415" must="M,V" may="P" must-not="" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.18. -->
             <data type="Grouped">
-                <rule avp="Precedence" required="false" max="1"/>
-                <rule avp="TFT-Filter" required="false" max="1"/>
-                <rule avp="ToS-Traffic-Class" required="false" max="1"/>
-                <rule avp="Security-Parameter-Index" required="false" max="1"/>
-                <rule avp="Flow-Label" required="false" max="1"/>
-                <rule avp="Flow-Direction" required="false" max="1"/>
-                <!-- *[ AVP ]-->
+                <rule avp="Charging-Rule-Name" required="false" />
+                <rule avp="Charging-Rule-Base-Name" required="false" />
+                <rule avp="Bearer-Identifier" required="false" max="1" />
+                <rule avp="PCC-Rule-Status" required="false" max="1" />
+                <rule avp="Rule-Failure-Code" required="false" max="1" />
+                <rule avp="Final-Unit-Indication" required="false" max="1" />
+                <rule avp="RAN-NAS-Release-Cause" required="false" />
+                <rule avp="Content-Version" required="false" />
+                <rule avp="AVP" required="false" />
             </data>
         </avp>
-
+        <avp name="PCC-Rule-Status" code="1019" vendor-id="10415" must="M,V" may="P" must-not="" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.19. -->
+            <data type="Enumerated">
+                <item code="0" name="ACTIVE" />
+                <item code="1" name="INACTIVE" />
+                <item code="2" name="TEMPORARILY INACTIVE" />
+            </data>
+        </avp>
+        <avp name="Bearer-Operation" code="1021" vendor-id="10415" must="M,V" may="P" must-not="" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.21. -->
+            <data type="Enumerated">
+                <item code="0" name="TERMINATION" />
+                <item code="1" name="ESTABLISHMENT" />
+                <item code="2" name="MODIFICATION" />
+            </data>
+        </avp>
+        <avp name="Access-Network-Charging-Identifier-Gx" code="1022" vendor-id="10415" must="M,V" may="P" must-not="" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.22. -->
+            <data type="Grouped">
+                <rule avp="Access-Network-Charging-Identifier-Value" required="true" max="1" />
+                <rule avp="Charging-Rule-Base-Name" required="false" />
+                <rule avp="Charging-Rule-Name" required="false" />
+                <rule avp="IP-CAN-Session-Charging-Scope" required="false" max="1" />
+                <rule avp="AVP" required="false" />
+            </data>
+        </avp>
+        <avp name="Bearer-Control-Mode" code="1023" vendor-id="10415" must="M,V" may="P" must-not="" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.23. -->
+            <data type="Enumerated">
+                <item code="0" name="UE_ONLY" />
+                <item code="1" name="RESERVED" />
+                <item code="2" name="UE_NW" />
+            </data>
+        </avp>
+        <avp name="Network-Request-Support" code="1024" vendor-id="10415" must="M,V" may="P" must-not="" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.24. -->
+            <data type="Enumerated">
+                <item code="0" name="NETWORK_REQUEST_NOT_SUPPORTED" />
+                <item code="1" name="NETWORK_REQUEST_SUPPORTED" />
+            </data>
+        </avp>
+        <avp name="QoS-Negotiation" code="1029" vendor-id="10415" must="M,V" may="P" must-not="" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.28. -->
+            <data type="Enumerated">
+                <item code="0" name="NO_QoS_NEGOTIATION" />
+                <item code="1" name="QoS_NEGOTIATION_SUPPORTED" />
+            </data>
+        </avp>
+        <avp name="QoS-Upgrade" code="1030" vendor-id="10415" must="M,V" may="P" must-not="" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.29. -->
+            <data type="Enumerated">
+                <item code="0" name="QoS_UPGRADE_NOT_SUPPORTED" />
+                <item code="1" name="QoS_UPGRADE_SUPPORTED" />
+            </data>
+        </avp>
+        <avp name="Rule-Failure-Code" code="1031" vendor-id="10415" must="M,V" may="P" must-not="" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.38. -->
+            <data type="Enumerated">
+                <item code="1" name="UNKNOWN_RULE_NAME" />
+                <item code="2" name="RATING_GROUP_ERROR" />
+                <item code="3" name="SERVICE_IDENTIFIER_ERROR" />
+                <item code="4" name="GW/PCEF_MALFUNCTION" />
+                <item code="5" name="RESOURCES_LIMITATION" />
+                <item code="6" name="MAX_NR_BEARERS_REACHED" />
+                <item code="7" name="UNKNOWN_BEARER_ID" />
+                <item code="8" name="MISSING_BEARER_ID" />
+                <item code="9" name="MISSING_FLOW_INFORMATION" />
+                <item code="10" name="RESOURCE_ALLOCATION_FAILURE" />
+                <item code="11" name="UNSUCCESSFUL_QOS_VALIDATION" />
+                <item code="12" name="INCORRECT_FLOW_INFORMATION" />
+                <item code="13" name="PS_TO_CS_HANDOVER" />
+                <item code="14" name="TDF_APPLICATION_IDENTIFIER_ERROR" />
+                <item code="15" name="NO_BEARER_BOUND" />
+                <item code="16" name="FILTER_RESTRICTIONS" />
+                <item code="17" name="AN_GW_FAILED" />
+                <item code="18" name="MISSING_REDIRECT_SERVER_ADDRESS" />
+                <item code="19" name="CM_END_USER_SERVICE_DENIED" />
+                <item code="20" name="CM_CREDIT_CONTROL_NOT_APPLICABLE" />
+                <item code="21" name="CM_AUTHORIZATION_REJECTED" />
+                <item code="22" name="CM_USER_UNKNOWN" />
+                <item code="23" name="CM_RATING_FAILED" />
+                <item code="24" name="ROUTING_RULE_REJECTION" />
+                <item code="25" name="UNKNOWN_ROUTING_ACCESS_INFORMATION" />
+                <item code="26" name="NO_NBIFOM_SUPPORT" />
+                <item code="27" name="UE_STATE_SUSPEND" />
+                <item code="28" name="TRAFFIC_STEERING_ERROR" />
+                <item code="29" name="SAME_TIME_ERROR" />
+            </data>
+        </avp>
+        <avp name="Event-Report-Indication" code="1033" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.30. -->
+            <data type="Grouped">
+                <rule avp="AN-Trusted" required="false" max="1" />
+                <rule avp="Event-Trigger" required="false" />
+                <rule avp="User-CSG-Information" required="false" max="1" />
+                <rule avp="IP-CAN-Type" required="false" max="1" />
+                <rule avp="AN-GW-Address" required="false" max="2" />
+                <rule avp="TGPP-SGSN-Address" required="false" max="1" />
+                <rule avp="TGPP-SGSN-Ipv6-Address" required="false" max="1" />
+                <rule avp="TGPP-SGSN-MCC-MNC" required="false" max="1" />
+                <rule avp="Framed-IP-Address" required="false" max="1" />
+                <rule avp="RAT-Type" required="false" max="1" />
+                <rule avp="RAI" required="false" max="1" />
+                <rule avp="TGPP-User-Location-Info" required="false" max="1" />
+                <rule avp="Trace-Data" required="false" max="1" />
+                <rule avp="Trace-Reference" required="false" max="1" />
+                <rule avp="3GPP2-BSID" required="false" max="1" />
+                <rule avp="TGPP-MS-TimeZone" required="false" max="1" />
+                <rule avp="Routing-IP-Address" required="false" max="1" />
+                <rule avp="UE-Local-IP-Address" required="false" max="1" />
+                <rule avp="HeNB-Local-IP-Address" required="false" max="1" />
+                <rule avp="UDP-Source-Port" required="false" max="1" />
+                <rule avp="Presence-Reporting-Area-Information" required="false" max="1" />
+                <rule avp="AVP" required="false" />
+            </data>
+        </avp>
+        <avp name="CoA-IP-Address" code="1035" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.33. -->
+            <data type="Address" />
+        </avp>
+        <avp name="Tunnel-Header-Filter" code="1036" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.34. -->
+            <data type="IPFilterRule" />
+        </avp>
+        <avp name="Tunnel-Header-Length" code="1037" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.35. -->
+            <data type="Unsigned32" />
+        </avp>
+        <avp name="Tunnel-Information" code="1038" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.36.
+                 The printed "2 [ Tunnel-Header-Filter ]" repeats an optional element twice,
+                 equivalent to 0..2 occurrences under RFC 5234 §§3.7–3.8
+                 (updated by RFC 7405), consistent with the length-only prose. -->
+            <data type="Grouped">
+                <rule avp="Tunnel-Header-Length" required="false" max="1" />
+                <rule avp="Tunnel-Header-Filter" required="false" max="2" />
+                <rule avp="AVP" required="false" />
+            </data>
+        </avp>
+        <avp name="CoA-Information" code="1039" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.37. -->
+            <data type="Grouped">
+                <rule avp="Tunnel-Information" required="true" max="1" />
+                <rule avp="CoA-IP-Address" required="true" max="1" />
+                <rule avp="AVP" required="false" />
+            </data>
+        </avp>
+        <avp name="APN-Aggregate-Max-Bitrate-DL" code="1040" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.39. -->
+            <data type="Unsigned32" />
+        </avp>
+        <avp name="APN-Aggregate-Max-Bitrate-UL" code="1041" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.40. -->
+            <data type="Unsigned32" />
+        </avp>
+        <avp name="Revalidation-Time" code="1042" vendor-id="10415" must="M,V" may="P" must-not="" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.41. -->
+            <data type="Time" />
+        </avp>
+        <avp name="Rule-Activation-Time" code="1043" vendor-id="10415" must="M,V" may="P" must-not="" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.42. -->
+            <data type="Time" />
+        </avp>
+        <avp name="Rule-Deactivation-Time" code="1044" vendor-id="10415" must="M,V" may="P" must-not="" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.43. -->
+            <data type="Time" />
+        </avp>
+        <avp name="Session-Release-Cause" code="1045" vendor-id="10415" must="M,V" may="P" must-not="" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.44. -->
+            <data type="Enumerated">
+                <item code="0" name="UNSPECIFIED_REASON" />
+                <item code="1" name="UE_SUBSCRIPTION_REASON" />
+                <item code="2" name="INSUFFICIENT_SERVER_RESOURCES" />
+                <item code="3" name="IP_CAN_SESSION_TERMINATION" />
+                <item code="4" name="UE_IP_ADDRESS_RELEASE" />
+            </data>
+        </avp>
+        <avp name="Default-EPS-Bearer-QoS" code="1049" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.48. -->
+            <data type="Grouped">
+                <rule avp="QoS-Class-Identifier" required="false" max="1" />
+                <rule avp="Allocation-Retention-Priority" required="false" max="1" />
+                <rule avp="AVP" required="false" />
+            </data>
+        </avp>
+        <avp name="AN-GW-Address" code="1050" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.49. -->
+            <data type="Address" />
+        </avp>
+        <avp name="Security-Parameter-Index" code="1056" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.51. -->
+            <data type="OctetString" />
+        </avp>
+        <avp name="Flow-Label" code="1057" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.52. -->
+            <data type="OctetString" />
+        </avp>
+        <avp name="Flow-Information" code="1058" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.53. -->
+            <data type="Grouped">
+                <rule avp="Flow-Description" required="false" max="1" />
+                <rule avp="Packet-Filter-Identifier" required="false" max="1" />
+                <rule avp="Packet-Filter-Usage" required="false" max="1" />
+                <rule avp="ToS-Traffic-Class" required="false" max="1" />
+                <rule avp="Security-Parameter-Index" required="false" max="1" />
+                <rule avp="Flow-Label" required="false" max="1" />
+                <rule avp="Flow-Direction" required="false" max="1" />
+                <rule avp="Routing-Rule-Identifier" required="false" max="1" />
+                <rule avp="AVP" required="false" />
+            </data>
+        </avp>
+        <avp name="Packet-Filter-Content" code="1059" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.54. -->
+            <data type="IPFilterRule" />
+        </avp>
+        <avp name="Packet-Filter-Identifier" code="1060" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.55. -->
+            <data type="OctetString" />
+        </avp>
+        <avp name="Packet-Filter-Information" code="1061" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.56. -->
+            <data type="Grouped">
+                <rule avp="Packet-Filter-Identifier" required="false" max="1" />
+                <rule avp="Precedence" required="false" max="1" />
+                <rule avp="Packet-Filter-Content" required="false" max="1" />
+                <rule avp="ToS-Traffic-Class" required="false" max="1" />
+                <rule avp="Security-Parameter-Index" required="false" max="1" />
+                <rule avp="Flow-Label" required="false" max="1" />
+                <rule avp="Flow-Direction" required="false" max="1" />
+                <rule avp="AVP" required="false" />
+            </data>
+        </avp>
+        <avp name="Packet-Filter-Operation" code="1062" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.57. -->
+            <data type="Enumerated">
+                <item code="0" name="DELETION" />
+                <item code="1" name="ADDITION" />
+                <item code="2" name="MODIFICATION" />
+            </data>
+        </avp>
+        <avp name="Resource-Allocation-Notification" code="1063" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.50. -->
+            <data type="Enumerated">
+                <item code="0" name="ENABLE_NOTIFICATION" />
+            </data>
+        </avp>
+        <avp name="PDN-Connection-ID" code="1065" vendor-id="10415" must="V" may="P" must-not="" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.58. -->
+            <data type="OctetString" />
+        </avp>
+        <avp name="Monitoring-Key" code="1066" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.59. -->
+            <data type="OctetString" />
+        </avp>
+        <avp name="Usage-Monitoring-Information" code="1067" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.60. -->
+            <data type="Grouped">
+                <rule avp="Monitoring-Key" required="false" max="1" />
+                <rule avp="Granted-Service-Unit" required="false" max="2" />
+                <rule avp="Used-Service-Unit" required="false" max="2" />
+                <rule avp="Quota-Consumption-Time" required="false" max="1" />
+                <rule avp="Usage-Monitoring-Level" required="false" max="1" />
+                <rule avp="Usage-Monitoring-Report" required="false" max="1" />
+                <rule avp="Usage-Monitoring-Support" required="false" max="1" />
+                <rule avp="AVP" required="false" />
+            </data>
+        </avp>
+        <avp name="Usage-Monitoring-Level" code="1068" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.61. -->
+            <data type="Enumerated">
+                <item code="0" name="SESSION_LEVEL" />
+                <item code="1" name="PCC_RULE_LEVEL" />
+                <item code="2" name="ADC_RULE_LEVEL" />
+            </data>
+        </avp>
+        <avp name="Usage-Monitoring-Report" code="1069" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.62. -->
+            <data type="Enumerated">
+                <item code="0" name="USAGE_MONITORING_REPORT_REQUIRED" />
+            </data>
+        </avp>
+        <avp name="Usage-Monitoring-Support" code="1070" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.63. -->
+            <data type="Enumerated">
+                <item code="0" name="USAGE_MONITORING_DISABLED" />
+            </data>
+        </avp>
+        <avp name="CSG-Information-Reporting" code="1071" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.64. -->
+            <data type="Enumerated">
+                <item code="0" name="CHANGE_CSG_CELL" />
+                <item code="1" name="CHANGE_CSG_SUBSCRIBED_HYBRID_CELL" />
+                <item code="2" name="CHANGE_CSG_UNSUBSCRIBED_HYBRID_CELL" />
+            </data>
+        </avp>
+        <avp name="Packet-Filter-Usage" code="1072" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.66. -->
+            <data type="Enumerated">
+                <item code="1" name="SEND_TO_UE" />
+            </data>
+        </avp>
+        <avp name="Charging-Correlation-Indicator" code="1073" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.67. -->
+            <data type="Enumerated">
+                <item code="0" name="CHARGING_IDENTIFIER_REQUIRED" />
+            </data>
+        </avp>
+        <avp name="Routing-Rule-Remove" code="1075" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.69. -->
+            <data type="Grouped">
+                <rule avp="Routing-Rule-Identifier" required="false" />
+                <rule avp="AVP" required="false" />
+            </data>
+        </avp>
+        <avp name="Routing-Rule-Definition" code="1076" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.70. -->
+            <data type="Grouped">
+                <rule avp="Routing-Rule-Identifier" required="true" max="1" />
+                <rule avp="Routing-Filter" required="false" />
+                <rule avp="Precedence" required="false" max="1" />
+                <rule avp="Routing-IP-Address" required="false" max="1" />
+                <rule avp="IP-CAN-Type" required="false" max="1" />
+                <rule avp="AVP" required="false" />
+            </data>
+        </avp>
+        <avp name="Routing-Rule-Identifier" code="1077" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.71. -->
+            <data type="OctetString" />
+        </avp>
+        <avp name="Routing-Filter" code="1078" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.72. -->
+            <data type="Grouped">
+                <rule avp="Flow-Description" required="true" max="1" />
+                <rule avp="Flow-Direction" required="true" max="1" />
+                <rule avp="ToS-Traffic-Class" required="false" max="1" />
+                <rule avp="Security-Parameter-Index" required="false" max="1" />
+                <rule avp="Flow-Label" required="false" max="1" />
+                <rule avp="AVP" required="false" />
+            </data>
+        </avp>
+        <avp name="Routing-IP-Address" code="1079" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.73. -->
+            <data type="Address" />
+        </avp>
+        <avp name="Flow-Direction" code="1080" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.65. -->
+            <data type="Enumerated">
+                <item code="0" name="UNSPECIFIED" />
+                <item code="1" name="DOWNLINK" />
+                <item code="2" name="UPLINK" />
+                <item code="3" name="BIDIRECTIONAL" />
+            </data>
+        </avp>
+        <avp name="Routing-Rule-Install" code="1081" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.68. -->
+            <data type="Grouped">
+                <rule avp="Routing-Rule-Definition" required="false" />
+                <rule avp="AVP" required="false" />
+            </data>
+        </avp>
+        <avp name="Credit-Management-Status" code="1082" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.102. -->
+            <data type="Unsigned32" />
+        </avp>
+        <avp name="Redirect-Information" code="1085" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.82. -->
+            <data type="Grouped">
+                <rule avp="Redirect-Support" required="false" max="1" />
+                <rule avp="Redirect-Address-Type" required="false" max="1" />
+                <rule avp="Redirect-Server-Address" required="false" max="1" />
+                <rule avp="AVP" required="false" />
+            </data>
+        </avp>
+        <avp name="Redirect-Support" code="1086" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.83. -->
+            <data type="Enumerated">
+                <item code="0" name="REDIRECTION_DISABLED" />
+                <item code="1" name="REDIRECTION_ENABLED" />
+            </data>
+        </avp>
+        <avp name="TDF-Information" code="1087" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.78. -->
+            <data type="Grouped">
+                <rule avp="TDF-Destination-Realm" required="false" max="1" />
+                <rule avp="TDF-Destination-Host" required="false" max="1" />
+                <rule avp="TDF-IP-Address" required="false" max="1" />
+            </data>
+        </avp>
+        <avp name="TDF-Application-Identifier" code="1088" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.77. -->
+            <data type="OctetString" />
+        </avp>
+        <avp name="TDF-Destination-Host" code="1089" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.80. -->
+            <data type="DiameterIdentity" />
+        </avp>
+        <avp name="TDF-Destination-Realm" code="1090" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.79. -->
+            <data type="DiameterIdentity" />
+        </avp>
+        <avp name="Application-Detection-Information" code="1098" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.91. -->
+            <data type="Grouped">
+                <rule avp="TDF-Application-Identifier" required="true" max="1" />
+                <rule avp="TDF-Application-Instance-Identifier" required="false" max="1" />
+                <rule avp="Flow-Information" required="false" />
+                <rule avp="AVP" required="false" />
+            </data>
+        </avp>
+        <avp name="PS-to-CS-Session-Continuity" code="1099" vendor-id="10415" must="V" may="P" must-not="" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.84. -->
+            <data type="Enumerated">
+                <item code="0" name="VIDEO_PS2CS_CONT_CANDIDATE" />
+            </data>
+        </avp>
+        <avp name="Trace-Collection-Entity" code="1452" vendor-id="10415" must="V" may-encrypt="N" may="" must-not="M">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.4.0.1 Note 5; Gx nested M-bit override. TS 29.272 V19.6.0 §7.3.98. -->
+            <data type="Address" />
+        </avp>
+        <avp name="Trace-Data" code="1458" vendor-id="10415" must="V" may-encrypt="N" may="" must-not="M">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.4.0.1; TS 29.272 V19.6.0 §7.3.63. -->
+            <data type="Grouped">
+                <rule avp="Trace-Reference" required="true" max="1" />
+                <rule avp="Trace-Depth" required="true" max="1" />
+                <rule avp="Trace-NE-Type-List" required="true" max="1" />
+                <rule avp="Trace-Interface-List" required="false" max="1" />
+                <rule avp="Trace-Event-List" required="true" max="1" />
+                <rule avp="OMC-Id" required="false" max="1" />
+                <rule avp="Trace-Collection-Entity" required="true" max="1" />
+                <rule avp="MDT-Configuration" required="false" max="1" />
+                <rule avp="MDT-Configuration-NR" required="false" max="1" />
+                <rule avp="Trace-Reporting-Consumer-Uri" required="false" max="1" />
+                <rule avp="AVP" required="false" />
+            </data>
+        </avp>
+        <avp name="Trace-Reference" code="1459" vendor-id="10415" must="V" may-encrypt="N" may="" must-not="M">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.4.0.1; TS 29.272 V19.6.0 §7.3.64. -->
+            <data type="OctetString" />
+        </avp>
+        <avp name="Trace-Depth" code="1462" vendor-id="10415" must="V" may-encrypt="N" may="" must-not="M">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.4.0.1 Note 5; Gx nested M-bit override. TS 29.272 V19.6.0 §7.3.67. -->
+            <data type="Enumerated">
+                <item code="0" name="Minimum" />
+                <item code="1" name="Medium" />
+                <item code="2" name="Maximum" />
+                <item code="3" name="MinimumWithoutVendorSpecificExtension" />
+                <item code="4" name="MediumWithoutVendorSpecificExtension" />
+                <item code="5" name="MaximumWithoutVendorSpecificExtension" />
+                <item code="6" name="MinimumOnlyVendorSpecificTraceRecord" />
+                <item code="7" name="MediumOnlyVendorSpecificTraceRecord" />
+                <item code="8" name="MaximumOnlyVendorSpecificTraceRecord" />
+            </data>
+        </avp>
+        <avp name="Trace-NE-Type-List" code="1463" vendor-id="10415" must="V" may-encrypt="N" may="" must-not="M">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.4.0.1 Note 5; Gx nested M-bit override. TS 29.272 V19.6.0 §7.3.68. -->
+            <data type="OctetString" />
+        </avp>
+        <avp name="Trace-Interface-List" code="1464" vendor-id="10415" must="V" may-encrypt="N" may="" must-not="M">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.4.0.1 Note 5; Gx nested M-bit override. TS 29.272 V19.6.0 §7.3.69. -->
+            <data type="OctetString" />
+        </avp>
+        <avp name="Trace-Event-List" code="1465" vendor-id="10415" must="V" may-encrypt="N" may="" must-not="M">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.4.0.1 Note 5; Gx nested M-bit override. TS 29.272 V19.6.0 §7.3.70. -->
+            <data type="OctetString" />
+        </avp>
+        <avp name="OMC-Id" code="1466" vendor-id="10415" must="V" may-encrypt="N" may="" must-not="M">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.4.0.1 Note 5; Gx nested M-bit override. TS 29.272 V19.6.0 §7.3.71. -->
+            <data type="OctetString" />
+        </avp>
+        <avp name="AN-Trusted" code="1503" must="V" vendor-id="10415" may="" must-not="M,P">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.4.0.1; TS 29.273 V19.2.0 §5.2.3.9. -->
+            <data type="Enumerated">
+                <item code="0" name="TRUSTED" />
+                <item code="1" name="UNTRUSTED" />
+            </data>
+        </avp>
+        <avp name="Origination-Time-Stamp" code="1536" vendor-id="10415" must="V" must-not="M,P" may="">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.4.0.1; TS 29.273 V19.2.0 §9.2.3.2.6. -->
+            <data type="Unsigned64" />
+        </avp>
+        <avp name="Maximum-Wait-Time" code="1537" vendor-id="10415" must="V" must-not="M,P" may="">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.4.0.1; TS 29.273 V19.2.0 §9.2.3.2.7. -->
+            <data type="Unsigned32" />
+        </avp>
+        <avp name="E-UTRAN-Cell-Global-Identity" code="1602" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.4.0.1; reused member definition. -->
+            <data type="OctetString">
+            </data>
+        </avp>
+        <avp name="Tracking-Area-Identity" code="1603" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.4.0.1; reused member definition. -->
+            <data type="OctetString">
+            </data>
+        </avp>
+        <avp name="Cell-Global-Identity" code="1604" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.4.0.1; reused member definition. -->
+            <data type="OctetString">
+            </data>
+        </avp>
+        <avp name="Routing-Area-Identity" code="1605" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.4.0.1; reused member definition. -->
+            <data type="OctetString">
+            </data>
+        </avp>
+        <avp name="Location-Area-Identity" code="1606" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.4.0.1; reused member definition. -->
+            <data type="OctetString">
+            </data>
+        </avp>
+        <avp name="MDT-Configuration" code="1622" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.4.0.1; reused member definition. -->
+            <data type="Grouped">
+                <rule avp="Job-Type" required="true" max="1" />
+                <rule avp="Area-Scope" required="false" max="1" />
+                <rule avp="List-Of-Measurements" required="false" max="1" />
+                <rule avp="Reporting-Trigger" required="false" max="1" />
+                <rule avp="Report-Interval" required="false" max="1" />
+                <rule avp="Report-Amount" required="false" max="1" />
+                <rule avp="Event-Threshold-RSRP" required="false" max="1" />
+                <rule avp="Event-Threshold-RSRQ" required="false" max="1" />
+                <rule avp="Logging-Interval" required="false" max="1" />
+                <rule avp="Logging-Duration" required="false" max="1" />
+                <rule avp="Measurement-Period-LTE" required="false" max="1" />
+                <rule avp="Measurement-Period-UMTS" required="false" max="1" />
+                <rule avp="Collection-Period-RRM-LTE" required="false" max="1" />
+                <rule avp="Collection-Period-RRM-UMTS" required="false" max="1" />
+                <rule avp="Positioning-Method" required="false" max="1" />
+                <rule avp="Measurement-Quantity" required="false" max="1" />
+                <rule avp="Event-Threshold-Event-1F" required="false" max="1" />
+                <rule avp="Event-Threshold-Event-1I" required="false" max="1" />
+                <rule avp="MDT-Allowed-PLMN-Id" required="false" />
+                <rule avp="MBSFN-Area" required="false" />
+                <rule avp="AVP" required="false" />
+            </data>
+        </avp>
+        <avp name="Job-Type" code="1623" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.4.0.1; reused member definition. -->
+            <data type="Enumerated">
+                <item code="0" name="IMMEDIATE_MDT_ONLY" />
+                <item code="1" name="LOGGED_MDT_ONLY" />
+                <item code="2" name="TRACE_ONLY" />
+                <item code="3" name="IMMEDIATE_MDT_AND_TRACE" />
+                <item code="4" name="RLF_REPORT_ONLY" />
+                <item code="5" name="RCEF_REPORT_ONLY" />
+                <item code="6" name="LOGGED_MBSFN_MDT" />
+                <item code="7" name="5GC_UE_LEVEL_MEASUREMENTS_ONLY" />
+                <item code="8" name="TRACE_AND_5GC_UE_LEVEL_MEASUREMENTS" />
+                <item code="9" name="IMMEDIATE_MDT_AND_5GC_UE_LEVEL_MEASUREMENTS" />
+                <item code="10" name="TRACE_AND_IMMEDIATE_MDT_AND_5GC_UE_LEVEL_MEASUREMENTS" />
+                <item code="11" name="RRC_REPORT" />
+                <item code="12" name="IMMEDIATE_MDT_AND_ LOGGED_MDT" />
+            </data>
+        </avp>
+        <avp name="Area-Scope" code="1624" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.4.0.1; reused member definition. -->
+            <data type="Grouped">
+                <rule avp="Cell-Global-Identity" required="false" />
+                <rule avp="E-UTRAN-Cell-Global-Identity" required="false" />
+                <rule avp="Routing-Area-Identity" required="false" />
+                <rule avp="Location-Area-Identity" required="false" />
+                <rule avp="Tracking-Area-Identity" required="false" />
+                <rule avp="NR-Cell-Global-Identity" required="false" />
+                <rule avp="AVP" required="false" />
+            </data>
+        </avp>
+        <avp name="List-Of-Measurements" code="1625" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.4.0.1; reused member definition. -->
+            <data type="Unsigned32" />
+        </avp>
+        <avp name="Reporting-Trigger" code="1626" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.4.0.1; reused member definition. -->
+            <data type="Unsigned32" />
+        </avp>
+        <avp name="Report-Interval" code="1627" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.4.0.1; reused member definition. -->
+            <data type="Enumerated">
+                <item code="0" name="250 ms" />
+                <item code="1" name="500 ms" />
+                <item code="2" name="1000 ms" />
+                <item code="3" name="2000 ms" />
+                <item code="4" name="3000 ms" />
+                <item code="5" name="4000 ms" />
+                <item code="6" name="6000 ms" />
+                <item code="7" name="8000 ms" />
+                <item code="8" name="12000 ms" />
+                <item code="9" name="16000 ms" />
+                <item code="10" name="20000 ms" />
+                <item code="11" name="24000 ms" />
+                <item code="12" name="28000 ms" />
+                <item code="13" name="32000 ms" />
+                <item code="14" name="64000 ms" />
+            </data>
+        </avp>
+        <avp name="Report-Amount" code="1628" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.4.0.1; reused member definition. -->
+            <data type="Enumerated">
+                <item code="0" name="1" />
+                <item code="1" name="2" />
+                <item code="2" name="4" />
+                <item code="3" name="8" />
+                <item code="4" name="16" />
+                <item code="5" name="32" />
+                <item code="6" name="64" />
+                <item code="7" name="infinity" />
+            </data>
+        </avp>
+        <avp name="Event-Threshold-RSRP" code="1629" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.4.0.1; reused member definition. -->
+            <data type="Unsigned32" />
+        </avp>
+        <avp name="Event-Threshold-RSRQ" code="1630" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.4.0.1; reused member definition. -->
+            <data type="Unsigned32" />
+        </avp>
+        <avp name="Logging-Interval" code="1631" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.4.0.1; reused member definition. -->
+            <data type="Enumerated">
+                <item code="0" name="1280 ms" />
+                <item code="1" name="2560 ms" />
+                <item code="2" name="5120 ms" />
+                <item code="3" name="10240 ms" />
+                <item code="4" name="20480 ms" />
+                <item code="5" name="30720 ms" />
+                <item code="6" name="40960 ms" />
+                <item code="7" name="61440 ms" />
+                <item code="8" name="320 ms" />
+                <item code="9" name="640 ms" />
+                <item code="10" name="Infinity" />
+            </data>
+        </avp>
+        <avp name="Logging-Duration" code="1632" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.4.0.1; reused member definition. -->
+            <data type="Enumerated">
+                <item code="0" name="600 sec" />
+                <item code="1" name="1200 sec" />
+                <item code="2" name="2400 sec" />
+                <item code="3" name="3600 sec" />
+                <item code="4" name="5400 sec" />
+                <item code="5" name="7200 sec" />
+            </data>
+        </avp>
+        <avp name="Measurement-Period-LTE" code="1655" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.4.0.1; reused member definition. -->
+            <data type="Enumerated">
+                <item code="0" name="1024 ms" />
+                <item code="2" name="2048 ms" />
+                <item code="4" name="5120 ms" />
+                <item code="5" name="10240 ms" />
+                <item code="6" name="1 min" />
+            </data>
+        </avp>
+        <avp name="Measurement-Period-UMTS" code="1656" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.4.0.1; reused member definition. -->
+            <data type="Enumerated">
+                <item code="0" name="1000 ms" />
+                <item code="1" name="2000 ms" />
+                <item code="2" name="3000 ms" />
+                <item code="3" name="4000 ms" />
+                <item code="4" name="6000 ms" />
+                <item code="5" name="8000 ms" />
+                <item code="6" name="12000 ms" />
+                <item code="7" name="16000 ms" />
+                <item code="8" name="20000 ms" />
+                <item code="9" name="24000 ms" />
+                <item code="10" name="28000 ms" />
+                <item code="11" name="32000 ms" />
+                <item code="12" name="64000 ms" />
+            </data>
+        </avp>
+        <avp name="Collection-Period-RRM-LTE" code="1657" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.4.0.1; reused member definition. -->
+            <data type="Enumerated">
+                <item code="0" name="100 ms" />
+                <item code="1" name="1000 ms" />
+                <item code="2" name="1024 ms" />
+                <item code="3" name="1280 ms" />
+                <item code="4" name="2048 ms" />
+                <item code="5" name="2560 ms" />
+                <item code="6" name="5120 ms" />
+                <item code="7" name="10000 ms" />
+                <item code="8" name="10240 ms" />
+                <item code="9" name="1 min" />
+            </data>
+        </avp>
+        <avp name="Collection-Period-RRM-UMTS" code="1658" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.4.0.1; reused member definition. -->
+            <data type="Enumerated">
+                <item code="0" name="100 ms" />
+                <item code="1" name="250 ms" />
+                <item code="2" name="500 ms" />
+                <item code="3" name="1000 ms" />
+                <item code="4" name="2000 ms" />
+                <item code="5" name="3000 ms" />
+                <item code="6" name="4000 ms" />
+                <item code="7" name="6000 ms" />
+            </data>
+        </avp>
+        <avp name="Positioning-Method" code="1659" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.4.0.1; reused member definition. -->
+            <data type="OctetString" />
+        </avp>
+        <avp name="Measurement-Quantity" code="1660" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.4.0.1; reused member definition. -->
+            <data type="OctetString" />
+        </avp>
+        <avp name="Event-Threshold-Event-1F" code="1661" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.4.0.1; reused member definition. -->
+            <data type="Integer32" />
+        </avp>
+        <avp name="Event-Threshold-Event-1I" code="1662" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.4.0.1; reused member definition. -->
+            <data type="Integer32" />
+        </avp>
+        <avp name="MDT-Allowed-PLMN-Id" code="1671" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.4.0.1; reused member definition. -->
+            <data type="OctetString" />
+        </avp>
+        <avp name="MBSFN-Area" code="1694" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.4.0.1; reused member definition. -->
+            <data type="Grouped">
+                <rule avp="MBSFN-Area-ID" required="false" max="1" />
+                <rule avp="Carrier-Frequency" required="false" max="1" />
+                <rule avp="AVP" required="false" />
+            </data>
+        </avp>
+        <avp name="MBSFN-Area-ID" code="1695" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.4.0.1; reused member definition. -->
+            <data type="Unsigned32" />
+        </avp>
+        <avp name="Carrier-Frequency" code="1696" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.4.0.1; reused member definition. -->
+            <data type="Unsigned32" />
+        </avp>
+        <avp name="MDT-Configuration-NR" code="1720" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.4.0.1; reused member definition. -->
+            <data type="Grouped">
+                <rule avp="Job-Type" required="true" max="1" />
+                <rule avp="Area-Scope" required="false" max="1" />
+                <rule avp="List-Of-Measurements" required="false" max="1" />
+                <rule avp="Reporting-Trigger" required="false" max="1" />
+                <rule avp="Report-Interval" required="false" max="1" />
+                <rule avp="Report-Amount" required="false" max="1" />
+                <rule avp="Event-Threshold-RSRP" required="false" max="1" />
+                <rule avp="Event-Threshold-RSRQ" required="false" max="1" />
+                <rule avp="Event-Threshold-SINR" required="false" max="1" />
+                <rule avp="Collection-Period-RRM-NR" required="false" max="1" />
+                <rule avp="Collection-Period-M6-NR" required="false" max="1" />
+                <rule avp="Collection-Period-M7-NR" required="false" max="1" />
+                <rule avp="Positioning-Method" required="false" max="1" />
+                <rule avp="Sensor-Measurement" required="false" />
+                <rule avp="MDT-Allowed-PLMN-Id" required="false" />
+                <rule avp="AVP" required="false" />
+            </data>
+        </avp>
+        <avp name="Event-Threshold-SINR" code="1721" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.4.0.1; reused member definition. -->
+            <data type="Unsigned32" />
+        </avp>
+        <avp name="Collection-Period-RRM-NR" code="1722" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.4.0.1; reused member definition. -->
+            <data type="Enumerated">
+                <item code="0" name="1024 ms" />
+                <item code="1" name="2048 ms" />
+                <item code="2" name="5120 ms" />
+                <item code="3" name="10240 ms" />
+                <item code="4" name="60000 ms" />
+            </data>
+        </avp>
+        <avp name="Collection-Period-M6-NR" code="1723" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.4.0.1; reused member definition. -->
+            <data type="Enumerated">
+                <item code="0" name="120 ms" />
+                <item code="1" name="240 ms" />
+                <item code="2" name="480 ms" />
+                <item code="3" name="640 ms" />
+                <item code="4" name="1024 ms" />
+                <item code="5" name="2048 ms" />
+                <item code="6" name="5120 ms" />
+                <item code="7" name="10240 ms" />
+                <item code="8" name="20480 ms" />
+                <item code="9" name="40960 ms" />
+                <item code="10" name="1 min" />
+                <item code="11" name="6 min" />
+                <item code="12" name="12 min" />
+                <item code="13" name="30 min" />
+            </data>
+        </avp>
+        <avp name="Collection-Period-M7-NR" code="1724" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.4.0.1; reused member definition. -->
+            <data type="Unsigned32" />
+        </avp>
+        <avp name="Sensor-Measurement" code="1725" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.4.0.1; reused member definition. -->
+            <data type="Enumerated">
+                <item code="0" name="BAROMETRIC_PRESSURE" />
+                <item code="1" name="UE_SPEED" />
+                <item code="2" name="UE_ORIENTATION" />
+            </data>
+        </avp>
+        <avp name="NR-Cell-Global-Identity" code="1726" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.4.0.1; reused member definition. -->
+            <data type="OctetString">
+            </data>
+        </avp>
+        <avp name="Trace-Reporting-Consumer-Uri" code="1727" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.4.0.1; reused member definition. -->
+            <data type="DiameterURI" />
+        </avp>
+        <avp name="PDN-Connection-Charging-Id" code="2050" must="V" may="" must-not="M" may-encrypt="N" vendor-id="10415">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.4.0.1; TS 32.299 V19.0.0 §Table 7.2.0.1. -->
+            <data type="Unsigned32" />
+        </avp>
+        <avp name="Dynamic-Address-Flag" code="2051" must="V" may="" must-not="M" may-encrypt="N" vendor-id="10415">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.4.0.1; TS 32.299 V19.0.0 §Table 7.2.0.1. -->
+            <data type="Enumerated">
+                <item code="0" name="Static" />
+                <item code="1" name="Dynamic" />
+            </data>
+        </avp>
+        <avp name="Dynamic-Address-Flag-Extension" code="2068" must="V" may="" must-not="M" may-encrypt="N" vendor-id="10415">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.4.0.1; TS 32.299 V19.0.0 §Table 7.2.0.1. -->
+            <data type="Enumerated">
+                <item code="0" name="Static" />
+                <item code="1" name="Dynamic" />
+            </data>
+        </avp>
+        <avp name="User-CSG-Information" code="2319" must="V,M" may="" must-not="" may-encrypt="N" vendor-id="10415">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.4.0.1; TS 32.299 V19.0.0 §Table 7.2.0.1. -->
+            <data type="Grouped">
+                <rule avp="CSG-Id" required="true" max="1" />
+                <rule avp="CSG-Access-Mode" required="true" max="1" />
+                <rule avp="CSG-Membership-Indication" required="false" max="1" />
+            </data>
+        </avp>
+        <avp name="BSSID" code="2716" must="V,M" may="" must-not="" may-encrypt="N" vendor-id="10415">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.4.0.1; TS 32.299 V19.0.0 §Table 7.2.0.1. -->
+            <data type="UTF8String" />
+        </avp>
+        <avp name="TDF-Application-Instance-Identifier" code="2802" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.92. -->
+            <data type="OctetString" />
+        </avp>
+        <avp name="HeNB-Local-IP-Address" code="2804" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.95. -->
+            <data type="Address" />
+        </avp>
+        <avp name="UE-Local-IP-Address" code="2805" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.96. -->
+            <data type="Address" />
+        </avp>
+        <avp name="UDP-Source-Port" code="2806" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.97. -->
+            <data type="Unsigned32" />
+        </avp>
+        <avp name="Mute-Notification" code="2809" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.98. -->
+            <data type="Enumerated">
+                <item code="0" name="MUTE_REQUIRED" />
+            </data>
+        </avp>
+        <avp name="Monitoring-Time" code="2810" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.99. -->
+            <data type="Time" />
+        </avp>
+        <avp name="AN-GW-Status" code="2811" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.100. -->
+            <data type="Enumerated">
+                <item code="0" name="AN_GW_FAILED" />
+            </data>
+        </avp>
+        <avp name="Default-QoS-Information" code="2816" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.103. -->
+            <data type="Grouped">
+                <rule avp="QoS-Class-Identifier" required="false" max="1" />
+                <rule avp="Max-Requested-Bandwidth-UL" required="false" max="1" />
+                <rule avp="Max-Requested-Bandwidth-DL" required="false" max="1" />
+                <rule avp="Default-QoS-Name" required="false" max="1" />
+                <rule avp="AVP" required="false" />
+            </data>
+        </avp>
+        <avp name="Default-QoS-Name" code="2817" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.104. -->
+            <data type="UTF8String" />
+        </avp>
+        <avp name="Conditional-APN-Aggregate-Max-Bitrate" code="2818" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.105. -->
+            <data type="Grouped">
+                <rule avp="APN-Aggregate-Max-Bitrate-UL" required="false" max="1" />
+                <rule avp="APN-Aggregate-Max-Bitrate-DL" required="false" max="1" />
+                <rule avp="Extended-APN-AMBR-UL" required="false" max="1" />
+                <rule avp="Extended-APN-AMBR-DL" required="false" max="1" />
+                <rule avp="IP-CAN-Type" required="false" />
+                <rule avp="RAT-Type" required="false" />
+                <rule avp="AVP" required="false" />
+            </data>
+        </avp>
+        <avp name="RAN-NAS-Release-Cause" code="2819" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.106. -->
+            <data type="OctetString" />
+        </avp>
+        <avp name="Presence-Reporting-Area-Elements-List" code="2820" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.107. -->
+            <data type="OctetString" />
+        </avp>
+        <avp name="Presence-Reporting-Area-Information" code="2822" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.109. -->
+            <data type="Grouped">
+                <rule avp="Presence-Reporting-Area-Identifier" required="false" max="1" />
+                <rule avp="Presence-Reporting-Area-Status" required="false" max="1" />
+                <rule avp="Presence-Reporting-Area-Elements-List" required="false" max="1" />
+                <rule avp="Presence-Reporting-Area-Node" required="false" max="1" />
+                <rule avp="AVP" required="false" />
+            </data>
+        </avp>
+        <avp name="NetLoc-Access-Support" code="2824" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.111. -->
+            <data type="Unsigned32" />
+        </avp>
+        <avp name="Fixed-User-Location-Info" code="2825" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.112. -->
+            <data type="Grouped">
+                <rule avp="SSID" required="false" max="1" />
+                <rule avp="BSSID" required="false" max="1" />
+                <rule avp="Logical-Access-ID" required="false" max="1" />
+                <rule avp="Physical-Access-ID" required="false" max="1" />
+                <rule avp="AVP" required="false" />
+            </data>
+        </avp>
+        <avp name="PCSCF-Restoration-Indication" code="2826" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.113. -->
+            <data type="Unsigned32" />
+        </avp>
+        <avp name="IP-CAN-Session-Charging-Scope" code="2827" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.114. -->
+            <data type="Enumerated">
+                <item code="0" name="IP-CAN_SESSION_SCOPE" />
+            </data>
+        </avp>
+        <avp name="Monitoring-Flags" code="2828" vendor-id="10415" must="V" may="" must-not="M" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.115. -->
+            <data type="Unsigned32" />
+        </avp>
+        <avp name="Default-Access" code="2829" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.120. -->
+            <data type="Enumerated">
+                <item code="0" name="3GPP-GPRS" />
+                <item code="1" name="DOCSIS" />
+                <item code="2" name="xDSL" />
+                <item code="3" name="WiMAX" />
+                <item code="4" name="3GPP2" />
+                <item code="5" name="3GPP-EPS" />
+                <item code="6" name="Non-3GPP-EPS" />
+                <item code="7" name="FBA" />
+                <item code="8" name="3GPP-5GS" />
+                <item code="9" name="Non-3GPP-5GS" />
+            </data>
+        </avp>
+        <avp name="NBIFOM-Mode" code="2830" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.117. -->
+            <data type="Enumerated">
+                <item code="0" name="UE_INITIATED" />
+                <item code="1" name="NETWORK_INITIATED" />
+            </data>
+        </avp>
+        <avp name="NBIFOM-Support" code="2831" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.116. -->
+            <data type="Enumerated">
+                <item code="0" name="NBIFOM_NOT_SUPPORTED" />
+                <item code="1" name="NBIFOM_SUPPORTED" />
+            </data>
+        </avp>
+        <avp name="RAN-Rule-Support" code="2832" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.122. -->
+            <data type="Unsigned32" />
+        </avp>
+        <avp name="Access-Availability-Change-Reason" code="2833" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.121. -->
+            <data type="Unsigned32" />
+        </avp>
+        <avp name="Routing-Rule-Failure-Code" code="2834" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.119. -->
+            <data type="Unsigned32" />
+        </avp>
+        <avp name="Routing-Rule-Report" code="2835" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.118. -->
+            <data type="Grouped">
+                <rule avp="Routing-Rule-Identifier" required="false" />
+                <rule avp="PCC-Rule-Status" required="false" max="1" />
+                <rule avp="Routing-Rule-Failure-Code" required="false" max="1" />
+                <rule avp="AVP" required="false" />
+            </data>
+        </avp>
+        <avp name="Traffic-Steering-Policy-Identifier-DL" code="2836" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.123. -->
+            <data type="OctetString" />
+        </avp>
+        <avp name="Traffic-Steering-Policy-Identifier-UL" code="2837" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.124. -->
+            <data type="OctetString" />
+        </avp>
+        <avp name="Execution-Time" code="2839" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.127. -->
+            <data type="Time" />
+        </avp>
+        <avp name="Conditional-Policy-Information" code="2840" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.128. -->
+            <data type="Grouped">
+                <rule avp="Execution-Time" required="false" max="1" />
+                <rule avp="Default-EPS-Bearer-QoS" required="false" max="1" />
+                <rule avp="APN-Aggregate-Max-Bitrate-UL" required="false" max="1" />
+                <rule avp="APN-Aggregate-Max-Bitrate-DL" required="false" max="1" />
+                <rule avp="Extended-APN-AMBR-UL" required="false" max="1" />
+                <rule avp="Extended-APN-AMBR-DL" required="false" max="1" />
+                <rule avp="Conditional-APN-Aggregate-Max-Bitrate" required="false" />
+                <rule avp="AVP" required="false" />
+            </data>
+        </avp>
+        <avp name="Resource-Release-Notification" code="2841" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.125. -->
+            <data type="Enumerated">
+                <item code="0" name="ENABLE_NOTIFICATION" />
+            </data>
+        </avp>
+        <avp name="Removal-Of-Access" code="2842" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.126. -->
+            <data type="Enumerated">
+                <item code="0" name="REMOVAL_OF_ACCESS" />
+            </data>
+        </avp>
+        <avp name="TCP-Source-Port" code="2843" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.129. -->
+            <data type="Unsigned32" />
+        </avp>
+        <avp name="Default-Bearer-Indication" code="2844" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.132. -->
+            <data type="Enumerated">
+                <item code="0" name="BIND_TO_DEF_BEARER" />
+                <item code="1" name="BIND_TO_APPLICABLE_BEARER" />
+            </data>
+        </avp>
+        <avp name="PRA-Install" code="2845" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.130. -->
+            <data type="Grouped">
+                <rule avp="Presence-Reporting-Area-Information" required="false" />
+                <rule avp="AVP" required="false" />
+            </data>
+        </avp>
+        <avp name="PRA-Remove" code="2846" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.131. -->
+            <data type="Grouped">
+                <rule avp="Presence-Reporting-Area-Identifier" required="false" />
+                <rule avp="AVP" required="false" />
+            </data>
+        </avp>
+        <avp name="TGPP-PS-Data-Off-Status" code="2847" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.133. -->
+            <data type="Enumerated">
+                <item code="0" name="ACTIVE" />
+                <item code="1" name="INACTIVE" />
+            </data>
+        </avp>
+        <avp name="Max-PLR-DL" code="2852" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 §§5.3.138–139; CR 1665r2 (CP-181017, CT#80), incorporated in V15.3.0: Unsigned32, tenths of percent, 0..1000. Table 5.3.0.1 retains the superseded Float32 type. -->
+            <data type="Unsigned32" />
+        </avp>
+        <avp name="Max-PLR-UL" code="2853" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 §§5.3.138–139; CR 1665r2 (CP-181017, CT#80), incorporated in V15.3.0: Unsigned32, tenths of percent, 0..1000. Table 5.3.0.1 retains the superseded Float32 type. -->
+            <data type="Unsigned32" />
+        </avp>
+        <avp name="UE-Status" code="2854" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.140. -->
+            <data type="Unsigned32" />
+        </avp>
+        <avp name="Presence-Reporting-Area-Node" code="2855" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.3.0.1, §5.3.141. -->
+            <data type="Unsigned32" />
+        </avp>
+        <avp name="Logical-Access-ID" code="302" vendor-id="13019" must="V" may="" may-encrypt="Y" must-not="M">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.4.0.1; ETSI ES 283 034 V2.2.0 Table 10, §7.3.3. -->
+            <data type="OctetString" />
+        </avp>
+        <avp name="Physical-Access-ID" code="313" vendor-id="13019" must="V" may="" may-encrypt="Y" must-not="M">
+            <!-- 3GPP TS 29.212 V20.0.0 Table 5.4.0.1; ETSI ES 283 034 V2.2.0 Table 10, §7.3.14. -->
+            <data type="UTF8String" />
+        </avp>
+        <avp name="Called-Party-Address" code="832" vendor-id="10415" must="V,M" may="" must-not="" may-encrypt="N">
+            <!-- TS 32.299 V19.0.0 §Table 7.2.0.1; member reused by TS 29.212 V20.0.0 Table 5.4.0.1. -->
+            <data type="UTF8String" />
+        </avp>
+        <avp name="Requested-Party-Address" code="1251" vendor-id="10415" must="V,M" may="" must-not="" may-encrypt="N">
+            <!-- TS 32.299 V19.0.0 §Table 7.2.0.1; member reused by TS 29.212 V20.0.0 Table 5.4.0.1. -->
+            <data type="UTF8String" />
+        </avp>
+        <avp name="Called-Asserted-Identity" code="1250" vendor-id="10415" must="V,M" may="" must-not="" may-encrypt="N">
+            <!-- TS 32.299 V19.0.0 §Table 7.2.0.1; member reused by TS 29.212 V20.0.0 Table 5.4.0.1. -->
+            <data type="UTF8String" />
+        </avp>
+        <avp name="Media-Component-Number" code="518" vendor-id="10415" must="M,V" may="P" must-not="" may-encrypt="Y">
+            <!-- TS 29.214 V20.0.0 §5.3.17; member reused by TS 29.212 V20.0.0 Table 5.4.0.1. -->
+            <data type="Unsigned32" />
+        </avp>
+        <avp name="Flow-Number" code="509" vendor-id="10415" must="M,V" may="P" must-not="" may-encrypt="Y">
+            <!-- TS 29.214 V20.0.0 §5.3.9; member reused by TS 29.212 V20.0.0 Table 5.4.0.1. -->
+            <data type="Unsigned32" />
+        </avp>
     </application>
 </diameter>

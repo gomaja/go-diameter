@@ -1,0 +1,1703 @@
+{
+  "roots": [
+    "Callee-Information",
+    "Charging-Information",
+    "Flows",
+    "Granted-Service-Unit",
+    "Used-Service-Unit",
+    "Load",
+    "OC-OLR",
+    "OC-Supported-Features",
+    "Supported-Features",
+    "Trace-Data",
+    "User-CSG-Information"
+  ],
+  "avps": [
+    {
+      "code": 565,
+      "vendor": 10415,
+      "type": "Grouped",
+      "must": "V",
+      "may": "P",
+      "must_not": "M",
+      "source": "TS 29.214 V20.0.0 §5.3.62",
+      "may_encrypt": "Y",
+      "name": "Callee-Information",
+      "rules": [
+        {
+          "name": "Called-Party-Address",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[Called-Party-Address]"
+        },
+        {
+          "name": "Requested-Party-Address",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[Requested-Party-Address]"
+        },
+        {
+          "name": "Called-Asserted-Identity",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[Called-Asserted-Identity]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[AVP]"
+        }
+      ],
+      "grammar_source": "TS 29.214 V20.0.0"
+    },
+    {
+      "code": 832,
+      "vendor": 10415,
+      "type": "UTF8String",
+      "must": "V,M",
+      "may": "",
+      "must_not": "",
+      "source": "TS 32.299 V19.0.0 §Table 7.2.0.1",
+      "name": "Called-Party-Address"
+    },
+    {
+      "code": 1251,
+      "vendor": 10415,
+      "type": "UTF8String",
+      "must": "V,M",
+      "may": "",
+      "must_not": "",
+      "source": "TS 32.299 V19.0.0 §Table 7.2.0.1",
+      "name": "Requested-Party-Address"
+    },
+    {
+      "code": 1250,
+      "vendor": 10415,
+      "type": "UTF8String",
+      "must": "V,M",
+      "may": "",
+      "must_not": "",
+      "source": "TS 32.299 V19.0.0 §Table 7.2.0.1",
+      "name": "Called-Asserted-Identity"
+    },
+    {
+      "code": 618,
+      "vendor": 10415,
+      "type": "Grouped",
+      "must": "M,V",
+      "may": "",
+      "must_not": "",
+      "source": "TS 29.229 V19.1.0 §6.3.19",
+      "may_encrypt": "N",
+      "name": "Charging-Information",
+      "rules": [
+        {
+          "name": "Primary-Event-Charging-Function-Name",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Primary-Event-Charging-Function-Name ]"
+        },
+        {
+          "name": "Secondary-Event-Charging-Function-Name",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Secondary-Event-Charging-Function-Name ]"
+        },
+        {
+          "name": "Primary-Charging-Collection-Function-Name",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Primary-Charging-Collection-Function-Name ]"
+        },
+        {
+          "name": "Secondary-Charging-Collection-Function-Name",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Secondary-Charging-Collection-Function-Name ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ AVP]"
+        }
+      ],
+      "grammar_source": "TS 29.229 V19.1.0"
+    },
+    {
+      "code": 619,
+      "vendor": 10415,
+      "type": "DiameterURI",
+      "must": "M,V",
+      "may": "",
+      "must_not": "",
+      "source": "TS 29.229 V19.1.0 §6.3.20",
+      "may_encrypt": "N",
+      "name": "Primary-Event-Charging-Function-Name"
+    },
+    {
+      "code": 620,
+      "vendor": 10415,
+      "type": "DiameterURI",
+      "must": "M,V",
+      "may": "",
+      "must_not": "",
+      "source": "TS 29.229 V19.1.0 §6.3.21",
+      "may_encrypt": "N",
+      "name": "Secondary-Event-Charging-Function-Name"
+    },
+    {
+      "code": 621,
+      "vendor": 10415,
+      "type": "DiameterURI",
+      "must": "M,V",
+      "may": "",
+      "must_not": "",
+      "source": "TS 29.229 V19.1.0 §6.3.22",
+      "may_encrypt": "N",
+      "name": "Primary-Charging-Collection-Function-Name"
+    },
+    {
+      "code": 622,
+      "vendor": 10415,
+      "type": "DiameterURI",
+      "must": "M,V",
+      "may": "",
+      "must_not": "",
+      "source": "TS 29.229 V19.1.0 §6.3.23",
+      "may_encrypt": "N",
+      "name": "Secondary-Charging-Collection-Function-Name"
+    },
+    {
+      "code": 510,
+      "vendor": 10415,
+      "type": "Grouped",
+      "must": "M,V",
+      "may": "P",
+      "must_not": "",
+      "source": "TS 29.214 V20.0.0 §5.3.10",
+      "may_encrypt": "Y",
+      "name": "Flows",
+      "rules": [
+        {
+          "name": "Media-Component-Number",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{Media-Component-Number}"
+        },
+        {
+          "name": "Flow-Number",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[Flow-Number]"
+        },
+        {
+          "name": "Content-Version",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Content-Version ]"
+        },
+        {
+          "name": "Final-Unit-Action",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[Final-Unit-Action]"
+        },
+        {
+          "name": "Media-Component-Status",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[Media-Component-Status]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[AVP]"
+        }
+      ],
+      "grammar_source": "TS 29.214 V20.0.0"
+    },
+    {
+      "code": 518,
+      "vendor": 10415,
+      "type": "Unsigned32",
+      "must": "M,V",
+      "may": "P",
+      "must_not": "",
+      "source": "TS 29.214 V20.0.0 §5.3.17",
+      "may_encrypt": "Y",
+      "name": "Media-Component-Number"
+    },
+    {
+      "code": 509,
+      "vendor": 10415,
+      "type": "Unsigned32",
+      "must": "M,V",
+      "may": "P",
+      "must_not": "",
+      "source": "TS 29.214 V20.0.0 §5.3.9",
+      "may_encrypt": "Y",
+      "name": "Flow-Number"
+    },
+    {
+      "code": 552,
+      "vendor": 10415,
+      "type": "Unsigned64",
+      "must": "V",
+      "may": "P",
+      "must_not": "M",
+      "source": "TS 29.214 V20.0.0 §5.3.49",
+      "may_encrypt": "Y",
+      "name": "Content-Version"
+    },
+    {
+      "code": 449,
+      "vendor": 0,
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "source": "RFC 8506 (March 2019) §8.35",
+      "type": "Enumerated",
+      "name": "Final-Unit-Action"
+    },
+    {
+      "code": 549,
+      "vendor": 10415,
+      "type": "Unsigned32",
+      "must": "V",
+      "may": "P",
+      "must_not": "M",
+      "source": "TS 29.214 V20.0.0 §5.3.48",
+      "may_encrypt": "Y",
+      "name": "Media-Component-Status"
+    },
+    {
+      "code": 431,
+      "vendor": 0,
+      "must": "",
+      "may": "",
+      "must_not": "M,V",
+      "source": "RFC 8506 (March 2019) §8.17; TS 29.212 V20.0.0 Table 5.4.0.1 and Note 5",
+      "name": "Granted-Service-Unit",
+      "type": "Grouped",
+      "rules": [
+        {
+          "name": "CC-Time",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "CC-Total-Octets",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "CC-Input-Octets",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "CC-Output-Octets",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Monitoring-Time",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        }
+      ]
+    },
+    {
+      "code": 420,
+      "vendor": 0,
+      "must": "",
+      "may": "",
+      "must_not": "M,V",
+      "source": "RFC 8506 (March 2019) §8.21",
+      "type": "Unsigned32",
+      "name": "CC-Time",
+      "flag_source": "TS 29.212 V20.0.0 Table 5.4.0.1 Note 5"
+    },
+    {
+      "code": 421,
+      "vendor": 0,
+      "must": "",
+      "may": "",
+      "must_not": "M,V",
+      "source": "RFC 8506 (March 2019) §8.23",
+      "type": "Unsigned64",
+      "name": "CC-Total-Octets",
+      "flag_source": "TS 29.212 V20.0.0 Table 5.4.0.1 Note 5"
+    },
+    {
+      "code": 412,
+      "vendor": 0,
+      "must": "",
+      "may": "",
+      "must_not": "M,V",
+      "source": "RFC 8506 (March 2019) §8.24",
+      "type": "Unsigned64",
+      "name": "CC-Input-Octets",
+      "flag_source": "TS 29.212 V20.0.0 Table 5.4.0.1 Note 5"
+    },
+    {
+      "code": 414,
+      "vendor": 0,
+      "must": "",
+      "may": "",
+      "must_not": "M,V",
+      "source": "RFC 8506 (March 2019) §8.25",
+      "type": "Unsigned64",
+      "name": "CC-Output-Octets",
+      "flag_source": "TS 29.212 V20.0.0 Table 5.4.0.1 Note 5"
+    },
+    {
+      "name": "Monitoring-Time",
+      "code": 2810,
+      "section": "5.3.99",
+      "type": "Time",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "should_not": "",
+      "must_not": "M",
+      "may_encrypt": "Y",
+      "flag_source": "TS 29.212 V20.0.0 Table 5.4.0.1 Note 5"
+    },
+    {
+      "code": 446,
+      "vendor": 0,
+      "must": "",
+      "may": "",
+      "must_not": "M,V",
+      "source": "RFC 8506 (March 2019) §8.19; TS 29.212 V20.0.0 Table 5.4.0.1 and Note 5",
+      "name": "Used-Service-Unit",
+      "type": "Grouped",
+      "rules": [
+        {
+          "name": "CC-Time",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "CC-Total-Octets",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "CC-Input-Octets",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "CC-Output-Octets",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Monitoring-Time",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        }
+      ]
+    },
+    {
+      "code": 650,
+      "vendor": 0,
+      "type": "Grouped",
+      "must": "",
+      "may": "",
+      "must_not": "M,V",
+      "source": "RFC 8583 (August 2019) §7.1",
+      "name": "Load",
+      "rules": [
+        {
+          "name": "Load-Type",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Load-Type ]"
+        },
+        {
+          "name": "Load-Value",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Load-Value ]"
+        },
+        {
+          "name": "SourceID",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ SourceID ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "* [ AVP ]",
+          "must_not": "M"
+        }
+      ],
+      "grammar_source": "RFC 8583 (August 2019)"
+    },
+    {
+      "code": 651,
+      "vendor": 0,
+      "type": "Enumerated",
+      "must": "",
+      "may": "",
+      "must_not": "V",
+      "source": "RFC 8583 §7.2, §7.4",
+      "name": "Load-Type"
+    },
+    {
+      "code": 652,
+      "vendor": 0,
+      "type": "Unsigned64",
+      "must": "",
+      "may": "",
+      "must_not": "V",
+      "source": "RFC 8583 §7.3–7.4",
+      "name": "Load-Value"
+    },
+    {
+      "code": 649,
+      "vendor": 0,
+      "type": "DiameterIdentity",
+      "must": "",
+      "may": "",
+      "must_not": "V",
+      "source": "RFC 8581 §7.3–7.4",
+      "name": "SourceID"
+    },
+    {
+      "code": 623,
+      "vendor": 0,
+      "type": "Grouped",
+      "must": "",
+      "may": "",
+      "must_not": "V",
+      "source": "RFC 7683 (October 2015) §7.3",
+      "name": "OC-OLR",
+      "rules": [
+        {
+          "name": "OC-Sequence-Number",
+          "min": 1,
+          "max": 1,
+          "fixed": true,
+          "abnf": "< OC-Sequence-Number >"
+        },
+        {
+          "name": "OC-Report-Type",
+          "min": 1,
+          "max": 1,
+          "fixed": true,
+          "abnf": "< OC-Report-Type >"
+        },
+        {
+          "name": "OC-Reduction-Percentage",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ OC-Reduction-Percentage ]"
+        },
+        {
+          "name": "OC-Validity-Duration",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ OC-Validity-Duration ]"
+        },
+        {
+          "name": "SourceID",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ SourceID ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "* [ AVP ]"
+        }
+      ],
+      "grammar_source": "RFC 8581 (August 2019)"
+    },
+    {
+      "code": 624,
+      "vendor": 0,
+      "type": "Unsigned64",
+      "must": "",
+      "may": "",
+      "must_not": "V",
+      "source": "RFC 7683 §7.4",
+      "name": "OC-Sequence-Number"
+    },
+    {
+      "code": 626,
+      "vendor": 0,
+      "type": "Enumerated",
+      "must": "",
+      "may": "",
+      "must_not": "V",
+      "source": "RFC 8581 §7.2.1",
+      "name": "OC-Report-Type"
+    },
+    {
+      "code": 627,
+      "vendor": 0,
+      "type": "Unsigned32",
+      "must": "",
+      "may": "",
+      "must_not": "V",
+      "source": "RFC 7683 §7.6",
+      "name": "OC-Reduction-Percentage"
+    },
+    {
+      "code": 625,
+      "vendor": 0,
+      "type": "Unsigned32",
+      "must": "",
+      "may": "",
+      "must_not": "V",
+      "source": "RFC 7683 §7.5",
+      "name": "OC-Validity-Duration"
+    },
+    {
+      "code": 621,
+      "vendor": 0,
+      "type": "Grouped",
+      "must": "",
+      "may": "",
+      "must_not": "V",
+      "source": "RFC 7683 (October 2015) §7.1",
+      "name": "OC-Supported-Features",
+      "rules": [
+        {
+          "name": "OC-Feature-Vector",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ OC-Feature-Vector ]"
+        },
+        {
+          "name": "SourceID",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ SourceID ]"
+        },
+        {
+          "name": "OC-Peer-Algo",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ OC-Peer-Algo]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "* [ AVP ]"
+        }
+      ],
+      "grammar_source": "RFC 8581 (August 2019)"
+    },
+    {
+      "code": 622,
+      "vendor": 0,
+      "type": "Unsigned64",
+      "must": "",
+      "may": "",
+      "must_not": "V",
+      "source": "RFC 8581 §7.1.1",
+      "name": "OC-Feature-Vector"
+    },
+    {
+      "code": 648,
+      "vendor": 0,
+      "type": "Unsigned64",
+      "must": "",
+      "may": "",
+      "must_not": "V",
+      "source": "RFC 8581 §7.1.2",
+      "name": "OC-Peer-Algo"
+    },
+    {
+      "code": 628,
+      "vendor": 10415,
+      "type": "Grouped",
+      "must": "V",
+      "may": "M",
+      "must_not": "",
+      "source": "TS 29.229 V19.1.0 §6.3.29",
+      "may_encrypt": "N",
+      "name": "Supported-Features",
+      "rules": [
+        {
+          "name": "Vendor-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Vendor-Id }"
+        },
+        {
+          "name": "Feature-List-ID",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Feature-List-ID }"
+        },
+        {
+          "name": "Feature-List",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Feature-List }"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[AVP]"
+        }
+      ],
+      "grammar_source": "TS 29.229 V19.1.0"
+    },
+    {
+      "code": 266,
+      "vendor": 0,
+      "type": "Unsigned32",
+      "must": "M",
+      "may": "P",
+      "must_not": "V",
+      "source": "RFC 6733 §6.22",
+      "name": "Vendor-Id"
+    },
+    {
+      "code": 629,
+      "vendor": 10415,
+      "type": "Unsigned32",
+      "must": "V",
+      "may": "",
+      "must_not": "M",
+      "source": "TS 29.229 V19.1.0 §6.3.30",
+      "may_encrypt": "N",
+      "name": "Feature-List-ID"
+    },
+    {
+      "code": 630,
+      "vendor": 10415,
+      "type": "Unsigned32",
+      "must": "V",
+      "may": "",
+      "must_not": "M",
+      "source": "TS 29.229 V19.1.0 §6.3.31",
+      "may_encrypt": "N",
+      "name": "Feature-List"
+    },
+    {
+      "code": 1458,
+      "vendor": 10415,
+      "type": "Grouped",
+      "must": "V",
+      "may": "",
+      "must_not": "M",
+      "source": "TS 29.272 V19.6.0 §7.3.63",
+      "may_encrypt": "N",
+      "name": "Trace-Data",
+      "rules": [
+        {
+          "name": "Trace-Reference",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Trace-Depth",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Trace-NE-Type-List",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Trace-Interface-List",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Trace-Event-List",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "OMC-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Trace-Collection-Entity",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "MDT-Configuration",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "MDT-Configuration-NR",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Trace-Reporting-Consumer-Uri",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        }
+      ],
+      "grammar_source": "TS 29.272 V19.6.0 §7.3.63"
+    },
+    {
+      "code": 1459,
+      "vendor": 10415,
+      "type": "OctetString",
+      "must": "V",
+      "may": "",
+      "must_not": "M",
+      "source": "TS 29.272 V19.6.0 §7.3.64",
+      "may_encrypt": "N",
+      "name": "Trace-Reference",
+      "flag_source": "TS 29.212 V20.0.0 Table 5.4.0.1 Note 5"
+    },
+    {
+      "code": 1462,
+      "vendor": 10415,
+      "type": "Enumerated",
+      "must": "V",
+      "may": "",
+      "must_not": "M",
+      "source": "TS 29.272 V19.6.0 §7.3.67",
+      "may_encrypt": "N",
+      "name": "Trace-Depth",
+      "flag_source": "TS 29.212 V20.0.0 Table 5.4.0.1 Note 5"
+    },
+    {
+      "code": 1463,
+      "vendor": 10415,
+      "type": "OctetString",
+      "must": "V",
+      "may": "",
+      "must_not": "M",
+      "source": "TS 29.272 V19.6.0 §7.3.68",
+      "may_encrypt": "N",
+      "name": "Trace-NE-Type-List",
+      "flag_source": "TS 29.212 V20.0.0 Table 5.4.0.1 Note 5"
+    },
+    {
+      "code": 1464,
+      "vendor": 10415,
+      "type": "OctetString",
+      "must": "V",
+      "may": "",
+      "must_not": "M",
+      "source": "TS 29.272 V19.6.0 §7.3.69",
+      "may_encrypt": "N",
+      "name": "Trace-Interface-List",
+      "flag_source": "TS 29.212 V20.0.0 Table 5.4.0.1 Note 5"
+    },
+    {
+      "code": 1465,
+      "vendor": 10415,
+      "type": "OctetString",
+      "must": "V",
+      "may": "",
+      "must_not": "M",
+      "source": "TS 29.272 V19.6.0 §7.3.70",
+      "may_encrypt": "N",
+      "name": "Trace-Event-List",
+      "flag_source": "TS 29.212 V20.0.0 Table 5.4.0.1 Note 5"
+    },
+    {
+      "code": 1466,
+      "vendor": 10415,
+      "type": "OctetString",
+      "must": "V",
+      "may": "",
+      "must_not": "M",
+      "source": "TS 29.272 V19.6.0 §7.3.71",
+      "may_encrypt": "N",
+      "name": "OMC-Id",
+      "flag_source": "TS 29.212 V20.0.0 Table 5.4.0.1 Note 5"
+    },
+    {
+      "code": 1452,
+      "vendor": 10415,
+      "type": "Address",
+      "must": "V",
+      "may": "",
+      "must_not": "M",
+      "source": "TS 29.272 V19.6.0 §7.3.98",
+      "may_encrypt": "N",
+      "name": "Trace-Collection-Entity",
+      "flag_source": "TS 29.212 V20.0.0 Table 5.4.0.1 Note 5"
+    },
+    {
+      "code": 1622,
+      "vendor": 10415,
+      "type": "Grouped",
+      "must": "V",
+      "may": "",
+      "must_not": "M",
+      "source": "TS 29.272 V19.6.0 §7.3.136",
+      "may_encrypt": "N",
+      "name": "MDT-Configuration",
+      "flag_source": "TS 29.212 V20.0.0 Table 5.4.0.1 Note 5",
+      "rules": [
+        {
+          "name": "Job-Type",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Area-Scope",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "List-Of-Measurements",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Reporting-Trigger",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Report-Interval",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Report-Amount",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Event-Threshold-RSRP",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Event-Threshold-RSRQ",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Logging-Interval",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Logging-Duration",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Measurement-Period-LTE",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Measurement-Period-UMTS",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Collection-Period-RRM-LTE",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Collection-Period-RRM-UMTS",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Positioning-Method",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Measurement-Quantity",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Event-Threshold-Event-1F",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Event-Threshold-Event-1I",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "MDT-Allowed-PLMN-Id",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "MBSFN-Area",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        }
+      ],
+      "grammar_source": "TS 29.272 V19.6.0 §7.3.136"
+    },
+    {
+      "code": 1623,
+      "vendor": 10415,
+      "type": "Enumerated",
+      "must": "V",
+      "may": "",
+      "must_not": "M",
+      "source": "TS 29.272 V19.6.0 §7.3.137",
+      "may_encrypt": "N",
+      "name": "Job-Type",
+      "flag_source": "TS 29.212 V20.0.0 Table 5.4.0.1 Note 5"
+    },
+    {
+      "code": 1624,
+      "vendor": 10415,
+      "type": "Grouped",
+      "must": "V",
+      "may": "",
+      "must_not": "M",
+      "source": "TS 29.272 V19.6.0 §7.3.138",
+      "may_encrypt": "N",
+      "name": "Area-Scope",
+      "flag_source": "TS 29.212 V20.0.0 Table 5.4.0.1 Note 5",
+      "rules": [
+        {
+          "name": "Cell-Global-Identity",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "E-UTRAN-Cell-Global-Identity",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "Routing-Area-Identity",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "Location-Area-Identity",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "Tracking-Area-Identity",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "NR-Cell-Global-Identity",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        }
+      ],
+      "grammar_source": "TS 29.272 V19.6.0 §7.3.138"
+    },
+    {
+      "code": 1604,
+      "vendor": 10415,
+      "type": "OctetString",
+      "must": "V",
+      "may": "",
+      "must_not": "M",
+      "source": "TS 29.272 V19.6.0 §7.3.119",
+      "may_encrypt": "N",
+      "name": "Cell-Global-Identity",
+      "flag_source": "TS 29.212 V20.0.0 Table 5.4.0.1 Note 5"
+    },
+    {
+      "code": 1602,
+      "vendor": 10415,
+      "type": "OctetString",
+      "must": "V",
+      "may": "",
+      "must_not": "M",
+      "source": "TS 29.272 V19.6.0 §7.3.117",
+      "may_encrypt": "N",
+      "name": "E-UTRAN-Cell-Global-Identity",
+      "flag_source": "TS 29.212 V20.0.0 Table 5.4.0.1 Note 5"
+    },
+    {
+      "code": 1605,
+      "vendor": 10415,
+      "type": "OctetString",
+      "must": "V",
+      "may": "",
+      "must_not": "M",
+      "source": "TS 29.272 V19.6.0 §7.3.120",
+      "may_encrypt": "N",
+      "name": "Routing-Area-Identity",
+      "flag_source": "TS 29.212 V20.0.0 Table 5.4.0.1 Note 5"
+    },
+    {
+      "code": 1606,
+      "vendor": 10415,
+      "type": "OctetString",
+      "must": "V",
+      "may": "",
+      "must_not": "M",
+      "source": "TS 29.272 V19.6.0 §7.3.121",
+      "may_encrypt": "N",
+      "name": "Location-Area-Identity",
+      "flag_source": "TS 29.212 V20.0.0 Table 5.4.0.1 Note 5"
+    },
+    {
+      "code": 1603,
+      "vendor": 10415,
+      "type": "OctetString",
+      "must": "V",
+      "may": "",
+      "must_not": "M",
+      "source": "TS 29.272 V19.6.0 §7.3.118",
+      "may_encrypt": "N",
+      "name": "Tracking-Area-Identity",
+      "flag_source": "TS 29.212 V20.0.0 Table 5.4.0.1 Note 5"
+    },
+    {
+      "code": 1726,
+      "vendor": 10415,
+      "type": "OctetString",
+      "must": "V",
+      "may": "",
+      "must_not": "M",
+      "source": "TS 29.272 V19.6.0 §7.3.251",
+      "may_encrypt": "N",
+      "name": "NR-Cell-Global-Identity",
+      "flag_source": "TS 29.212 V20.0.0 Table 5.4.0.1 Note 5"
+    },
+    {
+      "code": 1625,
+      "vendor": 10415,
+      "type": "Unsigned32",
+      "must": "V",
+      "may": "",
+      "must_not": "M",
+      "source": "TS 29.272 V19.6.0 §7.3.139",
+      "may_encrypt": "N",
+      "name": "List-Of-Measurements",
+      "flag_source": "TS 29.212 V20.0.0 Table 5.4.0.1 Note 5"
+    },
+    {
+      "code": 1626,
+      "vendor": 10415,
+      "type": "Unsigned32",
+      "must": "V",
+      "may": "",
+      "must_not": "M",
+      "source": "TS 29.272 V19.6.0 §7.3.140",
+      "may_encrypt": "N",
+      "name": "Reporting-Trigger",
+      "flag_source": "TS 29.212 V20.0.0 Table 5.4.0.1 Note 5"
+    },
+    {
+      "code": 1627,
+      "vendor": 10415,
+      "type": "Enumerated",
+      "must": "V",
+      "may": "",
+      "must_not": "M",
+      "source": "TS 29.272 V19.6.0 §7.3.141",
+      "may_encrypt": "N",
+      "name": "Report-Interval",
+      "flag_source": "TS 29.212 V20.0.0 Table 5.4.0.1 Note 5"
+    },
+    {
+      "code": 1628,
+      "vendor": 10415,
+      "type": "Enumerated",
+      "must": "V",
+      "may": "",
+      "must_not": "M",
+      "source": "TS 29.272 V19.6.0 §7.3.142",
+      "may_encrypt": "N",
+      "name": "Report-Amount",
+      "flag_source": "TS 29.212 V20.0.0 Table 5.4.0.1 Note 5"
+    },
+    {
+      "code": 1629,
+      "vendor": 10415,
+      "type": "Unsigned32",
+      "must": "V",
+      "may": "",
+      "must_not": "M",
+      "source": "TS 29.272 V19.6.0 §7.3.143",
+      "may_encrypt": "N",
+      "name": "Event-Threshold-RSRP",
+      "flag_source": "TS 29.212 V20.0.0 Table 5.4.0.1 Note 5"
+    },
+    {
+      "code": 1630,
+      "vendor": 10415,
+      "type": "Unsigned32",
+      "must": "V",
+      "may": "",
+      "must_not": "M",
+      "source": "TS 29.272 V19.6.0 §7.3.144",
+      "may_encrypt": "N",
+      "flag_normalization": "TS 29.272 V19.6.0 Table 7.3.1/1 prints lowercase v; normalize to V",
+      "name": "Event-Threshold-RSRQ",
+      "flag_source": "TS 29.212 V20.0.0 Table 5.4.0.1 Note 5"
+    },
+    {
+      "code": 1631,
+      "vendor": 10415,
+      "type": "Enumerated",
+      "must": "V",
+      "may": "",
+      "must_not": "M",
+      "source": "TS 29.272 V19.6.0 §7.3.145",
+      "may_encrypt": "N",
+      "name": "Logging-Interval",
+      "flag_source": "TS 29.212 V20.0.0 Table 5.4.0.1 Note 5"
+    },
+    {
+      "code": 1632,
+      "vendor": 10415,
+      "type": "Enumerated",
+      "must": "V",
+      "may": "",
+      "must_not": "M",
+      "source": "TS 29.272 V19.6.0 §7.3.146",
+      "may_encrypt": "N",
+      "name": "Logging-Duration",
+      "flag_source": "TS 29.212 V20.0.0 Table 5.4.0.1 Note 5"
+    },
+    {
+      "code": 1655,
+      "vendor": 10415,
+      "type": "Enumerated",
+      "must": "V",
+      "may": "",
+      "must_not": "M",
+      "source": "TS 29.272 V19.6.0 §7.3.166",
+      "may_encrypt": "N",
+      "name": "Measurement-Period-LTE",
+      "flag_source": "TS 29.212 V20.0.0 Table 5.4.0.1 Note 5"
+    },
+    {
+      "code": 1656,
+      "vendor": 10415,
+      "type": "Enumerated",
+      "must": "V",
+      "may": "",
+      "must_not": "M",
+      "source": "TS 29.272 V19.6.0 §7.3.167",
+      "may_encrypt": "N",
+      "name": "Measurement-Period-UMTS",
+      "flag_source": "TS 29.212 V20.0.0 Table 5.4.0.1 Note 5"
+    },
+    {
+      "code": 1657,
+      "vendor": 10415,
+      "type": "Enumerated",
+      "must": "V",
+      "may": "",
+      "must_not": "M",
+      "source": "TS 29.272 V19.6.0 §7.3.168",
+      "may_encrypt": "N",
+      "name": "Collection-Period-RRM-LTE",
+      "flag_source": "TS 29.212 V20.0.0 Table 5.4.0.1 Note 5"
+    },
+    {
+      "code": 1658,
+      "vendor": 10415,
+      "type": "Enumerated",
+      "must": "V",
+      "may": "",
+      "must_not": "M",
+      "source": "TS 29.272 V19.6.0 §7.3.169",
+      "may_encrypt": "N",
+      "name": "Collection-Period-RRM-UMTS",
+      "flag_source": "TS 29.212 V20.0.0 Table 5.4.0.1 Note 5"
+    },
+    {
+      "code": 1659,
+      "vendor": 10415,
+      "type": "OctetString",
+      "must": "V",
+      "may": "",
+      "must_not": "M",
+      "source": "TS 29.272 V19.6.0 §7.3.170",
+      "may_encrypt": "N",
+      "name": "Positioning-Method",
+      "flag_source": "TS 29.212 V20.0.0 Table 5.4.0.1 Note 5"
+    },
+    {
+      "code": 1660,
+      "vendor": 10415,
+      "type": "OctetString",
+      "must": "V",
+      "may": "",
+      "must_not": "M",
+      "source": "TS 29.272 V19.6.0 §7.3.171",
+      "may_encrypt": "N",
+      "name": "Measurement-Quantity",
+      "flag_source": "TS 29.212 V20.0.0 Table 5.4.0.1 Note 5"
+    },
+    {
+      "code": 1661,
+      "vendor": 10415,
+      "type": "Integer32",
+      "must": "V",
+      "may": "",
+      "must_not": "M",
+      "source": "TS 29.272 V19.6.0 §7.3.172",
+      "may_encrypt": "N",
+      "name": "Event-Threshold-Event-1F",
+      "flag_source": "TS 29.212 V20.0.0 Table 5.4.0.1 Note 5"
+    },
+    {
+      "code": 1662,
+      "vendor": 10415,
+      "type": "Integer32",
+      "must": "V",
+      "may": "",
+      "must_not": "M",
+      "source": "TS 29.272 V19.6.0 §7.3.173",
+      "may_encrypt": "N",
+      "name": "Event-Threshold-Event-1I",
+      "flag_source": "TS 29.212 V20.0.0 Table 5.4.0.1 Note 5"
+    },
+    {
+      "code": 1671,
+      "vendor": 10415,
+      "type": "OctetString",
+      "must": "V",
+      "may": "",
+      "must_not": "M",
+      "source": "TS 29.272 V19.6.0 §7.3.185",
+      "may_encrypt": "N",
+      "name": "MDT-Allowed-PLMN-Id",
+      "flag_source": "TS 29.212 V20.0.0 Table 5.4.0.1 Note 5"
+    },
+    {
+      "code": 1694,
+      "vendor": 10415,
+      "type": "Grouped",
+      "must": "V",
+      "may": "",
+      "must_not": "M",
+      "source": "TS 29.272 V19.6.0 §7.3.219",
+      "may_encrypt": "N",
+      "name": "MBSFN-Area",
+      "flag_source": "TS 29.212 V20.0.0 Table 5.4.0.1 Note 5",
+      "rules": [
+        {
+          "name": "MBSFN-Area-ID",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Carrier-Frequency",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        }
+      ],
+      "grammar_source": "TS 29.272 V19.6.0 §7.3.219"
+    },
+    {
+      "code": 1695,
+      "vendor": 10415,
+      "type": "Unsigned32",
+      "must": "V",
+      "may": "",
+      "must_not": "M",
+      "source": "TS 29.272 V19.6.0 §7.3.220",
+      "may_encrypt": "N",
+      "name": "MBSFN-Area-ID",
+      "flag_source": "TS 29.212 V20.0.0 Table 5.4.0.1 Note 5"
+    },
+    {
+      "code": 1696,
+      "vendor": 10415,
+      "type": "Unsigned32",
+      "must": "V",
+      "may": "",
+      "must_not": "M",
+      "source": "TS 29.272 V19.6.0 §7.3.221",
+      "may_encrypt": "N",
+      "name": "Carrier-Frequency",
+      "flag_source": "TS 29.212 V20.0.0 Table 5.4.0.1 Note 5"
+    },
+    {
+      "code": 1720,
+      "vendor": 10415,
+      "type": "Grouped",
+      "must": "V",
+      "may": "",
+      "must_not": "M",
+      "source": "TS 29.272 V19.6.0 §7.3.245",
+      "may_encrypt": "N",
+      "name": "MDT-Configuration-NR",
+      "flag_source": "TS 29.212 V20.0.0 Table 5.4.0.1 Note 5",
+      "rules": [
+        {
+          "name": "Job-Type",
+          "min": 1,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Area-Scope",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "List-Of-Measurements",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Reporting-Trigger",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Report-Interval",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Report-Amount",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Event-Threshold-RSRP",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Event-Threshold-RSRQ",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Event-Threshold-SINR",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Collection-Period-RRM-NR",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Collection-Period-M6-NR",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Collection-Period-M7-NR",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Positioning-Method",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "Sensor-Measurement",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "MDT-Allowed-PLMN-Id",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false
+        }
+      ],
+      "grammar_source": "TS 29.272 V19.6.0 §7.3.245"
+    },
+    {
+      "code": 1721,
+      "vendor": 10415,
+      "type": "Unsigned32",
+      "must": "V",
+      "may": "",
+      "must_not": "M",
+      "source": "TS 29.272 V19.6.0 §7.3.246",
+      "may_encrypt": "N",
+      "name": "Event-Threshold-SINR",
+      "flag_source": "TS 29.212 V20.0.0 Table 5.4.0.1 Note 5"
+    },
+    {
+      "code": 1722,
+      "vendor": 10415,
+      "type": "Enumerated",
+      "must": "V",
+      "may": "",
+      "must_not": "M",
+      "source": "TS 29.272 V19.6.0 §7.3.247",
+      "may_encrypt": "N",
+      "name": "Collection-Period-RRM-NR",
+      "flag_source": "TS 29.212 V20.0.0 Table 5.4.0.1 Note 5"
+    },
+    {
+      "code": 1723,
+      "vendor": 10415,
+      "type": "Enumerated",
+      "must": "V",
+      "may": "",
+      "must_not": "M",
+      "source": "TS 29.272 V19.6.0 §7.3.248",
+      "may_encrypt": "N",
+      "name": "Collection-Period-M6-NR",
+      "flag_source": "TS 29.212 V20.0.0 Table 5.4.0.1 Note 5"
+    },
+    {
+      "code": 1724,
+      "vendor": 10415,
+      "type": "Unsigned32",
+      "must": "V",
+      "may": "",
+      "must_not": "M",
+      "source": "TS 29.272 V19.6.0 §7.3.249",
+      "may_encrypt": "N",
+      "name": "Collection-Period-M7-NR",
+      "flag_source": "TS 29.212 V20.0.0 Table 5.4.0.1 Note 5"
+    },
+    {
+      "code": 1725,
+      "vendor": 10415,
+      "type": "Enumerated",
+      "must": "V",
+      "may": "",
+      "must_not": "M",
+      "source": "TS 29.272 V19.6.0 §7.3.250",
+      "may_encrypt": "N",
+      "name": "Sensor-Measurement",
+      "flag_source": "TS 29.212 V20.0.0 Table 5.4.0.1 Note 5"
+    },
+    {
+      "code": 1727,
+      "vendor": 10415,
+      "type": "DiameterURI",
+      "must": "V",
+      "may": "",
+      "must_not": "M",
+      "source": "TS 29.272 V19.6.0 §7.3.252",
+      "may_encrypt": "N",
+      "name": "Trace-Reporting-Consumer-Uri",
+      "flag_source": "TS 29.212 V20.0.0 Table 5.4.0.1 Note 5"
+    },
+    {
+      "code": 2319,
+      "vendor": 10415,
+      "type": "Grouped",
+      "must": "V,M",
+      "may": "",
+      "must_not": "",
+      "source": "TS 32.299 V19.0.0 §Table 7.2.0.1",
+      "name": "User-CSG-Information",
+      "rules": [
+        {
+          "name": "CSG-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ CSG-Id }"
+        },
+        {
+          "name": "CSG-Access-Mode",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ CSG-Access-Mode }"
+        },
+        {
+          "name": "CSG-Membership-Indication",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ CSG-Membership-Indication ]"
+        }
+      ],
+      "grammar_source": "TS 32.299 V19.0.0"
+    },
+    {
+      "code": 1437,
+      "vendor": 10415,
+      "type": "Unsigned32",
+      "must": "M,V",
+      "may": "",
+      "must_not": "",
+      "source": "TS 29.272 V19.6.0 §7.3.79",
+      "may_encrypt": "N",
+      "name": "CSG-Id"
+    },
+    {
+      "code": 2317,
+      "vendor": 10415,
+      "type": "Enumerated",
+      "must": "V,M",
+      "may": "",
+      "must_not": "",
+      "source": "TS 32.299 V19.0.0 §Table 7.2.0.1",
+      "name": "CSG-Access-Mode"
+    },
+    {
+      "code": 2318,
+      "vendor": 10415,
+      "type": "Enumerated",
+      "must": "V,M",
+      "may": "",
+      "must_not": "",
+      "source": "TS 32.299 V19.0.0 §Table 7.2.0.1",
+      "name": "CSG-Membership-Indication"
+    }
+  ]
+}

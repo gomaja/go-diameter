@@ -180,14 +180,38 @@ func (s *Snapshot) resolveCommandRules(appID uint32, cmd *Command) error {
 }
 
 func (s *Snapshot) resolveRules(appID uint32, rules []*Rule) error {
+	var wildcard int
+	for _, rule := range rules {
+		if rule.MustNot == "" {
+			continue
+		}
+		flags, err := parseMemberProhibitions(rule.MustNot)
+		if err != nil {
+			return fmt.Errorf("%w: member %s must-not flags: %w", ErrAVPConflict, rule.AVP, err)
+		}
+		if rule.AVP == "AVP" {
+			wildcard |= flags
+		}
+	}
 	for _, rule := range rules {
 		// RFC 6733 (October 2012) §§3.2, 4.4: named command and Grouped
 		// members identify AVPs; the AVP wildcard admits arbitrary AVPs.
 		if rule.AVP == "AVP" {
 			continue
 		}
-		if _, err := s.FindAVPByName(appID, rule.AVP); err != nil {
+		member, err := s.FindAVPByName(appID, rule.AVP)
+		if err != nil {
 			return fmt.Errorf("%w: member %s does not resolve: %w", ErrAVPConflict, rule.AVP, err)
+		}
+		if wildcard == 0 && rule.MustNot == "" {
+			continue
+		}
+		// Resolve the final application view before publishing it: inherited
+		// rules must also remain compatible with a child's AVP replacements.
+		forbidden, _ := parseMemberProhibitions(rule.MustNot) // checked above
+		required, _ := parseFlags(member.Must)                // checked when loaded or registered
+		if (wildcard|forbidden)&required != 0 {
+			return fmt.Errorf("%w: member %s prohibition contradicts required flags %q", ErrAVPConflict, rule.AVP, member.Must)
 		}
 	}
 	return nil

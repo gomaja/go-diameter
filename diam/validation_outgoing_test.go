@@ -137,11 +137,11 @@ func TestValidateOutgoingApplicationPRestriction(t *testing.T) {
 		NewAVP(1524, avp.Vbit, 10415, datatype.OctetString("ssid")),
 	} {
 		snapshot := dict.Default.Snapshot()
-		if err := validateOutgoingFlags([]*AVP{a}, CHARGING_CONTROL_APP_ID, snapshot); err != nil {
+		if err := walkOutgoingFlags([]*AVP{a}, CHARGING_CONTROL_APP_ID, snapshot, make(map[*GroupedAVP]bool), nil); err != nil {
 			t.Fatal(err)
 		}
 		a.Flags |= avp.Pbit
-		if err := validateOutgoingFlags([]*AVP{a}, CHARGING_CONTROL_APP_ID, snapshot); err == nil || err.ResultCode != InvalidAVPBits || err.FailedAVP != a {
+		if err := walkOutgoingFlags([]*AVP{a}, CHARGING_CONTROL_APP_ID, snapshot, make(map[*GroupedAVP]bool), nil); err == nil || err.ResultCode != InvalidAVPBits || err.FailedAVP != a {
 			t.Fatalf("application P restriction: %v", err)
 		}
 	}
@@ -154,7 +154,7 @@ func TestValidateOutgoingUnruledGroup(t *testing.T) {
 	}
 	child := NewAVP(avp.OriginHost, 0, 0, datatype.DiameterIdentity("host.example"))
 	parent := NewAVP(65000, 0, 0, &GroupedAVP{AVP: []*AVP{child}})
-	if err := validateOutgoingFlags([]*AVP{parent}, TGPP_S6A_APP_ID, d.Snapshot()); err == nil || err.ResultCode != InvalidAVPBits {
+	if err := walkOutgoingFlags([]*AVP{parent}, TGPP_S6A_APP_ID, d.Snapshot(), make(map[*GroupedAVP]bool), nil); err == nil || err.ResultCode != InvalidAVPBits {
 		t.Fatalf("unruled Grouped AVP skipped: %v", err)
 	}
 }
@@ -165,7 +165,7 @@ func TestValidateOutgoingInvalidGroups(t *testing.T) {
 		{{Code: 65000, Data: (*GroupedAVP)(nil)}},
 	} {
 		parent := &AVP{Code: 65001, Data: &GroupedAVP{AVP: children}}
-		if err := validateOutgoingFlags([]*AVP{parent}, 0, dict.Default.Snapshot()); err == nil {
+		if err := walkOutgoingFlags([]*AVP{parent}, 0, dict.Default.Snapshot(), make(map[*GroupedAVP]bool), nil); err == nil {
 			t.Fatal("accepted invalid outgoing group")
 		}
 	}

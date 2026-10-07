@@ -17,7 +17,8 @@ import (
 
 // ErrAVPConflict is wrapped by the errors RegisterAVP, Load and LoadFile
 // return when a definition would change the meaning of an AVP that an
-// application already has, or leave a command or Grouped rule unresolved.
+// application already has, or leave a command or Grouped rule unresolved
+// or contradicting a member's required flags.
 var ErrAVPConflict = errors.New("conflicting AVP definition")
 
 // registration is an AVP added by RegisterAVP to application app.
@@ -45,9 +46,11 @@ type registration struct {
 //
 // Each definition needs a name in the Diameter name format (RFC 6733 §3.2,
 // §4.4), a non-zero code (§11.1.1), a type name from datatype.Available,
-// flag rules naming only the M, P and V flags, enumerated items only if Enumerated and member rules only if
-// Grouped. Every member rule must resolve by name in app once the
-// definitions are registered, so register a Grouped AVP together with the
+// flag rules naming only the M, P and V flags, enumerated items only if
+// Enumerated and member rules only if Grouped. Member prohibitions allow
+// only M/P and must not contradict resolved members' required flags. Every
+// member rule must resolve by name in app once the definitions are registered,
+// so register a Grouped AVP together with the
 // members it introduces. A Rule is bounded when MaxSet is true or Max is
 // positive.
 //
@@ -184,6 +187,9 @@ func newRegisteredAVP(owner *App, a *AVP) (*AVP, error) {
 		case (rule.MaxSet || rule.Max > 0) && rule.Max < max(rule.Min, boolInt(rule.Required)):
 			return nil, fail("member %s has a maximum below its minimum", rule.AVP)
 		}
+		if _, err := parseMemberProhibitions(rule.MustNot); err != nil {
+			return nil, fail("member %s must-not flags: %v", rule.AVP, err)
+		}
 		members[rule.AVP] = true
 		c := *rule
 		d.Data.Rule = append(d.Data.Rule, &c)
@@ -244,6 +250,19 @@ func parseFlags(rule string) (int, error) {
 	return flags, nil
 }
 
+// parseMemberProhibitions accepts sending choices only. RFC 6733 §4.1:
+// V identifies the Vendor-Id field and cannot be prohibited by a parent rule.
+func parseMemberProhibitions(rule string) (int, error) {
+	flags, err := parseFlags(rule)
+	if err != nil {
+		return 0, err
+	}
+	if flags&flagV != 0 {
+		return 0, fmt.Errorf("member prohibitions allow only M and P; V describes the Vendor-Id field")
+	}
+	return flags, nil
+}
+
 // sameAVP reports whether a and b define the same AVP: the same code,
 // vendor, name, flag rules, type, enumerated items and member rules.
 func sameAVP(a, b *AVP) bool {
@@ -274,7 +293,7 @@ func sameFlags(a, b string) bool {
 // whether Max is zero or MaxSet is false.
 func sameRule(a, b *Rule) bool {
 	boundedA, boundedB := a.MaxSet || a.Max > 0, b.MaxSet || b.Max > 0
-	return a.AVP == b.AVP && a.Required == b.Required && a.Min == b.Min && a.Fixed == b.Fixed &&
+	return sameFlags(a.MustNot, b.MustNot) && a.AVP == b.AVP && a.Required == b.Required && a.Min == b.Min && a.Fixed == b.Fixed &&
 		boundedA == boundedB && (!boundedA || a.Max == b.Max)
 }
 

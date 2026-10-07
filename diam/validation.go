@@ -74,7 +74,7 @@ func (m *Message) validate(outgoing bool) *ValidationError {
 		return &ValidationError{ResultCode: InvalidHDRBits, Reason: "invalid command header flags"}
 	}
 	if outgoing {
-		if err := validateOutgoingFlags(m.AVP, h.ApplicationID, dictionary); err != nil {
+		if err := walkOutgoingFlags(m.AVP, h.ApplicationID, dictionary, make(map[*GroupedAVP]bool), outgoingCommandRules(h, dictionary)); err != nil {
 			return err
 		}
 	}
@@ -328,11 +328,7 @@ func invalidAVPFlags(flags uint8, definition *dict.AVP) bool {
 	return set != (definition.VendorID != 0)
 }
 
-func validateOutgoingFlags(items []*AVP, appID uint32, dictionary *dict.Snapshot) *ValidationError {
-	return walkOutgoingFlags(items, appID, dictionary, make(map[*GroupedAVP]bool))
-}
-
-func walkOutgoingFlags(items []*AVP, appID uint32, dictionary *dict.Snapshot, ancestors map[*GroupedAVP]bool) *ValidationError {
+func walkOutgoingFlags(items []*AVP, appID uint32, dictionary *dict.Snapshot, ancestors map[*GroupedAVP]bool, rules []*dict.Rule) *ValidationError {
 	for _, a := range items {
 		if a == nil {
 			return &ValidationError{ResultCode: AVPNotAllowed, Reason: "nil outgoing AVP"}
@@ -340,13 +336,33 @@ func walkOutgoingFlags(items []*AVP, appID uint32, dictionary *dict.Snapshot, an
 		// RFC 6733 §§4.1-4.1.1 also govern unknown AVPs' reserved bits and
 		// Vendor-Id presence. Only dictionary-specific M/P checks need lookup.
 		invalid := a.Flags&0x1f != 0 || (a.Flags&avp.Vbit != 0) != (a.VendorID != 0)
-		if definition, err := dictionary.FindAVP(appID, a.Code, a.VendorID); err == nil {
+		definition, lookupErr := dictionary.FindAVP(appID, a.Code, a.VendorID)
+		if lookupErr == nil {
 			for _, flag := range []struct {
 				name string
 				bit  uint8
 			}{{"M", avp.Mbit}, {"P", avp.Pbit}} {
 				set := a.Flags&flag.bit != 0
 				invalid = invalid || set && flagListed(definition.MustNot, flag.name) || !set && flagListed(definition.Must, flag.name)
+			}
+		}
+		// Member prohibitions are scoped to this occurrence, not the shared
+		// AVP definition (RFC 8581 §7.4; TS 29.212 V20.0.0 Table 5.4.0.1).
+		for _, rule := range rules {
+			if rule.MustNot == "" {
+				continue
+			}
+			if rule.AVP != "AVP" {
+				member, err := dictionary.FindAVPByName(appID, rule.AVP)
+				if err != nil || member.Code != a.Code || member.VendorID != a.VendorID {
+					continue
+				}
+			}
+			for _, flag := range []struct {
+				name string
+				bit  uint8
+			}{{"M", avp.Mbit}, {"P", avp.Pbit}} {
+				invalid = invalid || a.Flags&flag.bit != 0 && flagListed(rule.MustNot, flag.name)
 			}
 		}
 		if invalid {
@@ -365,7 +381,11 @@ func walkOutgoingFlags(items []*AVP, appID uint32, dictionary *dict.Snapshot, an
 				return &ValidationError{ResultCode: InvalidAVPValue, FailedAVP: a, Reason: "cyclic outgoing Grouped AVP"}
 			}
 			ancestors[group] = true
-			err := walkOutgoingFlags(group.AVP, appID, dictionary, ancestors)
+			var memberRules []*dict.Rule
+			if lookupErr == nil {
+				memberRules = definition.Data.Rule
+			}
+			err := walkOutgoingFlags(group.AVP, appID, dictionary, ancestors, memberRules)
 			delete(ancestors, group)
 			if err != nil {
 				if err.FailedAVP == nil {
@@ -388,14 +408,35 @@ func walkOutgoingFlags(items []*AVP, appID uint32, dictionary *dict.Snapshot, an
 // dictionaries and the compact form ("MV") that user dictionaries may use are
 // both accepted, so a formatting choice never weakens validation.
 func flagListed(list, flag string) bool {
+	if flag != "M" && flag != "V" && flag != "P" {
+		return false
+	}
+	found := false
 	for _, item := range strings.Split(list, ",") {
 		item = strings.TrimSpace(item)
-		if item == flag {
-			return true
+		if item == "" || item == "-" {
+			continue
 		}
-		if len(item) > 1 && len(flag) == 1 && !strings.ContainsAny(item, " -") && strings.Contains(item, flag) {
-			return true
+		for _, c := range item {
+			if c != 'M' && c != 'V' && c != 'P' {
+				return false
+			}
+			found = found || string(c) == flag
 		}
 	}
-	return false
+	return found
+}
+
+func outgoingCommandRules(h *Header, dictionary *dict.Snapshot) []*dict.Rule {
+	if h.CommandFlags&ErrorFlag != 0 {
+		return genericErrorRules
+	}
+	c, err := dictionary.FindCommand(h.ApplicationID, h.CommandCode)
+	if err != nil {
+		return nil
+	}
+	if h.CommandFlags&RequestFlag != 0 {
+		return c.Request.Rule
+	}
+	return c.Answer.Rule
 }
