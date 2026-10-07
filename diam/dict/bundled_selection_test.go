@@ -3,6 +3,7 @@ package dict
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -32,11 +33,15 @@ func TestNewIncludesBundleDependencies(t *testing.T) {
 	}
 }
 
+// TestNewEveryBundledSubset covers every selection of bundled dictionaries.
+// New loads exactly bundledClosure of its selection, so each selection's
+// closure is checked, and each distinct closure is loaded once.
 func TestNewEveryBundledSubset(t *testing.T) {
 	all := AllBundled()
 	if len(all) != 14 {
 		t.Fatalf("update subset coverage for %d bundles", len(all))
 	}
+	closures := make(map[string][]Bundled)
 	for subset := 1; subset < 1<<len(all); subset++ {
 		var selected []Bundled
 		for i, b := range all {
@@ -44,13 +49,39 @@ func TestNewEveryBundledSubset(t *testing.T) {
 				selected = append(selected, b)
 			}
 		}
-		t.Run(fmt.Sprintf("%04x", subset), func(t *testing.T) {
-			p := newBundledSelection(t, selected)
+		// The closure is exactly the selection and everything reachable
+		// from it through bundledDependencies, in file name order.
+		reached := make(map[Bundled]bool)
+		pending := slices.Clone(selected)
+		for len(pending) > 0 {
+			b := pending[len(pending)-1]
+			pending = pending[:len(pending)-1]
+			if !reached[b] {
+				reached[b] = true
+				pending = append(pending, bundledDependencies[b]...)
+			}
+		}
+		var want []Bundled
+		for _, b := range all {
+			if reached[b] {
+				want = append(want, b)
+			}
+		}
+		closure := bundledClosure(selected)
+		if !slices.Equal(closure, want) {
+			t.Fatalf("closure of %v = %v; want %v", selected, closure, want)
+		}
+		closures[fmt.Sprint(closure)] = closure
+	}
+	for key, closure := range closures {
+		t.Run(key, func(t *testing.T) {
+			p := newBundledSelection(t, closure)
 			if len(p.Apps()) == 0 {
 				t.Fatal("selection produced an empty Parser")
 			}
 		})
 	}
+	t.Logf("%d selections, %d distinct closures", 1<<len(all)-1, len(closures))
 }
 
 // New shares immutable definitions, but loading, registering and policy changes
