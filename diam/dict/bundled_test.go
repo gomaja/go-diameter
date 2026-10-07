@@ -193,10 +193,7 @@ func TestBundledDependencies(t *testing.T) {
 		t.Run(string(b), func(t *testing.T) {
 			want := make(map[Bundled]bool)
 			for _, app := range apps[b] {
-				ancestors, err := ancestorApps(app.ID)
-				if err != nil {
-					t.Fatal(err)
-				}
+				ancestors := Default.Snapshot().ancestorApps(app.ID)
 				scope := append([]uint32{app.ID}, ancestors...)
 				var rules []*Rule
 				for _, avp := range app.AVP {

@@ -122,6 +122,61 @@ logic, or deployment rules required by an operator system.
 application behavior against the exact 3GPP or ETSI release used by the target
 network before claiming interface compliance for a deployment.
 
+### Dictionary Inheritance
+
+An application declares the applications whose AVPs it reuses in XML, for
+example `<application id="3" name="Base Accounting" inherits="4">`. The
+`inherits` attribute holds one or more whitespace-separated decimal
+application IDs from 0 through 4294967294; omit it for none. An empty
+attribute, signs, commas and hexadecimal notation are rejected. Repeated
+declarations of one application contribute an ordered union of parents, and
+duplicates are ignored.
+
+An application's own AVPs take precedence, then its ancestors in breadth-first
+parent order, with base application 0 always last. Commands and vendor
+declarations are not inherited; command lookup keeps its separate base
+fallback. An application no dictionary declares falls back only to base, even
+when it uses a familiar bundled ID. A custom dictionary that uses another
+application's AVPs in its rules names that application in `inherits`.
+
+Inheritance is resolved when a dictionary snapshot is built, and any of these
+rejects the whole load or registration, leaving the current snapshot in place:
+
+- a non-base parent no dictionary declares in this load or an earlier one
+  (`dict.ErrNotFound`, naming the child and the parent); registration alone
+  does not declare an application;
+- the Relay identifier 4294967295 (RFC 6733 §2.4) as a parent, even if
+  declared;
+- a cycle, including base inheriting another application
+  (`dict.ErrParentCycle`);
+- two non-base direct parents resolving a name to different code/vendor
+  identities in their final views, unless the child defines that name itself
+  in loaded or registered AVPs (`dict.ErrAVPConflict`, naming the child, the
+  name, both parents and both identities).
+
+Each parent's final view includes its own ancestors and the base fallback, so
+base 0 is never compared as a parent of its own, whether listed or implicit;
+`inherits="0"` is valid without base.xml and does not change the order. A
+single parent may shadow a base name, but that conflicts with a second parent
+that still resolves the name to base, unless the child defines it itself.
+
+The check covers names, which rules use. A code/vendor that several ancestors
+define differently, for example with other flags or another type, takes the
+definition of the first ancestor in breadth-first order that defines it
+itself, so the order of `inherits` matters. With `inherits="16777238
+16777236"` (Gx, then Rx) 3GPP-SGSN-MCC-MNC requires M and V as in Gx; with
+Rx listed first it requires V and forbids M as in Rx.
+
+Own AVP names are unique. Along one inheritance chain a nearer application may
+give its own AVP an ancestor's name: Sh's User-Data 702/10415 (TS 29.329
+V19.1.0 §6.3.3) shadows Cx's User-Data 606/10415 (TS 29.229 V19.1.0 §6.3.7),
+and 606 still decodes in Sh by its code. A nearer definition may also rename
+an inherited code/vendor, after which the old name no longer resolves.
+
+Ro/Rf's contribution to application 3 gives Rf accounting its charging
+definitions. Selections without Ro/Rf, such as Base, NASREQ, Cx and Sh, keep
+the 63 base accounting AVPs.
+
 ## Transport Support
 
 `go-diameter` supports Diameter over:

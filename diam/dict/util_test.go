@@ -22,7 +22,7 @@ func TestApps(t *testing.T) {
 		16777238, // 3GPP Gx (gx_credit_control.xml)
 		1,        // NASREQ (network_access_server.xml)
 		16777216, // 3GPP Cx/Dx (tgpp_cx.xml)
-		4,        // 3GPP Ro/Rf charging AVPs (tgpp_ro_rf.xml)
+		4, 3,     // 3GPP Ro/Rf charging applications (tgpp_ro_rf.xml)
 		16777236, // 3GPP Rx (tgpp_rx.xml)
 		16777252, // 3GPP S13 (tgpp_s13.xml)
 		16777251, // 3GPP S6a (tgpp_s6a.xml)

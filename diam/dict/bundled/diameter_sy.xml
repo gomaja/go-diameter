@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <diameter>
-	<application id="16777302" type="auth" name="Diameter Sy">
+	<!-- TS 29.219 V19.0.0 §5.4, Table 5.4 reuses charging AVPs. -->
+	<application id="16777302" type="auth" name="Diameter Sy" inherits="4">
 		<!-- 3GPP TS 29.219 V19.0.0 §5.1.5: Sy application author. -->
 		<vendor id="10415" name="TGPP"/>
 		<!-- TS 29.219 V19.0.0 Table 5.4; ETSI ES 283 034 V2.2.0 §7.3; RFC 6733 §5.3.6. -->

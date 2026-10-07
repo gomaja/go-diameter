@@ -186,3 +186,63 @@ func TestS6aS13CommandValidationBoundaries(t *testing.T) {
 		}
 	})
 }
+
+// TS 29.272 V19.6.0 Table 7.3.1/2 NOTE 1 delegates this flag policy to
+// TS 29.061 V20.1.0 Table 9a: V required, M forbidden.
+func TestS6aChargingCharacteristicsFlags(t *testing.T) {
+	for _, p := range []*dict.Parser{dict.Default, dict.New(dict.S6a), dict.New(dict.SWx)} {
+		a, err := p.FindAVP(16777251, 13, 10415)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if a.Must != "V" || a.MustNot != "M" {
+			t.Errorf("S6a flags %q/%q, want V/M", a.Must, a.MustNot)
+		}
+		if _, err := p.App(16777265); err == nil {
+			b, err := p.FindAVP(16777265, 13, 10415)
+			if err != nil || a != b {
+				t.Errorf("SWx must inherit S6a Charging-Characteristics: %v", err)
+			}
+		}
+		member := NewAVP(13, avp.Vbit, 10415, datatype.UTF8String("0800"))
+		m := s6aWireMessage(316, 16777251, false, []*AVP{s6a3GPP(1400, &GroupedAVP{AVP: []*AVP{member}})})
+		m.dictionary = p
+		if err := m.ValidateOutgoing(); err != nil {
+			t.Fatalf("V-only Charging-Characteristics in ULA: %v", err)
+		}
+		wire, err := m.Serialize()
+		if err != nil {
+			t.Fatal(err)
+		}
+		decoded, err := ReadMessage(bytes.NewReader(wire), p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := decoded.ValidateOutgoing(); err != nil {
+			t.Fatal(err)
+		}
+		member.Flags |= avp.Mbit
+		if err := m.ValidateOutgoing(); err == nil {
+			t.Error("M-set Charging-Characteristics accepted")
+		}
+	}
+}
+
+// RFC 6733 §§4.1, 9.7.1: NASREQ's AVPs do not extend base accounting.
+func TestNASREQAccountingNASPortUnknownMandatory(t *testing.T) {
+	p := dict.New(dict.NASREQ)
+	m := NewRequest(271, 3, p)
+	m.AddAVP(NewAVP(5, avp.Mbit, 0, datatype.Unsigned32(17)))
+	wire, err := m.Serialize()
+	if err != nil {
+		t.Fatal(err)
+	}
+	decoded, err := ReadMessage(bytes.NewReader(wire), p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	unknown := decoded.UnknownMandatoryAVPs()
+	if len(unknown) != 1 || unknown[0].Code != 5 {
+		t.Fatalf("unknown mandatory = %v; want NAS-Port", unknown)
+	}
+}

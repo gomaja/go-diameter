@@ -36,7 +36,7 @@ func loadRFC5777Spec(t *testing.T) creditControlSpec {
 // governs vendor-zero flags; §3.2 and Erratum 4803 govern CCF notation.
 func TestRFC5777EffectiveDefinitions(t *testing.T) {
 	spec := loadRFC5777Spec(t)
-	for _, app := range []uint32{4, 16777236, 16777238, 16777251, 16777265, 16777302, 16777312, 16777313} {
+	for _, app := range []uint32{3, 4, 16777236, 16777238, 16777251, 16777265, 16777302, 16777312, 16777313} {
 		t.Run(strconv.FormatUint(uint64(app), 10), func(t *testing.T) {
 			for _, want := range spec.AVPs {
 				t.Run(want.Name, func(t *testing.T) {
@@ -78,9 +78,9 @@ func TestRFC5777EffectiveDefinitions(t *testing.T) {
 			}
 		})
 	}
-	// The remaining six of fourteen effective application views do not
+	// The remaining five of fourteen effective application views do not
 	// inherit application 4. QoS support must not leak into their dictionaries.
-	for _, app := range []uint32{0, 1, 3, 16777216, 16777217, 16777252} {
+	for _, app := range []uint32{0, 1, 16777216, 16777217, 16777252} {
 		for _, a := range spec.AVPs {
 			if _, err := Default.FindAVP(app, a.Code, 0); !errors.Is(err, ErrNotFound) {
 				t.Errorf("app %d unexpectedly resolves %s: %v", app, a.Name, err)

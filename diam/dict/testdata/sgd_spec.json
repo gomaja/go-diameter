@@ -2329,12 +2329,7 @@
       "grammar_source": "TS 32.299 V19.0.0",
       "section": "3GPP TS 32.299 V19.0.0 §7.2.240A",
       "flag_source": "3GPP TS 32.299 V19.0.0 Table 7.2.0.1",
-      "may_encrypt": "N",
-      "shared_dictionary_gap": {
-        "Dictionary": "tgpp_ro_rf.xml",
-        "Reason": "The inherited charging definition retains MAY-P absent from TS 32.299 V19.0.0 Table 7.2.0.1; the shared file is outside scope.",
-        "May": "P"
-      }
+      "may_encrypt": ""
     },
     {
       "name": "CSG-Id",
@@ -3167,7 +3162,7 @@
       "must": "M,V",
       "may": "",
       "must_not": "P",
-      "may_encrypt": "N",
+      "may_encrypt": "",
       "section": "3GPP TS 29.273 V19.2.0 §8.2.3.24, Table 8.2.3.0/1",
       "source_name": "3GPP-AAA-Server-Name"
     }

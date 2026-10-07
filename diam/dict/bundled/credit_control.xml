@@ -1,13 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <diameter>
 
-	<application id="4" type="auth" name="Charging Control">
+	<!-- RFC 8506 §8.34: Final-Unit-Indication uses Filter-Id.
+	     TS 32.299 V19.0.0 §7.2.158 uses Called-Station-Id;
+	     §§7.2.189, 7.2.233 use Accounting-Input/Output-Octets, defined by RFC 7155. -->
+	<application id="4" type="auth" name="Charging Control" inherits="1">
 		<!-- Diameter Credit-Control Application: RFC 8506. -->
 		<!-- https://www.rfc-editor.org/rfc/rfc8506 -->
 
-		<command code="272" short="CC" name="Credit-Control">
+		<command code="272" name="Credit-Control" short="CC">
 			<request proxiable="true">
-				<!-- https://www.rfc-editor.org/rfc/rfc8506#section-3.1 -->
+				<!-- RFC 8506 §3.1; TS 32.299 V19.0.0 §6.4.2. Preserve all RFC rules; charging additions precede the extension point. -->
 				<rule avp="Session-Id" required="true" max="1" fixed="true"/>
 				<rule avp="Origin-Host" required="true" max="1"/>
 				<rule avp="Origin-Realm" required="true" max="1"/>
@@ -37,11 +40,14 @@
 				<rule avp="User-Equipment-Info-Extension" required="false" max="1"/>
 				<rule avp="Proxy-Info" required="false"/>
 				<rule avp="Route-Record" required="false"/>
+				<rule avp="AoC-Request-Type" required="false" max="1"/>
+				<rule avp="OC-Supported-Features" required="false" max="1"/>
 				<rule avp="Service-Information" required="false" max="1"/>
 				<rule avp="AVP" required="false"/>
 			</request>
 			<answer proxiable="true">
-				<!-- https://www.rfc-editor.org/rfc/rfc8506#section-3.2 -->
+				<!-- RFC 8506 §3.2; TS 32.299 V19.0.0 §6.4.3. Preserve all RFC rules; charging additions precede the extension point. -->
+				<!-- The union retains RFC 8506 §3.2 repeated Failed-AVP despite the singleton in TS 32.299 §6.4.3. -->
 				<rule avp="Session-Id" required="true" max="1" fixed="true"/>
 				<rule avp="Result-Code" required="true" max="1"/>
 				<rule avp="Origin-Host" required="true" max="1"/>
@@ -70,6 +76,12 @@
 				<rule avp="Proxy-Info" required="false"/>
 				<rule avp="Route-Record" required="false"/>
 				<rule avp="Failed-AVP" required="false"/>
+				<rule avp="Experimental-Result" required="false" max="1"/>
+				<rule avp="Low-Balance-Indication" required="false" max="1"/>
+				<rule avp="Remaining-Balance" required="false" max="1"/>
+				<rule avp="OC-Supported-Features" required="false" max="1"/>
+				<rule avp="OC-OLR" required="false" max="1"/>
+				<rule avp="Service-Information" required="false" max="1"/>
 				<rule avp="AVP" required="false"/>
 			</answer>
 		</command>
@@ -256,8 +268,8 @@
 			</data>
 		</avp>
 
+		<!-- RFC 8506 §8.16; TS 32.299 V19.0.0 §7.1.9. Union retains the RFC extension point. -->
 		<avp name="Multiple-Services-Credit-Control" code="456" must="M" may="-" must-not="V">
-			<!-- RFC 8506 (March 2019) §8 AVP flag table; §8.16. -->
 			<data type="Grouped">
 				<rule avp="Granted-Service-Unit" required="false" max="1"/>
 				<rule avp="Requested-Service-Unit" required="false" max="1"/>
@@ -270,6 +282,24 @@
 				<rule avp="Result-Code" required="false" max="1"/>
 				<rule avp="Final-Unit-Indication" required="false" max="1"/>
 				<rule avp="QoS-Final-Unit-Indication" required="false" max="1"/>
+				<rule avp="Time-Quota-Threshold" required="false" max="1"/>
+				<rule avp="Volume-Quota-Threshold" required="false" max="1"/>
+				<rule avp="Unit-Quota-Threshold" required="false" max="1"/>
+				<rule avp="Quota-Holding-Time" required="false" max="1"/>
+				<rule avp="Quota-Consumption-Time" required="false" max="1"/>
+				<rule avp="Reporting-Reason" required="false"/>
+				<rule avp="Trigger" required="false" max="1"/>
+				<rule avp="PS-Furnish-Charging-Information" required="false" max="1"/>
+				<rule avp="Refund-Information" required="false" max="1"/>
+				<rule avp="AF-Correlation-Information" required="false"/>
+				<rule avp="Envelope" required="false"/>
+				<rule avp="Envelope-Reporting" required="false" max="1"/>
+				<rule avp="Time-Quota-Mechanism" required="false" max="1"/>
+				<rule avp="Service-Specific-Info" required="false"/>
+				<rule avp="QoS-Information" required="false" max="1"/>
+				<rule avp="Announcement-Information" required="false"/>
+				<rule avp="TGPP-RAT-Type" required="false" max="1"/>
+				<rule avp="Related-Trigger" required="false" max="1"/>
 				<rule avp="AVP" required="false"/>
 			</data>
 		</avp>
@@ -412,8 +442,8 @@
 			</data>
 		</avp>
 
+		<!-- RFC 8506 §8.19; TS 32.299 V19.0.0 §7.1.14. Union retains the RFC extension point. -->
 		<avp name="Used-Service-Unit" code="446" must="M" may="-" must-not="V">
-			<!-- RFC 8506 (March 2019) §8 AVP flag table; §8.19. -->
 			<data type="Grouped">
 				<rule avp="Tariff-Change-Usage" required="false" max="1"/>
 				<rule avp="CC-Time" required="false" max="1"/>
@@ -422,6 +452,8 @@
 				<rule avp="CC-Input-Octets" required="false" max="1"/>
 				<rule avp="CC-Output-Octets" required="false" max="1"/>
 				<rule avp="CC-Service-Specific-Units" required="false" max="1"/>
+				<rule avp="Reporting-Reason" required="false" max="1"/>
+				<rule avp="Event-Charging-TimeStamp" required="false"/>
 				<rule avp="AVP" required="false"/>
 			</data>
 		</avp>

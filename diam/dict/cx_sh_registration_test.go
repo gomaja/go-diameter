@@ -12,12 +12,11 @@ func TestCxShScopeWithoutDeclaredSh(t *testing.T) {
 		t.Fatalf("Sh must remain undeclared: %v", err)
 	}
 	for _, code := range []uint32{621, 622, 623, 624, 625, 626, 648, 649, 650, 651, 652} {
-		want, err := p.FindAVP(16777216, code, 10415)
-		if err != nil {
+		if _, err := p.FindAVP(16777216, code, 10415); err != nil {
 			t.Fatal(err)
 		}
-		if got, err := p.FindAVP(16777217, code, 10415); err != nil || got != want {
-			t.Errorf("undeclared Sh code %d = %v, %v; want %s", code, got, err, want.Name)
+		if got, err := p.FindAVP(16777217, code, 10415); got != nil || !errors.Is(err, ErrNotFound) {
+			t.Errorf("undeclared Sh inherited Cx code %d: %v, %v", code, got, err)
 		}
 	}
 }
@@ -76,12 +75,8 @@ func TestCxShScopeDoesNotPromoteRegistration(t *testing.T) {
 	if got, err := p.FindAVP(16777217, 621, 10415); err != nil || got != registered {
 		t.Fatalf("Sh registration lost after loading its ancestor: %v, %v", got, err)
 	}
-	loaded, err := p.FindAVP(16777216, 621, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got, err := p.FindAVP(16777217, 621, 0); err != nil || got != loaded || got == registered {
-		t.Errorf("vendor-0 lookup must inherit loaded Cx: %v, %v", got, err)
+	if got, err := p.FindAVP(16777217, 621, 0); err != nil || got != originalIETF || got == registered {
+		t.Errorf("undeclared Sh vendor-0 lookup changed with Cx: %v, %v", got, err)
 	}
 	if got, err := before.FindAVP(16777217, uint32(621), 0); err != nil || got != originalIETF {
 		t.Errorf("earlier Snapshot changed after loading Cx: %v, %v", got, err)

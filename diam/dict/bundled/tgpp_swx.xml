@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <diameter>
     <!-- 3GPP TS 29.273 V19.2.0 (2026-03), SWx application; https://www.3gpp.org/ftp/Specs/archive/29_series/29.273/29273-j20.zip -->
-    <application id="16777265" type="auth" name="TGPP SWX">
+    <!-- TS 29.273 V19.2.0 §8.2.3.0, Table 8.2.3.0/2 reuses S6a and charging AVPs. -->
+    <application id="16777265" type="auth" name="TGPP SWX" inherits="16777251">
         <vendor id="10415" name="TGPP"/>
         <vendor id="13019" name="ETSI"/>
         <command code="303" short="MA" name="Multimedia-Auth">
@@ -458,5 +459,6 @@
         <avp name="SCEF-ID" code="3125" vendor-id="10415" must="M,V" may-encrypt="N">
             <data type="DiameterIdentity"/>
         </avp>
+
     </application>
 </diameter>

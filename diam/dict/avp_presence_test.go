@@ -1,6 +1,7 @@
 package dict
 
 import (
+	"errors"
 	"strings"
 	"testing"
 )
@@ -48,8 +49,12 @@ func nameDefinitionXML() string {
 }
 
 func TestAVPPresenceTerminatesOnCycle(t *testing.T) {
-	withParentAppCycle(t)
-	if a, ok := Default.AVP(4, 999999, 10415); a != nil || ok {
-		t.Fatalf("cyclic miss = %v,%v", a, ok)
+	p := New(Base)
+	err := p.Load(strings.NewReader(`<diameter><application id="40" inherits="41"/><application id="41" inherits="40"/></diameter>`))
+	if !errors.Is(err, ErrParentCycle) {
+		t.Fatalf("cycle error = %v", err)
+	}
+	if a, ok := p.AVP(40, 999999, 10415); a != nil || ok {
+		t.Fatalf("lookup after rejected cycle = %v,%v", a, ok)
 	}
 }

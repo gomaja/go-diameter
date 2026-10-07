@@ -1,0 +1,2711 @@
+{
+  "document": "TS 32.299 V19.0.0",
+  "commands": [
+    {
+      "section": "6.2.2",
+      "application": 3,
+      "code": 271,
+      "request": true,
+      "proxiable": true,
+      "rules": [
+        {
+          "name": "Session-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": true,
+          "abnf": "< Session-Id >"
+        },
+        {
+          "name": "Origin-Host",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Origin-Host }"
+        },
+        {
+          "name": "Origin-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Origin-Realm }"
+        },
+        {
+          "name": "Destination-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Destination-Realm }"
+        },
+        {
+          "name": "Accounting-Record-Type",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Accounting-Record-Type }"
+        },
+        {
+          "name": "Accounting-Record-Number",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Accounting-Record-Number }"
+        },
+        {
+          "name": "Acct-Application-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Acct-Application-Id ]"
+        },
+        {
+          "name": "Vendor-Specific-Application-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Vendor-Specific-Application-Id ]"
+        },
+        {
+          "name": "User-Name",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ User-Name ]"
+        },
+        {
+          "name": "Destination-Host",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Destination-Host ]"
+        },
+        {
+          "name": "Accounting-Sub-Session-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Accounting-Sub-Session-Id ]"
+        },
+        {
+          "name": "Acct-Session-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Acct-Session-Id ]"
+        },
+        {
+          "name": "Acct-Multi-Session-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Acct-Multi-Session-Id ]"
+        },
+        {
+          "name": "Acct-Interim-Interval",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Acct-Interim-Interval ]"
+        },
+        {
+          "name": "Accounting-Realtime-Required",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Accounting-Realtime-Required ]"
+        },
+        {
+          "name": "Origin-State-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Origin-State-Id ]"
+        },
+        {
+          "name": "Event-Timestamp",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Event-Timestamp ]"
+        },
+        {
+          "name": "Proxy-Info",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "* [ Proxy-Info ]"
+        },
+        {
+          "name": "Route-Record",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "* [ Route-Record ]"
+        },
+        {
+          "name": "Service-Context-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Service-Context-Id ]"
+        },
+        {
+          "name": "Service-Information",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Service-Information ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "* [ AVP ]"
+        }
+      ],
+      "rfc_source": "RFC 6733 §RFC 6733 §9.7.1; Erratum 4803",
+      "effective_rules": [
+        {
+          "name": "Session-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": true,
+          "must_not": ""
+        },
+        {
+          "name": "Origin-Host",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Origin-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Destination-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Accounting-Record-Type",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Accounting-Record-Number",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Acct-Application-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Vendor-Specific-Application-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "User-Name",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Destination-Host",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Accounting-Sub-Session-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Acct-Session-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Acct-Multi-Session-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Acct-Interim-Interval",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Accounting-Realtime-Required",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Origin-State-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Event-Timestamp",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Proxy-Info",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Route-Record",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Service-Context-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Service-Information",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        }
+      ]
+    },
+    {
+      "section": "6.2.3",
+      "application": 3,
+      "code": 271,
+      "request": false,
+      "proxiable": true,
+      "rules": [
+        {
+          "name": "Session-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": true,
+          "abnf": "< Session-Id >"
+        },
+        {
+          "name": "Result-Code",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Result-Code }"
+        },
+        {
+          "name": "Experimental-Result",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Experimental-Result ]"
+        },
+        {
+          "name": "Origin-Host",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Origin-Host }"
+        },
+        {
+          "name": "Origin-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Origin-Realm }"
+        },
+        {
+          "name": "Accounting-Record-Type",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Accounting-Record-Type }"
+        },
+        {
+          "name": "Accounting-Record-Number",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Accounting-Record-Number }"
+        },
+        {
+          "name": "Acct-Application-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Acct-Application-Id ]"
+        },
+        {
+          "name": "Vendor-Specific-Application-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Vendor-Specific-Application-Id ]"
+        },
+        {
+          "name": "User-Name",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ User-Name ]"
+        },
+        {
+          "name": "Accounting-Sub-Session-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Accounting-Sub-Session-Id ]"
+        },
+        {
+          "name": "Acct-Session-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Acct-Session-Id ]"
+        },
+        {
+          "name": "Acct-Multi-Session-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Acct-Multi-Session-Id ]"
+        },
+        {
+          "name": "Error-Message",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Error-Message ]"
+        },
+        {
+          "name": "Error-Reporting-Host",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Error-Reporting-Host ]"
+        },
+        {
+          "name": "Acct-Interim-Interval",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Acct-Interim-Interval ]"
+        },
+        {
+          "name": "Failed-AVP",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Failed-AVP ]"
+        },
+        {
+          "name": "Accounting-Realtime-Required",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Accounting-Realtime-Required ]"
+        },
+        {
+          "name": "Origin-State-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Origin-State-Id ]"
+        },
+        {
+          "name": "Event-Timestamp",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Event-Timestamp ]"
+        },
+        {
+          "name": "Proxy-Info",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "* [ Proxy-Info ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "* [ AVP ]"
+        }
+      ],
+      "rfc_source": "RFC 6733 §RFC 6733 §9.7.2; Erratum 4803 ; Errata 4808, 4887",
+      "effective_rules": [
+        {
+          "name": "Session-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": true,
+          "must_not": ""
+        },
+        {
+          "name": "Result-Code",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Origin-Host",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Origin-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Accounting-Record-Type",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Accounting-Record-Number",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Acct-Application-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Vendor-Specific-Application-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "User-Name",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Accounting-Sub-Session-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Acct-Session-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Acct-Multi-Session-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Error-Message",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Error-Reporting-Host",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Failed-AVP",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Acct-Interim-Interval",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Accounting-Realtime-Required",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Origin-State-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Event-Timestamp",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Proxy-Info",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Experimental-Result",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        }
+      ]
+    },
+    {
+      "section": "6.4.2",
+      "application": 4,
+      "code": 272,
+      "request": true,
+      "proxiable": true,
+      "rules": [
+        {
+          "name": "Session-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": true,
+          "abnf": "< Session-Id >"
+        },
+        {
+          "name": "Origin-Host",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Origin-Host }"
+        },
+        {
+          "name": "Origin-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Origin-Realm }"
+        },
+        {
+          "name": "Destination-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Destination-Realm }"
+        },
+        {
+          "name": "Auth-Application-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Auth-Application-Id }"
+        },
+        {
+          "name": "Service-Context-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Service-Context-Id }"
+        },
+        {
+          "name": "CC-Request-Type",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ CC-Request-Type }"
+        },
+        {
+          "name": "CC-Request-Number",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ CC-Request-Number }"
+        },
+        {
+          "name": "Destination-Host",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Destination-Host ]"
+        },
+        {
+          "name": "User-Name",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ User-Name ]"
+        },
+        {
+          "name": "CC-Sub-Session-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ CC-Sub-Session-Id ]"
+        },
+        {
+          "name": "Acct-Multi-Session-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Acct-Multi-Session-Id ]"
+        },
+        {
+          "name": "Origin-State-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Origin-State-Id ]"
+        },
+        {
+          "name": "Event-Timestamp",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Event-Timestamp ]"
+        },
+        {
+          "name": "Subscription-Id",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Subscription-Id ]"
+        },
+        {
+          "name": "Service-Identifier",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Service-Identifier ]"
+        },
+        {
+          "name": "Termination-Cause",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Termination-Cause ]"
+        },
+        {
+          "name": "Requested-Service-Unit",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Requested-Service-Unit ]"
+        },
+        {
+          "name": "Requested-Action",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Requested-Action ]"
+        },
+        {
+          "name": "Used-Service-Unit",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Used-Service-Unit ]"
+        },
+        {
+          "name": "AoC-Request-Type",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ AoC-Request-Type ]"
+        },
+        {
+          "name": "Multiple-Services-Indicator",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Multiple-Services-Indicator ]"
+        },
+        {
+          "name": "Multiple-Services-Credit-Control",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Multiple-Services-Credit-Control ]"
+        },
+        {
+          "name": "Service-Parameter-Info",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Service-Parameter-Info ]"
+        },
+        {
+          "name": "CC-Correlation-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ CC-Correlation-Id ]"
+        },
+        {
+          "name": "User-Equipment-Info",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ User-Equipment-Info ]"
+        },
+        {
+          "name": "OC-Supported-Features",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ OC-Supported-Features ]"
+        },
+        {
+          "name": "Proxy-Info",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Proxy-Info ]"
+        },
+        {
+          "name": "Route-Record",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Route-Record ]"
+        },
+        {
+          "name": "Service-Information",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Service-Information ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ AVP ]"
+        }
+      ],
+      "rfc_source": "RFC 8506 §3.1",
+      "effective_rules": [
+        {
+          "name": "Session-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": true,
+          "must_not": ""
+        },
+        {
+          "name": "Origin-Host",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Origin-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Destination-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Auth-Application-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Service-Context-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "CC-Request-Type",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "CC-Request-Number",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Destination-Host",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "User-Name",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "CC-Sub-Session-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Acct-Multi-Session-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Origin-State-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Event-Timestamp",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Subscription-Id",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Subscription-Id-Extension",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Service-Identifier",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Termination-Cause",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Requested-Service-Unit",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Requested-Action",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Used-Service-Unit",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Multiple-Services-Indicator",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Multiple-Services-Credit-Control",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Service-Parameter-Info",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "CC-Correlation-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "User-Equipment-Info",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "User-Equipment-Info-Extension",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Proxy-Info",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Route-Record",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "AoC-Request-Type",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "OC-Supported-Features",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Service-Information",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        }
+      ]
+    },
+    {
+      "section": "6.4.3",
+      "application": 4,
+      "code": 272,
+      "request": false,
+      "proxiable": true,
+      "rules": [
+        {
+          "name": "Session-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": true,
+          "abnf": "< Session-Id >"
+        },
+        {
+          "name": "Result-Code",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Result-Code }"
+        },
+        {
+          "name": "Experimental-Result",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Experimental-Result ]"
+        },
+        {
+          "name": "Origin-Host",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Origin-Host }"
+        },
+        {
+          "name": "Origin-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Origin-Realm }"
+        },
+        {
+          "name": "Auth-Application-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Auth-Application-Id }"
+        },
+        {
+          "name": "CC-Request-Type",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ CC-Request-Type }"
+        },
+        {
+          "name": "CC-Request-Number",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ CC-Request-Number }"
+        },
+        {
+          "name": "User-Name",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ User-Name ]"
+        },
+        {
+          "name": "CC-Session-Failover",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ CC-Session-Failover ]"
+        },
+        {
+          "name": "CC-Sub-Session-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ CC-Sub-Session-Id ]"
+        },
+        {
+          "name": "Acct-Multi-Session-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Acct-Multi-Session-Id ]"
+        },
+        {
+          "name": "Origin-State-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Origin-State-Id ]"
+        },
+        {
+          "name": "Event-Timestamp",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Event-Timestamp ]"
+        },
+        {
+          "name": "Granted-Service-Unit",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Granted-Service-Unit ]"
+        },
+        {
+          "name": "Multiple-Services-Credit-Control",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Multiple-Services-Credit-Control ]"
+        },
+        {
+          "name": "Cost-Information",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Cost-Information]"
+        },
+        {
+          "name": "Low-Balance-Indication",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Low-Balance-Indication ]"
+        },
+        {
+          "name": "Remaining-Balance",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Remaining-Balance ]"
+        },
+        {
+          "name": "Final-Unit-Indication",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Final-Unit-Indication ]"
+        },
+        {
+          "name": "Check-Balance-Result",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Check-Balance-Result ]"
+        },
+        {
+          "name": "Credit-Control-Failure-Handling",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Credit-Control-Failure-Handling ]"
+        },
+        {
+          "name": "Direct-Debiting-Failure-Handling",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Direct-Debiting-Failure-Handling ]"
+        },
+        {
+          "name": "Validity-Time",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Validity-Time]"
+        },
+        {
+          "name": "OC-Supported-Features",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ OC-Supported-Features ]"
+        },
+        {
+          "name": "OC-OLR",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ OC-OLR ]"
+        },
+        {
+          "name": "Redirect-Host",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Redirect-Host]"
+        },
+        {
+          "name": "Redirect-Host-Usage",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Redirect-Host-Usage ]"
+        },
+        {
+          "name": "Redirect-Max-Cache-Time",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Redirect-Max-Cache-Time ]"
+        },
+        {
+          "name": "Proxy-Info",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Proxy-Info ]"
+        },
+        {
+          "name": "Route-Record",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Route-Record ]"
+        },
+        {
+          "name": "Failed-AVP",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Failed-AVP ]"
+        },
+        {
+          "name": "Service-Information",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Service-Information ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ AVP ]"
+        }
+      ],
+      "rfc_source": "RFC 8506 §3.2",
+      "effective_rules": [
+        {
+          "name": "Session-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": true,
+          "must_not": ""
+        },
+        {
+          "name": "Result-Code",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Origin-Host",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Origin-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Auth-Application-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "CC-Request-Type",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "CC-Request-Number",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "User-Name",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "CC-Session-Failover",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "CC-Sub-Session-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Acct-Multi-Session-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Origin-State-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Event-Timestamp",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Granted-Service-Unit",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Multiple-Services-Credit-Control",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Cost-Information",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Final-Unit-Indication",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "QoS-Final-Unit-Indication",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Check-Balance-Result",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Credit-Control-Failure-Handling",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Direct-Debiting-Failure-Handling",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Validity-Time",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Redirect-Host",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Redirect-Host-Usage",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Redirect-Max-Cache-Time",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Proxy-Info",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Route-Record",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Failed-AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Experimental-Result",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Low-Balance-Indication",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Remaining-Balance",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "OC-Supported-Features",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "OC-OLR",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Service-Information",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        }
+      ]
+    },
+    {
+      "section": "6.4.4",
+      "application": 4,
+      "code": 258,
+      "request": true,
+      "proxiable": true,
+      "rules": [
+        {
+          "name": "Session-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": true,
+          "abnf": "< Session-Id >"
+        },
+        {
+          "name": "Origin-Host",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Origin-Host }"
+        },
+        {
+          "name": "Origin-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Origin-Realm }"
+        },
+        {
+          "name": "Destination-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Destination-Realm }"
+        },
+        {
+          "name": "Destination-Host",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Destination-Host }"
+        },
+        {
+          "name": "Auth-Application-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Auth-Application-Id }"
+        },
+        {
+          "name": "Re-Auth-Request-Type",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Re-Auth-Request-Type }"
+        },
+        {
+          "name": "User-Name",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ User-Name ]"
+        },
+        {
+          "name": "Origin-State-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Origin-State-Id ]"
+        },
+        {
+          "name": "Proxy-Info",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Proxy-Info ]"
+        },
+        {
+          "name": "Route-Record",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Route-Record ]"
+        },
+        {
+          "name": "CC-Sub-Session-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ CC-Sub-Session-Id ]"
+        },
+        {
+          "name": "G-S-U-Pool-Identifier",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ G-S-U-Pool-Identifier ]"
+        },
+        {
+          "name": "Service-Identifier",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Service-Identifier ]"
+        },
+        {
+          "name": "Rating-Group",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Rating-Group ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ AVP ]"
+        }
+      ],
+      "rfc_source": "RFC 6733 §RFC 6733 §8.3.1; Erratum 4803",
+      "effective_rules": [
+        {
+          "name": "Session-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": true,
+          "must_not": ""
+        },
+        {
+          "name": "Origin-Host",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Origin-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Destination-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Destination-Host",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Auth-Application-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Re-Auth-Request-Type",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "User-Name",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Origin-State-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Proxy-Info",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Route-Record",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "CC-Sub-Session-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "G-S-U-Pool-Identifier",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Service-Identifier",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Rating-Group",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        }
+      ]
+    },
+    {
+      "section": "6.4.5",
+      "application": 4,
+      "code": 258,
+      "request": false,
+      "proxiable": true,
+      "rules": [
+        {
+          "name": "Session-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": true,
+          "abnf": "< Session-Id >"
+        },
+        {
+          "name": "Result-Code",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Result-Code }"
+        },
+        {
+          "name": "Origin-Host",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Origin-Host }"
+        },
+        {
+          "name": "Origin-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Origin-Realm }"
+        },
+        {
+          "name": "User-Name",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ User-Name ]"
+        },
+        {
+          "name": "Origin-State-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Origin-State-Id ]"
+        },
+        {
+          "name": "Error-Message",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Error-Message ]"
+        },
+        {
+          "name": "Error-Reporting-Host",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Error-Reporting-Host ]"
+        },
+        {
+          "name": "Failed-AVP",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Failed-AVP ]"
+        },
+        {
+          "name": "Redirect-Host",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Redirect-Host ]"
+        },
+        {
+          "name": "Redirect-Host-Usage",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Redirect-Host-Usage ]"
+        },
+        {
+          "name": "Redirect-Host-Cache-Time",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Redirect-Host-Cache-Time ]"
+        },
+        {
+          "name": "Proxy-Info",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Proxy-Info ]"
+        },
+        {
+          "name": "CC-Sub-Session-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ CC-Sub-Session-Id ]"
+        },
+        {
+          "name": "G-S-U-Pool-Identifier",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ G-S-U-Pool-Identifier ]"
+        },
+        {
+          "name": "Service-Identifier",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Service-Identifier ]"
+        },
+        {
+          "name": "Rating-Group",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Rating-Group ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ AVP ]"
+        }
+      ],
+      "rfc_source": "RFC 6733 §RFC 6733 §8.3.2; Erratum 4803 ; Errata 4808, 4887",
+      "effective_rules": [
+        {
+          "name": "Session-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": true,
+          "must_not": ""
+        },
+        {
+          "name": "Result-Code",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Origin-Host",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Origin-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "User-Name",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Origin-State-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Error-Message",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Error-Reporting-Host",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Failed-AVP",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Redirect-Host",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Redirect-Host-Usage",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Redirect-Max-Cache-Time",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Proxy-Info",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "CC-Sub-Session-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "G-S-U-Pool-Identifier",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Service-Identifier",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Rating-Group",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        }
+      ]
+    }
+  ],
+  "shared_groups": [
+    {
+      "section": "7.1.9",
+      "name": "Multiple-Services-Credit-Control",
+      "rules": [
+        {
+          "name": "Granted-Service-Unit",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Granted-Service-Unit ]"
+        },
+        {
+          "name": "Requested-Service-Unit",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Requested-Service-Unit ]"
+        },
+        {
+          "name": "Used-Service-Unit",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "* [ Used-Service-Unit ]"
+        },
+        {
+          "name": "Tariff-Change-Usage",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Tariff-Change-Usage ]"
+        },
+        {
+          "name": "Service-Identifier",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "* [ Service-Identifier ]"
+        },
+        {
+          "name": "Rating-Group",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Rating-Group ]"
+        },
+        {
+          "name": "G-S-U-Pool-Reference",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "* [ G-S-U-Pool-Reference ]"
+        },
+        {
+          "name": "Validity-Time",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Validity-Time ]"
+        },
+        {
+          "name": "Result-Code",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Result-Code ]"
+        },
+        {
+          "name": "Final-Unit-Indication",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Final-Unit-Indication ]"
+        },
+        {
+          "name": "Time-Quota-Threshold",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Time-Quota-Threshold ]"
+        },
+        {
+          "name": "Volume-Quota-Threshold",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Volume-Quota-Threshold ]"
+        },
+        {
+          "name": "Unit-Quota-Threshold",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Unit-Quota-Threshold ]"
+        },
+        {
+          "name": "Quota-Holding-Time",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Quota-Holding-Time ]"
+        },
+        {
+          "name": "Quota-Consumption-Time",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Quota-Consumption-Time ]"
+        },
+        {
+          "name": "Reporting-Reason",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "* [ Reporting-Reason ]"
+        },
+        {
+          "name": "Trigger",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Trigger ]"
+        },
+        {
+          "name": "PS-Furnish-Charging-Information",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ PS-Furnish-Charging-Information ]"
+        },
+        {
+          "name": "Refund-Information",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Refund-Information ]"
+        },
+        {
+          "name": "AF-Correlation-Information",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "* [ AF-Correlation-Information]"
+        },
+        {
+          "name": "Envelope",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "* [ Envelope ]"
+        },
+        {
+          "name": "Envelope-Reporting",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Envelope-Reporting ]"
+        },
+        {
+          "name": "Time-Quota-Mechanism",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Time-Quota-Mechanism ]"
+        },
+        {
+          "name": "Service-Specific-Info",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "* [ Service-Specific-Info ]"
+        },
+        {
+          "name": "QoS-Information",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ QoS-Information ]"
+        },
+        {
+          "name": "Announcement-Information",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "* [ Announcement-Information ]"
+        },
+        {
+          "name": "3GPP-RAT-Type",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ 3GPP-RAT-Type ]"
+        },
+        {
+          "name": "Related-Trigger",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Related-Trigger ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "* [ AVP ]"
+        }
+      ],
+      "rfc_source": "RFC 8506 §8.16",
+      "effective_rules": [
+        {
+          "name": "Granted-Service-Unit",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Requested-Service-Unit",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Used-Service-Unit",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Tariff-Change-Usage",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Service-Identifier",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Rating-Group",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "G-S-U-Pool-Reference",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Validity-Time",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Result-Code",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Final-Unit-Indication",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "QoS-Final-Unit-Indication",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Time-Quota-Threshold",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Volume-Quota-Threshold",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Unit-Quota-Threshold",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Quota-Holding-Time",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Quota-Consumption-Time",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Reporting-Reason",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Trigger",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "PS-Furnish-Charging-Information",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Refund-Information",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "AF-Correlation-Information",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Envelope",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Envelope-Reporting",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Time-Quota-Mechanism",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Service-Specific-Info",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "QoS-Information",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Announcement-Information",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "TGPP-RAT-Type",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Related-Trigger",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        }
+      ]
+    },
+    {
+      "section": "7.1.14",
+      "name": "Used-Service-Unit",
+      "rules": [
+        {
+          "name": "Reporting-Reason",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Reporting-Reason ]"
+        },
+        {
+          "name": "Tariff-Change-Usage",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Tariff-Change-Usage ]"
+        },
+        {
+          "name": "CC-Time",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ CC-Time ]"
+        },
+        {
+          "name": "CC-Money",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ CC-Money ]"
+        },
+        {
+          "name": "CC-Total-Octets",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ CC-Total-Octets ]"
+        },
+        {
+          "name": "CC-Input-Octets",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ CC-Input-Octets ]"
+        },
+        {
+          "name": "CC-Output-Octets",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ CC-Output-Octets ]"
+        },
+        {
+          "name": "CC-Service-Specific-Units",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ CC-Service-Specific-Units ]"
+        },
+        {
+          "name": "Event-Charging-TimeStamp",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Event-Charging-TimeStamp ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ AVP ]"
+        }
+      ],
+      "rfc_source": "RFC 8506 §8.19",
+      "effective_rules": [
+        {
+          "name": "Tariff-Change-Usage",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "CC-Time",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "CC-Money",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "CC-Total-Octets",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "CC-Input-Octets",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "CC-Output-Octets",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "CC-Service-Specific-Units",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Reporting-Reason",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "Event-Charging-TimeStamp",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "must_not": ""
+        }
+      ]
+    },
+    {
+      "section": "7.1.17",
+      "name": "User-Equipment-Info",
+      "rules": [
+        {
+          "name": "User-Equipment-Info-Type",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ User-Equipment-Info-Type }"
+        },
+        {
+          "name": "User-Equipment-Info-Value",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ User-Equipment-Info-Value }"
+        }
+      ],
+      "rfc_source": "RFC 8506 §8.49",
+      "effective_rules": [
+        {
+          "name": "User-Equipment-Info-Type",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        },
+        {
+          "name": "User-Equipment-Info-Value",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "must_not": ""
+        }
+      ]
+    }
+  ],
+  "composition_note": "Preserve RFC rule order, cardinalities, fixed positions and extension points; insert charging-only members before the wildcard. RFC 8506 §3.2 permits repeated Failed-AVP, unlike TS 32.299 §6.4.3. The union retains the RFC bound. Redirect-Host-Cache-Time in §6.4.5 denotes RFC 6733 §6.14 Redirect-Max-Cache-Time; no new AVP code is assigned."
+}

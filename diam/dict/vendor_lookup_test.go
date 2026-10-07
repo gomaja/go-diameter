@@ -13,7 +13,7 @@ const vendorLookupXML = `<diameter><application id="4">
  <avp name="Beta-Level" code="70001" vendor-id="99999"><data type="Enumerated"><item code="1" name="BETA"/></data></avp>
  <avp name="Alpha-Group" code="70002" vendor-id="10415"><data type="Grouped"><rule avp="Alpha-Level" required="true" max="1"/></data></avp>
  <avp name="Beta-Group" code="70002" vendor-id="99999"><data type="Grouped"><rule avp="Beta-Level" required="true" max="2"/></data></avp>
- </application></diameter>`
+ </application><application id="16777238" inherits="4"/><application id="16777265" inherits="4"/></diameter>`
 
 type vendorLookup interface {
 	FindAVP(uint32, uint32, uint32) (*AVP, error)
@@ -106,7 +106,7 @@ func TestVendorLookup(t *testing.T) {
 			if a, err := lookup.FindAVPByName(4, "Not-Defined"); a != nil || err == nil {
 				t.Fatalf("missing name = %v, %v", a, err)
 			}
-			if _, err := lookup.App(16777238); !errors.Is(err, ErrApplicationUnsupported) {
+			if _, err := lookup.App(16777999); !errors.Is(err, ErrApplicationUnsupported) {
 				t.Fatalf("undeclared app = %v", err)
 			}
 		})

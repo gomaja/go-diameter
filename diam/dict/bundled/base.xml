@@ -3,7 +3,8 @@
 	<!-- RFC 6733 §§4.1, 4.5: only MUST / MUST NOT are tabulated.
 	     P SHOULD be zero; no per-AVP P or encryption rules are specified. -->
 
-	<application id="0" name="Base"> <!-- Diameter Common Messages -->
+	<!-- Diameter Common Messages -->
+	<application id="0" name="Base">
 
 		<command code="257" short="CE" name="Capabilities-Exchange">
 			<!-- RFC 6733 §5.3.1; Erratum 4803. -->
@@ -672,6 +673,7 @@
 		</avp>
 
 	</application>
-	<application id="3" type="acct" name="Base Accounting"> <!-- Diameter Base Accounting Messages -->
+	<!-- Diameter Base Accounting Messages -->
+	<application id="3" type="acct" name="Base Accounting">
 	</application>
 </diameter>

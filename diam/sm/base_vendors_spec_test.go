@@ -10,14 +10,15 @@ import (
 	"github.com/gomaja/go-diameter/diam/dict"
 )
 
-// RFC 6733 §§5.3.6, 6.11: base definitions add no vendor. These sets
-// pin the CER wire advertisements for every bundled application's view.
+// RFC 6733 §§5.3.6, 6.11: pin CER vendors for every application in Default.
+// Base alone declares no vendors; the loaded TS 32.299 V19.0.0 §§7.2–7.4
+// contribution to application 3 declares the three Rf charging suppliers.
 func TestBaseRefreshApplicationVendors(t *testing.T) {
 	for _, tc := range []struct {
 		id      uint32
 		vendors []uint32
 	}{
-		{0, nil}, {1, nil}, {3, nil}, {4, []uint32{5535, 10415, 13019}},
+		{0, nil}, {1, nil}, {3, []uint32{5535, 10415, 13019}}, {4, []uint32{5535, 10415, 13019}},
 		{16777216, []uint32{10415, 13019}}, {16777217, []uint32{10415}},
 		{16777236, []uint32{10415, 13019}}, {16777238, []uint32{5535, 10415, 13019}},
 		{16777251, []uint32{10415}}, {16777252, []uint32{10415}},

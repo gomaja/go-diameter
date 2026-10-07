@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <diameter>
     <!-- RFC 6733 (October 2012) §3.2, Verified Errata 4803: Diameter Header CCF notation. -->
-    <application id="16777238" type="auth" name="Gx Charging Control">
+    <!-- TS 29.212 V20.0.0 §5.4, Table 5.4.0.1 reuses charging AVPs. -->
+    <application id="16777238" type="auth" name="Gx Charging Control" inherits="4">
         <vendor id="10415" name="TGPP" />
         <!-- Suppliers of AVPs Gx reuses (TS 29.212 V20.0.0 Table 5.4.0.1): ETSI for
              Logical-Access-ID and Physical-Access-ID (ETSI ES 283 034), 3GPP2 for
@@ -1753,6 +1754,16 @@
         <avp name="Flow-Number" code="509" vendor-id="10415" must="M,V" may="P" must-not="" may-encrypt="Y">
             <!-- TS 29.214 V20.0.0 §5.3.9; member reused by TS 29.212 V20.0.0 Table 5.4.0.1. -->
             <data type="Unsigned32" />
+        </avp>
+
+        <!-- TS 29.212 V20.0.0 Table 5.4.0.1 clears M for Gx; TS 29.061 V20.1.0 Table 9a, §16.4.7 defines the AVPs. -->
+        <avp name="TGPP-Selection-Mode" code="12" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <data type="UTF8String"/>
+        </avp>
+
+        <!-- TS 29.212 V20.0.0 Table 5.4.0.1 clears M for Gx; TS 29.061 V20.1.0 Table 9a, §16.4.7 defines the AVPs. -->
+        <avp name="TGPP-Charging-Characteristics" code="13" vendor-id="10415" must="V" may="P" must-not="M" may-encrypt="Y">
+            <data type="UTF8String"/>
         </avp>
     </application>
 </diameter>

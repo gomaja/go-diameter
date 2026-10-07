@@ -231,10 +231,8 @@ func TestRegisterAVPIdenticalByCodeStillChecksName(t *testing.T) {
 	requireUnchanged(t, p, before)
 }
 
-// TestFindAVPInheritsInUndeclaredApplications: an application that no
-// dictionary declares inherits from its ancestors (parentAppIds) for the
-// decoder too, for loaded and registered AVPs alike.
-func TestFindAVPInheritsInUndeclaredApplications(t *testing.T) {
+// Undeclared applications inherit only base, for loaded and registered AVPs alike.
+func TestUndeclaredApplicationsFallBackOnlyToBase(t *testing.T) {
 	registered := New(Base)
 	mustRegister(t, registered, 4, vendorAVP("Test-Counter", 70000, "Unsigned32"))
 	mustRegister(t, registered, 0, vendorAVP("Test-Base-Vendor", 70001, "Unsigned32"))
@@ -258,7 +256,7 @@ func TestFindAVPInheritsInUndeclaredApplications(t *testing.T) {
 				switch key.code {
 				case 70000:
 					switch app {
-					case 4, 16777236, 16777238, 16777251, 16777265, 16777302, 16777312, 16777313:
+					case 4:
 						want = "Test-Counter"
 					}
 				case 70001:
@@ -277,9 +275,8 @@ func TestFindAVPInheritsInUndeclaredApplications(t *testing.T) {
 
 			}
 		}
-		// Gx, Rx, Sy and S6c descend from application 4; SWx through S6a
-		// and S6c. Application 1, its parent, and S13 do not.
-		for app, want := range map[uint32]bool{16777238: true, 16777265: true, 16777313: true, 1: false, 16777252: false} {
+		// No loaded declaration connects these applications to application 4.
+		for app, want := range map[uint32]bool{16777238: false, 16777265: false, 16777313: false, 1: false, 16777252: false} {
 			if _, err := p.FindAVP(app, 70000, testVendor); (err == nil) != want {
 				t.Errorf("%s: app %d Test-Counter found = %t, want %t", name, app, err == nil, want)
 			}
@@ -358,6 +355,9 @@ func TestRegisterAVPDeclaresNoApplication(t *testing.T) {
 
 func TestRegisterAVPSurvivesLoad(t *testing.T) {
 	p := New(Base)
+	if err := p.Load(strings.NewReader(`<diameter><application id="1"/><application id="4" inherits="1"/><application id="16777238" inherits="4"/><application id="16777236" inherits="4"/></diameter>`)); err != nil {
+		t.Fatal(err)
+	}
 	mustRegister(t, p, 4, vendorAVP("Test-Kept", 70000, "UTF8String"))
 	load := func(avp string) error {
 		return p.Load(strings.NewReader(`<diameter><application id="4" type="auth" name="Test">` + avp + `</application></diameter>`))
@@ -407,6 +407,9 @@ func TestRegisterAVPSurvivesLoad(t *testing.T) {
 
 func TestRegisterAVPNameScope(t *testing.T) {
 	p := New(Base)
+	if err := p.Load(strings.NewReader(`<diameter><application id="1"/><application id="4" inherits="1"/><application id="16777238" inherits="4"/><application id="16777236" inherits="4"/></diameter>`)); err != nil {
+		t.Fatal(err)
+	}
 	// A nearer application may register a name an ancestor gets later...
 	mustRegister(t, p, 4, vendorAVP("Test-Name", 70000, "UTF8String"))
 	mustRegister(t, p, 1, &AVP{Name: "Test-Name", Code: 70000, VendorID: 94, Must: "V", Data: Data{TypeName: "UTF8String"}})
@@ -425,6 +428,9 @@ func TestRegisterAVPNameScope(t *testing.T) {
 
 func TestRegisterGroupedAVP(t *testing.T) {
 	p := New(Base)
+	if err := p.Load(strings.NewReader(`<diameter><application id="1"/><application id="4" inherits="1"/><application id="16777238" inherits="4"/><application id="16777236" inherits="4"/></diameter>`)); err != nil {
+		t.Fatal(err)
+	}
 	group := vendorAVP("Test-Group", 70000, "Grouped")
 	group.Data.Rule = []*Rule{
 		{AVP: "Test-Member", Required: true, Max: 1},
@@ -443,8 +449,7 @@ func TestRegisterGroupedAVP(t *testing.T) {
 	if len(have.Data.Rule) != 4 || have.Data.Rule[0].AVP != "Test-Member" {
 		t.Fatalf("rules = %v", have.Data.Rule)
 	}
-	// The members resolve by name, also from Gx, which no dictionary
-	// declares here and whose lookups walk up to application 4.
+	// The members resolve by name in the explicitly declared Gx child too.
 	for _, rule := range have.Data.Rule[:3] {
 		if _, err := p.FindAVPByName(gxAppID, rule.AVP); err != nil {
 			t.Errorf("member %s: %v", rule.AVP, err)

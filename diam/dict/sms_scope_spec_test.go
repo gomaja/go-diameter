@@ -21,7 +21,7 @@ func TestSMSApplicationFlagScope(t *testing.T) {
 		{"MME-Realm", 2408, [4]string{"M,V", "V", "V", "V"}, [4]string{}, [4]string{"", "M", "M", "M"}},
 		// TS 32.299 V19.0.0 Table 7.2.0.1, §7.2.240A. The shared charging
 		// definition's legacy MAY-P is pinned explicitly by the SMS fixtures.
-		{"User-CSG-Information", 2319, [4]string{"M,V", "M,V", "V", "M,V"}, [4]string{"P", "P", "", ""}, [4]string{"", "", "M", ""}},
+		{"User-CSG-Information", 2319, [4]string{"M,V", "M,V", "V", "M,V"}, [4]string{"", "", "", ""}, [4]string{"", "", "M", ""}},
 		// TS 29.217 V19.0.0 Table 5.3.1.1, §5.3.10. Only S6a clears M.
 		{"eNodeB-ID", 4008, [4]string{"M,V", "M,V", "V", "M,V"}, [4]string{"P", "P", "P", "P"}, [4]string{"", "", "M", ""}},
 		// TS 29.217 V19.0.0 Table 5.3.1.1, §5.3.15 itself forbids M.

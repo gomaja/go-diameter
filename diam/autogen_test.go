@@ -1,6 +1,8 @@
 package diam
 
 import (
+	"encoding/xml"
+	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -8,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -80,7 +83,7 @@ func TestAutogenExportsIdentifiers(t *testing.T) {
 }
 
 // requireAutogenTools skips the test where autogen.sh cannot run: it needs a
-// POSIX shell, sort, the go command, and GNU sed for the \u replacement,
+// POSIX shell, awk, sort, the go command, and GNU sed for the \u replacement,
 // which it takes from gsed on macOS.
 func requireAutogenTools(t *testing.T) {
 	t.Helper()
@@ -88,7 +91,7 @@ func requireAutogenTools(t *testing.T) {
 	if runtime.GOOS == "darwin" {
 		sed = "gsed"
 	}
-	for _, tool := range []string{"sh", "sort", "go", sed} {
+	for _, tool := range []string{"sh", "awk", "sort", "go", sed} {
 		if _, err := exec.LookPath(tool); err != nil {
 			t.Skipf("autogen.sh needs %s: %v", tool, err)
 		}
@@ -158,3 +161,115 @@ func TestGeneratedFilesAreCurrent(t *testing.T) {
 }
 
 func lf(b []byte) string { return strings.ReplaceAll(string(b), "\r\n", "\n") }
+
+// Each declaration gets a unique name so a duplicate in another dictionary
+// cannot mask a missed tag. All attribute orders and multiline tags are covered.
+func TestAutogenEveryBundledCommand(t *testing.T) {
+	requireAutogenTools(t)
+	dir := t.TempDir()
+	for _, name := range []string{"dict/bundled", "avp"} {
+		if err := os.MkdirAll(filepath.Join(dir, name), 0750); err != nil {
+			t.Fatal(err)
+		}
+	}
+	script, err := os.ReadFile("autogen.sh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "autogen.sh"), script, 0600); err != nil {
+		t.Fatal(err)
+	}
+	paths, err := filepath.Glob("dict/bundled/*.xml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var body strings.Builder
+	body.WriteString(`<diameter><application name="Command test" inherits="0" id="42">` + "\n")
+	want := map[string]string{}
+	orders := [][]int{{0, 1, 2}, {0, 2, 1}, {1, 0, 2}, {1, 2, 0}, {2, 0, 1}, {2, 1, 0}}
+	count := 0
+	for _, path := range paths {
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "dict", "bundled", filepath.Base(path)), raw, 0600); err != nil {
+			t.Fatal(err)
+		}
+		var f struct {
+			Apps []struct {
+				Commands []struct {
+					Code  uint32 `xml:"code,attr"`
+					Name  string `xml:"name,attr"`
+					Short string `xml:"short,attr"`
+				} `xml:"command"`
+			} `xml:"application"`
+		}
+		if err := xml.Unmarshal(raw, &f); err != nil {
+			t.Fatal(err)
+		}
+		for _, app := range f.Apps {
+			for _, c := range app.Commands {
+				exported := func(name string) string {
+					name = strings.ReplaceAll(name, "-", "")
+					return strings.ToUpper(name[:1]) + name[1:]
+				}
+				if c.Name == "" || c.Short == "" {
+					t.Fatalf("command %d in %s lacks name/short", c.Code, path)
+				}
+				want[exported(c.Name)] = strconv.FormatUint(uint64(c.Code), 10)
+				want[exported(c.Short)+"R"] = strconv.Quote(strings.ReplaceAll(c.Short, "-", "") + "R")
+				want[exported(c.Short)+"A"] = strconv.Quote(strings.ReplaceAll(c.Short, "-", "") + "A")
+				count++
+				for permutation, order := range orders {
+					name := fmt.Sprintf("Declaration%dOrder%d", count, permutation)
+					short := fmt.Sprintf("D%dO%d", count, permutation)
+					attrs := []string{fmt.Sprintf(`code="%d"`, c.Code), `name="` + name + `"`, `short="` + short + `"`}
+					separator := " "
+					if permutation%2 == 1 {
+						separator = "\n "
+					}
+					fmt.Fprintf(&body, "<command %s%s%s%s%s><request/><answer/></command>\n", attrs[order[0]], separator, attrs[order[1]], separator, attrs[order[2]])
+					want[name] = strconv.FormatUint(uint64(c.Code), 10)
+					want[short+"R"] = strconv.Quote(short + "R")
+					want[short+"A"] = strconv.Quote(short + "A")
+				}
+			}
+		}
+	}
+	if count == 0 {
+		t.Fatal("no bundled commands")
+	}
+	body.WriteString("</application></diameter>")
+	if err := os.WriteFile(filepath.Join(dir, "dict/bundled/commands.xml"), []byte(body.String()), 0600); err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command("sh", "autogen.sh")
+	cmd.Dir = dir
+	if output, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("autogen: %v\n%s", err, output)
+	}
+	f, err := parser.ParseFile(token.NewFileSet(), filepath.Join(dir, "commands.go"), nil, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]string{}
+	for _, decl := range f.Decls {
+		if g, ok := decl.(*ast.GenDecl); ok && g.Tok == token.CONST {
+			for _, spec := range g.Specs {
+				v := spec.(*ast.ValueSpec)
+				if len(v.Values) == 1 {
+					if value, ok := v.Values[0].(*ast.BasicLit); ok {
+						got[v.Names[0].Name] = value.Value
+					}
+				}
+			}
+		}
+	}
+	for name, value := range want {
+		if got[name] != value {
+			t.Errorf("%s = %q, want %s", name, got[name], value)
+		}
+	}
+	t.Logf("checked %d bundled command declarations in all six attribute orders", count)
+}
