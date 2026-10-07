@@ -14,8 +14,9 @@ import (
 type Time time.Time
 
 const rfc868offset = 2208988800 // Diff. between 1970 and 1900 in seconds.
-// RFC 6733 §4.3.1 requires the Time extension to 2104. The bit-0 rule is
-// described in obsolete RFC 4330 §3; RFC 5905 uses NTP era numbers instead.
+// RFC 6733 §4.3.1 requires the Time extension to 2104 and attributes it to
+// RFC 5905, which uses NTP era numbers instead (RFC 5905 §6). The bit-0 rule
+// it requires is the one in obsolete RFC 4330 §3.
 // The post-rollover Unix offset is 2^32 - 2208988800 seconds.
 const postRolloverUnixOffset = 2085978496
 
