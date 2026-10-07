@@ -4,6 +4,8 @@
 		<vendor id="10415" name="TGPP"/>
 		<vendor id="13019" name="ETSI"/>
 		<vendor id="5535" name="TGPP2"/>
+		<!-- TS 32.299 V19.0.0 §7.5 / Table 7.5.1; IANA PEN 45687: oneM2M. -->
+		<vendor id="45687" name="oneM2M"/>
 		<command code="258" name="Re-Auth" short="RA">
 			<request proxiable="true">
 				<!-- RFC 6733 §8.3.1; Erratum 4803; TS 32.299 V19.0.0 §6.4.4. Preserve all RFC rules; charging additions precede the extension point. -->
@@ -344,9 +346,18 @@
 		<avp name="API-Invocation-Timestamp" code="1312" vendor-id="10415" must="V" must-not="M">
 			<data type="Time"/>
 		</avp>
-		<!-- TS 32.299 V19.0.0 §7.2.20eA. Table 7.2.0.1; P/encryption columns removed by CR 0774 (S5-171184, SP-170138). -->
+		<!-- TS 32.299 V19.0.0 §7.2.20eA. Table 7.2.0.1; P/encryption columns removed by CR 0774 (S5-171184, SP-170138). Values are printed after §7.2.20gA (misplaced since CR 0799r2, S5-183361, SP-180430); TS 32.298 Rel-19 APINetworkServiceNode ASN.1 corroborates the numbers. -->
 		<avp name="API-Network-Service-Node" code="1315" vendor-id="10415" must="V" must-not="M">
-			<data type="Enumerated"/>
+			<data type="Enumerated">
+				<item code="0" name="MME"/>
+				<item code="1" name="SGSN"/>
+				<item code="2" name="HSS"/>
+				<item code="3" name="PCRF"/>
+				<item code="4" name="PFDF"/>
+				<item code="5" name="BMSC"/>
+				<item code="6" name="CSCF"/>
+				<item code="7" name="RCAF"/>
+			</data>
 		</avp>
 		<!-- TS 32.299 V19.0.0 §7.2.20fA. Table 7.2.0.1; P/encryption columns removed by CR 0774 (S5-171184, SP-170138). -->
 		<avp name="API-Result-Code" code="1313" vendor-id="10415" must="V" must-not="M">
@@ -936,7 +947,7 @@
 		<avp name="Expires" code="888" vendor-id="10415" must="M,V">
 			<data type="Unsigned32"/>
 		</avp>
-		<!-- TS 32.299 V19.0.0 §7.2.66aA. Table 7.2.0.1; P/encryption columns removed by CR 0774 (S5-171184, SP-170138). Unresolved source members: Network-Element. -->
+		<!-- TS 32.299 V19.0.0 §7.2.66aA. Table 7.2.0.1; P/encryption columns removed by CR 0774 (S5-171184, SP-170138). Omitted source member: Network-Element. TS 32.299 V19.0.0 §7.2.66aA and CR 0799r2 (S5-183361, SP-180430) name this member without a definition/table entry. TS 32.298 Rel-19 ExposureFunctionAPI ASN.1 has aPINetworkServiceNode but no networkElement. Stale grammar entry is the inferred explanation; no AVP is invented. -->
 		<avp name="Exposure-Function-API-Information" code="1316" vendor-id="10415" must="V" must-not="M">
 			<data type="Grouped">
 				<rule avp="Supported-Features" required="false"/>
@@ -1858,7 +1869,7 @@
 				<rule avp="Rate-Element" required="false"/>
 			</data>
 		</avp>
-		<!-- TS 32.299 V19.0.0 §7.2.112aA. Table 7.2.0.1; P/encryption columns removed by CR 0774 (S5-171184, SP-170138). Unresolved source members: Submission-Timestamp. -->
+		<!-- TS 32.299 V19.0.0 §7.2.112aA. Table 7.2.0.1; P/encryption columns removed by CR 0774 (S5-171184, SP-170138). Omitted source member: Submission-Timestamp. TS 32.299 V19.0.0 §7.2.112aA and TS 32.253 V19.0.0 Table 6.4.1 name it without defining an AVP code/type. TS 32.298 Rel-19 CPDT ASN.1 NIDDsubmission.submissionTimestamp is TimeStamp; no source equates it to Submission-Time (1202, §7.2.217). No alias is invented. -->
 		<avp name="NIDD-Submission" code="3928" vendor-id="10415" must="M,V">
 			<data type="Grouped">
 				<rule avp="Event-Timestamp" required="false" max="1"/>
@@ -3211,7 +3222,7 @@
 		<avp name="Service-Id" code="855" vendor-id="10415" must="M,V">
 			<data type="UTF8String"/>
 		</avp>
-		<!-- TS 32.299 V19.0.0 §7.2.192. Table 7.2.0.1; P/encryption columns removed by CR 0774 (S5-171184, SP-170138). Unresolved source members: M2M-Information. -->
+		<!-- TS 32.299 V19.0.0 §7.2.192. Table 7.2.0.1; P/encryption columns removed by CR 0774 (S5-171184, SP-170138). M2M-Information is defined by oneM2M TS-0004 V5.2.0 §A.5.14. -->
 		<avp name="Service-Information" code="873" vendor-id="10415" must="M,V">
 			<data type="Grouped">
 				<rule avp="Subscription-Id" required="false"/>
@@ -3229,6 +3240,7 @@
 				<rule avp="Service-Generic-Information" required="false" max="1"/>
 				<rule avp="IM-Information" required="false" max="1"/>
 				<rule avp="DCD-Information" required="false" max="1"/>
+				<rule avp="M2M-Information" required="false" max="1"/>
 				<rule avp="CPDT-Information" required="false" max="1"/>
 			</data>
 		</avp>
@@ -4196,12 +4208,12 @@
 			<data type="UTF8String"/>
 		</avp>
 
-		<!-- TS 32.299 V19.0.0 §7.2.35B; CR 0800r1 (S5-182340, SP-180427) (unavailable); clause type selected over Table 7.2.0.1. Table type: UTF8String; unresolved specification conflict. -->
+		<!-- TS 32.299 V19.0.0 §7.2.35B. Resolved table slip: CR 0800r1 (S5-182340, SP-180427) contains both the UTF8String table cell and OctetString clause. TS 32.298 CR 0658r3 (S5-183366, same pack) CivicAddressInformation ::= OCTET STRING and RFC 5580 §6 Location-Data corroborate OctetString; RFC 8559 does not change this type. -->
 		<avp name="Civic-Address-Information" code="1305" vendor-id="10415" must="V" must-not="M">
 			<data type="OctetString"/>
 		</avp>
 
-		<!-- TS 32.299 V19.0.0 §7.2.111AaA; CR 0718r1 (S5-161260, SP-160035) (unavailable); clause type selected over Table 7.2.0.1. Table type: Integer32; unresolved specification conflict. -->
+		<!-- TS 32.299 V19.0.0 §7.2.111AaA. Resolved table slip in CR 0718r1 (S5-161260, SP-160035): clause 7.2.111AaA defines Enumerated and four values despite Integer32 in Table 7.2.0.1. TS 32.298 CR 0574r1 (S5-161261, same pack) and Rel-19 MONTE ASN.1 MonitoringEventConfigurationActivity agree. -->
 		<avp name="Monitoring-Event-Configuration-Activity" code="3919" vendor-id="10415" must="M,V">
 			<data type="Enumerated">
 				<item code="0" name="create"/>
@@ -4211,12 +4223,248 @@
 			</data>
 		</avp>
 
-		<!-- TS 32.299 V19.0.0 §7.2.111AaB; CR 0718r1 (S5-161260, SP-160035) (unavailable); clause type selected over Table 7.2.0.1. Table type: Integer32; unresolved specification conflict. -->
+		<!-- TS 32.299 V19.0.0 §7.2.111AaB. Resolved table slip in CR 0718r1 (S5-161260, SP-160035): clause 7.2.111AaB defines Enumerated and two values despite Integer32 in Table 7.2.0.1. -->
 		<avp name="Monitoring-Event-Functionality" code="3922" vendor-id="10415" must="M,V">
 			<data type="Enumerated">
 				<item code="0" name="Configuration"/>
 				<item code="1" name="Reporting"/>
 			</data>
+		</avp>
+
+		<!-- oneM2M TS-0004 V5.2.0 Table A.4-1; TS 32.299 V19.0.0 §7.5 / Table 7.5.1.
+		     Table A.4-1 says Must=M, May=P, Must-not=V, encryption Y despite Vendor-Id 45687.
+		     RFC 6733 §4.1 requires V for the Vendor-ID field: this binding uses M,V / P / Y.
+		     Defining clauses below correct the table's stale A.5 references.
+		     Rating-Group (432/0) and Node-Id (2064/10415) reuse their existing definitions. -->
+		<!-- oneM2M TS-0004 V5.2.0 Table A.4-1; §A.5.1. -->
+		<avp name="Access-Network-Identifier" code="1000" vendor-id="45687" must="M,V" may="P" may-encrypt="Y">
+			<data type="Unsigned32"/>
+		</avp>
+		<!-- oneM2M TS-0004 V5.2.0 Table A.4-1; §A.5.4. -->
+		<avp name="Application-Entity-ID" code="1001" vendor-id="45687" must="M,V" may="P" may-encrypt="Y">
+			<data type="UTF8String"/>
+		</avp>
+		<!-- oneM2M TS-0004 V5.2.0 Table A.4-1; §A.5.5. -->
+		<avp name="Control-Memory-Size" code="1002" vendor-id="45687" must="M,V" may="P" may-encrypt="Y">
+			<data type="Unsigned32"/>
+		</avp>
+		<!-- oneM2M TS-0004 V5.2.0 Table A.4-1; §A.5.6. -->
+		<avp name="Current-Number-Members" code="1003" vendor-id="45687" must="M,V" may="P" may-encrypt="Y">
+			<data type="Unsigned32"/>
+		</avp>
+		<!-- oneM2M TS-0004 V5.2.0 Table A.4-1; §A.5.7. -->
+		<avp name="Data-Memory-Size" code="1004" vendor-id="45687" must="M,V" may="P" may-encrypt="Y">
+			<data type="Unsigned32"/>
+		</avp>
+		<!-- oneM2M TS-0004 V5.2.0 Table A.4-1; §A.5.8. -->
+		<avp name="External-ID" code="1005" vendor-id="45687" must="M,V" may="P" may-encrypt="Y">
+			<data type="UTF8String"/>
+		</avp>
+		<!-- oneM2M TS-0004 V5.2.0 Table A.4-1; §A.5.9. -->
+		<avp name="Group-Name" code="1006" vendor-id="45687" must="M,V" may="P" may-encrypt="Y">
+			<data type="UTF8String"/>
+		</avp>
+		<!-- oneM2M TS-0004 V5.2.0 Table A.4-1; §A.5.10. -->
+		<avp name="Hosting-CSE-ID" code="1007" vendor-id="45687" must="M,V" may="P" may-encrypt="Y">
+			<data type="UTF8String"/>
+		</avp>
+		<!-- oneM2M TS-0004 V5.2.0 Table A.4-1; §A.5.11 Originator. Qualified name avoids 3GPP Originator (864/10415); wire identity is unchanged. -->
+		<avp name="M2M-Originator" code="1008" vendor-id="45687" must="M,V" may="P" may-encrypt="Y">
+			<data type="UTF8String"/>
+		</avp>
+		<!-- oneM2M TS-0004 V5.2.0 Table A.4-1; §A.5.12. -->
+		<avp name="Maximum-Number-Members" code="1009" vendor-id="45687" must="M,V" may="P" may-encrypt="Y">
+			<data type="Unsigned32"/>
+		</avp>
+		<!-- oneM2M TS-0004 V5.2.0 Table A.4-1; §A.5.13. -->
+		<avp name="M2M-Event-Record-Timestamp" code="1010" vendor-id="45687" must="M,V" may="P" may-encrypt="Y">
+			<data type="Time"/>
+		</avp>
+		<!-- oneM2M TS-0004 V5.2.0 Table A.4-1; §A.5.14. -->
+		<avp name="M2M-Information" code="1011" vendor-id="45687" must="M,V" may="P" may-encrypt="Y">
+			<data type="Grouped">
+				<rule avp="Application-Entity-ID" required="false" max="1"/>
+				<rule avp="External-ID" required="false" max="1"/>
+				<rule avp="Receiver" required="false" max="1"/>
+				<rule avp="M2M-Originator" required="false" max="1"/>
+				<rule avp="Hosting-CSE-ID" required="false" max="1"/>
+				<rule avp="Target-ID" required="false" max="1"/>
+				<rule avp="Protocol-Type" required="false" max="1"/>
+				<rule avp="Request-Operation" required="false" max="1"/>
+				<rule avp="Request-Headers-Size" required="false" max="1"/>
+				<rule avp="Request-Body-Size" required="false" max="1"/>
+				<rule avp="Response-Headers-Size" required="false" max="1"/>
+				<rule avp="Response-Body-Size" required="false" max="1"/>
+				<rule avp="Response-Status-Code" required="false" max="1"/>
+				<rule avp="Rating-Group" required="false" max="1"/>
+				<rule avp="M2M-Event-Record-Timestamp" required="false" max="1"/>
+				<rule avp="Control-Memory-Size" required="false" max="1"/>
+				<rule avp="Data-Memory-Size" required="false" max="1"/>
+				<rule avp="Access-Network-Identifier" required="false" max="1"/>
+				<rule avp="Occupancy" required="false" max="1"/>
+				<rule avp="Group-Name" required="false" max="1"/>
+				<rule avp="Maximum-Number-Members" required="false" max="1"/>
+				<rule avp="Current-Number-Members" required="false" max="1"/>
+				<rule avp="Subgroup-Name" required="false" max="1"/>
+				<rule avp="Node-Id" required="false" max="1"/>
+				<rule avp="AVP" required="false"/>
+			</data>
+		</avp>
+		<!-- oneM2M TS-0004 V5.2.0 Table A.4-1; §A.5.16. -->
+		<avp name="Occupancy" code="1012" vendor-id="45687" must="M,V" may="P" may-encrypt="Y">
+			<data type="Unsigned32"/>
+		</avp>
+		<!-- oneM2M TS-0004 V5.2.0 Table A.4-1; §A.5.17. §A.5.17: 4..99 reserved for oneM2M; 100..199 operator/vendor specific. Ranges are not enumerators. -->
+		<avp name="Protocol-Type" code="1013" vendor-id="45687" must="M,V" may="P" may-encrypt="Y">
+			<data type="Enumerated">
+				<item code="0" name="HTTP"/>
+				<item code="1" name="CoAP"/>
+				<item code="2" name="MQTT"/>
+				<item code="3" name="WebSocket"/>
+			</data>
+		</avp>
+		<!-- oneM2M TS-0004 V5.2.0 Table A.4-1; §A.5.19. -->
+		<avp name="Receiver" code="1014" vendor-id="45687" must="M,V" may="P" may-encrypt="Y">
+			<data type="UTF8String"/>
+		</avp>
+		<!-- oneM2M TS-0004 V5.2.0 Table A.4-1; §A.5.20. -->
+		<avp name="Request-Body-Size" code="1015" vendor-id="45687" must="M,V" may="P" may-encrypt="Y">
+			<data type="Unsigned32"/>
+		</avp>
+		<!-- oneM2M TS-0004 V5.2.0 Table A.4-1; §A.5.21. -->
+		<avp name="Request-Headers-Size" code="1016" vendor-id="45687" must="M,V" may="P" may-encrypt="Y">
+			<data type="Unsigned32"/>
+		</avp>
+		<!-- oneM2M TS-0004 V5.2.0 Table A.4-1; §A.5.22; Table 6.3.4.2.5-1 (printed 6.3.4.2.51). -->
+		<avp name="Request-Operation" code="1017" vendor-id="45687" must="M,V" may="P" may-encrypt="Y">
+			<data type="Enumerated">
+				<item code="1" name="Create"/>
+				<item code="2" name="Retrieve"/>
+				<item code="3" name="Update"/>
+				<item code="4" name="Delete"/>
+				<item code="5" name="Notify"/>
+			</data>
+		</avp>
+		<!-- oneM2M TS-0004 V5.2.0 Table A.4-1; §A.5.23. -->
+		<avp name="Response-Body-Size" code="1018" vendor-id="45687" must="M,V" may="P" may-encrypt="Y">
+			<data type="Unsigned32"/>
+		</avp>
+		<!-- oneM2M TS-0004 V5.2.0 Table A.4-1; §A.5.24. -->
+		<avp name="Response-Headers-Size" code="1019" vendor-id="45687" must="M,V" may="P" may-encrypt="Y">
+			<data type="Unsigned32"/>
+		</avp>
+		<!-- oneM2M TS-0004 V5.2.0 Table A.4-1; §A.5.25; §6.6.3, Tables 6.6.3.2-1–6.6.3.7-1. -->
+		<avp name="Response-Status-Code" code="1020" vendor-id="45687" must="M,V" may="P" may-encrypt="Y">
+			<data type="Enumerated">
+				<item code="1000" name="ACCEPTED"/>
+				<item code="1001" name="ACCEPTED for nonBlockingRequestSynch"/>
+				<item code="1002" name="ACCEPTED for nonBlockingRequestAsynch"/>
+				<item code="2000" name="OK"/>
+				<item code="2001" name="CREATED"/>
+				<item code="2002" name="DELETED"/>
+				<item code="2004" name="UPDATED"/>
+				<item code="4000" name="BAD_REQUEST"/>
+				<item code="4001" name="RELEASE_VERSION_NOT_SUPPORTED"/>
+				<item code="4004" name="NOT_FOUND"/>
+				<item code="4005" name="OPERATION_NOT_ALLOWED"/>
+				<item code="4008" name="REQUEST_TIMEOUT"/>
+				<item code="4015" name="UNSUPPORTED_MEDIA_TYPE"/>
+				<item code="4101" name="SUBSCRIPTION_CREATOR_HAS_NO_PRIVILEGE"/>
+				<item code="4102" name="CONTENTS_UNACCEPTABLE"/>
+				<item code="4103" name="ORIGINATOR_HAS_NO_PRIVILEGE"/>
+				<item code="4104" name="GROUP_REQUEST_IDENTIFIER_EXISTS"/>
+				<item code="4105" name="CONFLICT"/>
+				<item code="4106" name="ORIGINATOR_NOT_AUTHENTICATED"/>
+				<item code="4107" name="SECURITY_ASSOCIATION_REQUIRED"/>
+				<item code="4108" name="INVALID_CHILD_RESOURCE_TYPE"/>
+				<item code="4109" name="NO_MEMBERS"/>
+				<item code="4110" name="GROUP_MEMBER_TYPE_INCONSISTENT"/>
+				<item code="4111" name="ESPRIM_UNSUPPORTED_OPTION"/>
+				<item code="4112" name="ESPRIM_UNKNOWN_KEY_ID"/>
+				<item code="4113" name="ESPRIM_UNKNOWN_ORIG_RAND_ID"/>
+				<item code="4114" name="ESPRIM_UNKNOWN_RECV_RAND_ID"/>
+				<item code="4115" name="ESPRIM_BAD_MAC"/>
+				<item code="4116" name="ESPRIM_IMPERSONATION_ERROR"/>
+				<item code="4117" name="ORIGINATOR_HAS_ALREADY_REGISTERED"/>
+				<item code="4118" name="ONTOLOGY_NOT_AVAILABLE"/>
+				<item code="4119" name="LINKED_SEMANTICS_NOT_AVAILABLE"/>
+				<item code="4120" name="INVALID_SEMANTICS"/>
+				<item code="4121" name="MASHUP_MEMBER_NOT_FOUND"/>
+				<item code="4122" name="INVALID_TRIGGER_PURPOSE"/>
+				<item code="4123" name="ILLEGAL_TRANSACTION_STATE_TRANSITION_ATTEMPTED"/>
+				<item code="4124" name="BLOCKING_SUBSCRIPTION_ALREADY_EXISTS"/>
+				<item code="4125" name="SPECIALIZATION_SCHEMA_NOT_FOUND"/>
+				<item code="4126" name="APP_RULE_VALIDATION_FAILED"/>
+				<item code="4127" name="OPERATION_DENIED_BY_REMOTE_ENTITY"/>
+				<item code="4128" name="SERVICE_SUBSCRIPTION_NOT_ESTABLISHED"/>
+				<item code="4130" name="ONTOLOGY_MAPPING_ALGORITHM_NOT_AVAILABLE"/>
+				<item code="4131" name="ONTOLOGY_MAPPING_POLICY_NOT_MATCHED"/>
+				<item code="4132" name="ONTOLOGY_MAPPING_NOT_AVAILABLE"/>
+				<item code="4133" name="BAD_FACT_INPUTS_FOR_REASONING"/>
+				<item code="4134" name="BAD_RULE_INPUTS_FOR_REASONING"/>
+				<item code="4135" name="DISCOVERY_LIMIT_EXCEEDED"/>
+				<item code="4136" name="PRIMITIVE_PROFILE_NOT_ACCESSIBLE"/>
+				<item code="4137" name="PRIMITIVE_PROFILE_BAD_REQUEST"/>
+				<item code="4138" name="UNAUTHORIZED_USER"/>
+				<item code="4139" name="SERVICE_SUBSCRIPTION_NOT_ACTIVE"/>
+				<item code="4140" name="SOFTWARE_CAMPAIGN_CONFLICT"/>
+				<item code="4141" name="SERVICE_SUBSCRIPTION_LIMITS_EXCEEDED"/>
+				<item code="4142" name="INVALID_PROCESS_CONFIGURATION"/>
+				<item code="4143" name="INVALID_SPARQL_QUERY"/>
+				<item code="5000" name="INTERNAL_SERVER_ERROR"/>
+				<item code="5001" name="NOT_IMPLEMENTED"/>
+				<item code="5103" name="TARGET_NOT_REACHABLE"/>
+				<item code="5105" name="RECEIVER_HAS_NO_PRIVILEGE"/>
+				<item code="5106" name="ALREADY_EXISTS"/>
+				<item code="5107" name="REMOTE_ENTITY_NOT_REACHABLE"/>
+				<item code="5203" name="TARGET_NOT_SUBSCRIBABLE"/>
+				<item code="5204" name="SUBSCRIPTION_VERIFICATION_INITIATION_FAILED"/>
+				<item code="5205" name="SUBSCRIPTION_HOST_HAS_NO_PRIVILEGE"/>
+				<item code="5206" name="NON_BLOCKING_SYNCH_REQUEST_NOT_SUPPORTED"/>
+				<item code="5207" name="NOT_ACCEPTABLE"/>
+				<item code="5208" name="DISCOVERY_DENIED_BY_IPE"/>
+				<item code="5209" name="GROUP_MEMBERS_NOT_RESPONDED"/>
+				<item code="5210" name="ESPRIM_DECRYPTION_ERROR"/>
+				<item code="5211" name="ESPRIM_ENCRYPTION_ERROR"/>
+				<item code="5212" name="SPARQL_UPDATE_ERROR"/>
+				<item code="5214" name="TARGET_HAS_NO_SESSION_CAPABILITY"/>
+				<item code="5215" name="SESSION_IS_ONLINE"/>
+				<item code="5216" name="JOIN_MULTICAST_GROUP_FAILED"/>
+				<item code="5217" name="LEAVE_MULTICAST_GROUP_FAILED"/>
+				<item code="5218" name="TRIGGERING_DISABLED_FOR_RECIPIENT"/>
+				<item code="5219" name="UNABLE_TO_REPLACE_REQUEST"/>
+				<item code="5220" name="UNABLE_TO_RECALL_REQUEST"/>
+				<item code="5221" name="CROSS_RESOURCE_OPERATION_FAILURE"/>
+				<item code="5222" name="TRANSACTION_PROCESSING_IS_INCOMPLETE"/>
+				<item code="5230" name="ONTOLOGY_MAPPING_ALGORITHM_FAILED"/>
+				<item code="5231" name="ONTOLOGY_CONVERSION_FAILED"/>
+				<item code="5232" name="REASONING_PROCESSING_FAILED"/>
+				<item code="5233" name="NIDD_CONFIGURATION_PROCESS_INCOMPLETE"/>
+				<item code="6003" name="EXTERNAL_OBJECT_NOT_REACHABLE"/>
+				<item code="6005" name="EXTERNAL_OBJECT_NOT_FOUND"/>
+				<item code="6010" name="MAX_NUMBER_OF_MEMBER_EXCEEDED"/>
+				<item code="6020" name="MGMT_SESSION_CANNOT_BE_ESTABLISHED"/>
+				<item code="6021" name="MGMT_SESSION_ESTABLISHMENT_TIMEOUT"/>
+				<item code="6022" name="INVALID_CMDTYPE"/>
+				<item code="6023" name="INVALID_ARGUMENTS"/>
+				<item code="6024" name="INSUFFICIENT_ARGUMENTS"/>
+				<item code="6025" name="MGMT_CONVERSION_ERROR"/>
+				<item code="6026" name="MGMT_CANCELLATION_FAILED"/>
+				<item code="6028" name="ALREADY_COMPLETE"/>
+				<item code="6029" name="MGMT_COMMAND_NOT_CANCELLABLE"/>
+				<item code="6030" name="EXTERNAL_OBJECT_NOT_REACHABLE_BEFORE_RQET_TIMEOUT"/>
+				<item code="6031" name="EXTERNAL_OBJECT_NOT_REACHABLE_BEFORE_OET_TIMEOUT"/>
+				<item code="6033" name="NETWORK_QOS_CONFIG_ERROR"/>
+				<item code="6034" name="REQUESTED_ACTIVITY_PATTERN_NOT_PERMITTED"/>
+			</data>
+		</avp>
+		<!-- oneM2M TS-0004 V5.2.0 Table A.4-1; §A.5.28. -->
+		<avp name="Subgroup-Name" code="1021" vendor-id="45687" must="M,V" may="P" may-encrypt="Y">
+			<data type="UTF8String"/>
+		</avp>
+		<!-- oneM2M TS-0004 V5.2.0 Table A.4-1; §A.5.32. -->
+		<avp name="Target-ID" code="1022" vendor-id="45687" must="M,V" may="P" may-encrypt="Y">
+			<data type="UTF8String"/>
 		</avp>
 	</application>
 	<!-- TS 32.299 V19.0.0 §§6.2.2–6.2.3: Rf reuses the Ro charging AVP tree. -->
@@ -4225,6 +4473,8 @@
 		<vendor id="10415" name="TGPP"/>
 		<vendor id="13019" name="ETSI"/>
 		<vendor id="5535" name="TGPP2"/>
+		<!-- TS 32.299 V19.0.0 §7.5 / Table 7.5.1; IANA PEN 45687: oneM2M. -->
+		<vendor id="45687" name="oneM2M"/>
 		<command code="271" name="Accounting" short="AC">
 			<request proxiable="true">
 				<!-- RFC 6733 §9.7.1; Erratum 4803; TS 32.299 V19.0.0 §6.2.2. Preserve all RFC rules; charging additions precede the extension point. -->

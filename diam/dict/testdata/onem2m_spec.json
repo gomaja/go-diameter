@@ -1,0 +1,696 @@
+{
+  "document": "oneM2M TS-0004 V5.2.0 (2025-11-23)",
+  "source": "https://member.onem2m.org/Application/documentapp/downloadLatestRevision/default.aspx?docID=38214",
+  "archive_sha256": "01a9227c7437d09e7e32f5134a4a581bf63a0f5ce1ea17d5d5b1f85f958d497a",
+  "document_sha256": "2355b26a51127ec22880492d403f9b4e4653cc242ef4a3c5a8ccf85351c91def",
+  "extraction": "Word XML Table A.4-1, defining A.5 clauses, A.5.14 grammar and referenced enum tables; independent of dictionary XML.",
+  "flag_resolution": "Table A.4-1 prohibits V despite vendor 45687. RFC 6733 §4.1 requires V for the Vendor-ID field; binding uses must M,V, may P, encryption Y.",
+  "avps": [
+    {
+      "name": "Access-Network-Identifier",
+      "code": 1000,
+      "vendor": 45687,
+      "section": "oneM2M TS-0004 V5.2.0 Table A.4-1; §A.5.1",
+      "type": "Unsigned32",
+      "must": "M,V",
+      "may": "P",
+      "must_not": "",
+      "may_encrypt": "Y",
+      "published_flags": {
+        "must": "M",
+        "may": "P",
+        "must_not": "V"
+      },
+      "table_reference": "[A.5.1]"
+    },
+    {
+      "name": "Application-Entity-ID",
+      "code": 1001,
+      "vendor": 45687,
+      "section": "oneM2M TS-0004 V5.2.0 Table A.4-1; §A.5.4",
+      "type": "UTF8String",
+      "must": "M,V",
+      "may": "P",
+      "must_not": "",
+      "may_encrypt": "Y",
+      "published_flags": {
+        "must": "M",
+        "may": "P",
+        "must_not": "V"
+      },
+      "table_reference": "[A.5.2]"
+    },
+    {
+      "name": "Control-Memory-Size",
+      "code": 1002,
+      "vendor": 45687,
+      "section": "oneM2M TS-0004 V5.2.0 Table A.4-1; §A.5.5",
+      "type": "Unsigned32",
+      "must": "M,V",
+      "may": "P",
+      "must_not": "",
+      "may_encrypt": "Y",
+      "published_flags": {
+        "must": "M",
+        "may": "P",
+        "must_not": "V"
+      },
+      "table_reference": "[A.5.5]"
+    },
+    {
+      "name": "Current-Number-Members",
+      "code": 1003,
+      "vendor": 45687,
+      "section": "oneM2M TS-0004 V5.2.0 Table A.4-1; §A.5.6",
+      "type": "Unsigned32",
+      "must": "M,V",
+      "may": "P",
+      "must_not": "",
+      "may_encrypt": "Y",
+      "published_flags": {
+        "must": "M",
+        "may": "P",
+        "must_not": "V"
+      },
+      "table_reference": "[A.5.6]"
+    },
+    {
+      "name": "Data-Memory-Size",
+      "code": 1004,
+      "vendor": 45687,
+      "section": "oneM2M TS-0004 V5.2.0 Table A.4-1; §A.5.7",
+      "type": "Unsigned32",
+      "must": "M,V",
+      "may": "P",
+      "must_not": "",
+      "may_encrypt": "Y",
+      "published_flags": {
+        "must": "M",
+        "may": "P",
+        "must_not": "V"
+      },
+      "table_reference": "[A.5.7]"
+    },
+    {
+      "name": "External-ID",
+      "code": 1005,
+      "vendor": 45687,
+      "section": "oneM2M TS-0004 V5.2.0 Table A.4-1; §A.5.8",
+      "type": "UTF8String",
+      "must": "M,V",
+      "may": "P",
+      "must_not": "",
+      "may_encrypt": "Y",
+      "published_flags": {
+        "must": "M",
+        "may": "P",
+        "must_not": "V"
+      },
+      "table_reference": "[A.5.8]"
+    },
+    {
+      "name": "Group-Name",
+      "code": 1006,
+      "vendor": 45687,
+      "section": "oneM2M TS-0004 V5.2.0 Table A.4-1; §A.5.9",
+      "type": "UTF8String",
+      "must": "M,V",
+      "may": "P",
+      "must_not": "",
+      "may_encrypt": "Y",
+      "published_flags": {
+        "must": "M",
+        "may": "P",
+        "must_not": "V"
+      },
+      "table_reference": "[A.5.9]"
+    },
+    {
+      "name": "Hosting-CSE-ID",
+      "code": 1007,
+      "vendor": 45687,
+      "section": "oneM2M TS-0004 V5.2.0 Table A.4-1; §A.5.10",
+      "type": "UTF8String",
+      "must": "M,V",
+      "may": "P",
+      "must_not": "",
+      "may_encrypt": "Y",
+      "published_flags": {
+        "must": "M",
+        "may": "P",
+        "must_not": "V"
+      },
+      "table_reference": "[A.5.10]"
+    },
+    {
+      "name": "M2M-Originator",
+      "code": 1008,
+      "vendor": 45687,
+      "section": "oneM2M TS-0004 V5.2.0 Table A.4-1; §A.5.11",
+      "type": "UTF8String",
+      "must": "M,V",
+      "may": "P",
+      "must_not": "",
+      "may_encrypt": "Y",
+      "published_flags": {
+        "must": "M",
+        "may": "P",
+        "must_not": "V"
+      },
+      "table_reference": "[A.5.11]",
+      "source_name": "Originator",
+      "note": "Dictionary name qualified to avoid existing 3GPP Originator (864/10415); wire identity remains 1008/45687."
+    },
+    {
+      "name": "Maximum-Number-Members",
+      "code": 1009,
+      "vendor": 45687,
+      "section": "oneM2M TS-0004 V5.2.0 Table A.4-1; §A.5.12",
+      "type": "Unsigned32",
+      "must": "M,V",
+      "may": "P",
+      "must_not": "",
+      "may_encrypt": "Y",
+      "published_flags": {
+        "must": "M",
+        "may": "P",
+        "must_not": "V"
+      },
+      "table_reference": "[A.5.12]"
+    },
+    {
+      "name": "M2M-Event-Record-Timestamp",
+      "code": 1010,
+      "vendor": 45687,
+      "section": "oneM2M TS-0004 V5.2.0 Table A.4-1; §A.5.13",
+      "type": "Time",
+      "must": "M,V",
+      "may": "P",
+      "must_not": "",
+      "may_encrypt": "Y",
+      "published_flags": {
+        "must": "M",
+        "may": "P",
+        "must_not": "V"
+      },
+      "table_reference": "[a.5.13]"
+    },
+    {
+      "name": "M2M-Information",
+      "code": 1011,
+      "vendor": 45687,
+      "section": "oneM2M TS-0004 V5.2.0 Table A.4-1; §A.5.14",
+      "type": "Grouped",
+      "must": "M,V",
+      "may": "P",
+      "must_not": "",
+      "may_encrypt": "Y",
+      "published_flags": {
+        "must": "M",
+        "may": "P",
+        "must_not": "V"
+      },
+      "table_reference": "[A.5.14]",
+      "rules": [
+        {
+          "name": "Application-Entity-ID",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Application-Entity-ID ]"
+        },
+        {
+          "name": "External-ID",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ External-ID ]"
+        },
+        {
+          "name": "Receiver",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Receiver ]"
+        },
+        {
+          "name": "M2M-Originator",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Originator ]"
+        },
+        {
+          "name": "Hosting-CSE-ID",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Hosting-CSE-ID ]"
+        },
+        {
+          "name": "Target-ID",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Target-ID ]"
+        },
+        {
+          "name": "Protocol-Type",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Protocol-Type ]"
+        },
+        {
+          "name": "Request-Operation",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Request-Operation ]"
+        },
+        {
+          "name": "Request-Headers-Size",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Request-Headers-Size ]"
+        },
+        {
+          "name": "Request-Body-Size",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Request-Body-Size ]"
+        },
+        {
+          "name": "Response-Headers-Size",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Response-Headers-Size ]"
+        },
+        {
+          "name": "Response-Body-Size",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Response-Body-Size ]"
+        },
+        {
+          "name": "Response-Status-Code",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Response-Status-Code ]"
+        },
+        {
+          "name": "Rating-Group",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Rating-Group ]"
+        },
+        {
+          "name": "M2M-Event-Record-Timestamp",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ M2M-Event-Record-Timestamp ]"
+        },
+        {
+          "name": "Control-Memory-Size",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Control-Memory-Size ]"
+        },
+        {
+          "name": "Data-Memory-Size",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Data-Memory-Size ]"
+        },
+        {
+          "name": "Access-Network-Identifier",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Access-Network-Identifier ]"
+        },
+        {
+          "name": "Occupancy",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Occupancy ]"
+        },
+        {
+          "name": "Group-Name",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Group-Name ]"
+        },
+        {
+          "name": "Maximum-Number-Members",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Maximum-Number-Members ]"
+        },
+        {
+          "name": "Current-Number-Members",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Current-Number-Members ]"
+        },
+        {
+          "name": "Subgroup-Name",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Subgroup-Name ]"
+        },
+        {
+          "name": "Node-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Node-Id ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "* [ AVP ]"
+        }
+      ]
+    },
+    {
+      "name": "Occupancy",
+      "code": 1012,
+      "vendor": 45687,
+      "section": "oneM2M TS-0004 V5.2.0 Table A.4-1; §A.5.16",
+      "type": "Unsigned32",
+      "must": "M,V",
+      "may": "P",
+      "must_not": "",
+      "may_encrypt": "Y",
+      "published_flags": {
+        "must": "M",
+        "may": "P",
+        "must_not": "V"
+      },
+      "table_reference": "[A.5.16]"
+    },
+    {
+      "name": "Protocol-Type",
+      "code": 1013,
+      "vendor": 45687,
+      "section": "oneM2M TS-0004 V5.2.0 Table A.4-1; §A.5.17",
+      "type": "Enumerated",
+      "must": "M,V",
+      "may": "P",
+      "must_not": "",
+      "may_encrypt": "Y",
+      "published_flags": {
+        "must": "M",
+        "may": "P",
+        "must_not": "V"
+      },
+      "table_reference": "[A.5.17]",
+      "items": {
+        "0": "HTTP",
+        "1": "CoAP",
+        "2": "MQTT",
+        "3": "WebSocket"
+      },
+      "note": "§A.5.17: 4..99 reserved for oneM2M; 100..199 operator/vendor specific. Ranges are not enumerators."
+    },
+    {
+      "name": "Receiver",
+      "code": 1014,
+      "vendor": 45687,
+      "section": "oneM2M TS-0004 V5.2.0 Table A.4-1; §A.5.19",
+      "type": "UTF8String",
+      "must": "M,V",
+      "may": "P",
+      "must_not": "",
+      "may_encrypt": "Y",
+      "published_flags": {
+        "must": "M",
+        "may": "P",
+        "must_not": "V"
+      },
+      "table_reference": "[A.5.19]"
+    },
+    {
+      "name": "Request-Body-Size",
+      "code": 1015,
+      "vendor": 45687,
+      "section": "oneM2M TS-0004 V5.2.0 Table A.4-1; §A.5.20",
+      "type": "Unsigned32",
+      "must": "M,V",
+      "may": "P",
+      "must_not": "",
+      "may_encrypt": "Y",
+      "published_flags": {
+        "must": "M",
+        "may": "P",
+        "must_not": "V"
+      },
+      "table_reference": "[A.5.20]"
+    },
+    {
+      "name": "Request-Headers-Size",
+      "code": 1016,
+      "vendor": 45687,
+      "section": "oneM2M TS-0004 V5.2.0 Table A.4-1; §A.5.21",
+      "type": "Unsigned32",
+      "must": "M,V",
+      "may": "P",
+      "must_not": "",
+      "may_encrypt": "Y",
+      "published_flags": {
+        "must": "M",
+        "may": "P",
+        "must_not": "V"
+      },
+      "table_reference": "[A.5.21]"
+    },
+    {
+      "name": "Request-Operation",
+      "code": 1017,
+      "vendor": 45687,
+      "section": "oneM2M TS-0004 V5.2.0 Table A.4-1; §A.5.22; Table 6.3.4.2.5-1 (printed 6.3.4.2.51)",
+      "type": "Enumerated",
+      "must": "M,V",
+      "may": "P",
+      "must_not": "",
+      "may_encrypt": "Y",
+      "published_flags": {
+        "must": "M",
+        "may": "P",
+        "must_not": "V"
+      },
+      "table_reference": "[A.5.22]",
+      "items": {
+        "1": "Create",
+        "2": "Retrieve",
+        "3": "Update",
+        "4": "Delete",
+        "5": "Notify"
+      }
+    },
+    {
+      "name": "Response-Body-Size",
+      "code": 1018,
+      "vendor": 45687,
+      "section": "oneM2M TS-0004 V5.2.0 Table A.4-1; §A.5.23",
+      "type": "Unsigned32",
+      "must": "M,V",
+      "may": "P",
+      "must_not": "",
+      "may_encrypt": "Y",
+      "published_flags": {
+        "must": "M",
+        "may": "P",
+        "must_not": "V"
+      },
+      "table_reference": "[A.5.23]"
+    },
+    {
+      "name": "Response-Headers-Size",
+      "code": 1019,
+      "vendor": 45687,
+      "section": "oneM2M TS-0004 V5.2.0 Table A.4-1; §A.5.24",
+      "type": "Unsigned32",
+      "must": "M,V",
+      "may": "P",
+      "must_not": "",
+      "may_encrypt": "Y",
+      "published_flags": {
+        "must": "M",
+        "may": "P",
+        "must_not": "V"
+      },
+      "table_reference": "[A.5.24]"
+    },
+    {
+      "name": "Response-Status-Code",
+      "code": 1020,
+      "vendor": 45687,
+      "section": "oneM2M TS-0004 V5.2.0 Table A.4-1; §A.5.25; §6.6.3, Tables 6.6.3.2-1–6.6.3.7-1",
+      "type": "Enumerated",
+      "must": "M,V",
+      "may": "P",
+      "must_not": "",
+      "may_encrypt": "Y",
+      "published_flags": {
+        "must": "M",
+        "may": "P",
+        "must_not": "V"
+      },
+      "table_reference": "[A.5.25]",
+      "items": {
+        "1000": "ACCEPTED",
+        "1001": "ACCEPTED for nonBlockingRequestSynch",
+        "1002": "ACCEPTED for nonBlockingRequestAsynch",
+        "2000": "OK",
+        "2001": "CREATED",
+        "2002": "DELETED",
+        "2004": "UPDATED",
+        "4000": "BAD_REQUEST",
+        "4001": "RELEASE_VERSION_NOT_SUPPORTED",
+        "4004": "NOT_FOUND",
+        "4005": "OPERATION_NOT_ALLOWED",
+        "4008": "REQUEST_TIMEOUT",
+        "4015": "UNSUPPORTED_MEDIA_TYPE",
+        "4101": "SUBSCRIPTION_CREATOR_HAS_NO_PRIVILEGE",
+        "4102": "CONTENTS_UNACCEPTABLE",
+        "4103": "ORIGINATOR_HAS_NO_PRIVILEGE",
+        "4104": "GROUP_REQUEST_IDENTIFIER_EXISTS",
+        "4105": "CONFLICT",
+        "4106": "ORIGINATOR_NOT_AUTHENTICATED",
+        "4107": "SECURITY_ASSOCIATION_REQUIRED",
+        "4108": "INVALID_CHILD_RESOURCE_TYPE",
+        "4109": "NO_MEMBERS",
+        "4110": "GROUP_MEMBER_TYPE_INCONSISTENT",
+        "4111": "ESPRIM_UNSUPPORTED_OPTION",
+        "4112": "ESPRIM_UNKNOWN_KEY_ID",
+        "4113": "ESPRIM_UNKNOWN_ORIG_RAND_ID",
+        "4114": "ESPRIM_UNKNOWN_RECV_RAND_ID",
+        "4115": "ESPRIM_BAD_MAC",
+        "4116": "ESPRIM_IMPERSONATION_ERROR",
+        "4117": "ORIGINATOR_HAS_ALREADY_REGISTERED",
+        "4118": "ONTOLOGY_NOT_AVAILABLE",
+        "4119": "LINKED_SEMANTICS_NOT_AVAILABLE",
+        "4120": "INVALID_SEMANTICS",
+        "4121": "MASHUP_MEMBER_NOT_FOUND",
+        "4122": "INVALID_TRIGGER_PURPOSE",
+        "4123": "ILLEGAL_TRANSACTION_STATE_TRANSITION_ATTEMPTED",
+        "4124": "BLOCKING_SUBSCRIPTION_ALREADY_EXISTS",
+        "4125": "SPECIALIZATION_SCHEMA_NOT_FOUND",
+        "4126": "APP_RULE_VALIDATION_FAILED",
+        "4127": "OPERATION_DENIED_BY_REMOTE_ENTITY",
+        "4128": "SERVICE_SUBSCRIPTION_NOT_ESTABLISHED",
+        "4130": "ONTOLOGY_MAPPING_ALGORITHM_NOT_AVAILABLE",
+        "4131": "ONTOLOGY_MAPPING_POLICY_NOT_MATCHED",
+        "4132": "ONTOLOGY_MAPPING_NOT_AVAILABLE",
+        "4133": "BAD_FACT_INPUTS_FOR_REASONING",
+        "4134": "BAD_RULE_INPUTS_FOR_REASONING",
+        "4135": "DISCOVERY_LIMIT_EXCEEDED",
+        "4136": "PRIMITIVE_PROFILE_NOT_ACCESSIBLE",
+        "4137": "PRIMITIVE_PROFILE_BAD_REQUEST",
+        "4138": "UNAUTHORIZED_USER",
+        "4139": "SERVICE_SUBSCRIPTION_NOT_ACTIVE",
+        "4140": "SOFTWARE_CAMPAIGN_CONFLICT",
+        "4141": "SERVICE_SUBSCRIPTION_LIMITS_EXCEEDED",
+        "4142": "INVALID_PROCESS_CONFIGURATION",
+        "4143": "INVALID_SPARQL_QUERY",
+        "5000": "INTERNAL_SERVER_ERROR",
+        "5001": "NOT_IMPLEMENTED",
+        "5103": "TARGET_NOT_REACHABLE",
+        "5105": "RECEIVER_HAS_NO_PRIVILEGE",
+        "5106": "ALREADY_EXISTS",
+        "5107": "REMOTE_ENTITY_NOT_REACHABLE",
+        "5203": "TARGET_NOT_SUBSCRIBABLE",
+        "5204": "SUBSCRIPTION_VERIFICATION_INITIATION_FAILED",
+        "5205": "SUBSCRIPTION_HOST_HAS_NO_PRIVILEGE",
+        "5206": "NON_BLOCKING_SYNCH_REQUEST_NOT_SUPPORTED",
+        "5207": "NOT_ACCEPTABLE",
+        "5208": "DISCOVERY_DENIED_BY_IPE",
+        "5209": "GROUP_MEMBERS_NOT_RESPONDED",
+        "5210": "ESPRIM_DECRYPTION_ERROR",
+        "5211": "ESPRIM_ENCRYPTION_ERROR",
+        "5212": "SPARQL_UPDATE_ERROR",
+        "5214": "TARGET_HAS_NO_SESSION_CAPABILITY",
+        "5215": "SESSION_IS_ONLINE",
+        "5216": "JOIN_MULTICAST_GROUP_FAILED",
+        "5217": "LEAVE_MULTICAST_GROUP_FAILED",
+        "5218": "TRIGGERING_DISABLED_FOR_RECIPIENT",
+        "5219": "UNABLE_TO_REPLACE_REQUEST",
+        "5220": "UNABLE_TO_RECALL_REQUEST",
+        "5221": "CROSS_RESOURCE_OPERATION_FAILURE",
+        "5222": "TRANSACTION_PROCESSING_IS_INCOMPLETE",
+        "5230": "ONTOLOGY_MAPPING_ALGORITHM_FAILED",
+        "5231": "ONTOLOGY_CONVERSION_FAILED",
+        "5232": "REASONING_PROCESSING_FAILED",
+        "5233": "NIDD_CONFIGURATION_PROCESS_INCOMPLETE",
+        "6003": "EXTERNAL_OBJECT_NOT_REACHABLE",
+        "6005": "EXTERNAL_OBJECT_NOT_FOUND",
+        "6010": "MAX_NUMBER_OF_MEMBER_EXCEEDED",
+        "6020": "MGMT_SESSION_CANNOT_BE_ESTABLISHED",
+        "6021": "MGMT_SESSION_ESTABLISHMENT_TIMEOUT",
+        "6022": "INVALID_CMDTYPE",
+        "6023": "INVALID_ARGUMENTS",
+        "6024": "INSUFFICIENT_ARGUMENTS",
+        "6025": "MGMT_CONVERSION_ERROR",
+        "6026": "MGMT_CANCELLATION_FAILED",
+        "6028": "ALREADY_COMPLETE",
+        "6029": "MGMT_COMMAND_NOT_CANCELLABLE",
+        "6030": "EXTERNAL_OBJECT_NOT_REACHABLE_BEFORE_RQET_TIMEOUT",
+        "6031": "EXTERNAL_OBJECT_NOT_REACHABLE_BEFORE_OET_TIMEOUT",
+        "6033": "NETWORK_QOS_CONFIG_ERROR",
+        "6034": "REQUESTED_ACTIVITY_PATTERN_NOT_PERMITTED"
+      }
+    },
+    {
+      "name": "Subgroup-Name",
+      "code": 1021,
+      "vendor": 45687,
+      "section": "oneM2M TS-0004 V5.2.0 Table A.4-1; §A.5.28",
+      "type": "UTF8String",
+      "must": "M,V",
+      "may": "P",
+      "must_not": "",
+      "may_encrypt": "Y",
+      "published_flags": {
+        "must": "M",
+        "may": "P",
+        "must_not": "V"
+      },
+      "table_reference": "[A.5.28]"
+    },
+    {
+      "name": "Target-ID",
+      "code": 1022,
+      "vendor": 45687,
+      "section": "oneM2M TS-0004 V5.2.0 Table A.4-1; §A.5.32",
+      "type": "UTF8String",
+      "must": "M,V",
+      "may": "P",
+      "must_not": "",
+      "may_encrypt": "Y",
+      "published_flags": {
+        "must": "M",
+        "may": "P",
+        "must_not": "V"
+      },
+      "table_reference": "[A.5.32]"
+    }
+  ]
+}

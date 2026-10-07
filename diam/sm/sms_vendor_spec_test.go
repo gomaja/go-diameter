@@ -43,7 +43,7 @@ func TestSMSCERSupportedVendors(t *testing.T) {
 			}
 			t.Logf("Supported-Vendor-Id %v", vendors)
 			if bundle == dict.S6c || bundle == dict.SGd {
-				if !slices.Equal(vendors, []uint32{5535, 10415, 13019}) {
+				if !slices.Equal(vendors, []uint32{5535, 10415, 13019, 45687}) {
 					t.Errorf("vendors %v, want [5535 10415 13019]", vendors)
 				}
 			}
