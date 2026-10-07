@@ -1,0 +1,392 @@
+{
+  "source": "RFC 6733 \u00a74.5 base AVP table; \u00a76.7.2 Proxy-Info CCF; IANA AAA Parameters registries",
+  "rfc_sha256": "b0117adedd43f9f44e444f64cd7360709c351aa27ea288d9c664c2800da8fa26",
+  "aaa_sha256": "67e1f78147ac95886436dc9459611f1821159fd3d411d98f2781db2b4820b720",
+  "avps": [
+    {
+      "name": "Accounting-Realtime-Required",
+      "code": 483,
+      "section": "9.8.7",
+      "type": "Enumerated",
+      "must": "M",
+      "must_not": "V",
+      "items": {
+        "1": "DELIVER_AND_GRANT",
+        "2": "GRANT_AND_STORE",
+        "3": "GRANT_AND_LOSE"
+      },
+      "registry": "https://www.iana.org/assignments/aaa-parameters/aaa-parameters.xhtml#aaa-parameters-43"
+    },
+    {
+      "name": "Accounting-Record-Number",
+      "code": 485,
+      "section": "9.8.3",
+      "type": "Unsigned32",
+      "must": "M",
+      "must_not": "V"
+    },
+    {
+      "name": "Accounting-Record-Type",
+      "code": 480,
+      "section": "9.8.1",
+      "type": "Enumerated",
+      "must": "M",
+      "must_not": "V",
+      "items": {
+        "1": "EVENT_RECORD",
+        "2": "START_RECORD",
+        "3": "INTERIM_RECORD",
+        "4": "STOP_RECORD"
+      },
+      "registry": "https://www.iana.org/assignments/aaa-parameters/aaa-parameters.xhtml#aaa-parameters-42"
+    },
+    {
+      "name": "Accounting-Sub-Session-Id",
+      "code": 287,
+      "section": "9.8.6",
+      "type": "Unsigned64",
+      "must": "M",
+      "must_not": "V"
+    },
+    {
+      "name": "Acct-Application-Id",
+      "code": 259,
+      "section": "6.9",
+      "type": "Unsigned32",
+      "must": "M",
+      "must_not": "V"
+    },
+    {
+      "name": "Acct-Interim-Interval",
+      "code": 85,
+      "section": "9.8.2",
+      "type": "Unsigned32",
+      "must": "M",
+      "must_not": "V"
+    },
+    {
+      "name": "Acct-Multi-Session-Id",
+      "code": 50,
+      "section": "9.8.5",
+      "type": "UTF8String",
+      "must": "M",
+      "must_not": "V"
+    },
+    {
+      "name": "Acct-Session-Id",
+      "code": 44,
+      "section": "9.8.4",
+      "type": "OctetString",
+      "must": "M",
+      "must_not": "V"
+    },
+    {
+      "name": "Auth-Application-Id",
+      "code": 258,
+      "section": "6.8",
+      "type": "Unsigned32",
+      "must": "M",
+      "must_not": "V"
+    },
+    {
+      "name": "Auth-Grace-Period",
+      "code": 276,
+      "section": "8.10",
+      "type": "Unsigned32",
+      "must": "M",
+      "must_not": "V"
+    },
+    {
+      "name": "Auth-Request-Type",
+      "code": 274,
+      "section": "8.7",
+      "type": "Enumerated",
+      "must": "M",
+      "must_not": "V",
+      "items": {
+        "1": "AUTHENTICATE_ONLY",
+        "2": "AUTHORIZE_ONLY",
+        "3": "AUTHORIZE_AUTHENTICATE"
+      },
+      "registry": "https://www.iana.org/assignments/aaa-parameters/aaa-parameters.xhtml#aaa-parameters-13"
+    },
+    {
+      "name": "Auth-Session-State",
+      "code": 277,
+      "section": "8.11",
+      "type": "Enumerated",
+      "must": "M",
+      "must_not": "V",
+      "items": {
+        "0": "STATE_MAINTAINED",
+        "1": "NO_STATE_MAINTAINED"
+      },
+      "registry": "https://www.iana.org/assignments/aaa-parameters/aaa-parameters.xhtml#aaa-parameters-14"
+    },
+    {
+      "name": "Authorization-Lifetime",
+      "code": 291,
+      "section": "8.9",
+      "type": "Unsigned32",
+      "must": "M",
+      "must_not": "V"
+    },
+    {
+      "name": "Class",
+      "code": 25,
+      "section": "8.20",
+      "type": "OctetString",
+      "must": "M",
+      "must_not": "V"
+    },
+    {
+      "name": "Destination-Host",
+      "code": 293,
+      "section": "6.5",
+      "type": "DiameterIdentity",
+      "must": "M",
+      "must_not": "V"
+    },
+    {
+      "name": "Destination-Realm",
+      "code": 283,
+      "section": "6.6",
+      "type": "DiameterIdentity",
+      "must": "M",
+      "must_not": "V"
+    },
+    {
+      "name": "Error-Message",
+      "code": 281,
+      "section": "7.3",
+      "type": "UTF8String",
+      "must": "",
+      "must_not": "M,V"
+    },
+    {
+      "name": "Error-Reporting-Host",
+      "code": 294,
+      "section": "7.4",
+      "type": "DiameterIdentity",
+      "must": "",
+      "must_not": "M,V"
+    },
+    {
+      "name": "Event-Timestamp",
+      "code": 55,
+      "section": "8.21",
+      "type": "Time",
+      "must": "M",
+      "must_not": "V"
+    },
+    {
+      "name": "Failed-AVP",
+      "code": 279,
+      "section": "7.5",
+      "type": "Grouped",
+      "must": "M",
+      "must_not": "V"
+    },
+    {
+      "name": "Multi-Round-Time-Out",
+      "code": 272,
+      "section": "8.19",
+      "type": "Unsigned32",
+      "must": "M",
+      "must_not": "V"
+    },
+    {
+      "name": "Origin-Host",
+      "code": 264,
+      "section": "6.3",
+      "type": "DiameterIdentity",
+      "must": "M",
+      "must_not": "V"
+    },
+    {
+      "name": "Origin-Realm",
+      "code": 296,
+      "section": "6.4",
+      "type": "DiameterIdentity",
+      "must": "M",
+      "must_not": "V"
+    },
+    {
+      "name": "Origin-State-Id",
+      "code": 278,
+      "section": "8.16",
+      "type": "Unsigned32",
+      "must": "M",
+      "must_not": "V"
+    },
+    {
+      "name": "Proxy-Host",
+      "code": 280,
+      "section": "6.7.3",
+      "type": "DiameterIdentity",
+      "must": "M",
+      "must_not": "V"
+    },
+    {
+      "name": "Proxy-Info",
+      "code": 284,
+      "section": "6.7.2",
+      "type": "Grouped",
+      "must": "M",
+      "must_not": "V",
+      "rules": [
+        {
+          "name": "Proxy-Host",
+          "min": 1,
+          "max": 1
+        },
+        {
+          "name": "Proxy-State",
+          "min": 1,
+          "max": 1
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null
+        }
+      ]
+    },
+    {
+      "name": "Proxy-State",
+      "code": 33,
+      "section": "6.7.4",
+      "type": "OctetString",
+      "must": "M",
+      "must_not": "V"
+    },
+    {
+      "name": "Re-Auth-Request-Type",
+      "code": 285,
+      "section": "8.12",
+      "type": "Enumerated",
+      "must": "M",
+      "must_not": "V",
+      "items": {
+        "0": "AUTHORIZE_ONLY",
+        "1": "AUTHORIZE_AUTHENTICATE"
+      },
+      "registry": "https://www.iana.org/assignments/aaa-parameters/aaa-parameters.xhtml#aaa-parameters-15"
+    },
+    {
+      "name": "Redirect-Host",
+      "code": 292,
+      "section": "6.12",
+      "type": "DiameterURI",
+      "must": "M",
+      "must_not": "V"
+    },
+    {
+      "name": "Redirect-Host-Usage",
+      "code": 261,
+      "section": "6.13",
+      "type": "Enumerated",
+      "must": "M",
+      "must_not": "V",
+      "items": {
+        "0": "DONT_CACHE",
+        "1": "ALL_SESSION",
+        "2": "ALL_REALM",
+        "3": "REALM_AND_APPLICATION",
+        "4": "ALL_APPLICATION",
+        "5": "ALL_HOST",
+        "6": "ALL_USER"
+      },
+      "registry": "https://www.iana.org/assignments/aaa-parameters/aaa-parameters.xhtml#aaa-parameters-3"
+    },
+    {
+      "name": "Redirect-Max-Cache-Time",
+      "code": 262,
+      "section": "6.14",
+      "type": "Unsigned32",
+      "must": "M",
+      "must_not": "V"
+    },
+    {
+      "name": "Result-Code",
+      "code": 268,
+      "section": "7.1",
+      "type": "Unsigned32",
+      "must": "M",
+      "must_not": "V"
+    },
+    {
+      "name": "Route-Record",
+      "code": 282,
+      "section": "6.7.1",
+      "type": "DiameterIdentity",
+      "must": "M",
+      "must_not": "V"
+    },
+    {
+      "name": "Session-Id",
+      "code": 263,
+      "section": "8.8",
+      "type": "UTF8String",
+      "must": "M",
+      "must_not": "V"
+    },
+    {
+      "name": "Session-Timeout",
+      "code": 27,
+      "section": "8.13",
+      "type": "Unsigned32",
+      "must": "M",
+      "must_not": "V"
+    },
+    {
+      "name": "Termination-Cause",
+      "code": 295,
+      "section": "8.15",
+      "type": "Enumerated",
+      "must": "M",
+      "must_not": "V",
+      "items": {
+        "1": "DIAMETER_LOGOUT",
+        "2": "DIAMETER_SERVICE_NOT_PROVIDED",
+        "3": "DIAMETER_BAD_ANSWER",
+        "4": "DIAMETER_ADMINISTRATIVE",
+        "5": "DIAMETER_LINK_BROKEN",
+        "6": "DIAMETER_AUTH_EXPIRED",
+        "7": "DIAMETER_USER_MOVED",
+        "8": "DIAMETER_SESSION_TIMEOUT",
+        "11": "User Request",
+        "12": "Lost Carrier",
+        "13": "Lost Service",
+        "14": "Idle Timeout",
+        "15": "Session Timeout",
+        "16": "Admin Reset",
+        "17": "Admin Reboot",
+        "18": "Port Error",
+        "19": "NAS Error",
+        "20": "NAS Request",
+        "21": "NAS Reboot",
+        "22": "Port Unneeded",
+        "23": "Port Preempted",
+        "24": "Port Suspended",
+        "25": "Service Unavailable",
+        "26": "Callback",
+        "27": "User Error",
+        "28": "Host Request",
+        "29": "Supplicant Restart",
+        "30": "Reauthentication Failure",
+        "31": "Port Reinitialized",
+        "32": "Port Administratively Disabled"
+      },
+      "registry": "https://www.iana.org/assignments/aaa-parameters/aaa-parameters.xhtml#aaa-parameters-16"
+    },
+    {
+      "name": "User-Name",
+      "code": 1,
+      "section": "8.14",
+      "type": "UTF8String",
+      "must": "M",
+      "must_not": "V"
+    }
+  ]
+}

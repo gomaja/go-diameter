@@ -569,3 +569,112 @@ kinds, reserved bit-mask values, authentication vectors, and the
 Auth-Session-State value required by §8.2.4. The PPR header correction
 above is explicit; these fixtures do not implement encapsulated EAP,
 RADIUS, DNS, or mobility protocols.
+
+`nasreq_spec.json` and `credit_control_spec.json` cover the current IETF
+NASREQ and Credit-Control applications. Their tables and ordered grammars
+were extracted from the RFC Editor's plain-text publications, independently
+of dictionary XML; enumerations use the current IANA RADIUS and AAA XML
+registries. RFC typography and the explicitly identified Verified errata
+are normalized before comparison. There are no 3GPP table/clause conflicts
+in these RFC-owned definitions requiring a CR override.
+
+| Fixture | Source coverage |
+| --- | --- |
+| `nasreq_spec.json` | RFC 7155: 78 AVPs including Erratum 6119, four supplemental RADIUS identities, 14 enumerations with 132 assigned values, two Grouped grammars, ten command bodies with 358 ordered rules |
+| `nasreq_reused_spec.json` | RFC 6733: 37 reused AVPs, including recursive Proxy-Info members and seven current IANA registries |
+| `credit_control_spec.json` | RFC 8506: all 68 §8 AVPs, 46 assigned enum values, 17 Grouped grammars, CCR/CCA with 30/29 RFC rules |
+| `credit_control_reused_spec.json` | Source grammars and bounded shared gaps for RFC 6733 Proxy-Info/Failed-AVP and RFC 5777 Filter-Rule |
+
+The archived source bytes have these SHA-256 digests:
+
+| Source | SHA-256 |
+| --- | --- |
+| [RFC 7155 text](https://www.rfc-editor.org/rfc/rfc7155.txt) | `f100a5a47def22bda012369e8926f5d17c57b9a73a0fe4daeac16bb01b272cd5` |
+| [RFC 8506 text](https://www.rfc-editor.org/rfc/rfc8506.txt) | `8a486839f1995b87c79dafdc4ebf0d04ab88392adeb00987f5170b2bc621204c` |
+| [RFC 6733 text](https://www.rfc-editor.org/rfc/rfc6733.txt) | `b0117adedd43f9f44e444f64cd7360709c351aa27ea288d9c664c2800da8fa26` |
+| [RFC 5777 text](https://www.rfc-editor.org/rfc/rfc5777.txt) | `fac6d1f959730137007f1eec4826d6e2bd1f937ecfd26ee31e70796174ee8fc8` |
+| [IANA RADIUS registry](https://www.iana.org/assignments/radius-types/radius-types.xml) | `870352bc393645882a5e0c7210d13e055c04741af47372cf068819628e75e238` |
+| [IANA AAA registry](https://www.iana.org/assignments/aaa-parameters/aaa-parameters.xml) | `67e1f78147ac95886436dc9459611f1821159fd3d411d98f2781db2b4820b720` |
+
+NASREQ applies RFC 7155 Verified Errata 5993–5995 to the command names and
+6119 to Origin-AAA-Protocol. Reported Erratum 6029 is not applied:
+QoS-Filter-Rule retains the published M policy; V is prohibited independently
+by RFC 6733 §4.1 for vendor-zero IETF AVPs, despite the blank application-table
+cell. The fixture records both the printed cell and the governing base rule. All ten command bodies
+retain `*[AVP]`, Session-Id is fixed first, and NAS-IP-Address is optional.
+CHAP-Response is optional in the §4.3.4 grammar, and CHAP-Auth retains its
+extension point. RFC 7155 §4.3.5 nevertheless requires CHAP-Response when
+CHAP-Algorithm is 5 (MD5). Senders must enforce that condition; a static
+optional rule cannot express it. The no-response boundary test asserts
+grammar acceptance only, not MD5 sender compliance.
+Tunneling has no extension point in §4.5.1. Login-Service excludes the
+unassigned value 7. The current tables have no P/encryption columns, so
+legacy annotations are removed from the 82 NASREQ-local and 68 RFC 8506
+AVPs. Flag sets are compared exactly, using comma-separated syntax.
+
+RFC 7155 names NAS-IP-Address, NAS-IPv6-Address, NAS-Identifier and State
+in command grammars but omits their Diameter datatype/M-bit rows. Their
+existing encodings are preserved, with RADIUS identities and data categories
+checked against IANA. M is optional because RFC 7155 assigns no Diameter
+flag rule to these attributes; no obsolete M-bit requirement is retained.
+Tests require both M-set and M-clear to pass ValidateOutgoing, before and
+after serialization. The encodings are not presented as complete normative
+Diameter definitions. RFC 6733 §4.1
+prohibits V on these RADIUS-compatible codes. No other AVP copies are added.
+
+Credit-Control restores EVENT_REQUEST, optional Currency-Code in CC-Money,
+optional Cost-Unit in Cost-Information, optional Exponent in Unit-Value,
+and seven missing Grouped extension points. Subscription-Id-Extension and
+Redirect-Server-Extension permit one extension, as printed in §§8.58/8.64;
+User-Equipment-Info-Extension retains §8.52's existing singleton bound.
+The exact-one-member sender requirements remain outside static grammar
+validation. CCR preserves the pre-existing Service-Information addition
+from Ro/Rf separately from its RFC rules. All other non-RFC 8506 additions
+remain outside this refresh.
+
+Tests compare the effective application 1/4 views, source metadata,
+enumerations, recursive reused members, fixed positions, cardinalities,
+member prohibitions and PXY. Wire tests round-trip the 150 local AVPs and
+the available reused-source closure, all twelve command bodies, optional
+member boundaries, closed groups and bounded/unbounded extension points.
+Command and CHAP-Auth extension tests use a known non-member AVP,
+Host-IP-Address, so removing the wildcard makes validation fail. Reused
+enum comparisons normalize typography on both sides, including all thirty
+IANA Termination-Cause values when the base definition is refreshed.
+The CER test pins every bundled selection and the complete dictionary's
+Supported-Vendor-Id advertisement. Cross-application enumeration consistency
+is checked by the shared registry test.
+
+The source tests explicitly bound these outstanding shared definitions:
+
+- Base Proxy-Info lacks RFC 6733 §6.7.2's `*[AVP]`; Failed-AVP lacks
+  §7.5's `1*{AVP}`. Their source grammars remain in the fixtures.
+- Base Termination-Cause contains the eight RFC 6733 §8.15 values rather
+  than all thirty current IANA values; assigned values 11–32 are missing.
+- Reused base AVPs retain legacy P/encryption metadata. Tests permit only
+  identified existing metadata or the canonical current source values.
+- Filter-Rule (509), an existing non-RFC 8506 definition in the charging
+  dictionary, is an empty Grouped stub. RFC 5777 §3.2 requires eight named
+  member rules and an extension point. Its complete descendant definitions
+  need a separate RFC 5777 refresh; these tests do not claim that closure
+  is implemented.
+
+RFC Editor JSON and filtered Datatracker relationship records were checked
+on 2026-10-07 and agree: RFCs 7155 and 8506 are current, replacing 4005 and
+4006. RFC 6733 is updated by 7075/8553, RFC 7683 by 8581, RFC 2865 by
+2868/3575/5080/6929/8044/9765, RFC 2868 by 3575, RFC 3575 by 6929 and
+RFC 3162 by 8044. RFCs 2867, 5777, 7944, 8581 and 8583 have no replacements or
+updates. The update documents were checked as well. DIME is concluded;
+RADEXT's active Connect-Info work describes Wi-Fi attribute content and
+is not a normative replacement for these Diameter encodings.
+
+RFC 6733 Verified Erratum 4803 supplies the corrected CCF header literal.
+Its other Verified errata, RFC 7683 Erratum 4549, RFC 5777 Errata 2333–2336,
+and the RADIUS source corrections were reviewed without additional changes
+to the scoped Diameter definitions. Non-Verified proposals remain unapplied:
+RFC 7155 Reported 6029; RFC 6733 Reported 6832, Held 4210/4234/5084,
+Rejected 4209/4462/4463/4473/4931/6833; RFC 7683 Reported 5277/5278;
+RFC 5777 Held 2337; RFC 2865 Held 6915/8739/9034 and Rejected 4077;
+RFC 3162 Held 3217 and Rejected 1923; RFC 3575 Rejected 5093;
+RFC 5080 Held 4623 and Rejected 4476; RFC 8044 Reported 8671.
+RFC 8506 has no errata. Extraction tooling remains outside the repository.
