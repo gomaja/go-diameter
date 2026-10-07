@@ -12,7 +12,7 @@ import (
 
 // RFC 6733 §§6.2, 7.1 and 7.1.5: error answers may lack Session-Id;
 // Failed-AVP is recommended, not a prerequisite for answering.
-func TestFixReceivedErrorAnswers(t *testing.T) {
+func TestReceivedErrorAnswers(t *testing.T) {
 	for _, result := range []uint32{1001, 2001, 3001, 4001, 5001, 5005, 5014} {
 		for _, evidence := range []bool{false, true} {
 			t.Run(fmt.Sprintf("%d/evidence_%t", result, evidence), func(t *testing.T) {
@@ -57,7 +57,7 @@ func TestFixReceivedErrorAnswers(t *testing.T) {
 
 // RFC 6733 §§3.2, 4.1, 7.1.5 and 8.8: ignore unknown optional AVPs
 // for fixed placement, and identify the misplaced fixed AVP as evidence.
-func TestFixFixedPositionEvidence(t *testing.T) {
+func TestFixedPositionEvidence(t *testing.T) {
 	_, commands := baseWireSpec(t)
 	for _, c := range commands {
 		if !c.Request || !c.Rules[0].Fixed {
@@ -81,7 +81,7 @@ func TestFixFixedPositionEvidence(t *testing.T) {
 
 // RFC 6733 §3.2: arbitrary AVPs satisfy minima; §4.1: unknown AVPs
 // never cause a wildcard maximum rejection. Named members count in neither.
-func TestFixWildcardUnknownMinimum(t *testing.T) {
+func TestWildcardUnknownMinimum(t *testing.T) {
 	rules := []*dict.Rule{{AVP: "AVP", Min: 1, Max: 1, MaxSet: true}}
 	unknown := NewAVP(999999, 0, 0, datatype.Unknown{1})
 	known := NewAVP(avp.UserName, avp.Mbit, 0, datatype.UTF8String("user"))
@@ -103,7 +103,7 @@ func fixProxy(state string) *AVP {
 }
 
 // RFC 6733 §6.2: every request Proxy-Info is returned in original order.
-func TestFixAnswerProxyInfo(t *testing.T) {
+func TestAnswerProxyInfo(t *testing.T) {
 	r := NewRequest(SessionTermination, 0, dict.Default)
 	r.AddAVP(fixProxy("first"))
 	r.AddAVP(fixProxy("second"))
@@ -134,7 +134,7 @@ func TestFixAnswerProxyInfo(t *testing.T) {
 
 // RFC 7075 §§3.3–3.4: no AVP-specific M rule is prescribed; RFC 6733
 // §4.1 clears V for this IETF AVP. Realm redirection uses protocol error 3011.
-func TestFixRealmRedirect(t *testing.T) {
+func TestRealmRedirect(t *testing.T) {
 	if RealmRedirectIndication != 3011 {
 		t.Fatal("RFC 7075 §3.4 result code")
 	}
@@ -170,7 +170,7 @@ func TestFixRealmRedirect(t *testing.T) {
 
 // RFC 8581 §7.2 has two fixed members. An absent first member is a
 // missing AVP (RFC 6733 §7.1.5), not a misplaced second member.
-func TestFixMissingFirstFixedMember(t *testing.T) {
+func TestMissingFirstFixedMember(t *testing.T) {
 	group := NewAVP(avp.OCOLR, 0, 0, &GroupedAVP{AVP: []*AVP{NewAVP(avp.OCReportType, 0, 0, datatype.Enumerated(0))}})
 	err := validateAVPs([]*AVP{group}, []*dict.Rule{{AVP: "AVP"}}, 0, dict.Default.Snapshot())
 	if err == nil || err.ResultCode != MissingAVP || err.FailedAVP == nil || err.FailedAVP.Code != avp.OCOLR {

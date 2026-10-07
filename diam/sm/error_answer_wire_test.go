@@ -14,7 +14,7 @@ import (
 
 // RFC 6733 §§6.2, 7.1.5, 7.5: errors still receive an answer when
 // Session-Id cannot be decoded. Proxy-Info survives all answer classes.
-func TestFixStateMachineAnswersTCP(t *testing.T) {
+func TestStateMachineErrorAnswersOnWire(t *testing.T) {
 	for _, kind := range []string{"length7", "unknown-no-session", "proxy-2001", "proxy-3001", "proxy-5001"} {
 		t.Run(kind, func(t *testing.T) {
 			settings := testMessageErrorSettings()
