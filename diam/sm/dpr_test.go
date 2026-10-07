@@ -51,11 +51,12 @@ func TestPeerDPRAnsweredAndWaitsForPeerClose(t *testing.T) {
 	causes := make(chan DisconnectCause, 1)
 	cfg.OnDPR = func(_ diam.Conn, cause DisconnectCause) { causes <- cause }
 	sm := mustNewStateMachine(t, &cfg)
+	smHandshakes := testHandshakeNotifications(sm)
 	srv := diamtest.NewServer(sm, dict.Default)
 	defer srv.Close()
 	answers := make(chan *diam.Message, 1)
 	c := dialHandshakeForDPR(t, "DPA", diam.HandlerFunc(func(_ diam.Conn, m *diam.Message) { answers <- m }), srv.Addr)
-	peer := <-sm.HandshakeNotify()
+	peer := <-smHandshakes
 	dpr := diam.NewRequest(diam.DisconnectPeer, 0, dict.Default)
 	mustSMClientAVP(t, dpr, avp.OriginHost, avp.Mbit, 0, clientSettings.OriginHost)
 	mustSMClientAVP(t, dpr, avp.OriginRealm, avp.Mbit, 0, clientSettings.OriginRealm)

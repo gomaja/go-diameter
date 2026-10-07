@@ -9,6 +9,7 @@ import (
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/diamtest"
 	"github.com/gomaja/go-diameter/diam/dict"
+	"github.com/gomaja/go-diameter/diam/internal/logtest"
 )
 
 type validDWRGatedHandler struct {
@@ -73,13 +74,14 @@ func TestSMConcurrentCERThenValidDWROnWire(t *testing.T) {
 	}
 }
 func TestInvalidDWAHeaderDoesNotResetActivity(t *testing.T) {
+	records := logtest.New()
 	sm := mustNewStateMachine(t, testMessageErrorSettings())
 	activity := newWatchdogActivity()
 	activity.ceaReceived.Store(true)
 	activity.last.Store(123)
 	called := false
 	h := activityHandler{StateMachine: sm, activity: activity, dwa: diam.HandlerFunc(func(diam.Conn, *diam.Message) { called = true })}
-	c := newHandshakeConn()
+	c := loggerHandshakeConn{newHandshakeConn(), records.Logger()}
 	m := diam.NewMessage(diam.DeviceWatchdog, 0, 4, 1, 2, dict.Default)
 	h.ServeDIAM(c, m)
 	if activity.last.Load() != 123 {
@@ -93,11 +95,7 @@ func TestInvalidDWAHeaderDoesNotResetActivity(t *testing.T) {
 	if called {
 		t.Fatal("invalid DWA reached watchdog handler")
 	}
-	select {
-	case <-sm.ErrorReports():
-	case <-time.After(time.Second):
-		t.Fatal("invalid DWA not reported")
-	}
+	_ = waitLog(t, records, 1)
 	m.Header.ApplicationID = 0
 	h.ServeDIAM(c, m)
 	if activity.last.Load() == 123 || !called {

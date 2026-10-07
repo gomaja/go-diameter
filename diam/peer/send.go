@@ -307,6 +307,7 @@ func (m *Manager) reserveAndSend(p *pendingRequest, a *actor, s *session, retran
 	if err := s.sendWrite(writeRequest{msg: &attempt, pending: p}); err != nil {
 		// Closing the session transfers ownership to failover. Close may have
 		// raced ahead of this reservation, so check pending again afterwards.
+		m.reportLocal(s, &attempt, "peer: send admission failed; closing connection", err)
 		s.close()
 		m.failoverSession(s)
 		return nil

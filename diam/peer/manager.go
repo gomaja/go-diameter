@@ -48,6 +48,9 @@ type PeerConfig struct {
 	NoAutoReconnect bool
 }
 type Config struct {
+	// Settings supplies local capabilities and decoding policy. Manager owns the
+	// base protocol; New rejects OnCER, OnCEA, OnDWR, OnDWA, OnDPR and
+	// OnHandshake hooks. Use OnPeerEvent to observe managed peers.
 	Settings sm.Settings
 	Clock    Clock
 	Timers   Timers
@@ -62,11 +65,15 @@ type Config struct {
 	EndToEnd func() (uint32, error)
 	// OnPeerEvent is observational. Calling Close from this callback is safe.
 	// Events are dropped when its bounded queue is full; Peers returns the
-	// current state independently.
+	// current state independently. Each dropped event is logged at Warn.
 	OnPeerEvent func(PeerEvent)
 	// Logger receives the records of the connections the Manager dials, as
 	// diam.Server.Logger does, and a panic recovered from OnPeerEvent (Error,
-	// with the panic value and stack). Nil uses slog.Default. A server given
+	// with the panic value and stack), and a message or connection a peer got
+	// wrong (Warn). Local dial, build and write failures are Error records with
+	// their operation and underlying error. Records are synchronous; a slow
+	// Handler slows the peer.
+	// Nil uses slog.Default. A server given
 	// to BindServer keeps its own Logger.
 	Logger         *slog.Logger
 	watchdogTiming *watchdogTiming // test-only short Tw and deterministic jitter
@@ -96,7 +103,6 @@ type Manager struct {
 	closed           chan struct{}
 	wg               sync.WaitGroup
 	callbackQ        chan PeerEvent
-	errors           *diam.ServeMux
 	routes           atomic.Pointer[routeTable]
 	endToEnd         endToEndAllocator
 	pendingMu        sync.Mutex
@@ -107,6 +113,18 @@ type Manager struct {
 }
 
 func New(cfg Config) (*Manager, error) {
+	for _, hook := range []struct {
+		name string
+		set  bool
+	}{
+		{"OnCER", cfg.Settings.OnCER != nil}, {"OnCEA", cfg.Settings.OnCEA != nil},
+		{"OnDWR", cfg.Settings.OnDWR != nil}, {"OnDWA", cfg.Settings.OnDWA != nil},
+		{"OnDPR", cfg.Settings.OnDPR != nil}, {"OnHandshake", cfg.Settings.OnHandshake != nil},
+	} {
+		if hook.set {
+			return nil, fmt.Errorf("peer: Settings.%s is not supported; use OnPeerEvent", hook.name)
+		}
+	}
 	if err := cfg.Settings.Validate(); err != nil {
 		return nil, fmt.Errorf("peer: %w", err)
 	}
@@ -151,7 +169,7 @@ func New(cfg Config) (*Manager, error) {
 	if cfg.Limits.PendingPerPeer <= 0 {
 		cfg.Limits.PendingPerPeer = 1024
 	}
-	m := &Manager{cfg: cfg, peers: make(map[string]*actor), sessions: make(map[diam.Conn]*session), done: make(chan struct{}), closed: make(chan struct{}), callbackQ: make(chan PeerEvent, cfg.Limits.Events), errors: diam.NewServeMux(), pending: make(map[*session]map[uint32]*pendingRequest), controls: make(map[*session]map[uint32]struct{}), localApps: make(map[uint32]struct{})}
+	m := &Manager{cfg: cfg, peers: make(map[string]*actor), sessions: make(map[diam.Conn]*session), done: make(chan struct{}), closed: make(chan struct{}), callbackQ: make(chan PeerEvent, cfg.Limits.Events), pending: make(map[*session]map[uint32]*pendingRequest), controls: make(map[*session]map[uint32]struct{}), localApps: make(map[uint32]struct{})}
 	localCapabilities := m.baseSettings(nil)
 	for _, id := range base.AdvertisedApplicationIDs(localCapabilities) {
 		m.localApps[id] = struct{}{}
@@ -221,8 +239,10 @@ func (m *Manager) AddPeer(cfg PeerConfig) error {
 
 // BindServer installs the manager before Serve and preserves existing hooks.
 // Manager orders message/error admission internally, including when Server uses
-// concurrent dispatch. A Handler wrapping Manager must forward ServeDIAM and
-// HandleMessageError synchronously before returning, or consume the message/error
+// concurrent dispatch. A wrapper should expose Unwrap() diam.Handler so Server
+// finds Manager's MessageErrorHandler directly. Such a wrapper must forward
+// ServeDIAM synchronously or consume the message itself. A wrapper intercepting
+// HandleMessageError must likewise forward it synchronously or take responsibility
 // itself. Deferring a forward until after return loses its arrival position.
 // Preserve the connection hooks installed here; they establish session admission.
 func (m *Manager) BindServer(s *diam.Server) error {
@@ -371,22 +391,53 @@ func (m *Manager) forceClose() {
 		a.post(event{kind: timeout})
 	}
 }
-func (m *Manager) Error(e *diam.ErrorReport)              { m.errors.Error(e) }
-func (m *Manager) ErrorReports() <-chan *diam.ErrorReport { return m.errors.ErrorReports() }
 func (m *Manager) report(s *session, msg *diam.Message, err error) {
+	m.reportFailure(s, msg, slog.LevelWarn, "peer: protocol error", err)
+}
+
+func (m *Manager) reportLocal(s *session, msg *diam.Message, text string, err error) {
+	m.reportFailure(s, msg, slog.LevelError, text, err)
+}
+
+func (m *Manager) reportFailure(s *session, msg *diam.Message, level slog.Level, text string, err error) {
 	if err == nil {
 		return
 	}
-	var c diam.Conn
-	if s != nil {
-		c = s.c
-	}
-	m.Error(&diam.ErrorReport{Conn: c, Message: msg, Error: err})
+	m.logFailure(s, msg, "", level, text, err)
 	if s != nil {
 		if a, _ := s.binding(); a != nil {
 			a.notify(err)
 		}
 	}
+}
+
+// logFailure records a decision without publishing an observer event. Actors
+// that change state publish their updated snapshot after the decision instead.
+func (m *Manager) logFailure(s *session, msg *diam.Message, host string, level slog.Level, text string, err error) {
+	ctx := context.Background()
+	if msg != nil {
+		ctx = msg.Context()
+	}
+	var remote string
+	if s != nil {
+		if s.c != nil && s.c.RemoteAddr() != nil {
+			remote = s.c.RemoteAddr().String()
+		}
+		if host == "" {
+			if a, _ := s.binding(); a != nil {
+				host = string(a.cfg.Host)
+			}
+		}
+	}
+	if remote == "" {
+		var networkError *net.OpError
+		if errors.As(err, &networkError) && networkError.Addr != nil {
+			remote = networkError.Addr.String()
+		}
+	}
+	m.logger().LogAttrs(ctx, level, text,
+		slog.Any("error", err), slog.String("peer_host", host),
+		slog.String("remote_addr", remote), slog.Any("message", msg))
 }
 func (m *Manager) deliverEvents() {
 	for {
@@ -436,6 +487,8 @@ func (m *Manager) notify(e PeerEvent) {
 	select {
 	case m.callbackQ <- e:
 	default:
+		m.logger().LogAttrs(context.Background(), slog.LevelWarn, "peer: event queue full; event dropped",
+			slog.String("peer_host", string(e.Peer.Host)), slog.Any("error", e.Reason))
 	}
 }
 
@@ -489,11 +542,12 @@ func (m *Manager) ServeDIAM(c diam.Conn, msg *diam.Message) {
 	defer release()
 	s := m.getSession(c)
 	if s == nil {
+		m.report(nil, msg, errors.New("peer: message on unmanaged connection; closing connection"))
 		c.Close()
 		return
 	}
 	if err := s.enqueue(msg); err != nil {
-		m.report(s, msg, fmt.Errorf("peer: ingress: %w", err))
+		m.reportLocal(s, msg, "peer: ingress failed; closing connection", fmt.Errorf("peer: ingress: %w", err))
 		s.close()
 	}
 }
@@ -574,12 +628,13 @@ func (m *Manager) rejectCER(s *session, msg *diam.Message, code uint32, reason e
 		answer, err = base.BuildCEA(msg, cfg, code)
 	}
 	if err != nil {
-		m.report(s, msg, err)
+		m.reportLocal(s, msg, "peer: build rejected CER answer failed; closing connection", err)
 		s.close()
 		return
 	}
 	m.report(s, msg, reason)
 	if err := s.send(answer, true); err != nil {
+		m.reportLocal(s, msg, "peer: send rejected CER answer failed; closing connection", err)
 		s.close()
 	}
 }
@@ -630,6 +685,7 @@ func (m *Manager) unsupported(s *session, msg *diam.Message) {
 	// RFC 6733 §§7.1.3, 7.2: unsupported requests receive an E-bit 3007 for
 	// an application this node does not support, otherwise 3001; answers are
 	// reported and discarded.
+	m.report(s, msg, fmt.Errorf("peer: unhandled message %d/%d", msg.Header.ApplicationID, msg.Header.CommandCode))
 	if msg.Header.CommandFlags&diam.RequestFlag != 0 {
 		resultCode := uint32(diam.CommandUnsupported)
 		if !m.supportsApplication(msg.Header.ApplicationID) {
@@ -639,10 +695,14 @@ func (m *Manager) unsupported(s *session, msg *diam.Message) {
 		if err == nil {
 			err = s.send(answer, false)
 		}
-		m.report(s, msg, err)
+		m.reportLocal(s, msg, "peer: unsupported request answer failed", err)
 	}
-	m.report(s, msg, fmt.Errorf("peer: unhandled message %d/%d", msg.Header.ApplicationID, msg.Header.CommandCode))
 }
+
+// HandleMessageError takes responsibility for a malformed message by admitting
+// it to the session's ordered queue or closing a managed connection whose queue
+// cannot admit it. Completion can occur after this returns;
+// the Manager logs any later answer failure before closing the connection.
 func (m *Manager) HandleMessageError(c diam.Conn, msg *diam.Message, me *diam.MessageError) error {
 	release := msg.BeginDispatch()
 	defer release()
@@ -651,13 +711,14 @@ func (m *Manager) HandleMessageError(c diam.Conn, msg *diam.Message, me *diam.Me
 	}
 	s := m.getSession(c)
 	if s == nil {
-		return nil
+		return errors.ErrUnsupported
 	}
 	// RFC 6733 §§5.6.1 and 7: decoding failures share arrival order with
 	// valid messages; a queued CER must be processed before a later error.
 	if err := s.enqueueIncoming(incoming{msg: msg, err: me}); err != nil {
+		m.reportLocal(s, msg, "peer: ingress failed; closing connection", fmt.Errorf("peer: ingress: %w", err))
 		s.close()
-		return fmt.Errorf("peer: ingress: %w", err)
+		return nil // Closing the managed connection takes responsibility for m.
 	}
 	return nil
 }
@@ -688,16 +749,16 @@ func (m *Manager) answerMessageError(s *session, msg *diam.Message, me *diam.Mes
 	s.firstMu.Unlock()
 	if preCER { // RFC 6733 §5.6.1: discard malformed pre-CER traffic and close the connection.
 		if msg == nil || msg.Header == nil || me == nil || msg.Header.CommandCode != diam.CapabilitiesExchange || msg.Header.CommandFlags&diam.RequestFlag == 0 {
+			m.report(s, msg, fmt.Errorf("peer: malformed pre-CER message; closing connection: %w", me))
 			s.close()
 			return nil
 		}
 		answer, err := base.BuildErrorAnswer(msg, m.baseSettings(c), me.ResultCode, failed, me.ResultCode >= 3000 && me.ResultCode < 4000)
 		if err != nil {
-			s.close()
 			return err
 		}
+		m.report(s, msg, fmt.Errorf("peer: malformed CER rejected; closing connection: %w", me))
 		if err := s.send(answer, true); err != nil {
-			s.close()
 			return fmt.Errorf("peer: write: %w", err)
 		}
 		return nil
@@ -714,6 +775,9 @@ func (m *Manager) answerMessageError(s *session, msg *diam.Message, me *diam.Mes
 	}
 	// RFC 6733 §§2.5, 5.3 and 7.1.3: an invalid CER establishes no capabilities.
 	closeAfter := msg.Header.CommandCode == diam.CapabilitiesExchange && me.ResultCode == diam.InvalidHDRBits
+	if closeAfter {
+		m.report(s, msg, fmt.Errorf("peer: invalid CER rejected; closing connection: %w", me))
+	}
 	if err := s.send(answer, closeAfter); err != nil {
 		return fmt.Errorf("peer: write: %w", err)
 	}

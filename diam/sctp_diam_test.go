@@ -53,8 +53,6 @@ func TestCapabilitiesExchangeSCTP(t *testing.T) {
 	case <-wait:
 	case err := <-errc:
 		t.Fatal(err)
-	case err := <-smux.ErrorReports():
-		t.Fatal(err)
 	case <-time.After(time.Second):
 		t.Fatal("Timed out: no CER or CEA received")
 	}

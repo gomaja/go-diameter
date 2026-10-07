@@ -5,11 +5,14 @@
 package diam
 
 import (
+	"context"
 	"errors"
 	"io"
 	"net"
 	"testing"
 	"time"
+
+	"github.com/gomaja/go-diameter/diam/internal/logtest"
 
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
@@ -21,7 +24,7 @@ var _ MessageErrorHandler = (*recordingMessageErrorHandler)(nil)
 type recordingMessageErrorHandler struct {
 	messages      chan *Message
 	messageErrors chan *MessageError
-	reports       chan *ErrorReport
+	records       *logtest.Recorder
 	handleErr     error
 }
 
@@ -29,7 +32,7 @@ func newRecordingMessageErrorHandler() *recordingMessageErrorHandler {
 	return &recordingMessageErrorHandler{
 		messages:      make(chan *Message, 1),
 		messageErrors: make(chan *MessageError, 1),
-		reports:       make(chan *ErrorReport, 2),
+		records:       logtest.New(),
 	}
 }
 
@@ -42,17 +45,9 @@ func (h *recordingMessageErrorHandler) HandleMessageError(_ Conn, _ *Message, er
 	return h.handleErr
 }
 
-func (h *recordingMessageErrorHandler) Error(report *ErrorReport) {
-	h.reports <- report
-}
-
-func (h *recordingMessageErrorHandler) ErrorReports() <-chan *ErrorReport {
-	return h.reports
-}
-
 func TestServerContinuesAfterHandledNonFatalMessageError(t *testing.T) {
 	handler := newRecordingMessageErrorHandler()
-	remote, done := startPipeServer(t, handler)
+	remote, done := startPipeServer(t, handler, handler.records)
 	defer closePipeServer(t, remote, done)
 
 	malformed := testFramedMessage(t, RequestFlag, []byte{
@@ -65,10 +60,10 @@ func TestServerContinuesAfterHandledNonFatalMessageError(t *testing.T) {
 	if messageErr.ResultCode != InvalidAVPLength || messageErr.Fatal {
 		t.Fatalf("message error = %+v, want non-fatal %d", messageErr, InvalidAVPLength)
 	}
-	report := receiveErrorReport(t, handler.reports)
+	report := receiveRecordedError(t, handler.records, 1)
 	var reported *MessageError
-	if !errors.As(report.Error, &reported) || reported != messageErr {
-		t.Fatalf("reported error = %T(%v), want handled MessageError", report.Error, report.Error)
+	if !errors.As(report, &reported) || reported != messageErr {
+		t.Fatalf("reported error = %T(%v), want handled MessageError", report, report)
 	}
 
 	valid := NewRequest(DeviceWatchdog, 0, dict.Default)
@@ -92,7 +87,7 @@ func TestServerContinuesAfterHandledNonFatalMessageError(t *testing.T) {
 
 func TestServerClosesAfterHandledFatalMessageError(t *testing.T) {
 	handler := newRecordingMessageErrorHandler()
-	remote, done := startPipeServer(t, handler)
+	remote, done := startPipeServer(t, handler, handler.records)
 	defer closePipeServer(t, remote, done)
 
 	writePipeBytes(t, remote, testMessageHeader(2, HeaderLength, RequestFlag))
@@ -100,7 +95,9 @@ func TestServerClosesAfterHandledFatalMessageError(t *testing.T) {
 	if messageErr.ResultCode != UnsupportedVersion || !messageErr.Fatal {
 		t.Fatalf("message error = %+v, want fatal %d", messageErr, UnsupportedVersion)
 	}
-	receiveErrorReport(t, handler.reports)
+	if err := receiveRecordedError(t, handler.records, 1); !errors.Is(err, messageErr) {
+		t.Fatalf("recorded error = %v, want %v", err, messageErr)
+	}
 
 	waitPipeServer(t, done)
 	var b [1]byte
@@ -112,7 +109,7 @@ func TestServerClosesAfterHandledFatalMessageError(t *testing.T) {
 func TestServerClosesWhenMessageErrorHandlerFails(t *testing.T) {
 	handler := newRecordingMessageErrorHandler()
 	handler.handleErr = errors.New("write failed")
-	remote, done := startPipeServer(t, handler)
+	remote, done := startPipeServer(t, handler, handler.records)
 	defer closePipeServer(t, remote, done)
 
 	malformed := testFramedMessage(t, RequestFlag, []byte{
@@ -122,9 +119,9 @@ func TestServerClosesWhenMessageErrorHandlerFails(t *testing.T) {
 	writePipeBytes(t, remote, malformed)
 	_ = receiveMessageError(t, handler.messageErrors)
 
-	report := receiveErrorReport(t, handler.reports)
-	if !errors.Is(report.Error, handler.handleErr) {
-		t.Fatalf("reported error = %v, want joined handler failure", report.Error)
+	report := receiveRecordedError(t, handler.records, 2)
+	if !errors.Is(report, handler.handleErr) {
+		t.Fatalf("reported error = %v, want joined handler failure", report)
 	}
 	waitPipeServer(t, done)
 	var b [1]byte
@@ -135,7 +132,8 @@ func TestServerClosesWhenMessageErrorHandlerFails(t *testing.T) {
 
 func TestServerClosesWhenHandlerDoesNotSupportMessageErrors(t *testing.T) {
 	handler := NewServeMux()
-	remote, done := startPipeServer(t, handler)
+	logs := logtest.New()
+	remote, done := startPipeServer(t, handler, logs)
 	defer closePipeServer(t, remote, done)
 
 	malformed := testFramedMessage(t, RequestFlag, []byte{
@@ -144,10 +142,10 @@ func TestServerClosesWhenHandlerDoesNotSupportMessageErrors(t *testing.T) {
 	})
 	writePipeBytes(t, remote, malformed)
 
-	report := receiveErrorReport(t, handler.ErrorReports())
+	report := receiveRecordedError(t, logs, 1)
 	var messageErr *MessageError
-	if !errors.As(report.Error, &messageErr) {
-		t.Fatalf("reported error = %T(%v), want MessageError", report.Error, report.Error)
+	if !errors.As(report, &messageErr) {
+		t.Fatalf("reported error = %T(%v), want MessageError", report, report)
 	}
 	waitPipeServer(t, done)
 	var b [1]byte
@@ -187,7 +185,7 @@ func TestServeMuxRoutesMessageErrors(t *testing.T) {
 			mux := NewServeMux()
 			handler := newRecordingMessageErrorHandler()
 			tt.register(mux, handler)
-			assertServerRoutesMessageError(t, mux, mux.ErrorReports(), handler)
+			assertServerRoutesMessageError(t, mux, logtest.New(), handler)
 		})
 	}
 }
@@ -199,17 +197,17 @@ func TestDefaultServeMuxRoutesMessageErrors(t *testing.T) {
 
 	handler := newRecordingMessageErrorHandler()
 	DefaultServeMux.Handle("CER", handler)
-	assertServerRoutesMessageError(t, nil, DefaultServeMux.ErrorReports(), handler)
+	assertServerRoutesMessageError(t, nil, logtest.New(), handler)
 }
 
 func assertServerRoutesMessageError(
 	t *testing.T,
 	serverHandler Handler,
-	reports <-chan *ErrorReport,
+	reports *logtest.Recorder,
 	target *recordingMessageErrorHandler,
 ) {
 	t.Helper()
-	remote, done := startPipeServer(t, serverHandler)
+	remote, done := startPipeServer(t, serverHandler, reports)
 	defer closePipeServer(t, remote, done)
 
 	malformed := testFramedMessage(t, RequestFlag, []byte{
@@ -222,17 +220,20 @@ func assertServerRoutesMessageError(
 	if messageErr.ResultCode != InvalidAVPLength || messageErr.Fatal {
 		t.Fatalf("message error = %+v, want non-fatal %d", messageErr, InvalidAVPLength)
 	}
-	report := receiveErrorReport(t, reports)
+	report := receiveRecordedError(t, reports, 1)
 	var reported *MessageError
-	if !errors.As(report.Error, &reported) || reported != messageErr {
-		t.Fatalf("reported error = %T(%v), want routed MessageError", report.Error, report.Error)
+	if !errors.As(report, &reported) || reported != messageErr {
+		t.Fatalf("reported error = %T(%v), want routed MessageError", report, report)
 	}
 }
 
-func startPipeServer(t *testing.T, handler Handler) (net.Conn, <-chan struct{}) {
+func startPipeServer(t *testing.T, handler Handler, records ...*logtest.Recorder) (net.Conn, <-chan struct{}) {
 	t.Helper()
 	local, remote := net.Pipe()
 	srv := &Server{Handler: handler, Dict: dict.Default}
+	if len(records) > 0 {
+		srv.Logger = records[0].Logger()
+	}
 	c := srv.newConn(local)
 	done := make(chan struct{})
 	go func() {
@@ -280,13 +281,17 @@ func receiveMessageError(t *testing.T, errors <-chan *MessageError) *MessageErro
 	}
 }
 
-func receiveErrorReport(t *testing.T, reports <-chan *ErrorReport) *ErrorReport {
+func receiveRecordedError(t *testing.T, records *logtest.Recorder, n int) error {
 	t.Helper()
-	select {
-	case report := <-reports:
-		return report
-	case <-time.After(time.Second):
-		t.Fatal("message error was not reported")
-		return nil
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	rs, err := records.Wait(ctx, n)
+	if err != nil {
+		t.Fatal(err)
 	}
+	got, ok := logtest.Attr(rs[n-1], "error").Any().(error)
+	if !ok {
+		t.Fatal("record did not retain error value")
+	}
+	return got
 }

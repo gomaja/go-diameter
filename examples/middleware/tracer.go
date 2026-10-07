@@ -229,13 +229,9 @@ func classify(v any) (errorType string) {
 	return semconv.ErrorType(err).Value.AsString()
 }
 
-// HandleAccept preserves the wrapped handler's RFC 6733 §5.6.1 admission lifecycle.
-func (t *Tracer) HandleAccept(c diam.Conn) func() {
-	if h, ok := t.h.(diam.AcceptHandler); ok {
-		return h.HandleAccept(c)
-	}
-	return nil
-}
+// Unwrap returns the traced handler, so Server and ServeMux can discover its
+// optional interfaces through diam.HandlerAs.
+func (t *Tracer) Unwrap() diam.Handler { return t.h }
 
 // start starts the span of m, received on c.
 func (t *Tracer) start(c diam.Conn, m *diam.Message) (context.Context, trace.Span) {

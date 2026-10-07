@@ -74,3 +74,36 @@ func addrAttrs(local, remote net.Addr) []slog.Attr {
 	}
 	return attrs
 }
+
+// Logger implements Conn.
+func (w *response) Logger() *slog.Logger {
+	attrs := addrAttrs(w.conn.rwc.LocalAddr(), w.conn.rwc.RemoteAddr())
+	args := make([]any, len(attrs))
+	for i, a := range attrs {
+		args[i] = a
+	}
+	return w.conn.server.logger().With(args...)
+}
+
+// LogValue describes only the header. AVPs, including subscriber values, are
+// deliberately excluded. A nil message or header produces an empty group.
+func (m *Message) LogValue() slog.Value {
+	if m == nil || m.Header == nil {
+		return slog.GroupValue()
+	}
+	h := m.Header
+	attrs := []slog.Attr{}
+	if cmd, err := m.Dictionary().FindCommand(h.ApplicationID, h.CommandCode); err == nil {
+		name := cmd.Short + "A"
+		if h.CommandFlags&RequestFlag != 0 {
+			name = cmd.Short + "R"
+		}
+		attrs = append(attrs, slog.String("command", name))
+	}
+	return slog.GroupValue(append(attrs,
+		slog.Uint64("application_id", uint64(h.ApplicationID)),
+		slog.Uint64("command_code", uint64(h.CommandCode)),
+		slog.Bool("request", h.CommandFlags&RequestFlag != 0),
+		slog.Uint64("hop_by_hop_id", uint64(h.HopByHopID)),
+		slog.Uint64("end_to_end_id", uint64(h.EndToEndID)))...)
+}

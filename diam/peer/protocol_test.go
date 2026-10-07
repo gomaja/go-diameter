@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"log/slog"
 	"net"
 	"net/netip"
 	"strings"
@@ -17,6 +18,7 @@ import (
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/dict"
 	"github.com/gomaja/go-diameter/diam/internal/base"
+	"github.com/gomaja/go-diameter/diam/internal/logtest"
 	"github.com/gomaja/go-diameter/diam/sm"
 )
 
@@ -45,6 +47,7 @@ func (c *fakeConn) LocalAddr() net.Addr            { return &net.TCPAddr{IP: net
 func (c *fakeConn) RemoteAddr() net.Addr           { return &net.TCPAddr{IP: net.IPv4(127, 0, 0, 2), Port: 3868} }
 func (c *fakeConn) TLS() *tls.ConnectionState      { return nil }
 func (c *fakeConn) Dictionary() *dict.Parser       { return dict.Default }
+func (c *fakeConn) Logger() *slog.Logger           { return slog.Default() }
 func (c *fakeConn) Context() context.Context       { return c.ctx }
 func (c *fakeConn) SetContext(ctx context.Context) { c.ctx = ctx }
 func (c *fakeConn) Connection() net.Conn           { return c.underlying }
@@ -266,7 +269,8 @@ func TestPreCERGateAndUnknownPeer(t *testing.T) {
 	for _, name := range []string{"non-CER", "timeout", "unknown-peer", "missing-host", "no-common-application"} {
 		t.Run(name, func(t *testing.T) {
 			clock := &fakeClock{}
-			m, e := New(Config{Settings: testSettings("local.example.net"), Clock: clock})
+			records := logtest.New()
+			m, e := New(Config{Logger: records.Logger(), Settings: testSettings("local.example.net"), Clock: clock})
 			if e != nil {
 				t.Fatal(e)
 			}
@@ -323,12 +327,7 @@ func TestPreCERGateAndUnknownPeer(t *testing.T) {
 				_ = c.SetReadDeadline(time.Now().Add(time.Second))
 				ans, readErr := diam.ReadMessage(c, dict.Default)
 				if readErr != nil {
-					select {
-					case report := <-m.ErrorReports():
-						t.Fatalf("read: %v; state: %+v; report: %v", readErr, m.Peers(), report.Error)
-					default:
-						t.Fatalf("read: %v; state: %+v", readErr, m.Peers())
-					}
+					t.Fatalf("read: %v; state: %+v; records: %v", readErr, m.Peers(), records.Records())
 				}
 				want := uint32(diam.MissingAVP)
 				if name == "unknown-peer" {
@@ -350,6 +349,9 @@ func TestPreCERGateAndUnknownPeer(t *testing.T) {
 			if n, ok := e.(net.Error); ok && n.Timeout() {
 				t.Fatal("connection did not close")
 			}
+			if len(records.Records()) == 0 {
+				t.Fatal("peer close decision was not logged before EOF")
+			}
 		})
 	}
 }
@@ -365,7 +367,8 @@ func TestMalformedFirstMessageCannotAdmitLaterCER(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			clock := &fakeClock{}
-			m, err := New(Config{Settings: testSettings("local.example.net"), Clock: clock})
+			records := logtest.New()
+			m, err := New(Config{Logger: records.Logger(), Settings: testSettings("local.example.net"), Clock: clock})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -419,13 +422,8 @@ func TestMalformedFirstMessageCannotAdmitLaterCER(t *testing.T) {
 			} else if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
 				t.Fatalf("connection stayed open after malformed first message: %v", err)
 			}
-			select {
-			case report := <-m.ErrorReports():
-				if report == nil || report.Error == nil {
-					t.Fatal("missing malformed first-message error")
-				}
-			case <-time.After(time.Second):
-				t.Fatal("malformed first message was not reported")
+			if len(records.Records()) == 0 {
+				t.Fatal("malformed first message close was not logged before EOF")
 			}
 			clock.mu.Lock()
 			timers := append([]*fakeTimer(nil), clock.timers...)
@@ -506,7 +504,8 @@ func TestFakeTransportOpenControl(t *testing.T) {
 func TestMismatchedDPRIsReportedWithoutDPA(t *testing.T) {
 	for _, state := range []PeerState{IOpen, ROpen, Closing} {
 		t.Run(string(state), func(t *testing.T) {
-			m, err := New(Config{Settings: testSettings("local.example.net")})
+			records := logtest.New()
+			m, err := New(Config{Logger: records.Logger(), Settings: testSettings("local.example.net")})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -534,13 +533,9 @@ func TestMismatchedDPRIsReportedWithoutDPA(t *testing.T) {
 				t.Fatal("mismatched DPR received DPA")
 			default:
 			}
-			select {
-			case report := <-m.ErrorReports():
-				if report.Error == nil || !strings.Contains(report.Error.Error(), "DPR Origin-Host mismatch") {
-					t.Fatalf("mismatch report=%v", report.Error)
-				}
-			default:
-				t.Fatal("mismatched DPR was not reported")
+			got := records.Records()
+			if len(got) != 1 || !strings.Contains(logtest.Attr(got[0], "error").Any().(error).Error(), "DPR Origin-Host mismatch") {
+				t.Fatalf("mismatch records=%v", got)
 			}
 			good, err := base.BuildDPR(dict.Default, testBase("KNOWN.example.net"), 0)
 			if err != nil {
@@ -681,7 +676,8 @@ func TestManagedUnsupportedApplication(t *testing.T) {
 }
 
 func TestManagedControlAndUnsupported(t *testing.T) {
-	m, e := New(Config{Settings: testSettings("local.example.net")})
+	records := logtest.New()
+	m, e := New(Config{Logger: records.Logger(), Settings: testSettings("local.example.net")})
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -721,24 +717,16 @@ func TestManagedControlAndUnsupported(t *testing.T) {
 	if ans.Header.CommandFlags&diam.ErrorFlag == 0 || code(t, ans) != diam.CommandUnsupported {
 		t.Fatalf("unsupported answer %+v", ans.Header)
 	}
-	// The error answer can reach the socket before the actor queues its
-	// observational report. Wait for that report before sending the next message.
-	select {
-	case report := <-m.ErrorReports():
-		if report.Message == nil || report.Message.Header.CommandFlags&diam.RequestFlag == 0 {
-			t.Fatalf("unexpected request report: %+v", report)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("unhandled request was not reported")
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	got, err := records.Wait(ctx, 1)
+	if err != nil || !logtest.Attr(got[0], "message.request").Bool() {
+		t.Fatalf("request records=%v, err=%v", got, err)
 	}
 	write(t, c, req.Answer(diam.Success))
-	select {
-	case report := <-m.ErrorReports():
-		if report.Message == nil || report.Message.Header.CommandFlags&diam.RequestFlag != 0 {
-			t.Fatalf("unexpected report: %+v", report)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("unhandled answer was not reported")
+	got, err = records.Wait(ctx, 2)
+	if err != nil || logtest.Attr(got[1], "message.request").Bool() {
+		t.Fatalf("answer records=%v, err=%v", got, err)
 	}
 	_ = c.SetReadDeadline(time.Now().Add(30 * time.Millisecond))
 	var extra [1]byte

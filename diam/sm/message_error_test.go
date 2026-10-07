@@ -10,6 +10,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"io"
+	"log/slog"
 	"net"
 	"net/netip"
 	"testing"
@@ -25,6 +26,12 @@ import (
 var _ diam.MessageErrorHandler = (*StateMachine)(nil)
 
 func TestStateMachineWritesMessageErrorAnswers(t *testing.T) {
+	for _, variant := range stateMachineWrappers {
+		t.Run(variant.name, func(t *testing.T) { testStateMachineWritesMessageErrorAnswers(t, variant.wrap) })
+	}
+}
+
+func testStateMachineWritesMessageErrorAnswers(t *testing.T, wrap func(diam.Handler) diam.Handler) {
 	tests := []struct {
 		name       string
 		wire       []byte
@@ -60,7 +67,7 @@ func TestStateMachineWritesMessageErrorAnswers(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			settings := testMessageErrorSettings()
 			stateMachine := mustNewStateMachine(t, settings)
-			server := diamtest.NewServer(stateMachine, dict.Default)
+			server := diamtest.NewServer(wrap(stateMachine), dict.Default)
 			defer server.Close()
 
 			conn, err := net.DialTimeout("tcp", server.Addr, time.Second)
@@ -79,7 +86,11 @@ func TestStateMachineWritesMessageErrorAnswers(t *testing.T) {
 	}
 }
 
-func TestStateMachineWritesMessageErrorAnswerThroughServeMux(t *testing.T) {
+// This is a routing-only control for optional-interface discovery. A StateMachine
+// installed as a mux route does not receive HandleAccept or its handshake timer.
+// It still rejects non-CER traffic before admission. The malformed CER here
+// remains eligible for a CEA; Unwrap tests exercise timer-capable wiring.
+func TestStateMachineMessageErrorRoutingWithoutAdmission(t *testing.T) {
 	settings := testMessageErrorSettings()
 	stateMachine := mustNewStateMachine(t, settings)
 	mux := diam.NewServeMux()
@@ -106,9 +117,15 @@ func TestStateMachineWritesMessageErrorAnswerThroughServeMux(t *testing.T) {
 }
 
 func TestStateMachineContinuesAfterInvalidAVPLength(t *testing.T) {
+	for _, variant := range stateMachineWrappers {
+		t.Run(variant.name, func(t *testing.T) { testStateMachineContinuesAfterInvalidAVPLength(t, variant.wrap) })
+	}
+}
+
+func testStateMachineContinuesAfterInvalidAVPLength(t *testing.T, wrap func(diam.Handler) diam.Handler) {
 	settings := testMessageErrorSettings()
 	stateMachine := mustNewStateMachine(t, settings)
-	server := diamtest.NewServer(stateMachine, dict.Default)
+	server := diamtest.NewServer(wrap(stateMachine), dict.Default)
 	defer server.Close()
 
 	conn, err := net.DialTimeout("tcp", server.Addr, time.Second)
@@ -260,9 +277,15 @@ func TestStateMachineOmitsSessionIDThatWouldOverflowErrorAnswer(t *testing.T) {
 }
 
 func TestStateMachineDoesNotAnswerMalformedAnswer(t *testing.T) {
+	for _, variant := range stateMachineWrappers {
+		t.Run(variant.name, func(t *testing.T) { testStateMachineDoesNotAnswerMalformedAnswer(t, variant.wrap) })
+	}
+}
+
+func testStateMachineDoesNotAnswerMalformedAnswer(t *testing.T, wrap func(diam.Handler) diam.Handler) {
 	settings := testMessageErrorSettings()
 	stateMachine := mustNewStateMachine(t, settings)
-	server := diamtest.NewServer(stateMachine, dict.Default)
+	server := diamtest.NewServer(wrap(stateMachine), dict.Default)
 	defer server.Close()
 
 	conn, err := net.DialTimeout("tcp", server.Addr, time.Second)
@@ -475,3 +498,5 @@ func (c *messageErrorCaptureConn) Dictionary() *dict.Parser       { return dict.
 func (c *messageErrorCaptureConn) Context() context.Context       { return c.ctx }
 func (c *messageErrorCaptureConn) SetContext(ctx context.Context) { c.ctx = ctx }
 func (c *messageErrorCaptureConn) Connection() net.Conn           { return nil }
+
+func (c *messageErrorCaptureConn) Logger() *slog.Logger { return slog.Default() }

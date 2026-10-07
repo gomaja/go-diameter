@@ -121,9 +121,6 @@ func main() {
 	// Catch All
 	mux.HandleIdx(diam.ALL_CMD_INDEX, handleAll())
 
-	// Print error reports.
-	go printErrors(mux.ErrorReports())
-
 	conn, err := cli.DialNetwork(*networkType, *addr)
 	if err != nil {
 		log.Fatal(err)
@@ -149,12 +146,6 @@ func main() {
 
 	// Sleep after completion to observe DWR/As going in the background
 	time.Sleep(time.Duration(*completionSleep) * time.Second)
-}
-
-func printErrors(ec <-chan *diam.ErrorReport) {
-	for err := range ec {
-		log.Println(err)
-	}
 }
 
 // Create & send Authentication-Information Request

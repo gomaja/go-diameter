@@ -14,6 +14,7 @@ import (
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/diamtest"
 	"github.com/gomaja/go-diameter/diam/dict"
+	"github.com/gomaja/go-diameter/diam/internal/logtest"
 	"github.com/gomaja/go-diameter/diam/sm/smparser"
 )
 
@@ -203,8 +204,11 @@ func TestLateNonCEAAfterHandshakeTimeout(t *testing.T) {
 func TestSMBaseHeaderApplicationOnWire(t *testing.T) {
 	for _, cmd := range []uint32{diam.CapabilitiesExchange, diam.DeviceWatchdog, diam.DisconnectPeer} {
 		t.Run(fmt.Sprint(cmd), func(t *testing.T) {
+			records := logtest.New()
 			sm := mustNewStateMachine(t, testMessageErrorSettings())
-			srv := diamtest.NewServer(sm, dict.Default)
+			srv := diamtest.NewUnstartedServer(sm, dict.Default)
+			srv.Config.Logger = records.Logger()
+			srv.Start()
 			defer srv.Close()
 			if cmd == diam.CapabilitiesExchange {
 				req := regressionCER(t, dict.Default, 1001)
@@ -233,27 +237,14 @@ func TestSMBaseHeaderApplicationOnWire(t *testing.T) {
 					if err != nil || !testResultCode(a, diam.InvalidHDRBits) || a.Header.CommandFlags&diam.ErrorFlag == 0 || a.Header.ApplicationID != 0 {
 						t.Fatalf("invalid base request answer=%v err=%v", a, err)
 					}
-					select {
-					case <-sm.ErrorReports():
-					case <-time.After(time.Second):
-						t.Fatal("invalid request not reported")
-					}
+					_ = waitLog(t, records, 1)
 				} else {
-					for {
-						select {
-						case report := <-sm.ErrorReports():
-							if report.Message.Header.CommandFlags&diam.RequestFlag != 0 {
-								continue
-							}
-							var me *diam.MessageError
-							if !errors.As(report.Error, &me) || me.ResultCode != diam.InvalidHDRBits {
-								t.Fatalf("invalid answer report: %v", report.Error)
-							}
-						case <-time.After(time.Second):
-							t.Fatal("invalid answer not reported")
-						}
-						break
+					record := waitLog(t, records, 2)
+					var me *diam.MessageError
+					if !errors.As(logError(record), &me) || me.ResultCode != diam.InvalidHDRBits {
+						t.Fatalf("invalid answer record: %v", record)
 					}
+
 				}
 			}
 			next := regressionDWR(t)

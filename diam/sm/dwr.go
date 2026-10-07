@@ -5,6 +5,8 @@
 package sm
 
 import (
+	"log/slog"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/internal/base"
 	"github.com/gomaja/go-diameter/diam/sm/smparser"
@@ -21,16 +23,12 @@ func handleDWR(sm *StateMachine) diam.HandlerFunc {
 		dwr := new(smparser.DWR)
 		err := dwr.Parse(m)
 		if err != nil {
-			sm.Error(&diam.ErrorReport{
-				Conn:    c,
-				Message: m,
-				Error:   err,
-			})
+			logMessage(c, m, slog.LevelWarn, "sm: invalid DWR", err)
 			return
 		}
 		a, err := base.BuildDWA(m, baseSettings(sm.cfg))
 		if err != nil {
-			sm.Error(&diam.ErrorReport{Conn: c, Message: m, Error: err})
+			logMessage(c, m, slog.LevelError, "sm: DWA failed", err)
 			return
 		}
 		if sm.cfg.OnDWA != nil {
@@ -38,11 +36,7 @@ func handleDWR(sm *StateMachine) diam.HandlerFunc {
 		}
 		_, err = a.WriteTo(c)
 		if err != nil {
-			sm.Error(&diam.ErrorReport{
-				Conn:    c,
-				Message: m,
-				Error:   err,
-			})
+			logMessage(c, m, slog.LevelError, "sm: DWA failed", err)
 		}
 	}
 }

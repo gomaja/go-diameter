@@ -43,19 +43,15 @@ func testStateMachine(t *testing.T, network string) {
 	}
 	srv := diamtest.NewServerNetwork(network, sm, dict.Default)
 	defer srv.Close()
-	// CER handlers are ignored by the state machine.
-	// Using Handle instead of HandleFunc to exercise that code.
-	sm.Handle("CER", func() diam.HandlerFunc {
-		return func(c diam.Conn, m *diam.Message) {}
-	}())
-	select {
-	case err := <-sm.ErrorReports():
-		if err == nil {
-			t.Fatal("Expecting error that didn't occur")
-		}
-	case <-time.After(time.Second):
-		t.Fatal("Timed out waiting for error")
-	}
+	// Reserved commands are programmer errors at registration time.
+	func() {
+		defer func() {
+			if recover() == nil {
+				t.Error("CER registration did not panic")
+			}
+		}()
+		sm.Handle("CER", diam.HandlerFunc(func(diam.Conn, *diam.Message) {}))
+	}()
 	// RAR for our test.
 	mc := make(chan *diam.Message, 1)
 	sm.HandleFunc("RAR", func(c diam.Conn, m *diam.Message) {
@@ -98,10 +94,6 @@ func testStateMachine(t *testing.T, network string) {
 		if !testResultCode(resp, diam.Success) {
 			t.Fatalf("Unexpected result code.\n%s", resp)
 		}
-	case err := <-sm.ErrorReports():
-		t.Fatal(err)
-	case err := <-mux.ErrorReports():
-		t.Fatal(err)
 	case <-time.After(time.Second):
 		t.Fatal("No CEA message received")
 	}
@@ -122,10 +114,6 @@ func testStateMachine(t *testing.T, network string) {
 	select {
 	case <-mc:
 		// All good.
-	case err := <-sm.ErrorReports():
-		t.Fatal(err)
-	case err := <-mux.ErrorReports():
-		t.Fatal(err)
 	case <-time.After(time.Second):
 		t.Fatal("No RAR message received")
 	}
@@ -141,10 +129,6 @@ func testStateMachine(t *testing.T, network string) {
 	select {
 	case <-mc:
 	// All good.
-	case err := <-sm.ErrorReports():
-		t.Fatal(err)
-	case err := <-mux.ErrorReports():
-		t.Fatal(err)
 	case <-time.After(time.Second):
 		t.Fatal("No DWR message received")
 	}

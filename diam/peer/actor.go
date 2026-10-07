@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"sync/atomic"
 	"time"
@@ -135,6 +136,20 @@ func (a *actor) arm(d time.Duration) {
 }
 func (a *actor) setState(s PeerState, err error) { a.state = s; a.publish(err) }
 func (a *actor) fail(err error) {
+	a.failWithLog(slog.LevelWarn, "peer: protocol error", err)
+}
+func (a *actor) failLocal(operation string, err error) {
+	a.failWithLog(slog.LevelError, "peer: "+operation+" failed; closing connection", fmt.Errorf("peer: %s: %w", operation, err))
+}
+func (a *actor) failWithLog(level slog.Level, text string, err error) {
+	s := a.active
+	if s == nil {
+		s = a.i
+	}
+	if s == nil {
+		s = a.r
+	}
+	a.m.logFailure(s, nil, string(a.cfg.Host), level, text, fmt.Errorf("peer: closing connection: %w", err))
 	a.stopTimer()
 	if a.i != nil {
 		a.i.close()
@@ -297,8 +312,15 @@ func (a *actor) onDial(e event) {
 		return
 	}
 	if e.err != nil {
-		a.step(iNack, nil, nil)
-		a.notify(e.err)
+		if a.state == WaitConnAck {
+			a.failLocal("dial", e.err)
+		} else {
+			a.m.logFailure(nil, nil, string(a.cfg.Host), slog.LevelError, "peer: dial failed", e.err)
+			a.step(iNack, nil, nil)
+			if a.state != Closed {
+				a.notify(e.err)
+			}
+		}
 		return
 	}
 	a.i = e.s
@@ -312,15 +334,17 @@ func (a *actor) onCER(e event) {
 		return
 	}
 	if a.state == Closing || a.m.isClosing() {
+		a.m.report(e.s, e.msg, errors.New("peer: CER while closing; closing connection"))
 		e.s.close()
 		return
 	}
 	if compareIdentity(e.meta.OriginHost, a.cfg.Host) != 0 {
+		a.m.report(e.s, e.msg, errors.New("peer: configured Origin-Host mismatch; closing connection"))
 		e.s.close()
-		a.notify(errors.New("peer: configured Origin-Host mismatch"))
 		return
 	}
 	if a.state != Closed && a.state != WaitConnAck && a.state != WaitICEA && a.state != WaitConnAckElect && a.state != WaitReturns && a.state != IOpen && a.state != ROpen {
+		a.m.report(e.s, e.msg, fmt.Errorf("peer: CER in state %s; closing connection", a.state))
 		e.s.close()
 		return
 	}
@@ -413,7 +437,7 @@ func (a *actor) onWire(e event) {
 	if e.messageErr != nil {
 		// The actor queued CEA before this error answer (RFC 6733 §§5.6, 7).
 		if err := a.m.answerMessageError(s, msg, e.messageErr); err != nil {
-			a.m.report(s, msg, err)
+			a.m.reportLocal(s, msg, "peer: error answer failed; closing connection", err)
 			s.close()
 		}
 		return
@@ -492,8 +516,8 @@ func (a *actor) onWire(e event) {
 		}
 	case cmd == diam.CapabilitiesExchange && req && msg.Header.ApplicationID == 0:
 		// RFC 6733 §5.6 Open/R-Conn-CER rejects a duplicate candidate.
+		a.m.report(s, msg, errors.New("peer: duplicate CER on open connection; closing connection"))
 		s.close()
-		a.notify(errors.New("peer: duplicate CER on open connection"))
 	default:
 		if a.watchdog == WatchdogReopen {
 			return
@@ -528,6 +552,7 @@ func (a *actor) answerDPR(s *session, msg *diam.Message) {
 		err = s.send(dpa, false)
 	}
 	if err != nil {
+		a.m.reportLocal(s, msg, "peer: DPA answer failed; closing connection", err)
 		s.close()
 	}
 }
@@ -570,7 +595,7 @@ func (a *actor) stop(cause sm.DisconnectCause) {
 	if a.state == Closing {
 		return
 	}
-	a.fail(errors.New("peer: shutdown during handshake"))
+	a.failWithLog(slog.LevelInfo, "peer: shutdown during handshake; closing connection", errors.New("peer: shutdown during handshake"))
 }
 func (a *actor) step(ev psmEvent, s *session, msg *diam.Message) {
 	row, ok := transition(a.state, ev)
@@ -586,11 +611,11 @@ func (a *actor) step(ev psmEvent, s *session, msg *diam.Message) {
 		if a.i != nil {
 			m, err := base.BuildCER(a.m.dictionary(), a.m.baseSettings(a.i.c))
 			if err != nil {
-				a.fail(fmt.Errorf("peer: build CER: %w", err))
+				a.failLocal("build CER", err)
 				return
 			}
 			if err := a.i.sendControl(m); err != nil {
-				a.fail(fmt.Errorf("peer: send CER: %w", err))
+				a.failLocal("send CER", err)
 				return
 			}
 			a.i.cerHop = m.Header.HopByHopID
@@ -600,9 +625,11 @@ func (a *actor) step(ev psmEvent, s *session, msg *diam.Message) {
 		if old == WaitConnAckElect {
 			a.active = a.r
 			a.stopTimer()
-			a.sendCEA(a.r)
+			if !a.sendCEA(a.r) {
+				return
+			}
 		} else {
-			a.fail(errors.New("peer: dial failed"))
+			a.failLocal("dial", errors.New("connection attempt failed"))
 			return
 		}
 	case rConnCER:
@@ -610,8 +637,11 @@ func (a *actor) step(ev psmEvent, s *session, msg *diam.Message) {
 		case Closed:
 			a.active = a.r
 			a.stopTimer()
-			a.sendCEA(a.r)
+			if !a.sendCEA(a.r) {
+				return
+			}
 		case WaitConnAckElect, WaitReturns, IOpen, ROpen:
+			a.m.report(s, msg, errors.New("peer: duplicate CER candidate; closing connection"))
 			s.close()
 		}
 	case winElection, iDisc:
@@ -623,7 +653,9 @@ func (a *actor) step(ev psmEvent, s *session, msg *diam.Message) {
 			}
 			a.active = a.r
 			a.stopTimer()
-			a.sendCEA(a.r)
+			if !a.sendCEA(a.r) {
+				return
+			}
 		case IOpen, Closing:
 			a.stopTimer()
 			a.active = nil
@@ -654,11 +686,11 @@ func (a *actor) step(ev psmEvent, s *session, msg *diam.Message) {
 	case iDWR, rDWR:
 		dwa, err := base.BuildDWA(msg, a.m.baseSettings(s.c))
 		if err != nil {
-			a.fail(fmt.Errorf("peer: build DWA: %w", err))
+			a.failLocal("build DWA", err)
 			return
 		}
 		if err := s.send(dwa, false); err != nil {
-			a.fail(fmt.Errorf("peer: send DWA: %w", err))
+			a.failLocal("send DWA", err)
 			return
 		}
 	case iDPR, rDPR:
@@ -673,11 +705,11 @@ func (a *actor) step(ev psmEvent, s *session, msg *diam.Message) {
 		a.stopTimer()
 		dpr, err := base.BuildDPR(a.m.dictionary(), a.m.baseSettings(s.c), uint32(a.closeCause))
 		if err != nil {
-			a.fail(fmt.Errorf("peer: build DPR: %w", err))
+			a.failLocal("build DPR", err)
 			return
 		}
 		if err := s.sendControl(dpr); err != nil {
-			a.fail(fmt.Errorf("peer: send DPR: %w", err))
+			a.failLocal("send DPR", err)
 			return
 		}
 		a.pendingDPR = dpr.Header.HopByHopID
@@ -697,27 +729,32 @@ func (a *actor) step(ev psmEvent, s *session, msg *diam.Message) {
 	}
 	if old != IOpen && old != ROpen && (a.state == IOpen || a.state == ROpen) {
 		a.onOpen()
+		if a.state == Closed {
+			return
+		}
 	}
 	a.publish(nil)
 }
-func (a *actor) sendCEA(s *session) {
+func (a *actor) sendCEA(s *session) bool {
 	if s == nil {
-		a.fail(errors.New("peer: missing responder"))
-		return
+		a.failLocal("send CEA", errors.New("missing responder"))
+		return false
 	} // RFC 6733 §§5.3.2, 5.6.
 	msg := s.cerRequest
 	if msg == nil {
-		a.fail(errors.New("peer: missing CER"))
-		return
+		a.failLocal("send CEA", errors.New("missing CER"))
+		return false
 	}
 	answer, err := base.BuildCEA(msg, a.m.baseSettings(s.c), diam.Success)
 	if err != nil {
-		a.fail(fmt.Errorf("peer: build CEA: %w", err))
-		return
+		a.failLocal("build CEA", err)
+		return false
 	}
 	if err := s.send(answer, false); err != nil {
-		a.fail(fmt.Errorf("peer: send CEA: %w", err))
+		a.failLocal("send CEA", err)
+		return false
 	}
+	return true
 }
 func (m *Manager) dictionary() *dict.Parser {
 	if m.cfg.Settings.Dict != nil {

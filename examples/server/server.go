@@ -66,9 +66,6 @@ func main() {
 	mux.Handle("ACR", handleACR(*silent))
 	mux.HandleFunc("ALL", handleALL) // Catch all.
 
-	// Print error reports.
-	go printErrors(mux.ErrorReports())
-
 	if len(*ppaddr) > 0 {
 		go func() { log.Fatal(http.ListenAndServe(*ppaddr, nil)) }()
 	}
@@ -76,12 +73,6 @@ func main() {
 	err = listen(*addr, *certFile, *keyFile, mux)
 	if err != nil {
 		log.Fatal(err)
-	}
-}
-
-func printErrors(ec <-chan *diam.ErrorReport) {
-	for err := range ec {
-		log.Println(err)
 	}
 }
 

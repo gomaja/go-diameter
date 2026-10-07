@@ -15,6 +15,7 @@ import (
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/diamtest"
 	"github.com/gomaja/go-diameter/diam/dict"
+	"github.com/gomaja/go-diameter/diam/internal/logtest"
 )
 
 func TestUnsupportedCommandAnswerTCP(t *testing.T) {
@@ -59,6 +60,7 @@ func testClientOverrideControlsConnectionApplications(t *testing.T, validateRequ
 	serverCfg.AuthApplicationID = []*diam.AVP{application}
 	serverCfg.ValidateRequests = validateRequests
 	serverSM := mustNew(&serverCfg)
+	serverHandshakes := testHandshakeNotifications(serverSM)
 	serverAnswers := capabilityAnswerHandler(serverSM)
 	server := diamtest.NewServer(serverSM, dict.Default)
 	defer server.Close()
@@ -77,7 +79,7 @@ func testClientOverrideControlsConnectionApplications(t *testing.T, validateRequ
 	}
 	var serverConn diam.Conn
 	select {
-	case serverConn = <-serverSM.HandshakeNotify():
+	case serverConn = <-serverHandshakes:
 	case <-time.After(time.Second):
 		t.Fatal("server handshake notification timed out")
 	}
@@ -102,10 +104,7 @@ func testClientOverrideControlsConnectionApplications(t *testing.T, validateRequ
 }
 
 func capabilityAnswerHandler(sm *StateMachine) <-chan *diam.Message {
-	// ErrorReports is a lossy diagnostic channel: an earlier unhandled
-	// request can fill its buffer and cause the answer report to be dropped.
-	// Register before connecting and collect answers independently. There is
-	// only one outstanding request per direction, so one buffered slot suffices.
+	// There is only one outstanding request per direction, so one buffered slot suffices.
 	answers := make(chan *diam.Message, 1)
 	sm.HandleFunc("ALL", func(c diam.Conn, m *diam.Message) {
 		if m.Header.CommandFlags&diam.RequestFlag != 0 {
@@ -239,8 +238,11 @@ func TestUnsupportedCommandHonorsAllHandler(t *testing.T) {
 // request is answered with 3001 and reported, and an unhandled answer is
 // reported rather than dropped silently.
 func TestUnsupportedCommandStillReported(t *testing.T) {
+	records := logtest.New()
 	sm := mustNewStateMachine(t, testMessageErrorSettings())
-	srv := diamtest.NewServer(sm, dict.Default)
+	srv := diamtest.NewUnstartedServer(sm, dict.Default)
+	srv.Config.Logger = records.Logger()
+	srv.Start()
 	defer srv.Close()
 	conn, err := net.DialTimeout("tcp", srv.Addr, time.Second)
 	if err != nil {
@@ -248,25 +250,20 @@ func TestUnsupportedCommandStillReported(t *testing.T) {
 	}
 	defer func() { _ = conn.Close() }()
 	completeUnsupportedTestCER(t, conn)
+	count := 0
 	waitReport := func(want string) {
 		t.Helper()
-		deadline := time.After(time.Second)
-		for {
-			select {
-			case r := <-sm.ErrorReports():
-				if r.Error != nil && strings.Contains(r.Error.Error(), want) {
-					return
-				}
-			case <-deadline:
-				t.Fatalf("no error report containing %q", want)
-			}
+		count++
+		if got := waitLog(t, records, count).Message; got != want {
+			t.Fatalf("record = %q, want %q", got, want)
 		}
 	}
+
 	request := diam.NewMessage(0xfedc, diam.RequestFlag, 0, 1, 2, dict.Default)
 	if _, err := request.WriteTo(conn); err != nil {
 		t.Fatal(err)
 	}
-	waitReport("Code:65244 Request:true")
+	waitReport("sm: unsupported command answered")
 	if err := conn.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
 		t.Fatal(err)
 	}
@@ -277,7 +274,7 @@ func TestUnsupportedCommandStillReported(t *testing.T) {
 	if _, err := answer.WriteTo(conn); err != nil {
 		t.Fatal(err)
 	}
-	waitReport("Code:65244 Request:false")
+	waitReport("sm: unhandled answer discarded")
 }
 
 func completeUnsupportedTestCER(t *testing.T, conn net.Conn) {

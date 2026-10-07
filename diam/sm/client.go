@@ -120,18 +120,20 @@ type watchdogTiming struct {
 }
 
 type watchdogActivity struct {
-	signal       chan struct{}
-	last         atomic.Int64
-	dwac         chan struct{}
-	ceac         chan error
-	ceaOnce      sync.Once
-	ceaReceived  atomic.Bool
-	advertised   []uint32
-	capabilities base.Settings
+	signal         chan struct{}
+	last           atomic.Int64
+	dwac           chan struct{}
+	ceac           chan error
+	ceaOnce        sync.Once
+	ceaReceived    atomic.Bool
+	ceaValidated   chan struct{}
+	handshakePhase atomic.Uint32 // 0 pending, 1 validated, 2 timed out
+	advertised     []uint32
+	capabilities   base.Settings
 }
 
 func newWatchdogActivity() *watchdogActivity {
-	return &watchdogActivity{signal: make(chan struct{}, 1), dwac: make(chan struct{}, 1), ceac: make(chan error, 1)}
+	return &watchdogActivity{signal: make(chan struct{}, 1), dwac: make(chan struct{}, 1), ceac: make(chan error, 1), ceaValidated: make(chan struct{})}
 }
 
 type activityHandler struct {
@@ -142,6 +144,8 @@ type activityHandler struct {
 }
 
 func (h activityHandler) ServeDIAM(c diam.Conn, m *diam.Message) {
+	release := m.BeginDispatch()
+	defer release()
 	// RFC 6733 §5.6: Wait-I-CEA / I-Rcv-Non-CEA -> Error -> Closed.
 	isCEA := m.Header.ApplicationID == 0 && m.Header.CommandCode == diam.CapabilitiesExchange && m.Header.CommandFlags&diam.RequestFlag == 0
 	if !h.activity.ceaReceived.Load() && !isCEA {
@@ -180,6 +184,8 @@ func (h activityHandler) ServeDIAM(c diam.Conn, m *diam.Message) {
 // HandleMessageError also enforces Wait-I-CEA for malformed input, which
 // the transport does not dispatch through ServeDIAM (RFC 6733 §5.6).
 func (h activityHandler) HandleMessageError(c diam.Conn, m *diam.Message, err *diam.MessageError) error {
+	release := m.BeginDispatch()
+	defer release()
 	if !h.activity.ceaReceived.Load() {
 		h.rejectHandshake(c, err)
 		return nil
@@ -188,6 +194,7 @@ func (h activityHandler) HandleMessageError(c diam.Conn, m *diam.Message, err *d
 }
 
 func (h activityHandler) rejectHandshake(c diam.Conn, err error) {
+	logMessage(c, nil, slog.LevelWarn, "sm: Wait-I-CEA rejected message; closing connection", err)
 	h.activity.ceaOnce.Do(func() { h.activity.ceac <- err })
 	c.Close()
 }
@@ -394,28 +401,42 @@ func (cli *Client) handshake(c diam.Conn, activity *watchdogActivity) (diam.Conn
 		c.Close()
 		return nil, err
 	}
-	// CEA and DWA are dispatched by the per-connection activityHandler.
-	errc := activity.ceac
-	for i := 0; i < (int(cli.MaxRetransmits) + 1); i++ {
-		_, err := m.WriteTo(c)
+	// CEA validation ends the protocol timeout. OnHandshake completion is a
+	// separate event: an application callback may take longer than the entire
+	// retransmit budget, and Dial must still wait for it (RFC 6733 §5.3).
+	finish := func(err error) (diam.Conn, error) {
 		if err != nil {
 			c.Close()
 			return nil, err
 		}
+		if cli.EnableWatchdog {
+			go cli.watchdog(c, activity.dwac, activity)
+		}
+		return c, nil
+	}
+	for i := 0; i < int(cli.MaxRetransmits)+1; i++ {
+		if activity.handshakePhase.Load() == 1 {
+			return finish(<-activity.ceac)
+		}
+		if _, err := m.WriteTo(c); err != nil {
+			c.Close()
+			return nil, err
+		}
 		select {
-		case err, ok := <-errc: // Wait for CEA.
-			if ok && err != nil {
-				close(errc)
-				c.Close()
-				return nil, err
-			}
-			if cli.EnableWatchdog {
-				go cli.watchdog(c, activity.dwac, activity)
-			}
-			return c, nil
+		case err := <-activity.ceac:
+			return finish(err)
+		case <-activity.ceaValidated:
+			return finish(<-activity.ceac)
 		case <-time.After(cli.RetransmitInterval):
 		}
 	}
+	// Arbitrate a CEA arriving at the deadline. Once validation wins, a slow
+	// callback cannot be mistaken for an unanswered CER.
+	if !activity.handshakePhase.CompareAndSwap(0, 2) {
+		return finish(<-activity.ceac)
+	}
+
+	logMessage(c, nil, slog.LevelWarn, "sm: CEA timeout; closing connection", ErrHandshakeTimeout)
 	c.Close()
 	return nil, ErrHandshakeTimeout
 }
@@ -521,6 +542,7 @@ func (cli *Client) watchdog(c diam.Conn, dwac chan struct{}, activity *watchdogA
 				// RFC 3539 Appendix A: a second Tw expiry in SUSPECT
 				// transitions to DOWN and closes this connection.
 				cli.observeWatchdog(c, WatchdogTimedOut)
+				logMessage(c, nil, slog.LevelWarn, "sm: watchdog timeout; closing connection", nil)
 				c.Close()
 				return
 			}
@@ -542,7 +564,7 @@ func (cli *Client) watchdog(c diam.Conn, dwac chan struct{}, activity *watchdogA
 func (cli *Client) dwr(c diam.Conn, osid uint32) bool {
 	m, err := cli.makeDWR(osid)
 	if err != nil {
-		cli.Handler.Error(&diam.ErrorReport{Conn: c, Error: err})
+		logMessage(c, nil, slog.LevelError, "sm: watchdog request failed; closing connection", err)
 		c.Close()
 		return false
 	}
@@ -554,7 +576,7 @@ func (cli *Client) dwr(c diam.Conn, osid uint32) bool {
 	if err != nil {
 		cli.emitWatchdog(c, WatchdogWriteFailed)
 		cli.watchdogEventMu.Unlock()
-		cli.Handler.Error(&diam.ErrorReport{Conn: c, Message: m, Error: err})
+		logMessage(c, m, slog.LevelError, "sm: watchdog request failed; closing connection", err)
 		c.Close()
 		return false
 	}

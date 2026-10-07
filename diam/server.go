@@ -28,8 +28,11 @@ import (
 // without waiting for older handlers. Protocol handlers may use BeginDispatch
 // to order admission, and must release admission before waiting for later traffic.
 // Wrappers around an ordered handler must forward ServeDIAM synchronously, before
-// returning. They must also forward MessageErrorHandler synchronously or consume
-// the error themselves; a consumed callback leaves no gap in dispatch order.
+// returning. A wrapper should expose Unwrap() Handler so HandlerAs can discover optional
+// AcceptHandler and MessageErrorHandler methods. These calls bypass an Unwrap-only
+// wrapper. A wrapper intercepting MessageErrorHandler must delegate synchronously
+// or take responsibility itself; consuming a callback leaves no dispatch gap.
+// Successive Unwrap calls must terminate.
 type Handler interface {
 	// ServeDIAM should write messages to the Conn and then return.
 	// Returning signals that the request is finished.
@@ -44,6 +47,10 @@ type Handler interface {
 
 // Conn interface is used by a handler to send diameter messages.
 type Conn interface {
+	// Logger returns the owning Server or Client logger, with network,
+	// local_addr and remote_addr attributes. A nil configured logger resolves
+	// slog.Default on every call, including after a later slog.SetDefault.
+	Logger() *slog.Logger
 	Write(b []byte) (int, error)                    // Writes a msg to the connection
 	WriteStream(b []byte, stream uint) (int, error) // Writes a msg to the connection's stream
 	Close()                                         // Close the connection
@@ -71,8 +78,8 @@ type CloseNotifier interface {
 // transport handshake, once on the accepted connection's goroutine, and must
 // not block. Its returned function is called once when the connection closes.
 // The hook runs after TLS because Server.TLSHandshakeTimeout separately bounds
-// the TLS handshake. Wrappers must forward this method; otherwise a wrapped
-// sm.StateMachine's pre-CER message gate and handshake timeout are disabled.
+// the TLS handshake. Server uses HandlerAs on Server.Handler, so Unwrap wrappers need not forward
+// this method. An intercepting wrapper must delegate to retain inner admission.
 type AcceptHandler interface {
 	HandleAccept(c Conn) (onClose func())
 }
@@ -275,7 +282,7 @@ func (c *conn) serve() {
 		}
 		// TLS is already bounded by Server.TLSHandshakeTimeout; admission
 		// starts after that handshake so its timer covers CER/CEA only.
-		if ah, ok := h.(AcceptHandler); ok {
+		if ah, ok := HandlerAs[AcceptHandler](h); ok {
 			onClose = ah.HandleAccept(c.writer)
 		}
 	}
@@ -339,37 +346,50 @@ func (srv *Server) tlsHandshakeTimeout() time.Duration {
 // support an opportunity to answer malformed messages. It returns true only
 // when the message boundary is still reliable and the handler succeeded.
 func (c *conn) handleReadError(m *Message, err error) bool {
-	if err == io.EOF || err == io.ErrUnexpectedEOF {
+	var me *MessageError
+	if !errors.As(err, &me) {
+		// Local closes include net.OpError wrappers. MessageError takes
+		// precedence above: a decoder can wrap either close sentinel. Only
+		// bare EOF is quiet; wrapped EOF can identify a truncated body.
+		if err == io.EOF || errors.Is(err, net.ErrClosed) {
+			return false
+		}
+		level := slog.LevelWarn
+		var ne net.Error
+		if errors.As(err, &ne) || errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) || errors.Is(err, io.ErrClosedPipe) {
+			level = slog.LevelDebug
+		}
+		c.log(level, "diam: read failed; closing connection", slog.Any("error", err), slog.Any("message", m))
 		return false
 	}
-
+	// RFC 6733 §7: record the decoding failure before the handler can answer
+	// or close. A handler may take responsibility asynchronously.
+	attrs := []slog.Attr{slog.Any("error", err), slog.Any("message", m), slog.Uint64("result_code", uint64(me.ResultCode)), slog.Bool("fatal", me.Fatal)}
+	c.log(slog.LevelWarn, "diam: malformed message", attrs...)
 	h := c.server.Handler
 	if h == nil {
 		h = DefaultServeMux
 	}
-
-	reportErr := err
-	var messageErr *MessageError
-	var handleErr error
-	handled := false
-	if errors.As(err, &messageErr) {
-		c.prepareDispatch(m)
-		defer m.releaseDispatch()
-		if dispatcher, ok := h.(messageErrorDispatcher); ok {
-			handled, handleErr = dispatcher.dispatchMessageError(c.writer, m, messageErr)
-		} else if messageErrorHandler, ok := h.(MessageErrorHandler); ok {
-			handled = true
-			handleErr = messageErrorHandler.HandleMessageError(c.writer, m, messageErr)
-		}
-		if handleErr != nil {
-			reportErr = errors.Join(err, fmt.Errorf("handle Diameter message error: %w", handleErr))
+	c.prepareDispatch(m)
+	defer m.releaseDispatch()
+	handleErr := fmt.Errorf("no handler supports Diameter message errors: %w", errors.ErrUnsupported)
+	if mh, ok := HandlerAs[MessageErrorHandler](h); ok {
+		handleErr = mh.HandleMessageError(c.writer, m, me)
+	}
+	if handleErr == nil && !me.Fatal {
+		return true
+	}
+	level := slog.LevelWarn
+	msg := "diam: malformed message; closing connection"
+	if handleErr != nil {
+		attrs[0] = slog.Any("error", errors.Join(err, handleErr))
+		if !errors.Is(handleErr, errors.ErrUnsupported) {
+			level = slog.LevelError
+			msg = "diam: malformed message handler failed; closing connection"
 		}
 	}
-
-	if reporter, ok := h.(ErrorReporter); ok {
-		reporter.Error(&ErrorReport{c.writer, m, reportErr})
-	}
-	return handled && handleErr == nil && !messageErr.Fatal
+	c.log(level, msg, attrs...)
+	return false
 }
 
 // dispatch invokes the handler for m either in the current goroutine
@@ -607,54 +627,24 @@ func (f HandlerFunc) ServeDIAM(c Conn, m *Message) {
 	f(c, m)
 }
 
-// The ErrorReporter interface is implemented by Handlers that
-// allow reading errors from the underlying connection, like
-// parsing diameter messages or connection errors.
-type ErrorReporter interface {
-	// Error writes an error to the reporter.
-	Error(err *ErrorReport)
-
-	// ErrorReports returns a channel that receives
-	// errors from the connection.
-	ErrorReports() <-chan *ErrorReport
-}
-
-// MessageErrorHandler is implemented by handlers that can construct Diameter
-// error answers using their configured node identity. The server calls it
-// synchronously on the reader and never dispatches the malformed message through
-// ServeDIAM. Returning never waits for earlier handlers. The callback itself must
-// not wait for subsequent input on the same connection. Ordered protocol handlers
-// may call BeginDispatch to await earlier admission. Wrappers must forward this
-// method synchronously or handle the error themselves before returning.
+// MessageErrorHandler takes responsibility for malformed messages (RFC 6733 §7).
+// Server discovers it with HandlerAs and calls it synchronously on the reader,
+// never through ServeDIAM. Nil means the handler takes responsibility to answer,
+// discard an answer, or close, possibly asynchronously. The component performing
+// that work logs any later failure. An error matching errors.ErrUnsupported
+// declines responsibility; any other error means taking responsibility failed.
+// The callback must not wait for subsequent input on this connection. Ordered
+// handlers may call Message.BeginDispatch. An Unwrap-only wrapper is bypassed;
+// a wrapper intercepting this method must delegate synchronously or take
+// responsibility itself before returning.
 type MessageErrorHandler interface {
 	HandleMessageError(Conn, *Message, *MessageError) error
-}
-
-type messageErrorDispatcher interface {
-	dispatchMessageError(Conn, *Message, *MessageError) (bool, error)
-}
-
-// ErrorReport is sent out of the server in case it fails to
-// read messages due to a bad dictionary or network errors.
-type ErrorReport struct {
-	Conn    Conn     // Peer that caused the error
-	Message *Message // Message that caused the error
-	Error   error    // Error message
-}
-
-// String returns an error message. It does not render the Message field.
-func (er *ErrorReport) String() string {
-	if er.Conn == nil {
-		return fmt.Sprintf("diameter error: %s", er.Error)
-	}
-	return fmt.Sprintf("diameter error on %s: %s", er.Conn.RemoteAddr(), er.Error)
 }
 
 // ServeMux is a diameter message multiplexer. It matches the
 // command from the incoming message against a list of
 // registered commands and calls the handler.
 type ServeMux struct {
-	e      chan *ErrorReport
 	mu     sync.RWMutex // Guards m.
 	m      map[string]muxEntry
 	idxMap map[CommandIndex]muxEntry
@@ -677,7 +667,6 @@ var ALL_CMD_INDEX = CommandIndex{^uint32(0), ^uint32(0), false}
 // NewServeMux allocates and returns a new ServeMux.
 func NewServeMux() *ServeMux {
 	return &ServeMux{
-		e:      make(chan *ErrorReport, 1),
 		m:      make(map[string]muxEntry),
 		idxMap: make(map[CommandIndex]muxEntry),
 	}
@@ -686,171 +675,106 @@ func NewServeMux() *ServeMux {
 // DefaultServeMux is the default ServeMux used by Serve.
 var DefaultServeMux = NewServeMux()
 
-// Error implements the ErrorReporter interface.
-func (mux *ServeMux) Error(err *ErrorReport) {
-	select {
-	case mux.e <- err:
-	default:
+// Handler returns the handler for m: its CommandIndex registration, then its
+// dictionary short-name registration, then ALL. It returns nil, false if none
+// matches. Index routes work even when the dictionary does not know the command.
+func (mux *ServeMux) Handler(m *Message) (Handler, bool) {
+	mux.mu.RLock()
+	defer mux.mu.RUnlock()
+	if m != nil && m.Header != nil {
+		h := m.Header
+		idx := CommandIndex{h.ApplicationID, h.CommandCode, h.CommandFlags&RequestFlag != 0}
+		if e, ok := mux.idxMap[idx]; ok {
+			return e.h, true
+		}
+		if cmd, err := m.Dictionary().FindCommand(h.ApplicationID, h.CommandCode); err == nil {
+			name := cmd.Short + "A"
+			if idx.Request {
+				name = cmd.Short + "R"
+			}
+			if e, ok := mux.m[name]; ok {
+				return e.h, true
+			}
+		}
 	}
+	e, ok := mux.idxMap[ALL_CMD_INDEX]
+	return e.h, ok
 }
 
-// ErrorReports implement the ErrorReporter interface.
-func (mux *ServeMux) ErrorReports() <-chan *ErrorReport {
-	return mux.e
-}
-
-// ServeDIAM dispatches the request to the handler that match the code
-// in the incoming message. If the special "ALL" handler is registered
-// it is used as a catch-all. Otherwise an ErrorReport is sent out.
+// ServeDIAM calls the handler returned by Handler. If no route matches, it
+// drops m and writes a synchronous Warn record using m.Context(). A bare mux
+// cannot answer without a local identity; sm.StateMachine answers unsupported
+// requests (RFC 6733 §7.1.3).
 func (mux *ServeMux) ServeDIAM(c Conn, m *Message) {
-	mux.mu.RLock()
-	defer mux.mu.RUnlock()
-	dcmd, err := m.Dictionary().FindCommand(
-		m.Header.ApplicationID,
-		m.Header.CommandCode)
-
-	if err != nil {
-		// Try the catch-all.
-		mux.serveIdx(ALL_CMD_INDEX, c, m)
+	if h, ok := mux.Handler(m); ok {
+		h.ServeDIAM(c, m)
 		return
 	}
-
-	idx := CommandIndex{
-		m.Header.ApplicationID,
-		m.Header.CommandCode,
-		m.Header.CommandFlags&RequestFlag == RequestFlag}
-	_, ok := mux.idxMap[idx]
-	if ok {
-		mux.serveIdx(idx, c, m)
-		return
-	}
-
-	var cmd string
-	if m.Header.CommandFlags&RequestFlag == RequestFlag {
-		cmd = dcmd.Short + "R"
-	} else {
-		cmd = dcmd.Short + "A"
-	}
-	mux.serve(cmd, c, m)
+	c.Logger().LogAttrs(m.Context(), slog.LevelWarn, "diam: unhandled message", slog.Any("message", m))
 }
 
-// HandleMessageError dispatches a malformed message to the registered handler
-// that matches its command, or to the "ALL" handler when present.
+// HandleMessageError delegates to the MessageErrorHandler found through
+// HandlerAs on the matching route, falling back to ALL if the route has no such
+// interface. It returns an error matching errors.ErrUnsupported when neither
+// supports malformed messages. It never invokes a route's ServeDIAM.
 func (mux *ServeMux) HandleMessageError(c Conn, m *Message, messageErr *MessageError) error {
-	handled, err := mux.dispatchMessageError(c, m, messageErr)
-	if err != nil {
-		return err
+	if h, ok := mux.Handler(m); ok {
+		if mh, ok := HandlerAs[MessageErrorHandler](h); ok {
+			return mh.HandleMessageError(c, m, messageErr)
+		}
 	}
-	if !handled {
-		return errors.New("no registered handler supports Diameter message errors")
-	}
-	return nil
-}
-
-func (mux *ServeMux) dispatchMessageError(c Conn, m *Message, messageErr *MessageError) (bool, error) {
 	mux.mu.RLock()
-	defer mux.mu.RUnlock()
-
-	if m == nil || m.Header == nil {
-		return handleMuxMessageError(mux.idxMap[ALL_CMD_INDEX], c, m, messageErr)
+	fallback := mux.idxMap[ALL_CMD_INDEX].h
+	mux.mu.RUnlock()
+	if mh, ok := HandlerAs[MessageErrorHandler](fallback); ok {
+		return mh.HandleMessageError(c, m, messageErr)
 	}
-
-	dcmd, err := m.Dictionary().FindCommand(m.Header.ApplicationID, m.Header.CommandCode)
-	if err == nil {
-		idx := CommandIndex{
-			AppID:   m.Header.ApplicationID,
-			Code:    m.Header.CommandCode,
-			Request: m.Header.CommandFlags&RequestFlag == RequestFlag,
-		}
-		if entry, ok := mux.idxMap[idx]; ok {
-			if handled, handleErr := handleMuxMessageError(entry, c, m, messageErr); handled {
-				return true, handleErr
-			}
-			return handleMuxMessageError(mux.idxMap[ALL_CMD_INDEX], c, m, messageErr)
-		}
-
-		cmd := dcmd.Short + "A"
-		if idx.Request {
-			cmd = dcmd.Short + "R"
-		}
-		if entry, ok := mux.m[cmd]; ok {
-			if handled, handleErr := handleMuxMessageError(entry, c, m, messageErr); handled {
-				return true, handleErr
-			}
-		}
-	}
-
-	return handleMuxMessageError(mux.idxMap[ALL_CMD_INDEX], c, m, messageErr)
+	return fmt.Errorf("no registered handler supports Diameter message errors: %w", errors.ErrUnsupported)
 }
 
-func handleMuxMessageError(entry muxEntry, c Conn, m *Message, messageErr *MessageError) (bool, error) {
-	handler, ok := entry.h.(MessageErrorHandler)
-	if !ok {
-		return false, nil
-	}
-	return true, handler.HandleMessageError(c, m, messageErr)
-}
-
-func (mux *ServeMux) serveIdx(cmd CommandIndex, c Conn, m *Message) {
-	entry, ok := mux.idxMap[cmd]
-	if ok {
-		entry.h.ServeDIAM(c, m)
-		return
-	}
-	// Try catch-all.
-	entry, ok = mux.idxMap[ALL_CMD_INDEX]
-	if ok {
-		entry.h.ServeDIAM(c, m)
-		return
-	}
-	mux.Error(&ErrorReport{
-		Conn:    c,
-		Message: m,
-		Error:   fmt.Errorf("unhandled message for index: %+v", cmd),
-	})
-}
-
-func (mux *ServeMux) serve(cmd string, c Conn, m *Message) {
-	entry, ok := mux.m[cmd]
-	if ok {
-		entry.h.ServeDIAM(c, m)
-		return
-	}
-	// Try catch-all.
-	entry, ok = mux.idxMap[ALL_CMD_INDEX]
-	if ok {
-		entry.h.ServeDIAM(c, m)
-		return
-	}
-	mux.Error(&ErrorReport{
-		Conn:    c,
-		Message: m,
-		Error:   fmt.Errorf("unhandled message for '%s'", cmd),
-	})
-}
-
-// Handle registers the handler for the given code.
-// If a handler already exists for code, Handle panics.
+// Handle registers a command short name, such as CER, or ALL as a fallback.
+// Short names are application-agnostic: PUR matches both S6a and Sh PUR.
+// Use HandleIdx with an AppID to bind one application. Handle panics for an
+// empty name, a nil handler, or a duplicate registration.
 func (mux *ServeMux) Handle(shortCmd string, handler Handler) {
 	mux.mu.Lock()
 	defer mux.mu.Unlock()
 	if handler == nil {
-		panic("DIAM: nil handler")
+		panic("diam: nil handler")
+	}
+	if f, ok := handler.(HandlerFunc); ok && f == nil {
+		panic("diam: nil handler")
+	}
+	if shortCmd == "" {
+		panic("diam: empty command name")
 	}
 	if shortCmd == "ALL" {
+		if _, ok := mux.idxMap[ALL_CMD_INDEX]; ok {
+			panic("diam: duplicate ALL handler")
+		}
 		mux.idxMap[ALL_CMD_INDEX] = muxEntry{h: handler, cmd: shortCmd}
 		return
+	}
+	if _, ok := mux.m[shortCmd]; ok {
+		panic("diam: duplicate handler for " + shortCmd)
 	}
 	mux.m[shortCmd] = muxEntry{h: handler, cmd: shortCmd}
 }
 
-// Handle registers the handler for the given code.
-// If a handler already exists for code, Handle panics.
+// HandleIdx registers an application-specific command index; ALL_CMD_INDEX
+// is the same fallback as Handle("ALL", handler). It panics for nil handlers
+// or duplicate indexes.
 func (mux *ServeMux) HandleIdx(cmd CommandIndex, handler Handler) {
 	mux.mu.Lock()
 	defer mux.mu.Unlock()
 	if handler == nil {
-		panic("DIAM: nil handler")
+		panic("diam: nil handler")
+	}
+	if f, ok := handler.(HandlerFunc); ok && f == nil {
+		panic("diam: nil handler")
+	}
+	if _, ok := mux.idxMap[cmd]; ok {
+		panic(fmt.Sprintf("diam: duplicate handler for %v", cmd))
 	}
 	mux.idxMap[cmd] = muxEntry{h: handler, cmdIdx: cmd}
 }
@@ -858,6 +782,9 @@ func (mux *ServeMux) HandleIdx(cmd CommandIndex, handler Handler) {
 // HandleFunc registers the handler function for the given command.
 // Special cmd "ALL" may be used as a catch all.
 func (mux *ServeMux) HandleFunc(cmd string, handler func(Conn, *Message)) {
+	if handler == nil {
+		panic("diam: nil handler")
+	}
 	mux.Handle(cmd, HandlerFunc(handler))
 }
 
@@ -871,11 +798,6 @@ func Handle(cmd string, handler Handler) {
 // in the DefaultServeMux.
 func HandleFunc(cmd string, handler func(Conn, *Message)) {
 	DefaultServeMux.HandleFunc(cmd, handler)
-}
-
-// ErrorReports returns the ErrorReport channel of the DefaultServeMux.
-func ErrorReports() <-chan *ErrorReport {
-	return DefaultServeMux.ErrorReports()
 }
 
 // Serve accepts incoming diameter connections on the listener l,
@@ -931,9 +853,10 @@ type Server struct {
 	// callbacks to return, so a callback that waits for a later message on its
 	// connection must not be followed by one that calls BeginDispatch while every
 	// slot is taken. sm.StateMachine and peer.Manager
-	// do this internally. Their wrappers must follow Handler's synchronous forwarding
-	// contract, including MessageErrorHandler. Shared application state still needs
-	// its own synchronization.
+	// do this internally. Their wrappers must forward ServeDIAM synchronously.
+	// Unwrap-only wrappers are bypassed for MessageErrorHandler; wrappers that
+	// intercept it must delegate synchronously or take responsibility themselves.
+	// Shared application state still needs its own synchronization.
 	MaxConcurrentHandlers int
 
 	// OnNewConnection, if non-nil, is invoked once per accepted connection
@@ -958,17 +881,22 @@ type Server struct {
 	// return promptly when it is canceled.
 	OnShutdownConnection func(ctx context.Context, c Conn)
 
-	// Logger receives the records the server writes about the connections
-	// it serves, accepted and dialed alike: recovered handler panics (Error,
-	// with the panic value and stack), accept failures Serve retries (Warn)
-	// and failures to close a connection (Debug). Connection records carry
-	// the network, local_addr and remote_addr attributes and are written
-	// with the connection's Context. An error returned to the caller is not
-	// logged as well.
-	//
-	// A nil Logger uses slog.Default, looked up for every record so that a
-	// later slog.SetDefault applies. Use slog.New(slog.DiscardHandler) to
-	// discard the records.
+	// Logger receives synchronous records about accepted and dialed connections
+	// through Conn.Logger. Error records describe recovered panics (value and stack)
+	// and failures taking responsibility for malformed messages. Warn records
+	// describe malformed messages (RFC 6733 §7), unhandled messages, undecodable
+	// input, and accept failures Serve retries. Transport read failures other than
+	// bare EOF and errors wrapping net.ErrClosed, and close failures, are Debug.
+	// StateMachine logs answered unsupported requests at Info and unmatched answers
+	// at Warn; protocol faults are Warn and local failures are Error.
+	// A malformed-input record precedes the optional error handler. If Server
+	// decides to close, it records that decision before closing. Handlers that
+	// close or fail asynchronously log their own decisions before acting.
+	// The error attribute retains the error value for errors.As. Connection
+	// records include network, local_addr and remote_addr. Slow slog handlers
+	// slow the detecting goroutine; buffering and sampling are application choices.
+	// Nil uses slog.Default for each record, honoring later slog.SetDefault calls.
+	// Use slog.New(slog.DiscardHandler) to discard records.
 	Logger *slog.Logger
 
 	mu        sync.Mutex

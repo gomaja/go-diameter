@@ -152,11 +152,11 @@ func (a *actor) sendWatchdog() {
 	}
 	msg, err := base.BuildDWR(a.m.dictionary(), a.m.baseSettings(a.active.c), uint32(a.m.cfg.Settings.OriginStateID))
 	if err != nil {
-		a.fail(fmt.Errorf("peer: build DWR: %w", err))
+		a.failLocal("build DWR", err)
 		return
 	}
 	if err := a.active.sendControl(msg); err != nil {
-		a.fail(fmt.Errorf("peer: DWR write: %w", err))
+		a.failLocal("send DWR", err)
 		return
 	}
 	a.pendingWatchdog = true

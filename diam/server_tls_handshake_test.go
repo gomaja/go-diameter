@@ -141,8 +141,15 @@ func TestServerTLSHandshakeNegativeDisablesDeadline(t *testing.T) {
 
 func TestServerTLSHandshakeClearsDeadline(t *testing.T) {
 	opened := make(chan struct{}, 1)
-	srv := &diam.Server{TLSHandshakeTimeout: 80 * time.Millisecond, ReadTimeout: 350 * time.Millisecond,
-		OnNewConnection: func(diam.Conn) { opened <- struct{}{} }}
+	writeDone := make(chan error, 1)
+	srv := &diam.Server{TLSHandshakeTimeout: 700 * time.Millisecond, ReadTimeout: 1200 * time.Millisecond,
+		OnNewConnection: func(c diam.Conn) {
+			opened <- struct{}{}
+			// A stale handshake write deadline is visible before the next read resets its own deadline.
+			time.Sleep(900 * time.Millisecond)
+			_, err := c.Connection().Write([]byte{0x7f})
+			writeDone <- err
+		}}
 	addr, certFile, _, _ := tlsHandshakeTestServer(t, srv)
 	client, err := tls.DialWithDialer(&net.Dialer{Timeout: time.Second}, "tcp", addr,
 		testClientTLSConfig(t, certFile))
@@ -155,17 +162,28 @@ func TestServerTLSHandshakeClearsDeadline(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("OnNewConnection not called after TLS handshake")
 	}
-	start := time.Now()
-	if err := client.SetReadDeadline(start.Add(time.Second)); err != nil {
-		t.Fatal(err)
+	select {
+	case err := <-writeDone:
+		if err != nil {
+			t.Fatalf("post-handshake write: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("post-handshake write did not complete")
 	}
 	var b [1]byte
+	if _, err := io.ReadFull(client, b[:]); err != nil || b[0] != 0x7f {
+		t.Fatalf("post-handshake TLS marker = %x, %v", b, err)
+	}
+	start := time.Now()
+	if err := client.SetReadDeadline(start.Add(3 * time.Second)); err != nil {
+		t.Fatal(err)
+	}
 	_, err = client.Read(b[:])
 	if !errors.Is(err, io.EOF) {
 		t.Fatalf("post-handshake read = %v, want EOF", err)
 	}
-	if elapsed := time.Since(start); elapsed < 200*time.Millisecond || elapsed > 800*time.Millisecond {
-		t.Fatalf("post-handshake ReadTimeout elapsed %v, want approximately 350ms", elapsed)
+	if elapsed := time.Since(start); elapsed < 900*time.Millisecond || elapsed > 1800*time.Millisecond {
+		t.Fatalf("post-handshake ReadTimeout elapsed %v, want approximately 1200ms", elapsed)
 	}
 }
 

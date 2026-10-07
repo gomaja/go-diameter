@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"log/slog"
 	"net"
 	"net/netip"
 	"strings"
@@ -177,11 +178,7 @@ func TestClient_Handshake_Notify(t *testing.T) {
 			}),
 		},
 	}
-	handshakeOK := make(chan struct{})
-	go func() {
-		<-cli.Handler.HandshakeNotify()
-		close(handshakeOK)
-	}()
+	handshakeOK := testHandshakeNotifications(cli.Handler)
 	c, err := cli.Dial(srv.Addr)
 	if err != nil {
 		t.Fatal(err)
@@ -361,19 +358,25 @@ func TestClient_WatchdogSlowObserverDoesNotTimeoutSuccessfulAnswer(t *testing.T)
 	answerStarted := make(chan struct{})
 	releaseAnswer := make(chan struct{})
 	answerFinished := make(chan struct{})
+	timedOut := make(chan struct{}, 1)
+	var startedOnce, finishedOnce sync.Once
 	cli := &Client{
 		EnableWatchdog:     true,
 		WatchdogInterval:   250 * time.Millisecond,
 		watchdogTiming:     &watchdogTiming{floor: time.Millisecond},
-		RetransmitInterval: 20 * time.Millisecond,
+		RetransmitInterval: 500 * time.Millisecond,
 		Handler:            mustNewStateMachine(t, clientSettings),
 		OnWatchdogEvent: func(event WatchdogEvent) {
+			if event == WatchdogTimedOut {
+				timedOut <- struct{}{}
+				return
+			}
 			if event != WatchdogAnswerReceived {
 				return
 			}
-			close(answerStarted)
+			startedOnce.Do(func() { close(answerStarted) })
 			<-releaseAnswer
-			close(answerFinished)
+			finishedOnce.Do(func() { close(answerFinished) })
 		},
 		AcctApplicationID: []*diam.AVP{
 			diam.NewAVP(avp.AcctApplicationID, avp.Mbit, 0, datatype.Unsigned32(3)),
@@ -384,6 +387,9 @@ func TestClient_WatchdogSlowObserverDoesNotTimeoutSuccessfulAnswer(t *testing.T)
 		t.Fatal(err)
 	}
 	defer c.Close()
+	var releaseOnce sync.Once
+	release := func() { releaseOnce.Do(func() { close(releaseAnswer) }) }
+	defer release()
 
 	select {
 	case <-answerStarted:
@@ -393,22 +399,31 @@ func TestClient_WatchdogSlowObserverDoesNotTimeoutSuccessfulAnswer(t *testing.T)
 	select {
 	case <-c.(diam.CloseNotifier).CloseNotify():
 		t.Fatal("watchdog closed a healthy connection while the answer observer was blocked")
-	case <-time.After(3 * cli.RetransmitInterval):
+	case <-timedOut:
+		t.Fatal("watchdog timed out a healthy connection while the answer observer was blocked")
+	case <-time.After(7 * cli.WatchdogInterval):
 	}
-	close(releaseAnswer)
+	release()
 	select {
 	case <-answerFinished:
 	case <-time.After(time.Second):
 		t.Fatal("timeout waiting for answer observer to return")
+	}
+	select {
+	case <-c.(diam.CloseNotifier).CloseNotify():
+		t.Fatal("watchdog closed a healthy connection after the answer observer returned")
+	case <-timedOut:
+		t.Fatal("watchdog timed out a healthy connection after the answer observer returned")
+	case <-time.After(cli.WatchdogInterval):
 	}
 }
 
 func TestClient_Watchdog_Timeout(t *testing.T) {
 	sm := mustNewStateMachine(t, serverSettings)
 	var once sync.Once
-	sm.mux.HandleIdx(baseDWRIdx, handshakeOK(func(c diam.Conn, m *diam.Message) {
+	sm.dwrHandler = handshakeOK(func(c diam.Conn, m *diam.Message) {
 		once.Do(func() { mustWriteSMClientMessage(t, m.Answer(diam.UnableToComply), c) })
-	}))
+	})
 	srv := diamtest.NewServer(sm, dict.Default)
 	defer srv.Close()
 	events := make(chan WatchdogEvent, 2)
@@ -660,3 +675,5 @@ func TestClient_InbandSecurityID_TLS(t *testing.T) {
 		t.Fatalf("Expected Inband-Security-Id=1, got %d", got)
 	}
 }
+
+func (d testLocalAddrDiamConn) Logger() *slog.Logger { return slog.Default() }

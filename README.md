@@ -176,12 +176,44 @@ The security pipeline adds:
 
 ## Logging and Tracing
 
-`diam.Server`, `sm.Client` and `peer.Config` each have a `Logger
-*slog.Logger` field. It receives what the library cannot return to a caller:
-recovered handler panics (Error, with the stack), accept failures that
-`Serve` retries (Warn), and failures to close a connection (Debug). A nil
-`Logger` uses `slog.Default()`; `slog.New(slog.DiscardHandler)` discards the
-records.
+`diam.Server`, `sm.Client` and `peer.Config` each expose a `Logger *slog.Logger`.
+Connection handlers use `Conn.Logger()`, which adds network and address attributes.
+A nil logger resolves `slog.Default()` for each call; use
+`slog.New(slog.DiscardHandler)` to discard records.
+
+Records are synchronous: a slow `slog.Handler` slows the detecting goroutine.
+Diagnostic records are emitted directly without a library report queue or sampling.
+During server shutdown, new messages other than DPA are discarded without a
+per-message record. A custom logging handler can inspect the retained `error`
+value with `errors.As`. The `message` group contains header metadata only, never
+AVPs.
+
+Malformed messages produce Warn records before optional error handling. Each
+component records its own close decision before closing; asynchronous peer
+answer failures are reported by the peer manager. State-machine unsupported
+requests answered with 3001/3007 are Info, unmatched answers and protocol faults
+are Warn, and local failures or recovered panics are Error. Transport read
+failures and close failures are Debug; bare EOF and errors wrapping
+`net.ErrClosed` are quiet. A wrapped EOF still records a truncated read at Debug.
+Peer event-queue overflow produces a Warn record.
+
+Use `CloseNotify` for disconnects, watchdog hooks for liveness, `OnPeerEvent` for
+managed peers, and an `ALL` handler for unmatched messages. `Settings.OnHandshake`
+runs once after successful CER/CEA exchange while admission is held. It must not
+wait for later messages on that connection or call `Disconnect` for it.
+
+Middleware should expose `Unwrap() diam.Handler`. `diam.HandlerAs` then discovers
+optional accept and malformed-message handlers through the wrapper. Those calls
+bypass an Unwrap-only wrapper. A wrapper that intercepts an optional method must
+delegate it synchronously or take responsibility itself. `ServeDIAM` forwarding
+must remain synchronous to retain message admission order. An `sm.StateMachine`
+must be the server handler or beneath Unwrap wrappers to start the handshake
+timeout. Opaque wrappers and mux routes still reject pre-CER traffic, but cannot
+start that timeout and remain unsupported wiring.
+
+Registrations panic for empty names, nil handlers, duplicates, and reserved
+state-machine commands. Short names span applications (for example, S6a and Sh
+`PUR`); use `HandleIdx` with an application ID for a specific application.
 
 ```go
 srv := &diam.Server{

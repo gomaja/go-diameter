@@ -1,8 +1,8 @@
 package diam
 
 import (
-	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,58 +15,60 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/internal/logtest"
+
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
 )
 
-// recordBuffer collects the JSON records of a test logger.
-type recordBuffer struct {
-	mu  sync.Mutex
-	buf bytes.Buffer
-}
+// logRecords adapts the shared recorder to JSON assertions in these tests.
+// JSON encoding occurs only on a snapshot, never on the connection goroutine.
+type logRecords struct{ *logtest.Recorder }
 
-func (b *recordBuffer) Write(p []byte) (int, error) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	return b.buf.Write(p)
-}
-
-func (b *recordBuffer) records(t *testing.T) []map[string]any {
+func (b *logRecords) records(t *testing.T) []map[string]any {
 	t.Helper()
-	b.mu.Lock()
-	defer b.mu.Unlock()
 	var out []map[string]any
-	sc := bufio.NewScanner(bytes.NewReader(b.buf.Bytes()))
-	sc.Buffer(nil, 1<<20)
-	for sc.Scan() {
+	for _, r := range b.Records() {
+		var buf bytes.Buffer
+		h := slog.NewJSONHandler(&buf, nil)
+		if err := h.Handle(context.Background(), r); err != nil {
+			t.Fatal(err)
+		}
 		var rec map[string]any
-		if err := json.Unmarshal(sc.Bytes(), &rec); err != nil {
-			t.Fatalf("log record %q: %v", sc.Text(), err)
+		if err := json.Unmarshal(buf.Bytes(), &rec); err != nil {
+			t.Fatal(err)
 		}
 		out = append(out, rec)
 	}
 	return out
 }
-
-// wait returns the records once there are at least n.
-func (b *recordBuffer) wait(t *testing.T, n int) []map[string]any {
+func (b *logRecords) wait(t *testing.T, n int) []map[string]any {
 	t.Helper()
-	deadline := time.Now().Add(2 * time.Second)
-	for {
-		recs := b.records(t)
-		if len(recs) >= n {
-			return recs
-		}
-		if time.Now().After(deadline) {
-			t.Fatalf("logged %d records after 2s, want %d: %v", len(recs), n, recs)
-		}
-		time.Sleep(5 * time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	if _, err := b.Wait(ctx, n); err != nil {
+		t.Fatal(err)
 	}
+	return b.records(t)
 }
 
-func newTestLogger(level slog.Level) (*slog.Logger, *recordBuffer) {
-	buf := &recordBuffer{}
-	return slog.New(slog.NewJSONHandler(buf, &slog.HandlerOptions{Level: level})), buf
+type levelLogHandler struct {
+	slog.Handler
+	level slog.Level
+}
+
+func (h levelLogHandler) Enabled(ctx context.Context, l slog.Level) bool {
+	return l >= h.level && h.Handler.Enabled(ctx, l)
+}
+func (h levelLogHandler) WithAttrs(a []slog.Attr) slog.Handler {
+	return levelLogHandler{h.Handler.WithAttrs(a), h.level}
+}
+func (h levelLogHandler) WithGroup(g string) slog.Handler {
+	return levelLogHandler{h.Handler.WithGroup(g), h.level}
+}
+func newTestLogger(level slog.Level) (*slog.Logger, *logRecords) {
+	logs := &logRecords{logtest.New()}
+	return slog.New(levelLogHandler{logs.Recorder, level}), logs
 }
 
 func wantRecord(t *testing.T, rec map[string]any, want map[string]any) {
@@ -257,7 +259,18 @@ func TestConnLogsCloseFailureAtDebug(t *testing.T) {
 			case <-time.After(2 * time.Second):
 				t.Fatal("read loop did not end after Close")
 			}
-			recs := logs.records(t)
+			// A local pipe close also produces a transport read failure. Inspect
+			// close failures independently; transport diagnostics are tested separately.
+			var recs []map[string]any
+			for _, rec := range logs.records(t) {
+				if rec["msg"] == "diam: read failed; closing connection" {
+					if rec["level"] != "DEBUG" {
+						t.Fatalf("transport failure level: %v", rec)
+					}
+					continue
+				}
+				recs = append(recs, rec)
+			}
 			if len(recs) != tc.want {
 				t.Fatalf("logged %d records, want %d: %v", len(recs), tc.want, recs)
 			}
