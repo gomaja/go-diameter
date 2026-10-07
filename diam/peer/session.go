@@ -2,11 +2,14 @@ package peer
 
 import (
 	"errors"
+	"net"
 	"sync"
 	"time"
 
 	"github.com/gomaja/go-diameter/diam"
 )
+
+var errQueueFull = errors.New("peer: queue full")
 
 type writeRequest struct {
 	msg        *diam.Message
@@ -15,7 +18,7 @@ type writeRequest struct {
 }
 type incoming struct {
 	msg *diam.Message
-	seq uint64
+	err *diam.MessageError
 }
 type session struct {
 	m               *Manager
@@ -55,17 +58,20 @@ func (m *Manager) newSession(c diam.Conn, a *actor, gen uint64, inbound bool) *s
 	go s.dispatch()
 	return s
 }
-func (s *session) enqueue(msg *diam.Message) bool {
+func (s *session) enqueue(msg *diam.Message) error {
+	return s.enqueueIncoming(incoming{msg: msg})
+}
+func (s *session) enqueueIncoming(in incoming) error {
 	s.ingressMu.Lock()
 	defer s.ingressMu.Unlock()
 	if s.ingressClosed {
-		return false
+		return net.ErrClosed
 	}
 	select {
-	case s.ingress <- incoming{msg: msg, seq: msg.DispatchSequence()}:
-		return true
+	case s.ingress <- in:
+		return nil
 	default:
-		return false
+		return errQueueFull
 	}
 }
 func (s *session) dispatch() {
@@ -78,34 +84,19 @@ func (s *session) dispatch() {
 			a.post(event{kind: connGone, s: s, gen: gen})
 		}
 	}()
-	next := uint64(1)
-	pending := make(map[uint64]*diam.Message)
-	process := func(in incoming) bool {
-		if in.seq == 0 {
-			s.m.processDIAM(s, in.msg)
-			return true
-		}
-		if in.seq < next {
-			return true
-		}
-		if in.seq > next {
-			if _, exists := pending[in.seq]; !exists && len(pending) >= s.m.cfg.Limits.Events {
-				s.m.report(s, in.msg, errors.New("peer: ordered ingress queue full"))
+	dispatch := func(in incoming) {
+		if in.err != nil {
+			if a, _ := s.binding(); a != nil {
+				a.post(event{kind: wireEvent, s: s, msg: in.msg, messageErr: in.err})
+			} else if err := s.m.answerMessageError(s, in.msg, in.err); err != nil {
+				s.m.report(s, in.msg, err)
 				s.close()
-				return false
 			}
-			pending[in.seq] = in.msg
-			return true
+		} else {
+			s.m.processDIAM(s, in.msg)
 		}
-		s.m.processDIAM(s, in.msg)
-		next++
-		for msg := pending[next]; msg != nil; msg = pending[next] {
-			delete(pending, next)
-			next++
-			s.m.processDIAM(s, msg)
-		}
-		return true
 	}
+
 	for {
 		select {
 		case <-s.closed:
@@ -114,17 +105,13 @@ func (s *session) dispatch() {
 			for {
 				select {
 				case in := <-s.ingress:
-					if !process(in) {
-						return
-					}
+					dispatch(in)
 				default:
 					return
 				}
 			}
 		case in := <-s.ingress:
-			if !process(in) {
-				return
-			}
+			dispatch(in)
 		}
 	}
 }
@@ -139,34 +126,33 @@ func (s *session) bind(a *actor, gen uint64) {
 	s.gen = gen
 	s.firstMu.Unlock()
 }
-func (s *session) send(msg *diam.Message, closeAfter bool) bool {
+func (s *session) send(msg *diam.Message, closeAfter bool) error {
 	return s.sendWrite(writeRequest{msg: msg, closeAfter: closeAfter})
 }
-func (s *session) sendWrite(w writeRequest) bool {
-	msg := w.msg
-	if msg == nil {
-		return false
-	}
-	select {
-	case <-s.closed:
-		return false
-	default:
+func (s *session) sendWrite(w writeRequest) error {
+	if w.msg == nil {
+		return ErrInvalidRequest
 	}
 	if s.beforeAdmission != nil {
 		s.beforeAdmission()
 	}
+	s.ingressMu.Lock()
+	defer s.ingressMu.Unlock()
 	select {
 	case <-s.closed:
-		return false
-	case s.writes <- w:
-		return true
+		return net.ErrClosed
 	default:
-		return false
+	}
+	select {
+	case s.writes <- w:
+		return nil
+	default:
+		return errQueueFull
 	}
 }
-func (s *session) sendControl(msg *diam.Message) bool {
+func (s *session) sendControl(msg *diam.Message) error {
 	if msg == nil || msg.Header == nil || msg.Header.CommandFlags&diam.RequestFlag == 0 {
-		return false
+		return ErrInvalidRequest
 	}
 	m := s.m
 	m.pendingMu.Lock()
@@ -177,11 +163,11 @@ func (s *session) sendControl(msg *diam.Message) bool {
 	}
 	m.controls[s][hop] = struct{}{}
 	m.pendingMu.Unlock()
-	if s.send(msg, false) {
-		return true
+	if err := s.send(msg, false); err != nil {
+		s.releaseControl(hop)
+		return err
 	}
-	s.releaseControl(hop)
-	return false
+	return nil
 }
 func (s *session) releaseControl(hop uint32) {
 	s.m.pendingMu.Lock()

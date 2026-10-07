@@ -39,7 +39,7 @@ func TestOnCERHook(t *testing.T) {
 	}
 	defer cli.Close()
 
-	m := diam.NewRequest(diam.CapabilitiesExchange, 1001, dict.Default)
+	m := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
 	mustSMClientAVP(t, m, avp.OriginHost, avp.Mbit, 0, clientSettings.OriginHost)
 	mustSMClientAVP(t, m, avp.OriginRealm, avp.Mbit, 0, clientSettings.OriginRealm)
 	mustSMClientAVP(t, m, avp.HostIPAddress, avp.Mbit, 0, localhostAddress)
@@ -85,7 +85,7 @@ func TestOnDWRHook(t *testing.T) {
 	}
 	defer cli.Close()
 
-	cer := diam.NewRequest(diam.CapabilitiesExchange, 1001, dict.Default)
+	cer := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
 	mustSMClientAVP(t, cer, avp.OriginHost, avp.Mbit, 0, clientSettings.OriginHost)
 	mustSMClientAVP(t, cer, avp.OriginRealm, avp.Mbit, 0, clientSettings.OriginRealm)
 	mustSMClientAVP(t, cer, avp.HostIPAddress, avp.Mbit, 0, localhostAddress)
@@ -145,7 +145,7 @@ func TestOnCEAHook(t *testing.T) {
 	}
 	defer cli.Close()
 
-	m := diam.NewRequest(diam.CapabilitiesExchange, 1001, dict.Default)
+	m := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
 	mustSMClientAVP(t, m, avp.OriginHost, avp.Mbit, 0, clientSettings.OriginHost)
 	mustSMClientAVP(t, m, avp.OriginRealm, avp.Mbit, 0, clientSettings.OriginRealm)
 	mustSMClientAVP(t, m, avp.HostIPAddress, avp.Mbit, 0, localhostAddress)
@@ -171,7 +171,7 @@ func TestOnCEAHook(t *testing.T) {
 
 // TestOnCEAHookErrorCEA verifies that Settings.OnCEA also fires when the
 // server answers a CER with an error CEA (here: no common application),
-// covering the errorCEA call site as well as successCEA.
+// covering both failed and successful capability exchanges.
 func TestOnCEAHookErrorCEA(t *testing.T) {
 	var onCEACalls int32
 	onCEA := make(chan *diam.Message, 1)
@@ -206,7 +206,7 @@ func TestOnCEAHookErrorCEA(t *testing.T) {
 
 	// Request an application the server does not support, forcing errorCEA
 	// (DIAMETER_NO_COMMON_APPLICATION).
-	m := diam.NewRequest(diam.CapabilitiesExchange, 1001, dict.Default)
+	m := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
 	mustSMClientAVP(t, m, avp.OriginHost, avp.Mbit, 0, clientSettings.OriginHost)
 	mustSMClientAVP(t, m, avp.OriginRealm, avp.Mbit, 0, clientSettings.OriginRealm)
 	mustSMClientAVP(t, m, avp.HostIPAddress, avp.Mbit, 0, localhostAddress)
@@ -270,7 +270,7 @@ func TestOnDWAHook(t *testing.T) {
 	}
 	defer cli.Close()
 
-	cer := diam.NewRequest(diam.CapabilitiesExchange, 1001, dict.Default)
+	cer := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
 	mustSMClientAVP(t, cer, avp.OriginHost, avp.Mbit, 0, clientSettings.OriginHost)
 	mustSMClientAVP(t, cer, avp.OriginRealm, avp.Mbit, 0, clientSettings.OriginRealm)
 	mustSMClientAVP(t, cer, avp.HostIPAddress, avp.Mbit, 0, localhostAddress)

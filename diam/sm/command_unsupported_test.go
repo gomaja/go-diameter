@@ -292,26 +292,6 @@ func completeUnsupportedTestCER(t *testing.T, conn net.Conn) {
 	}
 }
 
-// TestSupportsApplication covers the base application, an advertised one, an
-// unknown one, and the relay application covering all (RFC 6733 §2.4).
-func TestSupportsApplication(t *testing.T) {
-	sm := mustNewStateMachine(t, testMessageErrorSettings())
-	for appID, want := range map[uint32]bool{0: true, diam.CHARGING_CONTROL_APP_ID: true, 0x00abcdef: false} {
-		if got := sm.supportsApplication(appID); got != want {
-			t.Errorf("supportsApplication(%d) = %t, want %t", appID, got, want)
-		}
-	}
-	relay := dict.New(dict.Base)
-	if err := relay.Load(strings.NewReader(`<diameter><application id="4294967295" type="auth" name="Relay"></application></diameter>`)); err != nil {
-		t.Fatal(err)
-	}
-	settings := testMessageErrorSettings()
-	settings.Dict = relay
-	if !mustNewStateMachine(t, settings).supportsApplication(0x00abcdef) {
-		t.Error("a relay must support every application")
-	}
-}
-
 // TestValidateRequestsUsesAdvertisedApplications checks that request
 // validation decides 3007 from the applications the state machine
 // advertises, not from the dictionary that decoded the message (RFC 6733
@@ -384,8 +364,8 @@ func TestValidateRequestsUsesAdvertisedApplications(t *testing.T) {
 }
 
 // TestValidateRequestsClosesCERForUnsupportedApplication checks that a CER
-// rejected with 3007 because its header names an application this node does
-// not advertise also closes the connection (RFC 6733 §§5.3, 5.6.1).
+// rejected with 3008 because its header has a non-zero Application-Id
+// also closes the connection (RFC 6733 §§2.5, 5.3, 7.1.3).
 func TestValidateRequestsClosesCERForUnsupportedApplication(t *testing.T) {
 	baseOnly := dict.New(dict.Base)
 	settings := testMessageErrorSettings()
@@ -415,8 +395,8 @@ func TestValidateRequestsClosesCERForUnsupportedApplication(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if answer.Header.CommandFlags&diam.ErrorFlag == 0 || !testResultCode(answer, diam.ApplicationUnsupported) {
-		t.Fatalf("want E-bit 3007: %v", answer)
+	if answer.Header.CommandFlags&diam.ErrorFlag == 0 || !testResultCode(answer, diam.InvalidHDRBits) {
+		t.Fatalf("want E-bit 3008: %v", answer)
 	}
 	if extra, err := diam.ReadMessage(conn, dict.Default); err == nil {
 		t.Fatalf("connection stayed open after the rejected CER: %v", extra)

@@ -2,6 +2,7 @@ package base_test
 
 import (
 	"bytes"
+	"encoding/binary"
 	"errors"
 	"testing"
 
@@ -24,18 +25,18 @@ func TestCERSecurityChecksEveryAVP(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			wantSecurity, malformed := len(values) != 0 && !tlsActive, false
+			wantSecurity, malformed := len(values) != 0, false
 			for _, v := range values {
 				request.AddAVP(diam.NewAVP(avp.InbandSecurityID, avp.Mbit, 0, v))
 				if n, ok := v.(datatype.Unsigned32); ok {
-					if n == 0 {
+					if n == 0 || n == 1 && tlsActive {
 						wantSecurity = false
 					}
 				} else {
 					malformed = true
 				}
 			}
-			failed, err := new(base.CER).ParseWithSecurity(request, base.Server, tlsActive)
+			failed, err := new(base.CER).Parse(request, base.ParseOptions{Role: base.Server, TLS: tlsActive})
 			var messageErr *diam.MessageError
 			switch {
 			case malformed:
@@ -78,8 +79,14 @@ func FuzzCERSecurityLength(f *testing.F) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		failed, err := new(base.CER).ParseWithSecurity(decoded, base.Server, true)
+		failed, err := new(base.CER).Parse(decoded, base.ParseOptions{Role: base.Server, TLS: true})
 		if len(payload) == 4 {
+			if binary.BigEndian.Uint32(payload) > 1 {
+				if !errors.Is(err, base.ErrNoCommonSecurity) {
+					t.Fatalf("unknown security: %v", err)
+				}
+				return
+			}
 			if err != nil {
 				t.Fatal(err)
 			}

@@ -6,6 +6,7 @@ package smparser
 
 import (
 	//"strings"
+	"errors"
 	"testing"
 
 	"github.com/gomaja/go-diameter/diam"
@@ -26,11 +27,11 @@ func mustCERAVP(t *testing.T, m *diam.Message, code uint32, flags uint8, vendor 
 func TestCER_MissingOriginHost(t *testing.T) {
 	m := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
 	cer := new(CER)
-	_, err := cer.Parse(m, Client)
+	_, err := cer.Parse(m, ParseOptions{Role: Client})
 	if err == nil {
 		t.Fatal("Broken CER was parsed with no errors")
 	}
-	if err != ErrMissingOriginHost {
+	if !errors.Is(err, ErrMissingOriginHost) {
 		t.Fatal("Unexpected error:", err)
 	}
 }
@@ -39,11 +40,11 @@ func TestCER_MissingOriginRealm(t *testing.T) {
 	m := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
 	mustCERAVP(t, m, avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("foobar"))
 	cer := new(CER)
-	_, err := cer.Parse(m, Client)
+	_, err := cer.Parse(m, ParseOptions{Role: Client})
 	if err == nil {
 		t.Fatal("Broken CER was parsed with no errors")
 	}
-	if err != ErrMissingOriginRealm {
+	if !errors.Is(err, ErrMissingOriginRealm) {
 		t.Fatal("Unexpected error:", err)
 	}
 }
@@ -54,7 +55,7 @@ func TestCER_MissingApplication(t *testing.T) {
 	mustCERAVP(t, m, avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("test"))
 	mustCERAVP(t, m, avp.OriginStateID, avp.Mbit, 0, datatype.Unsigned32(1))
 	cer := new(CER)
-	_, err := cer.Parse(m, Client)
+	_, err := cer.Parse(m, ParseOptions{Role: Client})
 	if err == nil {
 		t.Fatal("Broken CER was parsed with no errors")
 	}
@@ -70,7 +71,7 @@ func TestCER_NoCommonApplication(t *testing.T) {
 	mustCERAVP(t, m, avp.OriginStateID, avp.Mbit, 0, datatype.Unsigned32(1))
 	mustCERAVP(t, m, avp.AcctApplicationID, avp.Mbit, 0, datatype.Unsigned32(2))
 	cer := new(CER)
-	_, err := cer.Parse(m, Server)
+	_, err := cer.Parse(m, ParseOptions{Role: Server})
 	if err == nil {
 		t.Fatal("Broken CER was parsed with no errors")
 	}
@@ -86,7 +87,7 @@ func TestCER_NoCommonSecurity(t *testing.T) {
 	mustCERAVP(t, m, avp.OriginStateID, avp.Mbit, 0, datatype.Unsigned32(1))
 	mustCERAVP(t, m, avp.InbandSecurityID, avp.Mbit, 0, datatype.Unsigned32(1))
 	cer := new(CER)
-	_, err := cer.Parse(m, Server)
+	_, err := cer.Parse(m, ParseOptions{Role: Server})
 	if err == nil {
 		t.Fatal("Broken CER was parsed with no errors")
 	}
@@ -102,7 +103,7 @@ func TestCER_AcctAppID(t *testing.T) {
 	mustCERAVP(t, m, avp.OriginStateID, avp.Mbit, 0, datatype.Unsigned32(1))
 	mustCERAVP(t, m, avp.AcctApplicationID, avp.Mbit, 0, datatype.Unsigned32(1001))
 	cer := new(CER)
-	_, err := cer.Parse(m, Client)
+	_, err := cer.Parse(m, ParseOptions{Role: Client})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -120,7 +121,7 @@ func TestCER_FailedAcctAppID(t *testing.T) {
 	mustCERAVP(t, m, avp.OriginStateID, avp.Mbit, 0, datatype.Unsigned32(1))
 	mustCERAVP(t, m, avp.AcctApplicationID, avp.Mbit, 0, datatype.Unsigned32(1000))
 	cer := new(CER)
-	_, err := cer.Parse(m, Server)
+	_, err := cer.Parse(m, ParseOptions{Role: Server})
 	if err == nil {
 		t.Fatal("Broken CER was parsed with no errors")
 	}
@@ -136,7 +137,7 @@ func TestCER_AcctNotAuthAppID(t *testing.T) {
 	mustCERAVP(t, m, avp.OriginStateID, avp.Mbit, 0, datatype.Unsigned32(1))
 	mustCERAVP(t, m, avp.AuthApplicationID, avp.Mbit, 0, datatype.Unsigned32(1001))
 	cer := new(CER)
-	_, err := cer.Parse(m, Client)
+	_, err := cer.Parse(m, ParseOptions{Role: Client})
 	if err == nil {
 		t.Fatal("Broken CER was parsed with no errors")
 	}
@@ -152,7 +153,7 @@ func TestCER_AuthAppID(t *testing.T) {
 	mustCERAVP(t, m, avp.OriginStateID, avp.Mbit, 0, datatype.Unsigned32(1))
 	mustCERAVP(t, m, avp.AuthApplicationID, avp.Mbit, 0, datatype.Unsigned32(1002))
 	cer := new(CER)
-	_, err := cer.Parse(m, Client)
+	_, err := cer.Parse(m, ParseOptions{Role: Client})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -170,7 +171,7 @@ func TestCER_FailedAuthAppID(t *testing.T) {
 	mustCERAVP(t, m, avp.OriginStateID, avp.Mbit, 0, datatype.Unsigned32(1))
 	mustCERAVP(t, m, avp.AuthApplicationID, avp.Mbit, 0, datatype.Unsigned32(1000))
 	cer := new(CER)
-	_, err := cer.Parse(m, Server)
+	_, err := cer.Parse(m, ParseOptions{Role: Server})
 	if err == nil {
 		t.Fatal("Broken CER was parsed with no errors")
 	}
@@ -186,7 +187,7 @@ func TestCER_AuthNotAcctAppID(t *testing.T) {
 	mustCERAVP(t, m, avp.OriginStateID, avp.Mbit, 0, datatype.Unsigned32(1))
 	mustCERAVP(t, m, avp.AcctApplicationID, avp.Mbit, 0, datatype.Unsigned32(1002))
 	cer := new(CER)
-	_, err := cer.Parse(m, Client)
+	_, err := cer.Parse(m, ParseOptions{Role: Client})
 	if err == nil {
 		t.Fatal("Broken CER was parsed with no errors")
 	}
@@ -206,7 +207,7 @@ func TestCER_VSAcctAppID(t *testing.T) {
 		},
 	})
 	cer := new(CER)
-	_, err := cer.Parse(m, Client)
+	_, err := cer.Parse(m, ParseOptions{Role: Client})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -228,7 +229,7 @@ func TestCER_FailedVSAcctAppID(t *testing.T) {
 		},
 	})
 	cer := new(CER)
-	_, err := cer.Parse(m, Server)
+	_, err := cer.Parse(m, ParseOptions{Role: Server})
 	if err == nil {
 		t.Fatal("Broken CER was parsed with no errors")
 	}
@@ -248,7 +249,7 @@ func TestCER_VSAuthAppID(t *testing.T) {
 		},
 	})
 	cer := new(CER)
-	_, err := cer.Parse(m, Client)
+	_, err := cer.Parse(m, ParseOptions{Role: Client})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -270,7 +271,7 @@ func TestCER_FailedVSAuthAppID(t *testing.T) {
 		},
 	})
 	cer := new(CER)
-	_, err := cer.Parse(m, Server)
+	_, err := cer.Parse(m, ParseOptions{Role: Server})
 	if err == nil {
 		t.Fatal("Broken CER was parsed with no errors")
 	}
@@ -288,7 +289,7 @@ func TestCER_InbandSecurity_TLSActive(t *testing.T) {
 	mustCERAVP(t, m, avp.InbandSecurityID, avp.Mbit, 0, datatype.Unsigned32(1))
 	mustCERAVP(t, m, avp.AcctApplicationID, avp.Mbit, 0, datatype.Unsigned32(1001))
 	cer := new(CER)
-	_, err := cer.ParseWithSecurity(m, Client, true)
+	_, err := cer.Parse(m, ParseOptions{Role: Client, TLS: true})
 	if err != nil {
 		t.Fatalf("Expected no error when TLS active, got: %v", err)
 	}
@@ -302,7 +303,7 @@ func TestCER_InbandSecurity_NoTLS(t *testing.T) {
 	mustCERAVP(t, m, avp.OriginStateID, avp.Mbit, 0, datatype.Unsigned32(1))
 	mustCERAVP(t, m, avp.InbandSecurityID, avp.Mbit, 0, datatype.Unsigned32(1))
 	cer := new(CER)
-	_, err := cer.ParseWithSecurity(m, Server, false)
+	_, err := cer.Parse(m, ParseOptions{Role: Server, TLS: false})
 	if err != ErrNoCommonSecurity {
 		t.Fatalf("Expected ErrNoCommonSecurity, got: %v", err)
 	}

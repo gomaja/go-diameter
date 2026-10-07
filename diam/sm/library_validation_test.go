@@ -52,7 +52,14 @@ func TestLibraryBuiltMessagesValidate(t *testing.T) {
 		name string
 		send func(*messageErrorCaptureConn) error
 	}{
-		{"CEA-success", func(c *messageErrorCaptureConn) error { return successCEA(sm, c, cer) }},
+		{"CEA-success", func(c *messageErrorCaptureConn) error {
+			a, err := buildSuccessCEA(sm, c, cer)
+			if err != nil {
+				return err
+			}
+			_, err = a.WriteTo(c)
+			return err
+		}},
 		{"CEA-error", func(c *messageErrorCaptureConn) error { return errorCEA(sm, c, cer, smparser.ErrNoCommonApplication) }},
 		{"error-answer", func(c *messageErrorCaptureConn) error {
 			return sm.writeErrorAnswer(c, cer, diam.InvalidHDRBits, nil, true)

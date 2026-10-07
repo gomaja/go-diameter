@@ -424,7 +424,7 @@ func writeSMErrorWire(t *testing.T, conn net.Conn, wire []byte) {
 
 func writeValidSMErrorCER(t *testing.T, conn net.Conn) {
 	t.Helper()
-	m := diam.NewRequest(diam.CapabilitiesExchange, 1001, dict.Default)
+	m := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
 	mustSMClientAVP(t, m, avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("peer.example"))
 	mustSMClientAVP(t, m, avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("example"))
 	mustSMClientAVP(t, m, avp.HostIPAddress, avp.Mbit, 0, datatype.AddressFromIP(netip.MustParseAddr("127.0.0.1")))

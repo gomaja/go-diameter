@@ -47,7 +47,7 @@ func TestConcurrentClientDialsRouteCEAToTheirOwnHandshake(t *testing.T) {
 			if peer == 1 {
 				err = errorCEA(serverSM, c, m, smparser.ErrNoCommonApplication)
 			} else {
-				err = successCEA(serverSM, c, m)
+				handleCER(serverSM)(c, m)
 			}
 			if err != nil {
 				t.Errorf("peer %d CEA: %v", peer, err)

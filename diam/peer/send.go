@@ -104,14 +104,14 @@ func (m *Manager) selectPeer(msg *diam.Message, excluded map[*actor]bool) (*acto
 	}
 	realm, err := destination(msg, avp.DestinationRealm)
 	if err != nil {
-		return nil, nil, fmt.Errorf("%w: %v", ErrInvalidRequest, err)
+		return nil, nil, fmt.Errorf("%w: %w", ErrInvalidRequest, err)
 	}
 	if realm == "" {
 		return nil, nil, fmt.Errorf("%w: missing Destination-Realm (RFC 6733 §6.1)", ErrNoRoute)
 	}
 	host, err := destination(msg, avp.DestinationHost)
 	if err != nil {
-		return nil, nil, fmt.Errorf("%w: %v", ErrInvalidRequest, err)
+		return nil, nil, fmt.Errorf("%w: %w", ErrInvalidRequest, err)
 	}
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -158,11 +158,11 @@ func cloneRequest(msg *diam.Message) (*diam.Message, error) {
 func ensureOrigin(msg *diam.Message, code uint32, local datatype.DiameterIdentity, name string) error {
 	value, err := destination(msg, code)
 	if err != nil {
-		return fmt.Errorf("%w: %s: %v", ErrInvalidRequest, name, err)
+		return fmt.Errorf("%w: %s: %w", ErrInvalidRequest, name, err)
 	}
 	if value == "" {
 		if _, err := msg.NewAVP(code, avp.Mbit, 0, local); err != nil {
-			return fmt.Errorf("%w: %s: %v", ErrInvalidRequest, name, err)
+			return fmt.Errorf("%w: %s: %w", ErrInvalidRequest, name, err)
 		}
 		return nil
 	}
@@ -187,7 +187,7 @@ func (m *Manager) Send(ctx context.Context, msg *diam.Message) (*diam.Message, e
 	}
 	copy, err := cloneRequest(msg)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrInvalidRequest, err)
+		return nil, fmt.Errorf("%w: %w", ErrInvalidRequest, err)
 	}
 	// RFC 6733 §6.1.1 requires the local Origin-Host and Origin-Realm on
 	// every locally created request; §3 forbids the E bit on requests.
@@ -204,7 +204,7 @@ func (m *Manager) Send(ctx context.Context, msg *diam.Message) (*diam.Message, e
 	// consumption. Local request dispatch is not available in this manager.
 	host, err := destination(copy, avp.DestinationHost)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrInvalidRequest, err)
+		return nil, fmt.Errorf("%w: %w", ErrInvalidRequest, err)
 	}
 	if host == identity(m.cfg.Settings.OriginHost) {
 		return nil, fmt.Errorf("%w: local Destination-Host requires local dispatch", ErrInvalidRequest)
@@ -304,7 +304,7 @@ func (m *Manager) reserveAndSend(p *pendingRequest, a *actor, s *session, retran
 	p.current = s
 	p.attempted[a] = true
 	m.pendingMu.Unlock()
-	if !s.sendWrite(writeRequest{msg: &attempt, pending: p}) {
+	if err := s.sendWrite(writeRequest{msg: &attempt, pending: p}); err != nil {
 		// Closing the session transfers ownership to failover. Close may have
 		// raced ahead of this reservation, so check pending again afterwards.
 		s.close()

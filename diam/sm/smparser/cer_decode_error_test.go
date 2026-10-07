@@ -43,7 +43,7 @@ func TestCERNonStrictMalformedHostIPAddress(t *testing.T) {
 				t.Fatal("decoder did not retain malformed Host-IP-Address")
 			}
 			var cer smparser.CER
-			failed, err := cer.Parse(parsed, smparser.Server)
+			failed, err := cer.Parse(parsed, smparser.ParseOptions{Role: smparser.Server})
 			var messageErr *diam.MessageError
 			if !errors.As(err, &messageErr) || messageErr.ResultCode != tc.result {
 				t.Fatalf("Parse error = %v, want MessageError %d", err, tc.result)

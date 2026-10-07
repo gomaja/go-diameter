@@ -25,36 +25,22 @@ type CER struct {
 	appID                       []uint32                  // List of supported application IDs.
 }
 
-// Parse parses and validates the given message, and returns nil when
-// all AVPs are ok, and all accounting or authentication applications
-// in the CER match the applications in our dictionary. If one or more
-// mandatory AVPs are missing, it returns a nil failedAVP and a proper
-// error. If all mandatory AVPs are present but no common application
-// is found, then it returns the failedAVP (with the application that
-// we don't support in our dictionary) and an error. Another cause
-// for error is the presence of Inband Security, we don't support that.
-func (cer *CER) Parse(m *diam.Message, localRole Role) (failedAVP *diam.AVP, err error) {
-	return cer.ParseWithSecurity(m, localRole, false)
+// ParseOptions selects the local capabilities used to validate a CER or CEA.
+type ParseOptions struct {
+	Role Role
+	// TLS reports whether transport security is already established (RFC 6733 §6.10).
+	TLS bool
+	// Dictionary defaults to the message dictionary when nil (RFC 6733 §5.3).
+	Dictionary *dict.Parser
+	// LocalApplications overrides dictionary membership when non-nil.
+	// An empty slice offers no applications; a peer relay offer still counts
+	// as common (RFC 6733 §§2.4, 5.3).
+	LocalApplications []uint32
 }
 
-// ParseWithSecurity is like Parse but accepts a tlsActive flag. When
-// tlsActive is true, Inband-Security-Id=1 (TLS) is accepted because
-// the transport is already secured — per RFC 6733 §5.3.1 the peer is
-// simply declaring its TLS capability which is already satisfied.
-func (cer *CER) ParseWithSecurity(m *diam.Message, localRole Role, tlsActive bool) (failedAVP *diam.AVP, err error) {
-	return cer.ParseWithSecurityAndDictionary(m, localRole, tlsActive, m.Dictionary())
-}
-
-// ParseWithSecurityAndDictionary validates capabilities against the dictionary
-// used to advertise local applications (RFC 6733 §5.3). A nil dictionary uses
-// the message dictionary.
-func (cer *CER) ParseWithSecurityAndDictionary(m *diam.Message, localRole Role, tlsActive bool, dictionary *dict.Parser) (failedAVP *diam.AVP, err error) {
-	return cer.ParseWithSecurityAndApplications(m, localRole, tlsActive, dictionary, nil)
-}
-
-// ParseWithSecurityAndApplications intersects the CER with the locally
-// advertised application IDs (RFC 6733 §5.3.1).
-func (cer *CER) ParseWithSecurityAndApplications(m *diam.Message, localRole Role, tlsActive bool, dictionary *dict.Parser, localIDs []uint32) (failedAVP *diam.AVP, err error) {
+// Parse decodes a CER and validates common security and applications
+// (RFC 6733 §§5.3, 6.10). AVP errors identify the offending AVP.
+func (cer *CER) Parse(m *diam.Message, options ParseOptions) (failedAVP *diam.AVP, err error) {
 	parsed := &base.CER{
 		HostIPAddresses:             cer.HostIPAddresses,
 		OriginHost:                  cer.OriginHost,
@@ -65,7 +51,7 @@ func (cer *CER) ParseWithSecurityAndApplications(m *diam.Message, localRole Role
 		AuthApplicationID:           cer.AuthApplicationID,
 		VendorSpecificApplicationID: cer.VendorSpecificApplicationID,
 	}
-	failedAVP, err = parsed.ParseWithSecurityAndApplications(m, base.Role(localRole), tlsActive, dictionary, localIDs)
+	failedAVP, err = parsed.Parse(m, base.ParseOptions{Role: base.Role(options.Role), TLS: options.TLS, Dictionary: options.Dictionary, LocalApplications: options.LocalApplications})
 	cer.HostIPAddresses = parsed.HostIPAddresses
 	cer.OriginHost = parsed.OriginHost
 	cer.OriginRealm = parsed.OriginRealm

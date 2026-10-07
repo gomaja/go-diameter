@@ -47,6 +47,10 @@ func PrepareSupportedApps(d *dict.Parser) []*SupportedApp {
 
 // Settings used to configure the state machine with AVPs to be added
 // to CER on clients or CEA on servers.
+// StateMachine supports Server.MaxConcurrentHandlers by ordering protocol
+// admission internally. Wrappers must synchronously forward ServeDIAM and
+// HandleMessageError (or consume the callback themselves) before returning, and
+// forward HandleAccept to retain the accepted-connection gate and timeout.
 type Settings struct {
 	OriginHost  datatype.DiameterIdentity
 	OriginRealm datatype.DiameterIdentity
@@ -65,7 +69,8 @@ type Settings struct {
 	// application slice overrides all three Settings slices for its CER.
 	// Vendor-Specific-Application-Id must have exactly one Vendor-Id and
 	// exactly one Auth- or Acct-Application-Id (RFC 6733 §6.11, Verified
-	// Erratum 4808); New rejects malformed groups.
+	// Erratum 4808); New rejects malformed groups. Application 0 is implicit
+	// and must not be advertised (RFC 6733 §§2.4, 5.3).
 	AuthApplicationID           []*diam.AVP
 	AcctApplicationID           []*diam.AVP
 	VendorSpecificApplicationID []*diam.AVP
@@ -89,7 +94,8 @@ type Settings struct {
 	HostIPAddresses []datatype.Address
 
 	// Dict supplies application metadata for derived advertisement and
-	// decoding. If nil, dict.Default is used (RFC 6733 §5.3).
+	// validation. If nil, each connection's dictionary is used, falling back
+	// to the message dictionary when needed (RFC 6733 §5.3).
 	Dict *dict.Parser
 
 	// OnCER, if non-nil, is invoked when a CER is received, before the
@@ -147,7 +153,8 @@ const DefaultHandshakeTimeout = 30 * time.Second
 // Explicit application and Supported-Vendor-Id AVPs must be well formed, and
 // each Vendor-Specific-Application-Id must have exactly one Vendor-Id and
 // exactly one Auth- or Acct-Application-Id (RFC 6733 §6.11, Verified
-// Erratum 4808). Explicit values are otherwise sent as configured.
+// Erratum 4808). Application 0 must not be advertised (RFC 6733 §§2.4, 5.3).
+// Valid explicit values are sent as configured.
 func (settings *Settings) Validate() error {
 	if settings == nil {
 		return fmt.Errorf("nil settings")
@@ -176,12 +183,16 @@ var (
 //
 // Other handlers registered in the state machine are only executed
 // after the peer has passed the initial CER/CEA handshake.
+// With concurrent server dispatch, admission waits for earlier callbacks;
+// independent application handlers can then run concurrently. Handler wrappers
+// must follow diam.Handler's synchronous forwarding contract for messages and
+// errors and forward diam.AcceptHandler. A wrapper that returns before forwarding
+// forfeits that message's position in arrival order.
 type StateMachine struct {
 	cfg           *Settings
 	mux           *diam.ServeMux
 	hsNotifyc     chan diam.Conn // handshake notifier
 	supportedApps []*SupportedApp
-	advertised    []uint32
 	dictionary    *dict.Parser
 	disconnects   disconnectState
 	accepted      sync.Map // diam.Conn -> *acceptedHandshake
@@ -211,13 +222,6 @@ func New(settings *Settings) (*StateMachine, error) {
 		supportedApps: PrepareSupportedApps(dp),
 		dictionary:    settings.Dict,
 	}
-	capabilities := baseSettings(settings)
-	for _, app := range sm.supportedApps {
-		capabilities.Applications = append(capabilities.Applications, base.LocalApplication{
-			ID: app.ID, AppType: app.AppType, Vendor: app.Vendor, SupportedVendors: app.SupportedVendors,
-		})
-	}
-	sm.advertised = base.AdvertisedApplicationIDs(capabilities)
 	cerHandler := chainPreHook(settings.OnCER, handleCER(sm))
 	dwrHandler := chainPreHook(settings.OnDWR, handleDWR(sm))
 	sm.mux.Handle("CER", cerHandler)
@@ -252,6 +256,15 @@ func (sm *StateMachine) Settings() *Settings {
 
 // ServeDIAM implements the diam.Handler interface.
 func (sm *StateMachine) ServeDIAM(c diam.Conn, m *diam.Message) {
+	release := m.BeginDispatch()
+	defer release()
+	if headerErr := base.ValidateHeader(m); headerErr != nil {
+		sm.Error(&diam.ErrorReport{Conn: c, Message: m, Error: headerErr})
+		if err := sm.HandleMessageError(c, m, headerErr); err != nil {
+			sm.Error(&diam.ErrorReport{Conn: c, Message: m, Error: err})
+		}
+		return
+	}
 	if !sm.preCERMessageAllowed(c, m) {
 		c.Close()
 		return
@@ -291,6 +304,11 @@ func (sm *StateMachine) ServeDIAM(c diam.Conn, m *diam.Message) {
 			}
 			return
 		}
+	}
+	// RFC 6733 §5.6: finish CER/CEA before admitting the next callback.
+	// Other admitted messages may execute application handlers concurrently.
+	if m.Header.CommandCode != diam.CapabilitiesExchange {
+		release()
 	}
 	sm.mux.ServeDIAM(c, m)
 }

@@ -111,6 +111,12 @@ func ValidateCapabilities(cfg Settings) error {
 			return fmt.Errorf("Vendor-Specific-Application-Id[%d]: requires exactly one Vendor-Id and exactly one Auth-Application-Id or Acct-Application-Id (RFC 6733 §6.11, Erratum 4808)", i)
 		}
 	}
+	// RFC 6733 §§2.4 and 5.3: base protocol support is implicit, never advertised.
+	for _, app := range advertisedApplications(cfg) {
+		if app.ID == 0 {
+			return fmt.Errorf("application 0 is implicit and must not be advertised")
+		}
+	}
 	return nil
 }
 

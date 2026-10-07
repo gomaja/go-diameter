@@ -38,7 +38,7 @@ func (app *Application) Parse(d *dict.Parser, localRole Role) (failedAVP *diam.A
 // ParseWithApplicationIDs checks the received capabilities against what this
 // node actually advertises. A nil list retains dictionary-based validation
 // for callers without local capability settings. An empty non-nil list has
-// no common application (RFC 6733 §§5.3.1-5.3.2).
+// no common application except with a peer advertising relay (RFC 6733 §5.3).
 func (app *Application) ParseWithApplicationIDs(d *dict.Parser, localRole Role, localIDs []uint32) (failedAVP *diam.AVP, err error) {
 	app.advertised = nil
 	if localIDs != nil {
@@ -152,12 +152,12 @@ func (app *Application) validate(d *dict.Parser, appType uint32, appAVP *diam.AV
 		return appAVP, &ErrUnexpectedAVP{appAVP}
 	}
 	id := uint32(appID)
-	if id == 0xffffffff { // relay application id
-		// A relay peer can carry any application only when this node
-		// advertises at least one (RFC 6733 §§2.4, 5.3).
-		if app.advertised != nil && len(app.advertised) == 0 {
-			return appAVP, ErrNoCommonApplication
-		}
+	// RFC 6733 §2.4: zero identifies common messages, not an application.
+	if id == 0 {
+		return appAVP, ErrNoCommonApplication
+	}
+	if id == 0xffffffff {
+		// RFC 6733 §5.3: a relay offer MUST mean common applications.
 		app.id = append(app.id, id)
 		return nil, nil
 	}

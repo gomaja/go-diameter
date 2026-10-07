@@ -16,12 +16,14 @@ var (
 	// the message does nt contain a Result-Code AVP.
 	ErrMissingResultCode = base.ErrMissingResultCode
 
-	// ErrMissingOriginHost is returned by Parse when
-	// the message does not contain an Origin-Host AVP.
+	// ErrMissingOriginHost identifies an absent Origin-Host AVP. CER.Parse
+	// wraps it in a *diam.MessageError with ResultCode 5005 and a Failed-AVP
+	// example (RFC 6733 §7.1.5); use errors.Is, not equality.
 	ErrMissingOriginHost = base.ErrMissingOriginHost
 
-	// ErrMissingOriginRealm is returned by Parse when
-	// the message does not contain an Origin-Realm AVP.
+	// ErrMissingOriginRealm identifies an absent Origin-Realm AVP. CER.Parse
+	// wraps it in a *diam.MessageError with ResultCode 5005 and a Failed-AVP
+	// example (RFC 6733 §7.1.5); use errors.Is, not equality.
 	ErrMissingOriginRealm = base.ErrMissingOriginRealm
 
 	// ErrMissingApplication is returned by Parse when
@@ -30,14 +32,13 @@ var (
 	// the Vendor-Specific-Application-Id AVP.
 	ErrMissingApplication = base.ErrMissingApplication
 
-	// ErrNoCommonSecurity is returned by Parse when
-	// the CER contains the Inband-Security-Id.
-	// We currently don't support that.
+	// ErrNoCommonSecurity reports that none of the CER security offers is
+	// usable on this transport (RFC 6733 §§5.3, 6.10).
 	ErrNoCommonSecurity = base.ErrNoCommonSecurity
 
 	// ErrNoCommonApplication is returned by Parse when the
-	// application IDs in the CER don't match the applications
-	// defined in our dictionary.
+	// received application IDs do not intersect the local capabilities
+	// selected by ParseOptions (RFC 6733 §5.3).
 	ErrNoCommonApplication = base.ErrNoCommonApplication
 )
 

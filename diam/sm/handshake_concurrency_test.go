@@ -174,7 +174,7 @@ func TestExpiredHandshakeCannotSendSuccessCEA(t *testing.T) {
 	}
 }
 
-func TestCERNilSettingsDictionaryUsesDefaultCapabilities(t *testing.T) {
+func TestCERNilSettingsDictionaryUsesConnectionCapabilities(t *testing.T) {
 	dictionary := dict.New(dict.Base)
 	if err := dictionary.Load(bytes.NewBufferString(`<diameter><application id="16777999" name="Private" type="auth"/></diameter>`)); err != nil {
 		t.Fatal(err)
@@ -191,8 +191,12 @@ func TestCERNilSettingsDictionaryUsesDefaultCapabilities(t *testing.T) {
 		}
 	}
 	answer, _ := regressionExchange(t, srv, request, dictionary)
-	if !testResultCode(answer, diam.NoCommonApplication) {
+	got := readSMCapabilities(t, answer, dictionary)
+	if len(got.auth) != 1 || got.auth[0] != 16777999 {
+		t.Fatalf("advertised applications = %v", got.auth)
+	}
+	if !testResultCode(answer, diam.Success) {
 		result, _ := answer.FindAVP(avp.ResultCode, 0)
-		t.Fatalf("nil Settings.Dict: Result-Code=%v, want 5010", result.Data)
+		t.Fatalf("nil Settings.Dict: Result-Code=%v, want 2001", result.Data)
 	}
 }

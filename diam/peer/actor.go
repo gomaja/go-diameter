@@ -20,6 +20,7 @@ import (
 )
 
 type event struct {
+	messageErr *diam.MessageError
 	kind       psmEvent
 	s          *session
 	msg        *diam.Message
@@ -364,13 +365,13 @@ func (a *actor) onWire(e event) {
 	cmd := msg.Header.CommandCode
 	req := msg.Header.CommandFlags&diam.RequestFlag != 0
 	if a.state == WaitICEA || a.state == WaitReturns {
-		if isI && cmd == diam.CapabilitiesExchange && !req && msg.Header.ApplicationID == 0 {
+		if isI && e.messageErr == nil && cmd == diam.CapabilitiesExchange && !req && msg.Header.ApplicationID == 0 {
 			if s.cerHop != msg.Header.HopByHopID || s.cerEnd != msg.Header.EndToEndID {
 				a.fail(errors.New("peer: CEA identifiers mismatch"))
 				return
 			}
 			cea := new(smparser.CEA)
-			if err := cea.ParseWithApplicationIDs(msg, smparser.Client, base.AdvertisedApplicationIDs(a.m.baseSettings(s.c))); err != nil {
+			if err := cea.Parse(msg, smparser.ParseOptions{Role: smparser.Client, LocalApplications: base.AdvertisedApplicationIDs(a.m.baseSettings(s.c))}); err != nil {
 				a.fail(fmt.Errorf("peer: invalid CEA: %w", err))
 				return
 			}
@@ -386,7 +387,14 @@ func (a *actor) onWire(e event) {
 		if isI {
 			a.step(iNonCEA, s, msg)
 		} else {
-			a.m.unsupported(s, msg)
+			// RFC 6733 §5.6 has no R-Rcv-Message action in Wait-Returns.
+			// As in Wait-Conn-Ack/Elect, close all pre-CEA traffic on R.
+			reason := error(e.messageErr)
+			if e.messageErr == nil {
+				reason = errors.New("peer: message before answering connection handshake")
+			}
+			a.m.report(s, msg, reason)
+			s.close()
 		}
 		return
 	}
@@ -395,6 +403,22 @@ func (a *actor) onWire(e event) {
 		s.close()
 		return
 	}
+	if headerErr := base.ValidateHeader(msg); headerErr != nil {
+		a.m.report(s, msg, headerErr)
+		if !req {
+			return
+		} // RFC 6733 §§2.5 and 7: invalid DWA/DPA is discarded.
+		e.messageErr = headerErr
+	}
+	if e.messageErr != nil {
+		// The actor queued CEA before this error answer (RFC 6733 §§5.6, 7).
+		if err := a.m.answerMessageError(s, msg, e.messageErr); err != nil {
+			a.m.report(s, msg, err)
+			s.close()
+		}
+		return
+	}
+
 	if s != a.active {
 		return
 	}
@@ -500,7 +524,10 @@ func (a *actor) answerDPR(s *session, msg *diam.Message) {
 		return
 	}
 	dpa, err := base.BuildDPA(msg, a.m.baseSettings(s.c))
-	if err != nil || !s.send(dpa, false) {
+	if err == nil {
+		err = s.send(dpa, false)
+	}
+	if err != nil {
 		s.close()
 	}
 }
@@ -558,8 +585,12 @@ func (a *actor) step(ev psmEvent, s *session, msg *diam.Message) {
 		a.arm(a.m.cfg.Timers.CER)
 		if a.i != nil {
 			m, err := base.BuildCER(a.m.dictionary(), a.m.baseSettings(a.i.c))
-			if err != nil || !a.i.sendControl(m) {
-				a.fail(fmt.Errorf("peer: send CER: %v", err))
+			if err != nil {
+				a.fail(fmt.Errorf("peer: build CER: %w", err))
+				return
+			}
+			if err := a.i.sendControl(m); err != nil {
+				a.fail(fmt.Errorf("peer: send CER: %w", err))
 				return
 			}
 			a.i.cerHop = m.Header.HopByHopID
@@ -622,8 +653,12 @@ func (a *actor) step(ev psmEvent, s *session, msg *diam.Message) {
 		return
 	case iDWR, rDWR:
 		dwa, err := base.BuildDWA(msg, a.m.baseSettings(s.c))
-		if err != nil || !s.send(dwa, false) {
-			a.fail(fmt.Errorf("peer: send DWA: %v", err))
+		if err != nil {
+			a.fail(fmt.Errorf("peer: build DWA: %w", err))
+			return
+		}
+		if err := s.send(dwa, false); err != nil {
+			a.fail(fmt.Errorf("peer: send DWA: %w", err))
 			return
 		}
 	case iDPR, rDPR:
@@ -637,8 +672,12 @@ func (a *actor) step(ev psmEvent, s *session, msg *diam.Message) {
 	case stop:
 		a.stopTimer()
 		dpr, err := base.BuildDPR(a.m.dictionary(), a.m.baseSettings(s.c), uint32(a.closeCause))
-		if err != nil || !s.sendControl(dpr) {
-			a.fail(fmt.Errorf("peer: send DPR: %v", err))
+		if err != nil {
+			a.fail(fmt.Errorf("peer: build DPR: %w", err))
+			return
+		}
+		if err := s.sendControl(dpr); err != nil {
+			a.fail(fmt.Errorf("peer: send DPR: %w", err))
 			return
 		}
 		a.pendingDPR = dpr.Header.HopByHopID
@@ -676,8 +715,8 @@ func (a *actor) sendCEA(s *session) {
 		a.fail(fmt.Errorf("peer: build CEA: %w", err))
 		return
 	}
-	if !s.send(answer, false) {
-		a.fail(errors.New("peer: send CEA queue full"))
+	if err := s.send(answer, false); err != nil {
+		a.fail(fmt.Errorf("peer: send CEA: %w", err))
 	}
 }
 func (m *Manager) dictionary() *dict.Parser {

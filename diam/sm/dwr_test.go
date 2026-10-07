@@ -36,7 +36,7 @@ func TestHandleDWR(t *testing.T) {
 	}
 	defer cli.Close()
 	// Send CER first.
-	m := diam.NewRequest(diam.CapabilitiesExchange, 1001, dict.Default)
+	m := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
 	mustSMClientAVP(t, m, avp.OriginHost, avp.Mbit, 0, clientSettings.OriginHost)
 	mustSMClientAVP(t, m, avp.OriginRealm, avp.Mbit, 0, clientSettings.OriginRealm)
 	mustSMClientAVP(t, m, avp.HostIPAddress, avp.Mbit, 0, localhostAddress)
@@ -109,7 +109,7 @@ func TestHandleDWR_Fail(t *testing.T) {
 	}
 	defer cli.Close()
 	// Send CER first.
-	m := diam.NewRequest(diam.CapabilitiesExchange, 1001, dict.Default)
+	m := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
 	mustSMClientAVP(t, m, avp.OriginHost, avp.Mbit, 0, clientSettings.OriginHost)
 	mustSMClientAVP(t, m, avp.OriginRealm, avp.Mbit, 0, clientSettings.OriginRealm)
 	mustSMClientAVP(t, m, avp.HostIPAddress, avp.Mbit, 0, localhostAddress)

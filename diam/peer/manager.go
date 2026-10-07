@@ -220,6 +220,11 @@ func (m *Manager) AddPeer(cfg PeerConfig) error {
 }
 
 // BindServer installs the manager before Serve and preserves existing hooks.
+// Manager orders message/error admission internally, including when Server uses
+// concurrent dispatch. A Handler wrapping Manager must forward ServeDIAM and
+// HandleMessageError synchronously before returning, or consume the message/error
+// itself. Deferring a forward until after return loses its arrival position.
+// Preserve the connection hooks installed here; they establish session admission.
 func (m *Manager) BindServer(s *diam.Server) error {
 	if s == nil {
 		return errors.New("peer: nil Server")
@@ -480,13 +485,15 @@ func (m *Manager) shutdownConnection(ctx context.Context, c diam.Conn) {
 	}
 }
 func (m *Manager) ServeDIAM(c diam.Conn, msg *diam.Message) {
+	release := msg.BeginDispatch()
+	defer release()
 	s := m.getSession(c)
 	if s == nil {
 		c.Close()
 		return
 	}
-	if !s.enqueue(msg) {
-		m.report(s, msg, errors.New("peer: ordered ingress queue full"))
+	if err := s.enqueue(msg); err != nil {
+		m.report(s, msg, fmt.Errorf("peer: ingress: %w", err))
 		s.close()
 	}
 }
@@ -508,28 +515,18 @@ func (m *Manager) processDIAM(s *session, msg *diam.Message) {
 		s.firstMu.Unlock()
 		if first {
 			// RFC 6733 §5.6.1: pre-CER admission accepts only a CER.
-			if msg.Header.ApplicationID != 0 || msg.Header.CommandCode != diam.CapabilitiesExchange || msg.Header.CommandFlags&diam.RequestFlag == 0 {
+			if msg.Header.CommandCode != diam.CapabilitiesExchange || msg.Header.CommandFlags&diam.RequestFlag == 0 {
 				m.report(s, msg, errors.New("peer: first inbound message is not CER"))
 				s.close()
 				return
 			}
-			var name struct {
-				OriginHost datatype.DiameterIdentity `avp:"Origin-Host"`
-			}
-			if err := msg.Unmarshal(&name); err != nil || len(name.OriginHost) == 0 {
-				m.rejectCER(s, msg, diam.UnableToComply, errors.New("peer: missing or malformed Origin-Host"))
-				return
-			}
-			m.mu.RLock()
-			a := m.peers[identity(name.OriginHost)]
-			m.mu.RUnlock()
-			if a == nil { // RFC 6733 §5.3: unknown CER may receive 3010, then transport closes.
-				m.rejectCER(s, msg, diam.UnknownPeer, fmt.Errorf("peer: unknown Origin-Host %s", name.OriginHost))
+			if err := base.ValidateHeader(msg); err != nil {
+				m.rejectCER(s, msg, err.ResultCode, err)
 				return
 			}
 			cer := new(smparser.CER)
 			local := m.baseSettings(c)
-			_, err := cer.ParseWithSecurityAndApplications(msg, smparser.Server, c.TLS() != nil, msg.Dictionary(), base.AdvertisedApplicationIDs(local))
+			_, err := cer.Parse(msg, smparser.ParseOptions{Role: smparser.Server, TLS: c.TLS() != nil, Dictionary: msg.Dictionary(), LocalApplications: base.AdvertisedApplicationIDs(local)})
 			if err != nil {
 				code := uint32(diam.UnableToComply)
 				if errors.Is(err, base.ErrNoCommonApplication) {
@@ -539,6 +536,13 @@ func (m *Manager) processDIAM(s *session, msg *diam.Message) {
 					code = diam.NoCommonSecurity
 				}
 				m.rejectCER(s, msg, code, err)
+				return
+			}
+			m.mu.RLock()
+			a := m.peers[identity(cer.OriginHost)]
+			m.mu.RUnlock()
+			if a == nil { // RFC 6733 §5.3: reject an unknown peer after validating its CER.
+				m.rejectCER(s, msg, diam.UnknownPeer, fmt.Errorf("peer: unknown Origin-Host %s", cer.OriginHost))
 				return
 			}
 			s.bind(a, 0)
@@ -561,7 +565,11 @@ func (m *Manager) rejectCER(s *session, msg *diam.Message, code uint32, reason e
 	var messageErr *diam.MessageError
 	if errors.As(reason, &messageErr) {
 		// RFC 6733 §7.1.5, Verified Erratum 4615: one Failed-AVP.
-		answer, err = base.BuildErrorAnswer(msg, cfg, messageErr.ResultCode, []*diam.AVP{messageErr.FailedAVP}, false)
+		var failed []*diam.AVP
+		if messageErr.FailedAVP != nil {
+			failed = []*diam.AVP{messageErr.FailedAVP}
+		}
+		answer, err = base.BuildErrorAnswer(msg, cfg, messageErr.ResultCode, failed, messageErr.ResultCode >= 3000 && messageErr.ResultCode < 4000)
 	} else {
 		answer, err = base.BuildCEA(msg, cfg, code)
 	}
@@ -571,7 +579,7 @@ func (m *Manager) rejectCER(s *session, msg *diam.Message, code uint32, reason e
 		return
 	}
 	m.report(s, msg, reason)
-	if !s.send(answer, true) {
+	if err := s.send(answer, true); err != nil {
 		s.close()
 	}
 }
@@ -629,18 +637,35 @@ func (m *Manager) unsupported(s *session, msg *diam.Message) {
 		}
 		answer, err := base.BuildErrorAnswer(msg, m.baseSettings(s.c), resultCode, nil, true)
 		if err == nil {
-			if !s.send(answer, false) {
-				err = errors.New("peer: write queue full")
-			}
+			err = s.send(answer, false)
 		}
 		m.report(s, msg, err)
 	}
 	m.report(s, msg, fmt.Errorf("peer: unhandled message %d/%d", msg.Header.ApplicationID, msg.Header.CommandCode))
 }
 func (m *Manager) HandleMessageError(c diam.Conn, msg *diam.Message, me *diam.MessageError) error {
+	release := msg.BeginDispatch()
+	defer release()
+	if me == nil {
+		return nil
+	}
 	s := m.getSession(c)
 	if s == nil {
 		return nil
+	}
+	// RFC 6733 §§5.6.1 and 7: decoding failures share arrival order with
+	// valid messages; a queued CER must be processed before a later error.
+	if err := s.enqueueIncoming(incoming{msg: msg, err: me}); err != nil {
+		s.close()
+		return fmt.Errorf("peer: ingress: %w", err)
+	}
+	return nil
+}
+
+func (m *Manager) answerMessageError(s *session, msg *diam.Message, me *diam.MessageError) error {
+	c := s.c
+	if headerErr := base.ValidateHeader(msg); headerErr != nil {
+		me = headerErr
 	}
 	// RFC 6733 §7.1.5 and Verified Erratum 4615: carry the offending
 	// AVP in one Failed-AVP container for payload and framing failures.
@@ -652,7 +677,7 @@ func (m *Manager) HandleMessageError(c diam.Conn, msg *diam.Message, me *diam.Me
 	preCER := s.inbound && !s.first
 	if preCER {
 		s.first = true
-		if msg != nil && msg.Header != nil && me != nil && msg.Header.ApplicationID == 0 && msg.Header.CommandCode == diam.CapabilitiesExchange && msg.Header.CommandFlags&diam.RequestFlag != 0 {
+		if msg != nil && msg.Header != nil && me != nil && msg.Header.CommandCode == diam.CapabilitiesExchange && msg.Header.CommandFlags&diam.RequestFlag != 0 {
 			s.rejectingFirst = true
 		}
 		if s.preTimer != nil {
@@ -662,7 +687,7 @@ func (m *Manager) HandleMessageError(c diam.Conn, msg *diam.Message, me *diam.Me
 	}
 	s.firstMu.Unlock()
 	if preCER { // RFC 6733 §5.6.1: discard malformed pre-CER traffic and close the connection.
-		if msg == nil || msg.Header == nil || me == nil || msg.Header.ApplicationID != 0 || msg.Header.CommandCode != diam.CapabilitiesExchange || msg.Header.CommandFlags&diam.RequestFlag == 0 {
+		if msg == nil || msg.Header == nil || me == nil || msg.Header.CommandCode != diam.CapabilitiesExchange || msg.Header.CommandFlags&diam.RequestFlag == 0 {
 			s.close()
 			return nil
 		}
@@ -671,9 +696,9 @@ func (m *Manager) HandleMessageError(c diam.Conn, msg *diam.Message, me *diam.Me
 			s.close()
 			return err
 		}
-		if !s.send(answer, true) {
+		if err := s.send(answer, true); err != nil {
 			s.close()
-			return errors.New("peer: write queue full")
+			return fmt.Errorf("peer: write: %w", err)
 		}
 		return nil
 	}
@@ -687,8 +712,10 @@ func (m *Manager) HandleMessageError(c diam.Conn, msg *diam.Message, me *diam.Me
 	if err != nil {
 		return err
 	}
-	if !s.send(answer, false) {
-		return errors.New("peer: write queue full")
+	// RFC 6733 §§2.5, 5.3 and 7.1.3: an invalid CER establishes no capabilities.
+	closeAfter := msg.Header.CommandCode == diam.CapabilitiesExchange && me.ResultCode == diam.InvalidHDRBits
+	if err := s.send(answer, closeAfter); err != nil {
+		return fmt.Errorf("peer: write: %w", err)
 	}
 	return nil
 }

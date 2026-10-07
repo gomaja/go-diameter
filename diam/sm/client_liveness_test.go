@@ -45,14 +45,9 @@ func newLivenessClient(t *testing.T) *Client {
 // sending anything else must wake one of them. EOF is deliberately not
 // reported as an error, so the wake-up has to come from CloseNotify.
 func TestCleanEOFWakesSupervisor(t *testing.T) {
-	handshake := make(chan diam.Conn, 8)
 	ssm := mustNewStateMachine(t, serverSettings)
 	ssm.mux.HandleFunc("ALL", func(diam.Conn, *diam.Message) {})
-	go func() {
-		for c := range ssm.HandshakeNotify() {
-			handshake <- c
-		}
-	}()
+	handshake := ssm.HandshakeNotify()
 
 	srv := diamtest.NewServer(ssm, dict.Default)
 	defer srv.Close()
@@ -93,14 +88,9 @@ func TestCleanEOFWakesSupervisor(t *testing.T) {
 // the first registration, which is what the watchdog goroutine risks doing
 // when it is scheduled late.
 func TestCloseNotifyAfterPeerGone(t *testing.T) {
-	handshake := make(chan diam.Conn, 8)
 	ssm := mustNewStateMachine(t, serverSettings)
 	ssm.mux.HandleFunc("ALL", func(diam.Conn, *diam.Message) {})
-	go func() {
-		for c := range ssm.HandshakeNotify() {
-			handshake <- c
-		}
-	}()
+	handshake := ssm.HandshakeNotify()
 
 	srv := diamtest.NewServer(ssm, dict.Default)
 	defer srv.Close()
