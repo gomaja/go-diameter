@@ -13,6 +13,7 @@ import (
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/diamtest"
 	"github.com/gomaja/go-diameter/diam/dict"
+	"github.com/gomaja/go-diameter/diam/internal/logtest"
 	"github.com/gomaja/go-diameter/diam/sm/smparser"
 )
 
@@ -54,8 +55,6 @@ func TestHandleDWR(t *testing.T) {
 		if !testResultCode(resp, diam.Success) {
 			t.Fatalf("Unexpected result code for CEA.\n%s", resp)
 		}
-	case err := <-mux.ErrorReports():
-		t.Fatal(err)
 	case <-time.After(time.Second):
 		t.Fatal("No CEA received")
 	}
@@ -84,16 +83,17 @@ func TestHandleDWR(t *testing.T) {
 		if got != serverSettings.OriginStateID {
 			t.Fatalf("Origin-State-Id = %d, want %d", got, serverSettings.OriginStateID)
 		}
-	case err := <-mux.ErrorReports():
-		t.Fatal(err)
 	case <-time.After(time.Second):
 		t.Fatal("No DWA received")
 	}
 }
 
 func TestHandleDWR_Fail(t *testing.T) {
+	records := logtest.New()
 	sm := mustNewStateMachine(t, serverSettings)
-	srv := diamtest.NewServer(sm, dict.Default)
+	srv := diamtest.NewUnstartedServer(sm, dict.Default)
+	srv.Config.Logger = records.Logger()
+	srv.Start()
 	defer srv.Close()
 	mc := make(chan *diam.Message, 1)
 	mux := diam.NewServeMux()
@@ -127,8 +127,6 @@ func TestHandleDWR_Fail(t *testing.T) {
 		if !testResultCode(resp, diam.Success) {
 			t.Fatalf("Unexpected result code for CEA.\n%s", resp)
 		}
-	case err := <-mux.ErrorReports():
-		t.Fatal(err)
 	case <-time.After(time.Second):
 		t.Fatal("No CEA received")
 	}
@@ -138,14 +136,7 @@ func TestHandleDWR_Fail(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	select {
-	case err := <-sm.ErrorReports():
-		if err.Error != smparser.ErrMissingOriginHost {
-			t.Fatalf("Unexpected error. Want ErrMissingOriginHost, have %#v", err.Error)
-		}
-	case err := <-mux.ErrorReports():
-		t.Fatal(err)
-	case <-time.After(time.Second):
-		t.Fatal("No DWA received")
+	if err := logError(waitLog(t, records, 1)); err != smparser.ErrMissingOriginHost {
+		t.Fatalf("got %v, want ErrMissingOriginHost", err)
 	}
 }

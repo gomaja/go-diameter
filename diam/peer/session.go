@@ -89,7 +89,7 @@ func (s *session) dispatch() {
 			if a, _ := s.binding(); a != nil {
 				a.post(event{kind: wireEvent, s: s, msg: in.msg, messageErr: in.err})
 			} else if err := s.m.answerMessageError(s, in.msg, in.err); err != nil {
-				s.m.report(s, in.msg, err)
+				s.m.reportLocal(s, in.msg, "peer: error answer failed; closing connection", err)
 				s.close()
 			}
 		} else {
@@ -216,7 +216,7 @@ func (s *session) writer() {
 				deadline = 5 * time.Second
 			}
 			if err := s.c.Connection().SetWriteDeadline(time.Now().Add(deadline)); err != nil {
-				s.m.report(s, w.msg, err)
+				s.m.reportLocal(s, w.msg, "peer: write deadline failed; closing connection", err)
 				s.close()
 				return
 			}
@@ -235,7 +235,7 @@ func (s *session) writer() {
 			}
 			_, err := w.msg.WriteTo(s.c)
 			if err != nil {
-				s.m.report(s, w.msg, err)
+				s.m.reportLocal(s, w.msg, "peer: write failed; closing connection", err)
 				s.close()
 				return
 			}

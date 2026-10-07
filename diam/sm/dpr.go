@@ -1,6 +1,7 @@
 package sm
 
 import (
+	"log/slog"
 	"time"
 
 	"github.com/gomaja/go-diameter/diam"
@@ -26,7 +27,7 @@ func handleDPR(sm *StateMachine) diam.HandlerFunc {
 	return func(c diam.Conn, m *diam.Message) {
 		cause, err := validateDPR(m)
 		if err != nil {
-			sm.Error(&diam.ErrorReport{Conn: c, Message: m, Error: err})
+			logMessage(c, m, slog.LevelWarn, "sm: invalid DPR", err)
 			return
 		}
 		// RFC 6733 §§5.4.2, 5.6: send DPA, then wait in Closing for
@@ -36,7 +37,7 @@ func handleDPR(sm *StateMachine) diam.HandlerFunc {
 			_, err = a.WriteTo(c)
 		}
 		if err != nil {
-			sm.Error(&diam.ErrorReport{Conn: c, Message: m, Error: err})
+			logMessage(c, m, slog.LevelError, "sm: DPA failed; closing connection", err)
 			c.Close()
 			return
 		}
@@ -51,6 +52,7 @@ func handleDPR(sm *StateMachine) diam.HandlerFunc {
 				select {
 				case <-notifier.CloseNotify():
 				case <-timer.C:
+					logMessage(c, m, slog.LevelWarn, "sm: Wait-Returns timeout; closing connection", nil)
 					c.Close()
 				}
 			}()

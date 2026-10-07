@@ -63,9 +63,6 @@ func main() {
 	mux.Handle("AIR", handleAIR(*settings))
 	mux.HandleFunc("ALL", handleALL) // Catch all.
 
-	// Print error reports.
-	go printErrors(mux.ErrorReports())
-
 	if len(*ppaddr) > 0 {
 		go func() { log.Fatal(http.ListenAndServe(*ppaddr, nil)) }()
 	}
@@ -260,12 +257,6 @@ func handleULR(settings sm.Settings) diam.HandlerFunc {
 		if err != nil {
 			log.Printf("Failed to send ULA: %s", err.Error())
 		}
-	}
-}
-
-func printErrors(ec <-chan *diam.ErrorReport) {
-	for err := range ec {
-		log.Println(err)
 	}
 }
 

@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/dict"
@@ -33,13 +34,10 @@ func handleCER(sm *StateMachine) diam.HandlerFunc {
 		cer := new(smparser.CER)
 		_, err := cer.Parse(m, smparser.ParseOptions{Role: smparser.Server, TLS: c.TLS() != nil, Dictionary: sm.capabilityDictionary(c, m), LocalApplications: local})
 		if err != nil {
+			logMessage(c, m, slog.LevelWarn, "sm: rejected CER; closing connection", err)
 			err = errorCEA(sm, c, m, err)
 			if err != nil {
-				sm.Error(&diam.ErrorReport{
-					Conn:    c,
-					Message: m,
-					Error:   err,
-				})
+				logMessage(c, m, slog.LevelError, "sm: CEA failed; closing connection", err)
 			}
 			c.Close()
 			return
@@ -52,6 +50,7 @@ func handleCER(sm *StateMachine) diam.HandlerFunc {
 			if !sm.completeAcceptedHandshake(c) {
 				// The handshake timer won: no peer was admitted and no CEA is sent.
 				c.SetContext(ctx)
+				logMessage(c, m, slog.LevelWarn, "sm: CER after handshake timeout; closing connection", nil)
 				c.Close()
 				return
 			}
@@ -61,18 +60,13 @@ func handleCER(sm *StateMachine) diam.HandlerFunc {
 			_, err = a.WriteTo(c)
 		}
 		if err != nil {
-			sm.Error(&diam.ErrorReport{
-				Conn:    c,
-				Message: m,
-				Error:   err,
-			})
+			logMessage(c, m, slog.LevelError, "sm: CEA failed; closing connection", err)
 			c.Close()
 			return
 		}
-		// Notify about peer passing the handshake.
-		select {
-		case sm.hsNotifyc <- c:
-		default:
+		if sm.cfg.OnHandshake != nil {
+			metadata, _ := smpeer.FromContext(c.Context())
+			sm.cfg.OnHandshake(c, metadata)
 		}
 	}
 }

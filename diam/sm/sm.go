@@ -6,6 +6,7 @@ package sm
 
 import (
 	"fmt"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -48,9 +49,7 @@ func PrepareSupportedApps(d *dict.Parser) []*SupportedApp {
 // Settings used to configure the state machine with AVPs to be added
 // to CER on clients or CEA on servers.
 // StateMachine supports Server.MaxConcurrentHandlers by ordering protocol
-// admission internally. Wrappers must synchronously forward ServeDIAM and
-// HandleMessageError (or consume the callback themselves) before returning, and
-// forward HandleAccept to retain the accepted-connection gate and timeout.
+// admission internally. See StateMachine for the middleware contract.
 type Settings struct {
 	OriginHost  datatype.DiameterIdentity
 	OriginRealm datatype.DiameterIdentity
@@ -98,6 +97,16 @@ type Settings struct {
 	// to the message dictionary when needed (RFC 6733 §5.3).
 	Dict *dict.Parser
 
+	// OnHandshake runs once after a successful CER/CEA exchange (RFC 6733 §5.3):
+	// on the CER handler's goroutine after writing a success CEA, or on the CEA
+	// validator's goroutine before Client.Dial returns. peer is also available
+	// through smpeer.FromContext(c.Context()). The message's BeginDispatch
+	// barrier remains held until this callback returns: no later message is
+	// admitted to state-machine handlers, in sequential or concurrent dispatch.
+	// The reader may continue reading in concurrent mode. The callback must not
+	// wait for later messages on this connection or call Disconnect for it.
+	OnHandshake func(c diam.Conn, peer *smpeer.Metadata)
+
 	// OnCER, if non-nil, is invoked when a CER is received, before the
 	// state machine processes it. Useful for logging, metrics, or access
 	// control. The default handshake logic runs after OnCER returns.
@@ -139,8 +148,9 @@ type Settings struct {
 	// HandshakeTimeout bounds the CER/CEA exchange on accepted connections
 	// (RFC 6733 §5.6.1). Zero uses DefaultHandshakeTimeout; a negative
 	// value disables the limit. It starts after the transport handshake.
-	// Dialed connections are unaffected. Wrappers must forward diam.AcceptHandler;
-	// otherwise both the pre-CER message gate and this timeout are disabled.
+	// Dialed connections are unaffected. Server.Handler must be this
+	// StateMachine or wrap it through Unwrap() diam.Handler. A wrapper
+	// without Unwrap hides both the pre-CER gate and this timeout.
 	HandshakeTimeout time.Duration
 }
 
@@ -184,14 +194,22 @@ var (
 // Other handlers registered in the state machine are only executed
 // after the peer has passed the initial CER/CEA handshake.
 // With concurrent server dispatch, admission waits for earlier callbacks;
-// independent application handlers can then run concurrently. Handler wrappers
-// must follow diam.Handler's synchronous forwarding contract for messages and
-// errors and forward diam.AcceptHandler. A wrapper that returns before forwarding
-// forfeits that message's position in arrival order.
+// independent application handlers can then run concurrently. Install the
+// StateMachine as Server.Handler, directly or through Unwrap() diam.Handler
+// wrappers, so HandlerAs discovers HandleAccept and starts the handshake
+// timeout. A mux route or opaque wrapper cannot start that timer; the state
+// machine still rejects non-CER traffic until peer metadata is established.
+//
+// Wrappers must synchronously forward ServeDIAM (or consume the message) before
+// returning. HandlerAs calls the inner HandleMessageError directly through plain
+// Unwrap wrappers, which need not forward optional methods. A wrapper that itself
+// implements MessageErrorHandler intercepts it and must delegate synchronously
+// via HandlerAs on its inner handler (or take responsibility itself). Returning
+// before forwarding forfeits that message's position in admission order.
 type StateMachine struct {
 	cfg           *Settings
 	mux           *diam.ServeMux
-	hsNotifyc     chan diam.Conn // handshake notifier
+	dwrHandler    diam.Handler
 	supportedApps []*SupportedApp
 	dictionary    *dict.Parser
 	disconnects   disconnectState
@@ -218,19 +236,18 @@ func New(settings *Settings) (*StateMachine, error) {
 	sm := &StateMachine{
 		cfg:           settings,
 		mux:           diam.NewServeMux(),
-		hsNotifyc:     make(chan diam.Conn, 1000),
 		supportedApps: PrepareSupportedApps(dp),
 		dictionary:    settings.Dict,
 	}
 	cerHandler := chainPreHook(settings.OnCER, handleCER(sm))
-	dwrHandler := chainPreHook(settings.OnDWR, handleDWR(sm))
+	sm.dwrHandler = chainPreHook(settings.OnDWR, handleDWR(sm))
+	dwrHandler := diam.HandlerFunc(func(c diam.Conn, m *diam.Message) { sm.dwrHandler.ServeDIAM(c, m) })
 	sm.mux.Handle("CER", cerHandler)
 	sm.mux.Handle("DWR", handshakeOK(dwrHandler))
 	sm.mux.Handle("DPR", handshakeOK(handleDPR(sm)))
 	sm.mux.Handle("DPA", handshakeOK(handleDPA(sm)))
 	sm.mux.HandleIdx(baseCERIdx, cerHandler)
-	sm.mux.HandleIdx(baseDWRIdx, dwrHandler)
-	sm.mux.Handle("ALL", diam.HandlerFunc(sm.handleUnsupportedCommand))
+	sm.mux.HandleIdx(baseDWRIdx, handshakeOK(dwrHandler))
 	sm.mux.HandleIdx(baseDPRIdx, handshakeOK(handleDPR(sm)))
 	sm.mux.HandleIdx(baseDPAIdx, handshakeOK(handleDPA(sm)))
 	return sm, nil
@@ -259,13 +276,12 @@ func (sm *StateMachine) ServeDIAM(c diam.Conn, m *diam.Message) {
 	release := m.BeginDispatch()
 	defer release()
 	if headerErr := base.ValidateHeader(m); headerErr != nil {
-		sm.Error(&diam.ErrorReport{Conn: c, Message: m, Error: headerErr})
-		if err := sm.HandleMessageError(c, m, headerErr); err != nil {
-			sm.Error(&diam.ErrorReport{Conn: c, Message: m, Error: err})
-		}
+		logMessage(c, m, slog.LevelWarn, "sm: invalid message header", headerErr)
+		_ = sm.HandleMessageError(c, m, headerErr)
 		return
 	}
 	if !sm.preCERMessageAllowed(c, m) {
+		logMessage(c, m, slog.LevelWarn, "sm: message before CER; closing connection", nil)
 		c.Close()
 		return
 	}
@@ -275,23 +291,21 @@ func (sm *StateMachine) ServeDIAM(c diam.Conn, m *diam.Message) {
 		// 3007, not the dictionary that decoded the message, so this runs
 		// before Validate and before AVP-level checks. HandleMessageError
 		// also closes the connection of a rejected CER (§5.3).
-		if err := sm.HandleMessageError(c, m, &diam.MessageError{ResultCode: diam.ApplicationUnsupported}); err != nil {
-			sm.Error(&diam.ErrorReport{Conn: c, Message: m, Error: err})
-		}
+		sm.handleUnsupportedCommand(c, m)
 		return
 	}
 	if sm.cfg.RejectUnknownMandatoryAVPs && m.Header.CommandFlags&diam.RequestFlag != 0 {
 		if failed := m.UnknownMandatoryAVPs(); len(failed) != 0 {
+			logMessage(c, m, slog.LevelWarn, "sm: unsupported mandatory AVP", &diam.MessageError{ResultCode: diam.AVPUnsupported})
 			// RFC 6733 §7.1.5, Verified Erratum 4615: one Failed-AVP
 			// contains the unsupported AVP(s), including Grouped hierarchy.
-			if err := sm.writeErrorAnswer(c, m, diam.AVPUnsupported, failed, false); err != nil {
-				sm.Error(&diam.ErrorReport{Conn: c, Message: m, Error: err})
-			}
+			_ = sm.writeErrorAnswer(c, m, diam.AVPUnsupported, failed, false)
 			return
 		}
 	}
 	if sm.cfg.ValidateRequests && m.Header.CommandFlags&diam.RequestFlag != 0 {
 		if validationErr := m.Validate(); validationErr != nil {
+			logMessage(c, m, slog.LevelWarn, "sm: invalid request", validationErr)
 			// RFC 6733 §§7.1, 7.2 and 7.5: only 3xxx protocol errors set E;
 			// send one Failed-AVP container for the first AVP error.
 			var failed []*diam.AVP
@@ -299,9 +313,7 @@ func (sm *StateMachine) ServeDIAM(c diam.Conn, m *diam.Message) {
 				failed = []*diam.AVP{validationErr.FailedAVP}
 			}
 			protocolError := validationErr.ResultCode >= 3000 && validationErr.ResultCode < 4000
-			if err := sm.writeErrorAnswer(c, m, validationErr.ResultCode, failed, protocolError); err != nil {
-				sm.Error(&diam.ErrorReport{Conn: c, Message: m, Error: err})
-			}
+			_ = sm.writeErrorAnswer(c, m, validationErr.ResultCode, failed, protocolError)
 			return
 		}
 	}
@@ -310,13 +322,20 @@ func (sm *StateMachine) ServeDIAM(c diam.Conn, m *diam.Message) {
 	if m.Header.CommandCode != diam.CapabilitiesExchange {
 		release()
 	}
-	sm.mux.ServeDIAM(c, m)
+	if h, ok := sm.mux.Handler(m); ok {
+		h.ServeDIAM(c, m)
+	} else {
+		sm.handleUnsupportedCommand(c, m)
+	}
 }
 
 func (sm *StateMachine) preCERMessageAllowed(c diam.Conn, m *diam.Message) bool {
 	value, ok := sm.accepted.Load(c)
 	if !ok {
-		return true // dialed connection
+		// Dialed peers have CEA metadata. Without HandleAccept discovery,
+		// enforce the same RFC 6733 §5.6.1 gate from handshake metadata.
+		return admittedPeer(c) || m != nil && m.Header != nil &&
+			m.Header.CommandCode == diam.CapabilitiesExchange && m.Header.CommandFlags&diam.RequestFlag != 0
 	}
 	state := value.(*acceptedHandshake)
 	state.mu.Lock()
@@ -345,6 +364,7 @@ func (sm *StateMachine) HandleAccept(c diam.Conn) func() {
 			}
 			state.mu.Unlock()
 			if !complete {
+				logMessage(c, nil, slog.LevelWarn, "sm: handshake timeout; closing connection", nil)
 				c.Close()
 			}
 		})
@@ -373,56 +393,52 @@ func (sm *StateMachine) completeAcceptedHandshake(c diam.Conn) bool {
 	return true
 }
 
-// Handle implements the diam.Handler interface.
+// Handle registers an application-agnostic command short name, or "ALL" for
+// messages with no matching registration. Use HandleIdx to bind one application.
+// Handlers run only after CER/CEA succeeds. Without ALL, unsupported requests
+// receive 3001/3007 with E (RFC 6733 §§7.1.3, 7.2); unmatched answers are
+// discarded. Both are logged. Handle panics for nil handlers, empty or duplicate
+// names, and reserved CER, CEA, DWR, DPR and DPA commands.
 func (sm *StateMachine) Handle(cmd string, handler diam.Handler) {
+	if f, ok := handler.(diam.HandlerFunc); ok && f == nil {
+		panic("sm: nil handler")
+	}
+	if handler == nil {
+		panic("sm: nil handler")
+	}
 	sm.HandleFunc(cmd, handler.ServeDIAM)
 }
 
+// HandleIdx registers one application and command. It panics for nil handlers,
+// duplicate indexes, or the base CER, CEA, DWR, DPR and DPA indexes.
 func (sm *StateMachine) HandleIdx(cmd diam.CommandIndex, handler diam.Handler) {
+	if f, ok := handler.(diam.HandlerFunc); ok && f == nil {
+		panic("sm: nil handler")
+	}
+	if handler == nil {
+		panic("sm: nil handler")
+	}
 	switch cmd {
 	case baseCERIdx, baseCEAIdx, baseDWRIdx, baseDPRIdx, baseDPAIdx:
-		sm.Error(&diam.ErrorReport{
-			Error: fmt.Errorf("cannot overwrite %v command in the state machine", cmd),
-		})
+		panic(fmt.Sprintf("sm: cannot overwrite reserved command %v", cmd))
 	default:
 		sm.mux.HandleIdx(cmd, handshakeOK(handler.ServeDIAM))
 	}
 }
 
-// HandleFunc implements the diam.Handler interface.
+// HandleFunc is Handle for a handler function, with the same panic contract.
 func (sm *StateMachine) HandleFunc(cmd string, handler diam.HandlerFunc) {
+	if handler == nil {
+		panic("sm: nil handler")
+	}
 	switch cmd {
+	case "":
+		panic("sm: empty command name")
 	case "CER", "CEA", "DWR", "DPR", "DPA":
-		sm.Error(&diam.ErrorReport{
-			Error: fmt.Errorf("cannot overwrite %s command in the state machine", cmd),
-		})
+		panic("sm: cannot overwrite reserved command " + cmd)
 	default:
 		sm.mux.Handle(cmd, handshakeOK(handler))
 	}
-}
-
-// Error implements the diam.ErrorReporter interface.
-func (sm *StateMachine) Error(err *diam.ErrorReport) {
-	sm.mux.Error(err)
-}
-
-// ErrorReports implement the diam.ErrorReporter interface.
-func (sm *StateMachine) ErrorReports() <-chan *diam.ErrorReport {
-	return sm.mux.ErrorReports()
-}
-
-// HandshakeNotify implements the HandshakeNotifier interface.
-func (sm *StateMachine) HandshakeNotify() <-chan diam.Conn {
-	return sm.hsNotifyc
-}
-
-// The HandshakeNotifier interface is implemented by Handlers
-// that allow detecting peers that have passed the CER/CEA
-// handshake.
-type HandshakeNotifier interface {
-	// HandshakeNotify returns a channel that receives
-	// a peer's diam.Conn after it passes the handshake.
-	HandshakeNotify() <-chan diam.Conn
 }
 
 // handshakeOK is a wrapper for state machine handlers that only
@@ -432,7 +448,11 @@ type handshakeOK diam.HandlerFunc
 
 // ServeDIAM implements the diam.Handler interface.
 func (f handshakeOK) ServeDIAM(c diam.Conn, m *diam.Message) {
-	if _, ok := smpeer.FromContext(c.Context()); ok {
-		f(c, m)
+	if !admittedPeer(c) {
+		// RFC 6733 §5.6.1: reject messages before capabilities exchange.
+		logMessage(c, m, slog.LevelWarn, "sm: message before CER; closing connection", nil)
+		c.Close()
+		return
 	}
+	f(c, m)
 }

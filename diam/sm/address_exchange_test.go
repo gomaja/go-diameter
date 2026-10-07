@@ -27,25 +27,27 @@ func TestAddressCapabilitiesExchangeTCP(t *testing.T) {
 	serverCfg := *serverSettings
 	serverCfg.HostIPAddresses = addresses
 	server := mustNewStateMachine(t, &serverCfg)
+	serverHandshakes := testHandshakeNotifications(server)
 	srv := diamtest.NewServer(server, dict.Default)
 	defer srv.Close()
 	clientCfg := *clientSettings
 	clientCfg.HostIPAddresses = addresses
 	client := &Client{Handler: mustNewStateMachine(t, &clientCfg), AuthApplicationID: []*diam.AVP{diam.NewAVP(avp.AuthApplicationID, avp.Mbit, 0, datatype.Unsigned32(4))}}
+	clientHandshakes := testHandshakeNotifications(client.Handler)
 	conn, err := client.Dial(srv.Addr)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer conn.Close()
-	for _, sm := range []*StateMachine{server, client.Handler} {
+	for _, notifications := range []<-chan diam.Conn{serverHandshakes, clientHandshakes} {
 		select {
-		case c := <-sm.HandshakeNotify():
+		case c := <-notifications:
 			metadata, ok := smpeer.FromContext(c.Context())
 			if !ok {
 				t.Fatal("handshake lacks peer metadata")
 			}
 			var got []datatype.Address
-			if sm == server {
+			if notifications == serverHandshakes {
 				got = metadata.CER.HostIPAddresses
 			} else {
 				got = metadata.CEA.HostIPAddresses

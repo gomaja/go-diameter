@@ -19,9 +19,16 @@ import (
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/diamtest"
 	"github.com/gomaja/go-diameter/diam/dict"
+	"github.com/gomaja/go-diameter/diam/internal/logtest"
 )
 
 func TestStateMachineAnswersUndecodableAVPs(t *testing.T) {
+	for _, variant := range stateMachineWrappers {
+		t.Run(variant.name, func(t *testing.T) { testStateMachineAnswersUndecodableAVPs(t, variant.wrap) })
+	}
+}
+
+func testStateMachineAnswersUndecodableAVPs(t *testing.T, wrap func(diam.Handler) diam.Handler) {
 	for _, tc := range []struct {
 		name            string
 		code            uint32
@@ -33,8 +40,11 @@ func TestStateMachineAnswersUndecodableAVPs(t *testing.T) {
 	} {
 		for _, stage := range []string{"CER", "after CER"} {
 			t.Run(tc.name+"/"+stage, func(t *testing.T) {
+				records := logtest.New()
 				stateMachine := mustNewStateMachine(t, testMessageErrorSettings())
-				server := diamtest.NewServer(stateMachine, dict.Default)
+				server := diamtest.NewUnstartedServer(wrap(stateMachine), dict.Default)
+				server.Config.Logger = records.Logger()
+				server.Start()
 				defer server.Close()
 				conn, err := net.DialTimeout("tcp", server.Addr, time.Second)
 				if err != nil {
@@ -89,15 +99,12 @@ func TestStateMachineAnswersUndecodableAVPs(t *testing.T) {
 				if got := failed[0].Data.Serialize(); !bytes.Equal(got, want) {
 					t.Fatalf("Failed-AVP bytes = %x, want %x", got, want)
 				}
-				select {
-				case report := <-stateMachine.ErrorReports():
-					var me *diam.MessageError
-					if !errors.As(report.Error, &me) || me.ResultCode != tc.result || me.Fatal {
-						t.Fatalf("report = %v", report.Error)
-					}
-				case <-time.After(time.Second):
-					t.Fatal("missing decode error report")
+				reportErr := logError(waitLog(t, records, 1))
+				var me *diam.MessageError
+				if !errors.As(reportErr, &me) || me.ResultCode != tc.result || me.Fatal {
+					t.Fatalf("report = %v", reportErr)
 				}
+
 				if stage == "CER" {
 					// RFC 6733 §§5.3 and 5.6.1: a rejected CER admits no peer and
 					// the connection closes.

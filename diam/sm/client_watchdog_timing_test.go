@@ -65,6 +65,7 @@ func TestWatchdogTrafficSuppressesDWRAndIdleSendsIt(t *testing.T) {
 	settings := *serverSettings
 	settings.OnDWR = func(diam.Conn, *diam.Message) { dwr <- struct{}{} }
 	ssm := mustNewStateMachine(t, &settings)
+	ssmHandshakes := testHandshakeNotifications(ssm)
 	srv := diamtest.NewServer(ssm, dict.Default)
 	defer srv.Close()
 	cli := newLivenessClient(t)
@@ -76,7 +77,7 @@ func TestWatchdogTrafficSuppressesDWRAndIdleSendsIt(t *testing.T) {
 	defer c.Close()
 	var peer diam.Conn
 	select {
-	case peer = <-ssm.HandshakeNotify():
+	case peer = <-ssmHandshakes:
 	case <-time.After(2 * time.Second):
 		t.Fatal("server handshake timeout")
 	}

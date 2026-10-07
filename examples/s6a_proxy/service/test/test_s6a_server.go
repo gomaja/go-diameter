@@ -47,9 +47,6 @@ func StartTestS6aServer(network, addr string) error {
 	// Catch All
 	mux.HandleIdx(diam.ALL_CMD_INDEX, testHandleALL(results))
 
-	// Print error reports.
-	go testPrintErrors(mux.ErrorReports())
-
 	// Start S6a Diameter Server
 	go func() {
 		results <- nil
@@ -264,10 +261,4 @@ func testSendULA(settings *sm.Settings, w io.Writer, m *diam.Message) (int64, er
 func testAddAVP(m *diam.Message, code uint32, flags uint8, vendor uint32, data datatype.Type) error {
 	_, err := m.NewAVP(code, flags, vendor, data)
 	return err
-}
-
-func testPrintErrors(ec <-chan *diam.ErrorReport) {
-	for err := range ec {
-		fmt.Printf("Error: %v for Message: %s", err.Error, err.Message)
-	}
 }

@@ -115,16 +115,17 @@ func TestWatchdogRecoversFromSuspectOnAnswer(t *testing.T) {
 	}
 	requests := make(chan request, 4)
 	serverSM := mustNewStateMachine(t, serverSettings)
-	serverSM.mux.HandleIdx(baseDWRIdx, handshakeOK(func(c diam.Conn, m *diam.Message) {
+	serverSM.dwrHandler = handshakeOK(func(c diam.Conn, m *diam.Message) {
 		requests <- request{c, m}
-	}))
+	})
 	srv := diamtest.NewServer(serverSM, dict.Default)
 	defer srv.Close()
 	events := make(chan WatchdogEvent, 12)
 	cli := newLivenessClient(t)
 	cli.WatchdogInterval = 50 * time.Millisecond
 	cli.MaxRetransmits = 4
-	cli.RetransmitInterval = time.Millisecond
+	// This test times watchdog recovery, not the separate CER exchange.
+	cli.RetransmitInterval = time.Second
 	cli.OnWatchdogEvent = func(event WatchdogEvent) { events <- event }
 	c, err := cli.Dial(srv.Addr)
 	if err != nil {

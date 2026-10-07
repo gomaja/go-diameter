@@ -8,6 +8,7 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"log/slog"
 	"net"
 	"sync"
 	"testing"
@@ -18,6 +19,7 @@ import (
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/diamtest"
 	"github.com/gomaja/go-diameter/diam/dict"
+	"github.com/gomaja/go-diameter/diam/internal/logtest"
 )
 
 // These tests use dictionary, settings and functions from sm_test.go.
@@ -40,14 +42,14 @@ func newLivenessClient(t *testing.T) *Client {
 }
 
 // TestCleanEOFWakesSupervisor covers the supervisor pattern an sm.Client user
-// writes: block on ErrorReports and CloseNotify, and reconnect when either
-// fires. A peer that completes the handshake and then closes cleanly before
+// writes: wait on CloseNotify and reconnect when it fires. A peer that completes the handshake and then closes cleanly before
 // sending anything else must wake one of them. EOF is deliberately not
 // reported as an error, so the wake-up has to come from CloseNotify.
 func TestCleanEOFWakesSupervisor(t *testing.T) {
 	ssm := mustNewStateMachine(t, serverSettings)
+	ssmHandshakes := testHandshakeNotifications(ssm)
 	ssm.mux.HandleFunc("ALL", func(diam.Conn, *diam.Message) {})
-	handshake := ssm.HandshakeNotify()
+	handshake := ssmHandshakes
 
 	srv := diamtest.NewServer(ssm, dict.Default)
 	defer srv.Close()
@@ -75,10 +77,9 @@ func TestCleanEOFWakesSupervisor(t *testing.T) {
 	}
 
 	select {
-	case <-cli.Handler.ErrorReports():
 	case <-notifier.CloseNotify():
 	case <-time.After(5 * time.Second):
-		t.Fatal("supervisor stalled: neither ErrorReports nor CloseNotify fired on clean peer FIN")
+		t.Fatal("supervisor stalled: CloseNotify never fired on clean peer FIN")
 	}
 }
 
@@ -89,8 +90,9 @@ func TestCleanEOFWakesSupervisor(t *testing.T) {
 // when it is scheduled late.
 func TestCloseNotifyAfterPeerGone(t *testing.T) {
 	ssm := mustNewStateMachine(t, serverSettings)
+	ssmHandshakes := testHandshakeNotifications(ssm)
 	ssm.mux.HandleFunc("ALL", func(diam.Conn, *diam.Message) {})
-	handshake := ssm.HandshakeNotify()
+	handshake := ssmHandshakes
 
 	srv := diamtest.NewServer(ssm, dict.Default)
 	defer srv.Close()
@@ -134,6 +136,7 @@ type errWriteConn struct {
 	closed   bool
 	closec   chan struct{}
 	writeErr error
+	logger   *slog.Logger
 }
 
 func newErrWriteConn() *errWriteConn {
@@ -179,10 +182,12 @@ func (c *errWriteConn) Connection() net.Conn         { return nil }
 // disconnects and reports, instead of returning silently and leaving the
 // outer watchdog loop to retry the failed send on every interval forever.
 func TestWatchdogReportsWriteError(t *testing.T) {
+	records := logtest.New()
 	cli := newLivenessClient(t)
 	events := make(chan WatchdogEvent, 2)
 	cli.OnWatchdogEvent = func(event WatchdogEvent) { events <- event }
 	c := newErrWriteConn()
+	c.logger = records.Logger()
 	connEvents := make(chan diam.Conn, 1)
 	cli.OnWatchdogConnEvent = func(conn diam.Conn, event WatchdogEvent) {
 		if event == WatchdogWriteFailed {
@@ -192,13 +197,8 @@ func TestWatchdogReportsWriteError(t *testing.T) {
 
 	cli.dwr(c, 0)
 
-	select {
-	case er := <-cli.Handler.ErrorReports():
-		if er.Error == nil {
-			t.Fatal("error report carries no error")
-		}
-	default:
-		t.Fatal("watchdog write failure was not reported")
+	if got := records.Records(); len(got) != 1 || logError(got[0]) == nil {
+		t.Fatalf("watchdog failure records = %v", got)
 	}
 
 	select {
@@ -259,12 +259,14 @@ func TestWatchdogWriteErrorStopsRetrying(t *testing.T) {
 // WriteTimeout reach the connection, so a client can bound its I/O the way a
 // raw diam.Server dialer already can.
 func TestClientTimeoutsArePlumbed(t *testing.T) {
+	records := logtest.New()
 	ssm := mustNewStateMachine(t, serverSettings)
 	ssm.mux.HandleFunc("ALL", func(diam.Conn, *diam.Message) {})
 	srv := diamtest.NewServer(ssm, dict.Default)
 	defer srv.Close()
 
 	cli := newLivenessClient(t)
+	cli.Logger = records.Logger()
 	cli.EnableWatchdog = false
 	// A short read deadline on an otherwise idle connection is directly
 	// observable: once it reaches the socket the read loop times out and
@@ -278,27 +280,26 @@ func TestClientTimeoutsArePlumbed(t *testing.T) {
 	}
 	defer conn.Close()
 
-	select {
-	case er := <-cli.Handler.ErrorReports():
-		var ne net.Error
-		if !errors.As(er.Error, &ne) || !ne.Timeout() {
-			t.Fatalf("got %v, want a read timeout", er.Error)
-		}
-	case <-time.After(5 * time.Second):
-		t.Fatal("idle conn never hit ReadTimeout: timeout not plumbed to the conn")
+	err = logError(waitLog(t, records, 1))
+	var ne net.Error
+	if !errors.As(err, &ne) || !ne.Timeout() {
+		t.Fatalf("got %v, want read timeout", err)
 	}
+
 }
 
 // TestClientWithoutTimeoutsIsUnbounded is the control for the test above:
 // with no timeouts configured an idle connection must stay open, so the
 // timeout test above cannot pass for some unrelated reason.
 func TestClientWithoutTimeoutsIsUnbounded(t *testing.T) {
+	records := logtest.New()
 	ssm := mustNewStateMachine(t, serverSettings)
 	ssm.mux.HandleFunc("ALL", func(diam.Conn, *diam.Message) {})
 	srv := diamtest.NewServer(ssm, dict.Default)
 	defer srv.Close()
 
 	cli := newLivenessClient(t)
+	cli.Logger = records.Logger()
 	cli.EnableWatchdog = false
 
 	conn, err := cli.Dial(srv.Addr)
@@ -307,10 +308,9 @@ func TestClientWithoutTimeoutsIsUnbounded(t *testing.T) {
 	}
 	defer conn.Close()
 
-	select {
-	case er := <-cli.Handler.ErrorReports():
-		t.Fatalf("idle conn without timeouts reported %v", er.Error)
-	case <-time.After(500 * time.Millisecond):
+	time.Sleep(500 * time.Millisecond)
+	if got := records.Records(); len(got) != 0 {
+		t.Fatalf("idle conn logged %v", got)
 	}
 
 	m := diam.NewRequest(diam.DeviceWatchdog, 0, dict.Default)
@@ -319,4 +319,11 @@ func TestClientWithoutTimeoutsIsUnbounded(t *testing.T) {
 	if _, err := m.WriteTo(conn); err != nil {
 		t.Fatalf("write without timeouts: %v", err)
 	}
+}
+
+func (c *errWriteConn) Logger() *slog.Logger {
+	if c.logger != nil {
+		return c.logger
+	}
+	return slog.Default()
 }

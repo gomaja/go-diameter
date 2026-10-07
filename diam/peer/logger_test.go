@@ -1,36 +1,17 @@
 package peer
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"log/slog"
 	"net"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/internal/logtest"
 	"github.com/gomaja/go-diameter/diam/sm"
 )
-
-type lockedRecords struct {
-	mu  sync.Mutex
-	buf bytes.Buffer
-}
-
-func (b *lockedRecords) Write(p []byte) (int, error) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	return b.buf.Write(p)
-}
-
-func (b *lockedRecords) lines() []string {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	return strings.Split(strings.TrimSpace(b.buf.String()), "\n")
-}
 
 // closeFailConn fails every Close after closing the pipe it wraps.
 type closeFailConn struct{ net.Conn }
@@ -43,11 +24,11 @@ func (c closeFailConn) Close() error {
 // TestManagerDialedConnectionsUseConfigLogger checks that the diam.Server
 // the Manager builds for an outbound connection logs to Config.Logger.
 func TestManagerDialedConnectionsUseConfigLogger(t *testing.T) {
-	records := &lockedRecords{}
+	records := logtest.New()
 	var remote net.Conn
 	m, err := New(Config{
 		Settings: testSettings("local.example.net"),
-		Logger:   slog.New(slog.NewJSONHandler(records, &slog.HandlerOptions{Level: slog.LevelDebug})),
+		Logger:   records.Logger(),
 		Dial: func(context.Context, Endpoint) (net.Conn, error) {
 			local, peer := net.Pipe()
 			remote = peer
@@ -70,21 +51,21 @@ func TestManagerDialedConnectionsUseConfigLogger(t *testing.T) {
 	if remote != nil {
 		defer func() { _ = remote.Close() }()
 	}
-	deadline := time.Now().Add(2 * time.Second)
-	for !strings.Contains(strings.Join(records.lines(), "\n"), `"msg":"diam: close connection","network":"pipe"`) {
-		if time.Now().After(deadline) {
-			t.Fatalf("Config.Logger received no close failure; records: %v", records.lines())
-		}
-		time.Sleep(time.Millisecond)
+	got, err := records.Wait(ctx, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got[0].Message != "diam: close connection" || logtest.Attr(got[0], "network").String() != "pipe" {
+		t.Fatalf("Config.Logger records: %v", got)
 	}
 }
 
 func TestManagerLogsOnPeerEventPanic(t *testing.T) {
-	records := &lockedRecords{}
+	records := logtest.New()
 	delivered := make(chan struct{}, 2)
 	m, err := New(Config{
 		Settings: testSettings("local.example.net"),
-		Logger:   slog.New(slog.NewJSONHandler(records, nil)),
+		Logger:   records.Logger(),
 		OnPeerEvent: func(e PeerEvent) {
 			delivered <- struct{}{}
 			if e.Peer.Host == "faulty.example.net" {
@@ -107,24 +88,17 @@ func TestManagerLogsOnPeerEventPanic(t *testing.T) {
 		}
 	}
 
-	var rec map[string]any
-	deadline := time.Now().Add(2 * time.Second)
-	for rec == nil {
-		for _, line := range records.lines() {
-			var r map[string]any
-			if json.Unmarshal([]byte(line), &r) == nil && r["msg"] == "peer: panic in OnPeerEvent" {
-				rec = r
-			}
-		}
-		if rec == nil && time.Now().After(deadline) {
-			t.Fatalf("no panic record; records: %v", records.lines())
-		}
-		time.Sleep(time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	got, err := records.Wait(ctx, 1)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if rec["level"] != "ERROR" || rec["panic"] != "observer boom" || rec["peer_host"] != "faulty.example.net" {
+	rec := got[0]
+	if rec.Level != slog.LevelError || rec.Message != "peer: panic in OnPeerEvent" || logtest.Attr(rec, "panic").Any() != "observer boom" || logtest.Attr(rec, "peer_host").String() != "faulty.example.net" {
 		t.Errorf("panic record = %v", rec)
 	}
-	if stack, _ := rec["stack"].(string); !strings.Contains(stack, "TestManagerLogsOnPeerEventPanic") {
+	if stack := logtest.Attr(rec, "stack").String(); !strings.Contains(stack, "TestManagerLogsOnPeerEventPanic") {
 		t.Errorf("stack does not show the panicking observer:\n%s", stack)
 	}
 }

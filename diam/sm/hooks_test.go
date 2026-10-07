@@ -30,6 +30,7 @@ func TestOnCERHook(t *testing.T) {
 	}
 
 	sm := mustNewStateMachine(t, &settings)
+	smHandshakes := testHandshakeNotifications(sm)
 	srv := diamtest.NewServer(sm, dict.Default)
 	defer srv.Close()
 
@@ -53,7 +54,7 @@ func TestOnCERHook(t *testing.T) {
 	}
 
 	select {
-	case <-sm.HandshakeNotify():
+	case <-smHandshakes:
 	case <-time.After(2 * time.Second):
 		t.Fatal("handshake did not complete after OnCER hook")
 	}
@@ -76,6 +77,7 @@ func TestOnDWRHook(t *testing.T) {
 	}
 
 	sm := mustNewStateMachine(t, &settings)
+	smHandshakes := testHandshakeNotifications(sm)
 	srv := diamtest.NewServer(sm, dict.Default)
 	defer srv.Close()
 
@@ -99,7 +101,7 @@ func TestOnDWRHook(t *testing.T) {
 	}
 
 	select {
-	case <-sm.HandshakeNotify():
+	case <-smHandshakes:
 	case <-time.After(2 * time.Second):
 		t.Fatal("handshake did not complete")
 	}
@@ -136,6 +138,7 @@ func TestOnCEAHook(t *testing.T) {
 	}
 
 	sm := mustNewStateMachine(t, &settings)
+	smHandshakes := testHandshakeNotifications(sm)
 	srv := diamtest.NewServer(sm, dict.Default)
 	defer srv.Close()
 
@@ -159,7 +162,7 @@ func TestOnCEAHook(t *testing.T) {
 	}
 
 	select {
-	case <-sm.HandshakeNotify():
+	case <-smHandshakes:
 	case <-time.After(2 * time.Second):
 		t.Fatal("handshake did not complete after OnCEA hook")
 	}
@@ -261,6 +264,7 @@ func TestOnDWAHook(t *testing.T) {
 	}
 
 	sm := mustNewStateMachine(t, &settings)
+	smHandshakes := testHandshakeNotifications(sm)
 	srv := diamtest.NewServer(sm, dict.Default)
 	defer srv.Close()
 
@@ -284,7 +288,7 @@ func TestOnDWAHook(t *testing.T) {
 	}
 
 	select {
-	case <-sm.HandshakeNotify():
+	case <-smHandshakes:
 	case <-time.After(2 * time.Second):
 		t.Fatal("handshake did not complete")
 	}

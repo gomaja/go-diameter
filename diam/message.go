@@ -267,7 +267,7 @@ func (m *Message) readBody(r io.Reader, buf *bytes.Buffer, cmd *dict.Command, st
 		n, err = io.ReadFull(r, b)
 	}
 	if err != nil {
-		return fmt.Errorf("read body error: %v, %d bytes read", err, n)
+		return fmt.Errorf("read body error: %w, %d bytes read", err, n)
 	}
 	n = m.maxAVPsFor(cmd)
 	if n == 0 {

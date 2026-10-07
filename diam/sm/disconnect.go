@@ -3,6 +3,7 @@ package sm
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -75,6 +76,7 @@ func (sm *StateMachine) Disconnect(c diam.Conn, cause DisconnectCause, timeout t
 	}()
 	expired := make(chan struct{})
 	timer := time.AfterFunc(timeout, func() {
+		logMessage(c, m, slog.LevelWarn, "sm: disconnect timeout; closing connection", ErrDisconnectTimeout)
 		close(expired)
 		c.Close()
 	})
@@ -126,7 +128,7 @@ func handleDPA(sm *StateMachine) diam.HandlerFunc {
 		sm.disconnects.mu.Unlock()
 		result, err := validateDPA(m)
 		if err != nil {
-			sm.Error(&diam.ErrorReport{Conn: c, Message: m, Error: err})
+			logMessage(c, m, slog.LevelWarn, "sm: invalid DPA", err)
 			return
 		}
 		select {

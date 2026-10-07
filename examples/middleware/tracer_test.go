@@ -31,7 +31,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-var _ diam.AcceptHandler = (*Tracer)(nil)
+var _ interface{ Unwrap() diam.Handler } = (*Tracer)(nil)
 
 func newRecorder(t *testing.T) (*tracetest.SpanRecorder, trace.TracerProvider) {
 	t.Helper()
@@ -124,8 +124,6 @@ func exchangeCER(t *testing.T, errc chan error, wait chan struct{}, cer, cea dia
 	select {
 	case <-wait:
 	case err := <-errc:
-		t.Fatal(err)
-	case err := <-smux.ErrorReports():
 		t.Fatal(err)
 	case <-time.After(time.Second):
 		t.Fatal("Timed out: no CER or CEA received")
@@ -776,12 +774,16 @@ func (h *acceptObserver) HandleAccept(c diam.Conn) func() {
 	return func() { h.cleaned = true }
 }
 
-func TestTracerForwardsAcceptLifecycle(t *testing.T) {
+func TestTracerUnwrapExposesAcceptLifecycle(t *testing.T) {
 	wrapped := &acceptObserver{}
 	tracer := NewTracer(wrapped)
 	// An opaque connection verifies that the wrapper passes the original value.
 	c := &struct{ diam.Conn }{}
-	cleanup := tracer.HandleAccept(c)
+	handler, ok := diam.HandlerAs[diam.AcceptHandler](tracer)
+	if !ok || handler != wrapped || tracer.Unwrap() != wrapped {
+		t.Fatal("wrapped accept handler was hidden")
+	}
+	cleanup := handler.HandleAccept(c)
 	if wrapped.accepted != c {
 		t.Fatal("wrapped handler did not receive accepted connection")
 	}
@@ -793,7 +795,7 @@ func TestTracerForwardsAcceptLifecycle(t *testing.T) {
 		t.Fatal("wrapped cleanup was not called")
 	}
 	plain := NewTracer(diam.HandlerFunc(func(diam.Conn, *diam.Message) {}))
-	if plain.HandleAccept(c) != nil {
-		t.Fatal("plain handler returned an accept cleanup")
+	if _, ok := diam.HandlerAs[diam.AcceptHandler](plain); ok {
+		t.Fatal("plain handler claims accept capability")
 	}
 }

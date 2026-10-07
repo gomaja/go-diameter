@@ -1,6 +1,7 @@
 package peer
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -13,6 +14,7 @@ import (
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/dict"
 	"github.com/gomaja/go-diameter/diam/internal/base"
+	"github.com/gomaja/go-diameter/diam/internal/logtest"
 )
 
 type consumingErrorHandler struct{ *Manager }
@@ -27,7 +29,7 @@ func (h consumingErrorHandler) HandleMessageError(c diam.Conn, msg *diam.Message
 }
 func reviewPeerServer(t *testing.T, wrap bool) (*Manager, net.Conn) {
 	t.Helper()
-	m, err := New(Config{Settings: testSettings("local.example.net")})
+	m, err := New(Config{Logger: logtest.New().Logger(), Settings: testSettings("local.example.net")})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -93,6 +95,7 @@ func TestPeerBaseHeaderApplicationOnWire(t *testing.T) {
 	for _, cmd := range []uint32{diam.CapabilitiesExchange, diam.DeviceWatchdog, diam.DisconnectPeer} {
 		t.Run(fmt.Sprint(cmd), func(t *testing.T) {
 			manager, c := reviewPeerServer(t, false)
+			records := manager.cfg.Logger.Handler().(*logtest.Recorder)
 			req := reviewCER(t)
 			if cmd != diam.CapabilitiesExchange {
 				write(t, c, req)
@@ -119,10 +122,10 @@ func TestPeerBaseHeaderApplicationOnWire(t *testing.T) {
 				}
 				return
 			}
-			select {
-			case <-manager.ErrorReports():
-			case <-time.After(time.Second):
-				t.Fatal("invalid request not reported")
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			defer cancel()
+			if _, err := records.Wait(ctx, 1); err != nil {
+				t.Fatal(err)
 			}
 			req.Header.CommandFlags = 0
 			req.AddAVP(diam.NewAVP(avp.ResultCode, avp.Mbit, 0, datatype.Unsigned32(diam.Success)))
@@ -133,22 +136,23 @@ func TestPeerBaseHeaderApplicationOnWire(t *testing.T) {
 			if code(t, a) != diam.Success || a.Header.HopByHopID != next.Header.HopByHopID {
 				t.Fatalf("invalid answer produced a reply: %v", a)
 			}
-			for {
-				select {
-				case report := <-manager.ErrorReports():
-					if report.Message.Header.CommandFlags&diam.RequestFlag != 0 {
-						continue
-					}
-					var me *diam.MessageError
-					if !errors.As(report.Error, &me) || me.ResultCode != diam.InvalidHDRBits {
-						t.Fatalf("invalid answer report: %v", report.Error)
-					}
-				case <-time.After(time.Second):
-					t.Fatal("invalid answer not reported")
-				}
-				break
+			got, err := records.Wait(ctx, 2)
+			if err != nil {
+				t.Fatal(err)
 			}
-
+			found := false
+			for _, record := range got {
+				if logtest.Attr(record, "message.request").Bool() {
+					continue
+				}
+				var me *diam.MessageError
+				if errors.As(logtest.Attr(record, "error").Any().(error), &me) && me.ResultCode == diam.InvalidHDRBits {
+					found = true
+				}
+			}
+			if !found {
+				t.Fatalf("invalid answer records: %v", got)
+			}
 		})
 	}
 }
@@ -189,7 +193,8 @@ func TestWaitReturnsValidAnsweringConnection(t *testing.T) {
 	testWaitReturnsAnsweringConnection(t, false)
 }
 func testWaitReturnsAnsweringConnection(t *testing.T, malformed bool) {
-	m, err := New(Config{Settings: testSettings("local.example.net")})
+	records := logtest.New()
+	m, err := New(Config{Logger: records.Logger(), Settings: testSettings("local.example.net")})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -213,6 +218,9 @@ func testWaitReturnsAnsweringConnection(t *testing.T, malformed bool) {
 	answer, err := diam.ReadMessage(c.other, dict.Default)
 	if !errors.Is(err, io.EOF) {
 		t.Fatalf("expected close without a pre-CEA answer: answer=%v err=%v", answer, err)
+	}
+	if len(records.Records()) == 0 {
+		t.Fatal("Wait-Returns close was not logged before EOF")
 	}
 }
 func TestMalformedCEADecodeErrorPreventsAdmission(t *testing.T) {
@@ -249,9 +257,13 @@ func TestClosedSessionErrorIsNotQueueFull(t *testing.T) {
 	m.sessions[c] = s
 	s.close()
 	defer m.unregister(s)
-	err = m.HandleMessageError(c, reviewDWR(t), &diam.MessageError{ResultCode: diam.InvalidHDRBits})
-	if !errors.Is(err, net.ErrClosed) {
+	msg := reviewDWR(t)
+	messageErr := &diam.MessageError{ResultCode: diam.InvalidHDRBits}
+	if err = s.enqueueIncoming(incoming{msg: msg, err: messageErr}); !errors.Is(err, net.ErrClosed) {
 		t.Fatalf("closed ingress error=%v", err)
+	}
+	if err = m.HandleMessageError(c, msg, messageErr); err != nil {
+		t.Fatalf("closed managed connection was not handled: %v", err)
 	}
 	if err = m.answerMessageError(s, reviewDWR(t), &diam.MessageError{ResultCode: diam.InvalidHDRBits}); !errors.Is(err, net.ErrClosed) {
 		t.Fatalf("closed write error=%v", err)

@@ -2,6 +2,7 @@ package sm
 
 import (
 	"bytes"
+	"context"
 	"testing"
 
 	"github.com/gomaja/go-diameter/diam"
@@ -9,6 +10,7 @@ import (
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/dict"
 	"github.com/gomaja/go-diameter/diam/sm/smparser"
+	"github.com/gomaja/go-diameter/diam/sm/smpeer"
 )
 
 func validatedCapture(t *testing.T, c *messageErrorCaptureConn) *diam.Message {
@@ -75,7 +77,8 @@ func TestLibraryBuiltMessagesValidate(t *testing.T) {
 	}
 	t.Run("permanent-error-answer", func(t *testing.T) {
 		request := diam.NewRequest(diam.DeviceWatchdog, 0, dict.Default)
-		c := &messageErrorCaptureConn{}
+		// A non-CER error answer belongs to an admitted peer (RFC 6733 §5.6.1).
+		c := &messageErrorCaptureConn{ctx: smpeer.NewContext(context.Background(), &smpeer.Metadata{})}
 		failed := diam.NewAVP(avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("bad"))
 		if err := sm.HandleMessageError(c, request, &diam.MessageError{ResultCode: diam.InvalidAVPLength, FailedAVP: failed}); err != nil {
 			t.Fatal(err)

@@ -5,6 +5,9 @@
 package sm
 
 import (
+	"fmt"
+	"log/slog"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/sm/smparser"
 )
@@ -26,14 +29,11 @@ func handleDWA(
 		dwa := new(smparser.DWA)
 		if err := dwa.Parse(m); err != nil {
 			observe(c, WatchdogInvalidAnswer)
-			sm.Error(&diam.ErrorReport{
-				Conn:    c,
-				Message: m,
-				Error:   err,
-			})
+			logMessage(c, m, slog.LevelWarn, "sm: invalid DWA", err)
 			return
 		}
 		if dwa.ResultCode != diam.Success {
+			logMessage(c, m, slog.LevelWarn, "sm: rejected DWA", fmt.Errorf("DWA Result-Code %d", dwa.ResultCode))
 			observe(c, WatchdogInvalidAnswer)
 			return
 		}

@@ -24,21 +24,15 @@ func TestHandleCER_HandshakeMetadataTCP(t *testing.T) {
 
 func testHandleCER_HandshakeMetadata(t *testing.T, network string) {
 	sm := mustNewStateMachine(t, serverSettings)
+	smHandshakes := testHandshakeNotifications(sm)
 	srv := diamtest.NewServerNetwork(network, sm, dict.Default)
 	defer srv.Close()
 
-	hsc := make(chan diam.Conn, 1)
+	hsc := smHandshakes
 	cli, err := diam.DialNetwork(network, srv.Addr, nil, dict.Default)
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	ready := make(chan struct{})
-	go func() {
-		c := <-sm.HandshakeNotify()
-		hsc <- c
-		close(ready)
-	}()
 
 	m := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
 	mustSMClientAVP(t, m, avp.OriginHost, avp.Mbit, 0, clientSettings.OriginHost)
@@ -53,7 +47,6 @@ func testHandleCER_HandshakeMetadata(t *testing.T, network string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	<-ready
 
 	c := <-hsc
 	ctx := c.Context()
@@ -73,23 +66,16 @@ func testHandleCER_HandshakeMetadata(t *testing.T, network string) {
 
 func TestHandleCER_HandshakeMetadata_CustomIP(t *testing.T) {
 	sm := mustNewStateMachine(t, serverSettings2)
+	smHandshakes := testHandshakeNotifications(sm)
 	srv := diamtest.NewServer(sm, dict.Default)
 	defer srv.Close()
 
-	hsc := make(chan diam.Conn, 1)
+	hsc := smHandshakes
 	cli, err := diam.Dial(srv.Addr, nil, dict.Default)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer cli.Close()
-
-	ready := make(chan struct{})
-	go func() {
-		close(ready)
-		c := <-sm.HandshakeNotify()
-		hsc <- c
-	}()
-	<-ready
 
 	m := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
 	mustSMClientAVP(t, m, avp.OriginHost, avp.Mbit, 0, clientSettings.OriginHost)
@@ -153,8 +139,6 @@ func TestHandleCER_Acct(t *testing.T) {
 		if !testResultCode(resp, diam.Success) {
 			t.Fatalf("Unexpected result code.\n%s", resp)
 		}
-	case err := <-mux.ErrorReports():
-		t.Fatal(err)
 	case <-time.After(time.Second):
 		t.Fatal("No message received")
 	}
@@ -192,8 +176,6 @@ func TestHandleCER_Acct_Fail(t *testing.T) {
 		if !testResultCode(resp, diam.NoCommonApplication) {
 			t.Fatalf("Unexpected result code.\n%s", resp)
 		}
-	case err := <-mux.ErrorReports():
-		t.Fatal(err)
 	case <-time.After(time.Second):
 		t.Fatal("No message received")
 	}
@@ -231,8 +213,6 @@ func TestHandleCER_Acct_Fail_CustomIP(t *testing.T) {
 		if !testResultCode(resp, diam.NoCommonApplication) {
 			t.Fatalf("Unexpected result code.\n%s", resp)
 		}
-	case err := <-mux.ErrorReports():
-		t.Fatal(err)
 	case <-time.After(time.Second):
 		t.Fatal("No message received")
 	}
@@ -274,8 +254,6 @@ func TestHandleCER_VS_Acct(t *testing.T) {
 		if !testResultCode(resp, diam.Success) {
 			t.Fatalf("Unexpected result code.\n%s", resp)
 		}
-	case err := <-mux.ErrorReports():
-		t.Fatal(err)
 	case <-time.After(time.Second):
 		t.Fatal("No message received")
 	}
@@ -317,8 +295,6 @@ func TestHandleCER_VS_Acct_Fail(t *testing.T) {
 		if !testResultCode(resp, diam.NoCommonApplication) {
 			t.Fatalf("Unexpected result code.\n%s", resp)
 		}
-	case err := <-mux.ErrorReports():
-		t.Fatal(err)
 	case <-time.After(time.Second):
 		t.Fatal("No message received")
 	}
@@ -356,8 +332,6 @@ func TestHandleCER_Auth(t *testing.T) {
 		if !testResultCode(resp, diam.Success) {
 			t.Fatalf("Unexpected result code.\n%s", resp)
 		}
-	case err := <-mux.ErrorReports():
-		t.Fatal(err)
 	case <-time.After(time.Second):
 		t.Fatal("No message received")
 	}
@@ -395,8 +369,6 @@ func TestHandleCER_Auth_Fail(t *testing.T) {
 		if !testResultCode(resp, diam.NoCommonApplication) {
 			t.Fatalf("Unexpected result code.\n%s", resp)
 		}
-	case err := <-mux.ErrorReports():
-		t.Fatal(err)
 	case <-time.After(time.Second):
 		t.Fatal("No message received")
 	}
@@ -442,8 +414,6 @@ func testHandleCER_VS_Auth(t *testing.T, network string) {
 		if !testResultCode(resp, diam.Success) {
 			t.Fatalf("Unexpected result code.\n%s", resp)
 		}
-	case err := <-mux.ErrorReports():
-		t.Fatal(err)
 	case <-time.After(time.Second):
 		t.Fatal("No message received")
 	}
@@ -489,8 +459,6 @@ func testHandleCER_VS_Auth_Fail(t *testing.T, network string) {
 		if !testResultCode(resp, diam.NoCommonApplication) {
 			t.Fatalf("Unexpected result code.\n%s", resp)
 		}
-	case err := <-mux.ErrorReports():
-		t.Fatal(err)
 	case <-time.After(time.Second):
 		t.Fatal("No message received")
 	}
@@ -528,8 +496,6 @@ func TestHandleCER_InbandSecurity(t *testing.T) {
 		if !testResultCode(resp, diam.NoCommonSecurity) {
 			t.Fatalf("Unexpected result code.\n%s", resp)
 		}
-	case err := <-mux.ErrorReports():
-		t.Fatal(err)
 	case <-time.After(time.Second):
 		t.Fatal("No message received")
 	}

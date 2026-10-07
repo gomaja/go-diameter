@@ -1,49 +1,32 @@
 package diam_test
 
 import (
-	"bytes"
 	"context"
 	"errors"
-	"log/slog"
 	"net"
-	"strings"
-	"sync"
 	"testing"
 	"time"
 
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
+	"github.com/gomaja/go-diameter/diam/internal/logtest"
 	"github.com/gomaja/go-diameter/diam/sm"
 )
-
-// lockedBuffer collects log output written by server goroutines.
-type lockedBuffer struct {
-	mu  sync.Mutex
-	buf bytes.Buffer
-}
-
-func (b *lockedBuffer) Write(p []byte) (int, error) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	return b.buf.Write(p)
-}
-
-func (b *lockedBuffer) String() string {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	return b.buf.String()
-}
 
 func TestServerShutdownActionCanCompleteDPR(t *testing.T) {
 	// A DPR from the shutdown action closes the transport before the server
 	// does; closing it again is expected and must not be logged, even at
-	// Debug level.
-	logs := &lockedBuffer{}
-	logger := slog.New(slog.NewTextHandler(logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	// Debug level. Wrapped read failures are a separate diagnostic: only bare
+	// EOF/ErrClosed sentinels are silent in the read loop.
+	logs := logtest.New()
+	logger := logs.Logger()
 	t.Cleanup(func() {
-		if out := logs.String(); strings.Contains(out, "use of closed network connection") {
-			t.Errorf("shutdown logged closing an already closed connection:\n%s", out)
+		for _, record := range logs.Records() {
+			err, _ := logtest.Attr(record, "error").Any().(error)
+			if record.Message == "diam: close connection" && errors.Is(err, net.ErrClosed) {
+				t.Errorf("shutdown logged closing an already closed connection: %v", record)
+			}
 		}
 	})
 	serverSM, err := sm.New(&sm.Settings{OriginHost: "srv", OriginRealm: "test", VendorID: 13, ProductName: "go-diameter"})

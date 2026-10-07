@@ -3,6 +3,7 @@ package sm
 import (
 	"context"
 	"crypto/tls"
+	"log/slog"
 	"net"
 	"sync"
 	"testing"
@@ -69,6 +70,7 @@ func writeTestDPA(t *testing.T, m *diam.Message, c diam.Conn) {
 
 func TestDisconnectReceivesDPAAndCloses(t *testing.T) {
 	sm := mustNewStateMachine(t, serverSettings)
+	smHandshakes := testHandshakeNotifications(sm)
 	srv := diamtest.NewServer(sm, dict.Default)
 	defer srv.Close()
 	received := make(chan *diam.Message, 1)
@@ -79,7 +81,7 @@ func TestDisconnectReceivesDPAAndCloses(t *testing.T) {
 		addDPAIdentity(t, answer, "Origin-Realm", clientSettings.OriginRealm)
 		writeTestDPA(t, answer, c)
 	}), srv.Addr)
-	peer := <-sm.HandshakeNotify()
+	peer := <-smHandshakes
 	result := make(chan error, 1)
 	go func() { result <- sm.Disconnect(peer, DisconnectBusy, time.Second) }()
 	select {
@@ -110,11 +112,12 @@ func TestDisconnectReceivesDPAAndCloses(t *testing.T) {
 
 func TestDisconnectTimesOutAndCloses(t *testing.T) {
 	sm := mustNewStateMachine(t, serverSettings)
+	smHandshakes := testHandshakeNotifications(sm)
 	srv := diamtest.NewServer(sm, dict.Default)
 	defer srv.Close()
 	received := make(chan struct{}, 1)
 	client := dialHandshakeForDPR(t, "DPR", diam.HandlerFunc(func(_ diam.Conn, _ *diam.Message) { received <- struct{}{} }), srv.Addr)
-	peer := <-sm.HandshakeNotify()
+	peer := <-smHandshakes
 	start := time.Now()
 	result := make(chan error, 1)
 	go func() { result <- sm.Disconnect(peer, DisconnectRebooting, 80*time.Millisecond) }()
@@ -143,10 +146,11 @@ func TestDisconnectTimesOutAndCloses(t *testing.T) {
 
 func TestDisconnectClosedConnectionReturnsError(t *testing.T) {
 	sm := mustNewStateMachine(t, serverSettings)
+	smHandshakes := testHandshakeNotifications(sm)
 	srv := diamtest.NewServer(sm, dict.Default)
 	defer srv.Close()
 	client := dialHandshakeForDPR(t, "", nil, srv.Addr)
-	peer := <-sm.HandshakeNotify()
+	peer := <-smHandshakes
 	client.Close()
 	select {
 	case <-peer.(diam.CloseNotifier).CloseNotify():
@@ -160,6 +164,7 @@ func TestDisconnectClosedConnectionReturnsError(t *testing.T) {
 
 func TestDisconnectIgnoresWrongHopID(t *testing.T) {
 	sm := mustNewStateMachine(t, serverSettings)
+	smHandshakes := testHandshakeNotifications(sm)
 	srv := diamtest.NewServer(sm, dict.Default)
 	defer srv.Close()
 	received := make(chan struct{}, 1)
@@ -171,7 +176,7 @@ func TestDisconnectIgnoresWrongHopID(t *testing.T) {
 		writeTestDPA(t, answer, c)
 		received <- struct{}{}
 	}), srv.Addr)
-	peer := <-sm.HandshakeNotify()
+	peer := <-smHandshakes
 	result := make(chan error, 1)
 	go func() { result <- sm.Disconnect(peer, DisconnectBusy, 80*time.Millisecond) }()
 	select {
@@ -196,6 +201,7 @@ func TestDisconnectIgnoresWrongHopID(t *testing.T) {
 
 func TestDisconnectRejectsMalformedDPA(t *testing.T) {
 	sm := mustNewStateMachine(t, serverSettings)
+	smHandshakes := testHandshakeNotifications(sm)
 	srv := diamtest.NewServer(sm, dict.Default)
 	defer srv.Close()
 	received := make(chan struct{}, 1)
@@ -205,7 +211,7 @@ func TestDisconnectRejectsMalformedDPA(t *testing.T) {
 		writeTestDPA(t, answer, c)
 		received <- struct{}{}
 	}), srv.Addr)
-	peer := <-sm.HandshakeNotify()
+	peer := <-smHandshakes
 	result := make(chan error, 1)
 	go func() { result <- sm.Disconnect(peer, DisconnectBusy, 80*time.Millisecond) }()
 	select {
@@ -230,6 +236,7 @@ func TestDisconnectRejectsMalformedDPA(t *testing.T) {
 
 func TestDisconnectIgnoresDPAOnAnotherConnection(t *testing.T) {
 	sm := mustNewStateMachine(t, serverSettings)
+	smHandshakes := testHandshakeNotifications(sm)
 	srv := diamtest.NewServer(sm, dict.Default)
 	defer srv.Close()
 	received := make(chan struct{}, 1)
@@ -241,9 +248,9 @@ func TestDisconnectIgnoresDPAOnAnotherConnection(t *testing.T) {
 		writeTestDPA(t, answer, other)
 		received <- struct{}{}
 	}), srv.Addr)
-	peer := <-sm.HandshakeNotify()
+	peer := <-smHandshakes
 	other = dialHandshakeForDPR(t, "", nil, srv.Addr)
-	<-sm.HandshakeNotify()
+	<-smHandshakes
 	result := make(chan error, 1)
 	go func() { result <- sm.Disconnect(peer, DisconnectBusy, 80*time.Millisecond) }()
 	select {
@@ -265,3 +272,5 @@ func TestDisconnectIgnoresDPAOnAnotherConnection(t *testing.T) {
 		t.Fatal("first transport remained open after timeout")
 	}
 }
+
+func (c *blockingDisconnectConn) Logger() *slog.Logger { return slog.Default() }

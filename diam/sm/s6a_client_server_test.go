@@ -18,6 +18,7 @@ import (
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/dict"
+	"github.com/gomaja/go-diameter/diam/internal/logtest"
 	"github.com/gomaja/go-diameter/diam/sm/smpeer"
 )
 
@@ -52,6 +53,7 @@ func mustS6aAVP(m *diam.Message, code uint32, flags uint8, vendor uint32, data d
 func testS6aClientServer(network string, t *testing.T) {
 
 	resetTestStats()
+	records := logtest.New()
 	settings := &Settings{
 		OriginHost:       datatype.DiameterIdentity("test.host"),
 		OriginRealm:      datatype.DiameterIdentity("test.realm"),
@@ -80,9 +82,6 @@ func testS6aClientServer(network string, t *testing.T) {
 	// Catch All
 	mux.HandleIdx(diam.ALL_CMD_INDEX, testHandleALL(results))
 
-	// Print error reports.
-	go testPrintErrors(mux.ErrorReports(), results)
-
 	// Start Server on an ephemeral port, so concurrent or repeated test runs
 	// on one host cannot collide on the Diameter port.
 	ln, err := diam.MultistreamListen(network, "127.0.0.1:0")
@@ -90,7 +89,9 @@ func testS6aClientServer(network string, t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _ = ln.Close() }()
-	go func() { _ = diam.Serve(ln, mux) }()
+	server := &diam.Server{Handler: mux, Dict: dict.Default, Logger: records.Logger()}
+	defer func() { _ = server.Close() }()
+	go func() { _ = server.Serve(ln) }()
 
 	// Initialize Client
 	cfg := &Settings{
@@ -107,6 +108,7 @@ func testS6aClientServer(network string, t *testing.T) {
 	cmux := mustNewStateMachine(t, cfg)
 
 	cli := &Client{
+		Logger:             records.Logger(),
 		Dict:               dict.Default,
 		Handler:            cmux,
 		MaxRetransmits:     3,
@@ -141,18 +143,13 @@ func testS6aClientServer(network string, t *testing.T) {
 
 	cmux.HandleFunc("ALL", testHandleALL(results)) // Catch all.
 
-	// Print error reports.
-	go testPrintErrors(cmux.ErrorReports(), results)
-
 	c, err := cli.DialNetwork(network, ln.Addr().String())
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer c.Close()
 	timeOut := time.NewTimer(time.Second * TEST_TIMEOUT_SECONDS)
-	go func() {
-		<-timeOut.C
-		results <- fmt.Errorf("testClientServer %s timed out", network)
-	}()
+	defer timeOut.Stop()
 	for i := 0; i < CONCURENT_CLIENTS; i++ {
 		go func() {
 			time.Sleep(time.Nanosecond * time.Duration(rand.Intn(int(time.Millisecond))))
@@ -165,7 +162,11 @@ func testS6aClientServer(network string, t *testing.T) {
 		}()
 	}
 	for i := 0; i < CONCURENT_CLIENTS; i++ {
-		err = <-results
+		select {
+		case err = <-results:
+		case <-timeOut.C:
+			err = fmt.Errorf("testClientServer %s timed out", network)
+		}
 		if err != nil {
 			t.Error(err)
 			for e := 0; e < len(results); e++ {
@@ -179,6 +180,9 @@ func testS6aClientServer(network string, t *testing.T) {
 	}
 	time.Sleep(time.Second)
 	logStats(t)
+	if got := records.Records(); len(got) != 0 {
+		t.Errorf("unexpected library diagnostics: %v", got)
+	}
 }
 
 func testHandleALL(results chan error) diam.HandlerFunc {
@@ -637,10 +641,4 @@ func logStats(t *testing.T) {
 		atomic.LoadUint32(&sentCLRs), atomic.LoadUint32(&receivedCLRs),
 		atomic.LoadUint32(&sentCLAs), atomic.LoadUint32(&receivedCLAs),
 	)
-}
-
-func testPrintErrors(ec <-chan *diam.ErrorReport, results chan error) {
-	for err := range ec {
-		results <- fmt.Errorf("error: %w for message: %s", err.Error, err.Message)
-	}
 }

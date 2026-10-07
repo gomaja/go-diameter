@@ -107,9 +107,6 @@ func main() {
 
 	mux.Handle("SLA", handleSLA(done))
 
-	// Print error reports.
-	go printErrors(mux.ErrorReports())
-
 	connect := func() (diam.Conn, error) {
 		return dial(cli, *addr, *certFile, *keyFile, *ssl, *networkType)
 	}
@@ -149,12 +146,6 @@ func main() {
 		backoff = 1
 		<-c.(diam.CloseNotifier).CloseNotify()
 		log.Println("Client disconnected")
-	}
-}
-
-func printErrors(ec <-chan *diam.ErrorReport) {
-	for err := range ec {
-		log.Println(err)
 	}
 }
 
