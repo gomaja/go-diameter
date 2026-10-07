@@ -88,7 +88,7 @@ func TestRoRfApplicationViews(t *testing.T) {
 			vendors = append(vendors, v.ID)
 		}
 		slices.Sort(vendors)
-		if !slices.Equal(vendors, []uint32{5535, 10415, 13019}) {
+		if !slices.Equal(vendors, []uint32{5535, 10415, 13019, 45687}) {
 			t.Fatalf("Rf vendor declarations: %v", vendors)
 		}
 	}
@@ -141,6 +141,7 @@ func TestRoRfAVPSpec(t *testing.T) {
 
 func TestRoRfFixtureClosure(t *testing.T) {
 	s := loadRoRfSpec(t)
+	s.AVPs = append(s.AVPs, loadOneM2MSpec(t)...)
 	names := map[string]bool{}
 	codes := map[[2]uint32]bool{}
 	for _, a := range s.AVPs {

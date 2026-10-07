@@ -130,8 +130,8 @@ func TestPeerDictionaryApplicationFallbacks(t *testing.T) {
 	}{
 		{"vendorless-private", dict.New(dict.Base), 16777999, 0, nil},
 		{"bare-typeless", dict.New(dict.Base), 999, 0, nil},
-		{"Gx-extended", dict.New(dict.Base, dict.NASREQ, dict.CreditControl, dict.RoRf, dict.Gx), 16777238, 10415, []uint32{5535, 9999, 10415, 13019}},
-		{"Credit-Control-RoRf", dict.New(dict.Base, dict.NASREQ, dict.CreditControl, dict.RoRf), 4, 0, []uint32{5535, 10415, 13019}},
+		{"Gx-extended", dict.New(dict.Base, dict.NASREQ, dict.CreditControl, dict.RoRf, dict.Gx), 16777238, 10415, []uint32{5535, 9999, 10415, 13019, 45687}},
+		{"Credit-Control-RoRf", dict.New(dict.Base, dict.NASREQ, dict.CreditControl, dict.RoRf), 4, 0, []uint32{5535, 10415, 13019, 45687}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var extension string
@@ -253,7 +253,7 @@ func TestPeerS6aBundledCapabilities(t *testing.T) {
 	request, answer := peerMessages(t, Config{Settings: settings})
 	for _, message := range []*diam.Message{request, answer} {
 		got := readPeerCapabilities(t, message, settings.Dict)
-		checkPeerVendors(t, got.supported, []uint32{5535, 10415, 13019})
+		checkPeerVendors(t, got.supported, []uint32{5535, 10415, 13019, 45687})
 		if n := countPeerGroup(got.groups, 16777251, 10415, avp.AuthApplicationID); n != 1 {
 			t.Errorf("3GPP S6a groups = %d, want 1", n)
 		}
@@ -271,7 +271,7 @@ func TestPeerDefaultDictionaryCapabilities(t *testing.T) {
 		}
 		t.Run(name, func(t *testing.T) {
 			got := readPeerCapabilities(t, message, dict.Default)
-			checkPeerVendors(t, got.supported, []uint32{5535, 10415, 13019})
+			checkPeerVendors(t, got.supported, []uint32{5535, 10415, 13019, 45687})
 			for _, app := range []uint32{1, 4} {
 				if n := countPeerValue(got.auth, app); n != 1 {
 					t.Errorf("plain Auth-Application-Id %d count = %d, want 1", app, n)

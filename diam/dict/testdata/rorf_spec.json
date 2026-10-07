@@ -5691,21 +5691,18 @@
           "abnf": "[ DCD-Information ]"
         },
         {
+          "name": "M2M-Information",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ M2M-Information ]"
+        },
+        {
           "name": "CPDT-Information",
           "min": 0,
           "max": 1,
           "fixed": false,
           "abnf": "[ CPDT-Information ]"
-        }
-      ],
-      "omitted_rules": [
-        {
-          "name": "M2M-Information",
-          "min": 0,
-          "max": 1,
-          "fixed": false,
-          "abnf": "[ M2M-Information ]",
-          "reason": "oneM2M TS-0004 definition not independently extracted."
         }
       ]
     },
@@ -5802,7 +5799,7 @@
           "max": 1,
           "fixed": false,
           "abnf": "[ Submission-Timestamp ]",
-          "reason": "Named by §7.2.112aA without a definition or table entry."
+          "reason": "TS 32.299 V19.0.0 §7.2.112aA and TS 32.253 V19.0.0 Table 6.4.1 name it without defining an AVP code/type. TS 32.298 Rel-19 CPDT ASN.1 NIDDsubmission.submissionTimestamp is TimeStamp; no source equates it to Submission-Time (1202, §7.2.217). No alias is invented."
         }
       ]
     },
@@ -14116,7 +14113,7 @@
           "max": 1,
           "fixed": false,
           "abnf": "[ Network-Element ]",
-          "reason": "Named by §7.2.66aA without a definition or table entry."
+          "reason": "TS 32.299 V19.0.0 §7.2.66aA and CR 0799r2 (S5-183361, SP-180430) name this member without a definition/table entry. TS 32.298 Rel-19 ExposureFunctionAPI ASN.1 has aPINetworkServiceNode but no networkElement. Stale grammar entry is the inferred explanation; no AVP is invented."
         }
       ]
     },
@@ -14144,12 +14141,21 @@
       "name": "API-Network-Service-Node",
       "code": 1315,
       "vendor": 10415,
-      "section": "TS 32.299 V19.0.0 §7.2.20eA",
+      "section": "TS 32.299 V19.0.0 §7.2.20eA; values after §7.2.20gA (misplaced in CR 0799r2, S5-183361, SP-180430); TS 32.298 Rel-19 APINetworkServiceNode ASN.1 corroborates the numbers",
       "type": "Enumerated",
       "must": "V",
       "may": "",
       "must_not": "M",
-      "open_registry": true
+      "items": {
+        "0": "MME",
+        "1": "SGSN",
+        "2": "HSS",
+        "3": "PCRF",
+        "4": "PFDF",
+        "5": "BMSC",
+        "6": "CSCF",
+        "7": "RCAF"
+      }
     },
     {
       "name": "API-Invocation-Timestamp",
@@ -16292,53 +16298,52 @@
       "name": "Civic-Address-Information",
       "code": 1305,
       "vendor": 10415,
-      "section": "TS 32.299 V19.0.0 §7.2.35B; CR 0800r1 (S5-182340, SP-180427) (unavailable); clause type selected over Table 7.2.0.1",
+      "section": "TS 32.299 V19.0.0 §7.2.35B",
       "type": "OctetString",
       "must": "V",
       "may": "",
       "must_not": "M",
       "table_type": "UTF8String",
-      "conflict": "CR 0800r1 (S5-182340, SP-180427)"
+      "resolution": "Resolved table slip: CR 0800r1 (S5-182340, SP-180427) contains both the UTF8String table cell and OctetString clause. TS 32.298 CR 0658r3 (S5-183366, same pack) CivicAddressInformation ::= OCTET STRING and RFC 5580 §6 Location-Data corroborate OctetString; RFC 8559 does not change this type."
     },
     {
       "name": "Monitoring-Event-Configuration-Activity",
       "code": 3919,
       "vendor": 10415,
-      "section": "TS 32.299 V19.0.0 §7.2.111AaA; CR 0718r1 (S5-161260, SP-160035) (unavailable); clause type selected over Table 7.2.0.1",
+      "section": "TS 32.299 V19.0.0 §7.2.111AaA",
       "type": "Enumerated",
       "must": "M,V",
       "may": "",
       "must_not": "",
       "table_type": "Integer32",
-      "conflict": "CR 0718r1 (S5-161260, SP-160035)",
       "items": {
         "0": "create",
         "1": "transfer",
         "2": "update",
         "3": "delete"
-      }
+      },
+      "resolution": "Resolved table slip in CR 0718r1 (S5-161260, SP-160035): clause 7.2.111AaA defines Enumerated and four values despite Integer32 in Table 7.2.0.1. TS 32.298 CR 0574r1 (S5-161261, same pack) and Rel-19 MONTE ASN.1 MonitoringEventConfigurationActivity agree."
     },
     {
       "name": "Monitoring-Event-Functionality",
       "code": 3922,
       "vendor": 10415,
-      "section": "TS 32.299 V19.0.0 §7.2.111AaB; CR 0718r1 (S5-161260, SP-160035) (unavailable); clause type selected over Table 7.2.0.1",
+      "section": "TS 32.299 V19.0.0 §7.2.111AaB",
       "type": "Enumerated",
       "must": "M,V",
       "may": "",
       "must_not": "",
       "table_type": "Integer32",
-      "conflict": "CR 0718r1 (S5-161260, SP-160035)",
       "items": {
         "0": "Configuration",
         "1": "Reporting"
-      }
+      },
+      "resolution": "Resolved table slip in CR 0718r1 (S5-161260, SP-160035): clause 7.2.111AaB defines Enumerated and two values despite Integer32 in Table 7.2.0.1."
     }
   ],
   "deferred": {
-    "M2M-Information": "oneM2M TS-0004 definition not independently extracted.",
-    "Network-Element": "Named by §7.2.66aA without a definition or table entry.",
-    "Submission-Timestamp": "Named by §7.2.112aA without a definition or table entry."
+    "Network-Element": "TS 32.299 V19.0.0 §7.2.66aA and CR 0799r2 (S5-183361, SP-180430) name this member without a definition/table entry. TS 32.298 Rel-19 ExposureFunctionAPI ASN.1 has aPINetworkServiceNode but no networkElement. Stale grammar entry is the inferred explanation; no AVP is invented.",
+    "Submission-Timestamp": "TS 32.299 V19.0.0 §7.2.112aA and TS 32.253 V19.0.0 Table 6.4.1 name it without defining an AVP code/type. TS 32.298 Rel-19 CPDT ASN.1 NIDDsubmission.submissionTimestamp is TimeStamp; no source equates it to Submission-Time (1202, §7.2.217). No alias is invented."
   },
   "source_conflicts": [
     {
@@ -16347,7 +16352,8 @@
       "clause_type": "OctetString",
       "choice": "OctetString",
       "cr": "CR 0800r1 (S5-182340, SP-180427)",
-      "reason": "Explicit defining clause and, for Enumerated, its numeric registry; introducing CR unavailable."
+      "reason": "Resolved table slip: CR 0800r1 (S5-182340, SP-180427) contains both the UTF8String table cell and OctetString clause. TS 32.298 CR 0658r3 (S5-183366, same pack) CivicAddressInformation ::= OCTET STRING and RFC 5580 §6 Location-Data corroborate OctetString; RFC 8559 does not change this type.",
+      "status": "resolved-table-slip"
     },
     {
       "name": "Monitoring-Event-Configuration-Activity",
@@ -16355,7 +16361,8 @@
       "clause_type": "Enumerated",
       "choice": "Enumerated",
       "cr": "CR 0718r1 (S5-161260, SP-160035)",
-      "reason": "Explicit defining clause and, for Enumerated, its numeric registry; introducing CR unavailable."
+      "reason": "Resolved table slip in CR 0718r1 (S5-161260, SP-160035): clause 7.2.111AaA defines Enumerated and four values despite Integer32 in Table 7.2.0.1. TS 32.298 CR 0574r1 (S5-161261, same pack) and Rel-19 MONTE ASN.1 MonitoringEventConfigurationActivity agree.",
+      "status": "resolved-table-slip"
     },
     {
       "name": "Monitoring-Event-Functionality",
@@ -16363,7 +16370,8 @@
       "clause_type": "Enumerated",
       "choice": "Enumerated",
       "cr": "CR 0718r1 (S5-161260, SP-160035)",
-      "reason": "Explicit defining clause and, for Enumerated, its numeric registry; introducing CR unavailable."
+      "reason": "Resolved table slip in CR 0718r1 (S5-161260, SP-160035): clause 7.2.111AaB defines Enumerated and two values despite Integer32 in Table 7.2.0.1.",
+      "status": "resolved-table-slip"
     }
   ]
 }

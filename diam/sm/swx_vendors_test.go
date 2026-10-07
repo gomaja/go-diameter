@@ -30,7 +30,7 @@ func TestSWxSupportedVendors(t *testing.T) {
 		got := readSMCapabilities(t, request, dictionary)
 		want := []uint32{10415, 13019}
 		if dictionary == dict.Default {
-			want = []uint32{5535, 10415, 13019}
+			want = []uint32{5535, 10415, 13019, 45687}
 		}
 		checkSMVendors(t, got.supported, want)
 		if n := countSMGroup(got.groups, 16777265, 10415, avp.AuthApplicationID); n != 1 {

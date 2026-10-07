@@ -113,7 +113,7 @@ The bundled dictionaries (`dict.Bundled`) and the documents they follow:
 | `Base` | 0 Common Messages, 3 Base Accounting | RFC 6733, RFC 7075, RFC 7683, RFC 8581, RFC 8583, RFC 7944 |
 | `CreditControl` | 4 Credit-Control | RFC 8506, RFC 5777 |
 | `NASREQ` | 1 Network Access Server | RFC 7155 |
-| `RoRf` | 4 Ro, 3 Rf | 3GPP TS 32.299 V19.0.0 |
+| `RoRf` | 4 Ro, 3 Rf | 3GPP TS 32.299 V19.0.0, oneM2M TS-0004 V5.2.0 Annex A |
 | `Gx` | 16777238 | 3GPP TS 29.212 V20.0.0 |
 | `Rx` | 16777236 | 3GPP TS 29.214 V20.0.0 |
 | `Sy` | 16777302 | 3GPP TS 29.219 V19.0.0 |

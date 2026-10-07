@@ -893,19 +893,20 @@ Extraction tooling and packet captures stay outside the repository.
 
 `rorf_spec.json` covers the effective Credit-Control/Ro application (4):
 744 AVPs, 164 Grouped grammars, and 134 Enumerated types. Of these, 132
-registries contain 893 values; API-Network-Service-Node and ICMP-Code retain
-open value sets. ICMP-Code depends on the enclosing ICMP type (RFC 5777
+registries originally contained 893 values. API-Network-Service-Node now adds
+eight values, giving 133 populated registries and 901 values; ICMP-Code retains
+an open value set. ICMP-Code depends on the enclosing ICMP type (RFC 5777
 §4.1.8.13), so its distinct namespaces are not flattened.
 The source is TS 32.299 V19.0.0, Table 7.2.0.1 and §§7.1–7.4, together with
-its defining references. The charging XML contains 626 AVP definitions: all 401
+its defining references. The charging XML contained 626 AVP definitions before the oneM2M follow-up: all 401
 previous definitions were audited, 334 changed semantically, and 225 were
 added. Of the 418 AVPs defined directly by Table 7.2.0.1, all 418 are included;
-the three table/clause conflicts below use explicit best-evidence choices.
+the three table/clause slips below are resolved from the introducing CRs.
 
 The [3GPP portal](https://portal.3gpp.org/desktopmodules/Specifications/SpecificationDetails.aspx?specificationId=1916)
 listed V19.0.0 as the latest version on 2026-10-07. The publisher archive
-refused direct retrieval, so extraction used the retained publisher archive
-and checked its digest. The Word document SHA-256 is
+and CR packs were downloaded again on 2026-10-07 with a browser User-Agent
+(the default curl User-Agent is blocked), and their contents were rechecked. The Word document SHA-256 is
 `415b17b88fda715aedc9a3e8582007508474872e57f74273692be52f12f23b06`.
 The input archive digests are:
 
@@ -1020,32 +1021,95 @@ supplies no override. Ro's §7.2.0 policy does not govern S6a or SWx. Event-Time
 Result-Code, Vendor-Id and the complete RFC 5777 Filter-Rule tree inherit the
 corrected definitions without shared-gap allowances.
 
-Rf declares 3GPP (10415), ETSI (13019) and 3GPP2 (5535), as required by
-TS 32.299 §§7.2–7.4 and RFC 6733 §5.3.6. An explicitly selected application-3
-CER therefore advertises those vendors. Every other effective application's
-vendor set and every selectable bundle's inferred vendor set are unchanged.
-Base-only accounting advertises no vendors. The application list contains the
-base and Rf contributions to ID 3, as it already did for Credit-Control/Ro ID 4.
+Ro and Rf declare 3GPP (10415), ETSI (13019), 3GPP2 (5535), and oneM2M
+(45687), as required by TS 32.299 V19.0.0 §§7.2–7.5 and RFC 6733 §5.3.6.
+Applications 3 and 4 advertise all four suppliers, as do inferred bundle
+selections containing Ro/Rf. Other applications' own vendor declarations
+remain unchanged; base-only accounting advertises no vendors.
 
-The following specification conflicts remain open; choices are recorded in
-`source_conflicts`, next to their XML definitions, and in their defining clauses:
+The `source_conflicts` records now carry `status: resolved-table-slip`.
+Tests require the clause type and retain the differing published table cell:
 
-- Civic-Address-Information: Table 7.2.0.1 says UTF8String; §7.2.35B says
-  OctetString and refers to the Location-Data encoding. OctetString is used.
-  Introducing CR 0800r1 is S5-182340, approved as SP-180427.
-- Monitoring-Event-Configuration-Activity and Monitoring-Event-Functionality:
-  the table says Integer32; §§7.2.111AaA–7.2.111AaB say Enumerated and list
-  four and two values respectively. Enumerated and those values are used.
-  Introducing CR 0718r1 is S5-161260, approved as SP-160035.
-- A fresh CR database check still identifies those documents, but all four
-  contribution downloads return access denied. Clause-level definitions and
-  numeric registries are the best available evidence, not a claim that the
-  CR contents resolve the conflicts. Their optional parent rules are restored.
-- M2M-Information's oneM2M definition remains unavailable. Network-Element
-  (§7.2.66aA) and Submission-Timestamp (§7.2.112aA) are named without a
-  definition/table entry. Their optional rules remain in `omitted_rules`.
-- API-Network-Service-Node delegates its enum registry to TS 23.682 without
-  numeric assignments in the extracted clause; its value set remains open.
+- Civic-Address-Information (1305): §7.2.35B defines OctetString, despite
+  Table 7.2.0.1's UTF8String cell. Both appear in the downloaded
+  [CR 0800r1, S5-182340](https://www.3gpp.org/ftp/tsg_sa/WG5_TM/TSGS5_118/Docs/S5-182340.zip).
+  [SP-180427](https://www.3gpp.org/ftp/tsg_sa/TSG_SA/TSGS_80/Docs/SP-180427.zip)
+  also contains TS 32.298 CR 0658r3 (S5-183366), whose
+  `CivicAddressInformation ::= OCTET STRING` corroborates the clause.
+  RFC 5580 §6 defines Location-Data as OctetString. RFC 5580 remains current,
+  updated by RFC 8559, which does not change this data type.
+- Monitoring-Event-Configuration-Activity (3919) and
+  Monitoring-Event-Functionality (3922): §§7.2.111AaA/7.2.111AaB define
+  Enumerated despite the table's Integer32 cells. The downloaded
+  [CR 0718r1, S5-161260](https://www.3gpp.org/ftp/tsg_sa/WG5_TM/TSGS5_105/Docs/S5-161260.zip),
+  approved in [SP-160035](https://www.3gpp.org/ftp/tsg_sa/TSG_SA/TSGS_71/Docs/SP-160035.zip),
+  contains both slips and the explicit enumerations: 0 create, 1 transfer,
+  2 update, 3 delete; and 0 Configuration, 1 Reporting. The pack's
+  TS 32.298 CR 0574r1 and Rel-19 MONTE ASN.1 corroborate the first list.
+- API-Network-Service-Node (1315), §7.2.20eA, has the eight values
+  0 MME, 1 SGSN, 2 HSS, 3 PCRF, 4 PFDF, 5 BMSC, 6 CSCF, 7 RCAF.
+  They are misplaced after API-Size in §7.2.20gA, already in
+  [CR 0799r2, S5-183361](https://www.3gpp.org/ftp/tsg_sa/WG5_TM/TSGS5_119/Docs/S5-183361.zip)
+  ([SP-180430](https://www.3gpp.org/ftp/tsg_sa/TSG_SA/TSGS_80/Docs/SP-180430.zip)).
+  TS 32.298 Rel-19 ExposureFunctionAPI ASN.1 agrees on the numbers;
+  its `cCSCF` spelling is normalized to TS 32.299's `CSCF`.
+
+`onem2m_spec.json` independently extracts all 23 AVPs (1000–1022, vendor
+45687) from oneM2M TS-0004 V5.2.0 (2025-11-23), Table A.4-1 and the
+actual defining clauses in Annex A.5. TS 32.299 V19.0.0 §7.5 / Table 7.5.1
+imports them. IANA's PEN registry confirms 45687 is oneM2M. The
+[Release 5 publication page](https://www.onem2m.org/technical/published-specifications/release-5)
+links the [source archive](https://member.onem2m.org/Application/documentapp/downloadLatestRevision/default.aspx?docID=38214);
+Release 6 had no TS-0004 publication on 2026-10-07. The archive SHA-256 is
+`01a9227c7437d09e7e32f5134a4a581bf63a0f5ce1ea17d5d5b1f85f958d497a`; its clean Word document SHA-256 is
+`2355b26a51127ec22880492d403f9b4e4653cc242ef4a3c5a8ccf85351c91def`.
+
+The fixture is extracted from Word XML, never from dictionary XML. Together,
+the two AVP fixtures cover 767 AVPs, 165 Grouped grammars and 137 Enumerated
+types (136 populated registries, 1,010 values). The charging XML now contains
+649 definitions. Source names and ABNF are retained where normalization is
+necessary: oneM2M's Originator (1008/45687) is named `M2M-Originator` in the
+dictionary to avoid the existing 3GPP Originator (864/10415).
+
+- Protocol-Type (§A.5.17): 0 HTTP, 1 CoAP, 2 MQTT, 3 WebSocket. The ranges
+  4–99 (reserved for oneM2M) and 100–199 (operator/vendor specific) remain
+  comments, not fabricated enumerators.
+- Request-Operation (§A.5.22, Table 6.3.4.2.5-1, printed 6.3.4.2.51):
+  1 Create, 2 Retrieve, 3 Update, 4 Delete, 5 Notify.
+- Response-Status-Code (§A.5.25, §6.6.3 Tables 6.6.3.2-1–6.6.3.7-1):
+  100 assigned values, including the informational, success, originator,
+  receiver and network error classes. The redirection class assigns none;
+  gaps remain unassigned. All source labels and numbers are in the fixture.
+- M2M-Information (§A.5.14) has 24 optional singleton members in source
+  order, followed by `*[AVP]`. Rating-Group (432/0) and Node-Id (2064/10415)
+  reuse their existing definitions. TS 32.299 §7.2.192 places the optional
+  group between DCD-Information and CPDT-Information in Service-Information.
+- Table A.4-1 contradicts itself by assigning Vendor-Id 45687 while requiring
+  M, permitting P and forbidding V. This binding requires M,V, permits P,
+  and retains encryption Y: RFC 6733 §4.1 requires V with a Vendor-ID field.
+  The published flags remain in the fixture. Several A.5 table references
+  are stale; citations use the actual defining clauses. Reused Rating-Group
+  follows current RFC 8506, replacing TS-0004's obsolete RFC 4006 reference.
+
+Two names remain omitted from rules and recorded in `omitted_rules`:
+
+- Network-Element: TS 32.299 V19.0.0 §7.2.66aA and CR 0799r2 include it
+  alongside API-Network-Service-Node without a definition or table row.
+  TS 32.298 Rel-19 ExposureFunctionAPI ASN.1 has aPINetworkServiceNode
+  but no networkElement. A stale grammar name is the inferred explanation;
+  no AVP code or type is invented.
+- Submission-Timestamp: TS 32.299 §7.2.112aA and TS 32.253 V19.0.0
+  Table 6.4.1 name it without assigning an AVP code/type. TS 32.298 Rel-19
+  CPDT ASN.1 has NIDDsubmission.submissionTimestamp of type TimeStamp.
+  Submission-Time (1202, TS 32.299 §7.2.217) is a plausible semantic match,
+  but no checked specification equates them. No alias is added.
+
+Tests compare all new definitions, enum values, flags and ordered rules in
+both Ro and Rf, round-trip every new AVP, validate ACRs containing empty,
+individual-member and complete M2M groups, reject duplicate singleton
+members, and exercise the wildcard. CER tests cover explicit applications
+and inferred bundle selections. The bundled-selection test covers all
+16,384 selections, loading each distinct dependency closure with strict Load.
 
 RFC Editor JSON, Datatracker filtered relationships and errata were checked
 on 2026-10-07. RFC 8506 replaces 4006; RFC 7155 replaces 4005; RFC 6733

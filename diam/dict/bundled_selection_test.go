@@ -1,8 +1,11 @@
 package dict
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
+	"io"
+	"path"
 	"slices"
 	"strings"
 	"testing"
@@ -42,7 +45,7 @@ func TestNewEveryBundledSubset(t *testing.T) {
 		t.Fatalf("update subset coverage for %d bundles", len(all))
 	}
 	closures := make(map[string][]Bundled)
-	for subset := 1; subset < 1<<len(all); subset++ {
+	for subset := 0; subset < 1<<len(all); subset++ {
 		var selected []Bundled
 		for i, b := range all {
 			if subset&(1<<i) != 0 {
@@ -76,12 +79,27 @@ func TestNewEveryBundledSubset(t *testing.T) {
 	for key, closure := range closures {
 		t.Run(key, func(t *testing.T) {
 			p := newBundledSelection(t, closure)
-			if len(p.Apps()) == 0 {
+			if len(closure) > 0 && len(p.Apps()) == 0 {
 				t.Fatal("selection produced an empty Parser")
+			}
+			var readers []io.Reader
+			for _, b := range closure {
+				data, err := bundledFS.ReadFile(path.Join("bundled", string(b)))
+				if err != nil {
+					t.Fatal(err)
+				}
+				readers = append(readers, bytes.NewReader(data))
+			}
+			strict := new(Parser)
+			if !strict.Strict() {
+				t.Fatal("Load check must be strict")
+			}
+			if err := strict.Load(readers...); err != nil {
+				t.Fatalf("strict Load(%v): %v", closure, err)
 			}
 		})
 	}
-	t.Logf("%d selections, %d distinct closures", 1<<len(all)-1, len(closures))
+	t.Logf("%d selections, %d distinct closures", 1<<len(all), len(closures))
 }
 
 // New shares immutable definitions, but loading, registering and policy changes

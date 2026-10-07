@@ -203,7 +203,7 @@ func TestClientCERAdvertisedVendorsFollowOffers(t *testing.T) {
 		offer      *diam.AVP
 		want       []uint32
 	}{
-		{"no-offer", dict.Default, nil, []uint32{5535, 10415, 13019}},
+		{"no-offer", dict.Default, nil, []uint32{5535, 10415, 13019, 45687}},
 		{"Default-S6a-only", dict.Default, smVendorApp(16777251, 10415), []uint32{10415}},
 		{"Default-Cx-only", dict.Default, smVendorApp(16777216, 10415), []uint32{10415, 13019}},
 		{"S6a-bundle", dict.New(dict.Base, dict.NASREQ, dict.CreditControl, dict.RoRf, dict.S6c, dict.S6a), smVendorApp(16777251, 10415), []uint32{10415}},
@@ -246,7 +246,7 @@ func TestS6aBundledCapabilities(t *testing.T) {
 		got := readSMCapabilities(t, message, dictionary)
 		wantVendors := []uint32{10415}
 		if message == answer {
-			wantVendors = []uint32{5535, 10415, 13019}
+			wantVendors = []uint32{5535, 10415, 13019, 45687}
 		}
 		checkSMVendors(t, got.supported, wantVendors)
 		if n := countSMGroup(got.groups, 16777251, 10415, avp.AuthApplicationID); n != 1 {

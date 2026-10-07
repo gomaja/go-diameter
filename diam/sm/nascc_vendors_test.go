@@ -27,7 +27,7 @@ func TestNASCCSupportedVendors(t *testing.T) {
 				t.Fatal(err)
 			}
 			got := readSMCapabilities(t, request, dictionary)
-			want := []uint32{5535, 10415, 13019}
+			want := []uint32{5535, 10415, 13019, 45687}
 			switch bundle {
 			case dict.Base, dict.NASREQ:
 				want = nil

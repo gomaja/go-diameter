@@ -22,6 +22,7 @@ const (
 	AccessNetworkChargingIdentifier                   = 502
 	AccessNetworkChargingIdentifierGx                 = 1022
 	AccessNetworkChargingIdentifierValue              = 503
+	AccessNetworkIdentifier                           = 1000
 	AccessNetworkInfo                                 = 1526
 	AccessNetworkInfoChange                           = 4401
 	AccessNetworkInformation                          = 1263
@@ -117,6 +118,7 @@ const (
 	APNRateControlDownlink                            = 3934
 	APNRateControlUplink                              = 3935
 	ApplicationDetectionInformation                   = 1098
+	ApplicationEntityID                               = 1001
 	ApplicationPortIdentifier                         = 3010
 	ApplicationProvidedCalledPartyAddress             = 837
 	ApplicationServer                                 = 836
@@ -251,6 +253,7 @@ const (
 	ContentType                                       = 826
 	ContentVersion                                    = 552
 	ContextIdentifier                                 = 1423
+	ControlMemorySize                                 = 1002
 	CoreNetworkRestrictions                           = 1704
 	CostInformation                                   = 423
 	CostUnit                                          = 424
@@ -272,10 +275,12 @@ const (
 	CurrencyCode                                      = 425
 	CurrentLocation                                   = 707
 	CurrentLocationRetrieved                          = 1610
+	CurrentNumberMembers                              = 1003
 	CurrentTariff                                     = 2056
 	CVIDEnd                                           = 556
 	CVIDStart                                         = 555
 	DataCodingScheme                                  = 2001
+	DataMemorySize                                    = 1004
 	DataReference                                     = 703
 	DaylightSavingTime                                = 1650
 	DayOfMonthMask                                    = 564
@@ -386,6 +391,7 @@ const (
 	ExtendedMinRequestedBWDL                          = 560
 	ExtendedMinRequestedBWUL                          = 561
 	ExternalClient                                    = 1479
+	ExternalID                                        = 1005
 	ExternalIdentifier                                = 3111
 	ExtPDPAddress                                     = 1621
 	ExtPDPType                                        = 1620
@@ -444,6 +450,7 @@ const (
 	GMMCause                                          = 4304
 	GPRSSubscriptionData                              = 1467
 	GrantedServiceUnit                                = 431
+	GroupName                                         = 1006
 	GroupPLMNID                                       = 1677
 	GroupServiceID                                    = 1676
 	GSUPoolIdentifier                                 = 453
@@ -456,6 +463,7 @@ const (
 	HFCNodeIdentifier                                 = 579
 	HighUserPriority                                  = 559
 	HomogeneousSupportofIMSVoiceOverPSSessions        = 1493
+	HostingCSEID                                      = 1007
 	HostIPAddress                                     = 257
 	HPLMNODB                                          = 1418
 	HSSID                                             = 3325
@@ -583,6 +591,9 @@ const (
 	LowBalanceIndication                              = 2020
 	LowPriorityIndicator                              = 2602
 	LowUserPriority                                   = 558
+	M2MEventRecordTimestamp                           = 1010
+	M2MInformation                                    = 1011
+	M2MOriginator                                     = 1008
 	MACAddress                                        = 524
 	MACAddressMask                                    = 525
 	MACAddressMaskPattern                             = 526
@@ -592,6 +603,7 @@ const (
 	MaximumDetectionTime                              = 3131
 	MaximumFlowBitrates                               = 1716
 	MaximumLatency                                    = 3133
+	MaximumNumberMembers                              = 1009
 	MaximumNumberofReports                            = 3128
 	MaximumResponseTime                               = 3134
 	MaximumRetransmissionTime                         = 3330
@@ -741,6 +753,7 @@ const (
 	NumberOfUEPerLocationConfiguration                = 4306
 	NumberOfUEPerLocationReport                       = 4307
 	NumberPortabilityRoutingInformation               = 2024
+	Occupancy                                         = 1012
 	OCFeatureVector                                   = 622
 	OCOLR                                             = 623
 	OCPeerAlgo                                        = 648
@@ -897,6 +910,7 @@ const (
 	ProSeUEtoNetworkRelayUEID                         = 4409
 	ProSeValidityTimer                                = 3815
 	Protocol                                          = 513
+	ProtocolType                                      = 1013
 	ProximityAlertIndication                          = 3454
 	ProximityAlertTimestamp                           = 3455
 	ProximityCancellationTimestamp                    = 3456
@@ -960,6 +974,7 @@ const (
 	ReAuthRequestType                                 = 285
 	ReceivedTalkBurstTime                             = 1284
 	ReceivedTalkBurstVolume                           = 1285
+	Receiver                                          = 1014
 	RecipientAddress                                  = 1201
 	RecipientInfo                                     = 2026
 	RecipientReceivedAddress                          = 2028
@@ -1002,6 +1017,7 @@ const (
 	ReportingTrigger                                  = 1626
 	ReportInterval                                    = 1627
 	RepositoryDataID                                  = 715
+	RequestBodySize                                   = 1015
 	RequestedAction                                   = 436
 	RequestedDomain                                   = 706
 	RequestedEUTRANAuthenticationInfo                 = 1408
@@ -1011,7 +1027,9 @@ const (
 	RequestedRetransmissionTime                       = 3331
 	RequestedServiceUnit                              = 437
 	RequestedUTRANGERANAuthenticationInfo             = 1409
+	RequestHeadersSize                                = 1016
 	RequestingEPUID                                   = 3816
+	RequestOperation                                  = 1017
 	RequestorPLMNIdentifier                           = 3437
 	RequiredAccessInfo                                = 536
 	RequiredMBMSBearerCapabilities                    = 901
@@ -1019,6 +1037,9 @@ const (
 	ResetID                                           = 1670
 	ResourceAllocationNotification                    = 1063
 	ResourceReleaseNotification                       = 2841
+	ResponseBodySize                                  = 1018
+	ResponseHeadersSize                               = 1019
+	ResponseStatusCode                                = 1020
 	RestorationInfo                                   = 649
 	RestorationPriority                               = 1663
 	RestrictionFilterRule                             = 438
@@ -1222,6 +1243,7 @@ const (
 	StatusASCode                                      = 2702
 	STNSR                                             = 1433
 	StopTime                                          = 2042
+	SubgroupName                                      = 1021
 	SubmissionTime                                    = 1202
 	SubscribedARPI                                    = 1708
 	SubscribedPeriodicRAUTAUTimer                     = 1619
@@ -1255,6 +1277,7 @@ const (
 	TalkBurstTime                                     = 1286
 	TalkBurstVolume                                   = 1287
 	TargetAppLayerUserID                              = 3601
+	TargetID                                          = 1022
 	TargetIPAddress                                   = 4412
 	TariffChangeUsage                                 = 452
 	TariffInformation                                 = 2060
