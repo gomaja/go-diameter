@@ -700,6 +700,8 @@ const (
 	PDPContext                                 = 1469
 	PDPContextType                             = 1247
 	PDPType                                    = 1470
+	PendingPolicyCounterChangeTime             = 2906
+	PendingPolicyCounterInformation            = 2905
 	PeriodicCommunicationIndicator             = 3115
 	PeriodicTime                               = 3117
 	PhysicalAccessID                           = 313
@@ -719,6 +721,8 @@ const (
 	PoCUserRoleIDs                             = 1253
 	PoCUserRoleinfoUnits                       = 1254
 	PolicyCounterIdentifier                    = 2901
+	PolicyCounterStatus                        = 2902
+	PolicyCounterStatusReport                  = 2903
 	PortLimit                                  = 62
 	PositioningData                            = 1245
 	PositioningMethod                          = 1659
@@ -1008,6 +1012,7 @@ const (
 	SMSResult                                  = 3409
 	SMStatus                                   = 2014
 	SMUserDataHeader                           = 2015
+	SNRequestType                              = 2907
 	SoftwareVersion                            = 1403
 	SourceID                                   = 649
 	SpecificAction                             = 513

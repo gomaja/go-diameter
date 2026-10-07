@@ -3,6 +3,11 @@
     <!-- RFC 6733 (October 2012) §3.2, Verified Errata 4803: Diameter Header CCF notation. -->
     <application id="16777238" type="auth" name="Gx Charging Control">
         <vendor id="10415" name="TGPP" />
+        <!-- Suppliers of AVPs Gx reuses (TS 29.212 V20.0.0 Table 5.4.0.1): ETSI for
+             Logical-Access-ID and Physical-Access-ID (ETSI ES 283 034), 3GPP2 for
+             3GPP2-BSID. RFC 6733 §5.3.6: Supported-Vendor-Id names them. -->
+        <vendor id="13019" name="ETSI"/>
+        <vendor id="5535" name="TGPP2"/>
         <command code="272" short="CC" name="Credit-Control">
             <request proxiable="true">
                 <!-- 3GPP TS 29.212 V20.0.0 §5.6.2. -->
