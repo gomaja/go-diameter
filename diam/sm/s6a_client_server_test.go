@@ -43,7 +43,7 @@ var (
 	sentCLAs, receivedCLAs uint32
 )
 
-func mustS6aAVP(m *diam.Message, code interface{}, flags uint8, vendor uint32, data datatype.Type) {
+func mustS6aAVP(m *diam.Message, code uint32, flags uint8, vendor uint32, data datatype.Type) {
 	if _, err := m.NewAVP(code, flags, vendor, data); err != nil {
 		panic(err)
 	}

@@ -8,7 +8,6 @@ import (
 	"go/token"
 	"maps"
 	"path"
-	"regexp"
 	"slices"
 	"sort"
 	"strconv"
@@ -20,9 +19,6 @@ import (
 // Snapshots can be compared by content.
 func dumpSnapshot(s *Snapshot) []string {
 	vendor := func(v uint32) string {
-		if v == UndefinedVendorID {
-			return "*"
-		}
 		return strconv.FormatUint(uint64(v), 10)
 	}
 	rules := func(rs []*Rule) string {
@@ -58,10 +54,7 @@ func dumpSnapshot(s *Snapshot) []string {
 		lines = append(lines, fmt.Sprintf("CODE %d %d %s -> %s", k.appID, k.code, vendor(k.vendorID), sig(a)))
 	}
 	for k, a := range s.avpname {
-		lines = append(lines, fmt.Sprintf("NAME %d %s %s -> %s", k.appID, k.name, vendor(k.vendorID), sig(a)))
-	}
-	for k, a := range s.regname {
-		lines = append(lines, fmt.Sprintf("REGNAME %d %s -> %s", k.appID, k.name, sig(a)))
+		lines = append(lines, fmt.Sprintf("NAME %d %s -> %s", k.appID, k.name, sig(a)))
 	}
 	sort.Strings(lines)
 	return lines
@@ -158,58 +151,97 @@ func TestBundledConstants(t *testing.T) {
 	}
 }
 
-// TestBundledDependencies checks each dictionary against its documented
-// dependencies: they are exactly the other dictionaries declaring its
-// applications or the ancestor applications its lookups reach
-// (parentAppIds), and with them its command and Grouped AVP grammars
-// resolve.
+// bundledApps inspects declarations without building an incomplete dictionary
+// whose Grouped rules may require the bundle's documented dependencies.
+func bundledApps(t *testing.T, b Bundled) []*App {
+	t.Helper()
+	data, err := bundledFS.ReadFile(path.Join("bundled", string(b)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	f, err := parseFile(strings.NewReader(string(data)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return f.App
+}
+
+// TestBundledDependencies derives the exact provider set from the XML rather
+// than from the table or prose. Resolve each rule at its nearest application,
+// using file name order for definitions shared by multiple bundles.
 func TestBundledDependencies(t *testing.T) {
-	consts := bundledConstants(t)
-	nameOf := make(map[string]Bundled)
-	declares := make(map[uint32][]Bundled) // application → dictionaries declaring it
-	for b, doc := range consts {
-		nameOf[strings.Fields(doc)[0]] = b
-		for _, app := range New(b).Apps() {
-			declares[app.ID] = append(declares[app.ID], b)
+	all := AllBundled()
+	apps := make(map[Bundled][]*App)
+	providers := make(map[appNameIdx]Bundled)
+	for _, b := range all {
+		apps[b] = bundledApps(t, b)
+		for _, app := range apps[b] {
+			for _, avp := range app.AVP {
+				providers[appNameIdx{app.ID, avp.Name}] = b
+			}
 		}
 	}
-	buildsOn := regexp.MustCompile(`It\s+builds\s+on\s+([^.]*)\.`)
-	for b, doc := range consts {
+	if len(bundledDependencies) != len(all) {
+		t.Errorf("dependency entries = %d, want %d", len(bundledDependencies), len(all))
+	}
+	for b := range bundledDependencies {
+		if !slices.Contains(all, b) {
+			t.Errorf("dependency entry for unknown bundle %s", b)
+		}
+	}
+	for _, b := range all {
 		t.Run(string(b), func(t *testing.T) {
 			want := make(map[Bundled]bool)
-			for _, app := range New(b).Apps() {
+			for _, app := range apps[b] {
 				ancestors, err := ancestorApps(app.ID)
 				if err != nil {
 					t.Fatal(err)
 				}
-				for _, id := range append(ancestors, app.ID) {
-					for _, d := range declares[id] {
-						if d != b {
-							want[d] = true
+				scope := append([]uint32{app.ID}, ancestors...)
+				var rules []*Rule
+				for _, avp := range app.AVP {
+					rules = append(rules, avp.Data.Rule...)
+				}
+				for _, cmd := range app.Command {
+					rules = append(rules, cmd.Request.Rule...)
+					rules = append(rules, cmd.Answer.Rule...)
+				}
+				for _, rule := range rules {
+					if rule.AVP == "AVP" {
+						continue
+					}
+					var provider Bundled
+					for _, id := range scope {
+						if provider = providers[appNameIdx{id, rule.AVP}]; provider != "" {
+							break
 						}
 					}
-				}
-			}
-			documented := make(map[Bundled]bool)
-			if m := buildsOn.FindStringSubmatch(doc); m != nil {
-				for _, name := range strings.FieldsFunc(strings.ReplaceAll(m[1], " and ", ","), func(r rune) bool {
-					return r == ',' || r == ' ' || r == '\n'
-				}) {
-					d, ok := nameOf[name]
-					if !ok {
-						t.Fatalf("documented dependency %q is not a Bundled constant", name)
+					if provider == "" {
+						t.Fatalf("app %d: no provider for %s", app.ID, rule.AVP)
 					}
-					documented[d] = true
+					if provider != b {
+						want[provider] = true
+					}
 				}
 			}
-			if !maps.Equal(documented, want) {
-				t.Errorf("documented dependencies %v, lookup scope needs %v", slices.Sorted(maps.Keys(documented)), slices.Sorted(maps.Keys(want)))
+			have := make(map[Bundled]bool)
+			deps, ok := bundledDependencies[b]
+			if !ok {
+				t.Fatal("missing dependency entry")
 			}
-			selection := append(slices.Collect(maps.Keys(want)), b)
-			p := New(selection...)
-			for _, app := range New(b).Apps() {
+			for _, d := range deps {
+				if have[d] {
+					t.Errorf("duplicate dependency %s", d)
+				}
+				have[d] = true
+			}
+			if !maps.Equal(have, want) {
+				t.Errorf("declared dependencies %v, XML rules need %v", slices.Sorted(maps.Keys(have)), slices.Sorted(maps.Keys(want)))
+			}
+			p := New(b)
+			for _, app := range apps[b] {
 				for _, missing := range unresolvedRules(p.Snapshot(), app) {
-					t.Errorf("New(%v): %s", selection, missing)
+					t.Error(missing)
 				}
 			}
 		})
@@ -227,7 +259,7 @@ func unresolvedRules(s *Snapshot, app *App) []string {
 			if rule.AVP == "AVP" { // Diameter's arbitrary AVP wildcard.
 				continue
 			}
-			avp, err := s.FindAVP(app.ID, rule.AVP)
+			avp, err := s.FindAVPByName(app.ID, rule.AVP)
 			if err != nil {
 				missing = append(missing, fmt.Sprintf("app %d: unresolved AVP %q (via %s)", app.ID, rule.AVP, owner))
 				continue
@@ -252,7 +284,7 @@ func unresolvedRules(s *Snapshot, app *App) []string {
 }
 
 // TestDefaultMatchesBundledFiles compares Default with Parsers loading the
-// same XML files from disk, all at once and one at a time.
+// same XML files from disk in one atomic load, including mutual dependencies.
 func TestDefaultMatchesBundledFiles(t *testing.T) {
 	var files []string
 	for _, b := range AllBundled() {
@@ -262,71 +294,58 @@ func TestDefaultMatchesBundledFiles(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	oneByOne, err := NewParser()
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, f := range files {
-		if err := oneByOne.LoadFile(f); err != nil {
-			t.Fatal(err)
-		}
-	}
 	want := dumpSnapshot(Default.Snapshot())
 	diffDumps(t, "NewParser(files...)", dumpSnapshot(together.Snapshot()), want)
-	diffDumps(t, "LoadFile one by one", dumpSnapshot(oneByOne.Snapshot()), want)
 	diffDumps(t, "New(AllBundled()...)", dumpSnapshot(New(AllBundled()...).Snapshot()), want)
 	if !Default.Strict() || Default.MaxGroupedDepth() != DefaultMaxGroupedDepth {
 		t.Fatalf("Default policy: strict %t, depth %d", Default.Strict(), Default.MaxGroupedDepth())
 	}
 }
 
-func TestNewSelectsOnlyTheGivenDictionaries(t *testing.T) {
-	const gx = 16777238
-	p := New(Base, Gx)
+func TestNewSelectsOnlyTheGivenDictionariesAndDependencies(t *testing.T) {
+	const cx = 16777216
+	p := New(Base, NASREQ, Cx)
 	var apps []uint32
 	for _, app := range p.Apps() {
 		apps = append(apps, app.ID)
 	}
-	if want := []uint32{0, 3, gx}; !slices.Equal(apps, want) {
+	if want := []uint32{0, 3, 1, cx}; !slices.Equal(apps, want) {
 		t.Fatalf("applications = %v, want %v", apps, want)
 	}
 	if _, err := p.App(4); err == nil {
 		t.Error("application 4 is supported without CreditControl or RoRf")
 	}
-	if _, err := p.FindCommand(gx, 272); err != nil {
-		t.Errorf("Gx CCR: %v", err)
+	if _, err := p.FindCommand(cx, 300); err != nil {
+		t.Errorf("Cx UAR: %v", err)
 	}
-	if avp, err := p.FindAVPByCode(gx, 1001, 10415); err != nil || avp.Name != "Charging-Rule-Install" {
-		t.Errorf("Gx Charging-Rule-Install = %v, %v", avp, err)
+	if avp, err := p.FindAVP(cx, 601, 10415); err != nil || avp.Name != "Public-Identity" {
+		t.Errorf("Cx Public-Identity = %v, %v", avp, err)
 	}
-	if avp, err := p.FindAVPByCode(gx, 263, 0); err != nil || avp.Name != "Session-Id" {
-		t.Errorf("base Session-Id in Gx = %v, %v", avp, err)
+	if avp, err := p.FindAVP(cx, 263, 0); err != nil || avp.Name != "Session-Id" {
+		t.Errorf("base Session-Id in Cx = %v, %v", avp, err)
 	}
-	// AVPs of dictionaries that were not selected are unknown, also to Gx
-	// which would inherit them from application 4.
+	// Unselected dictionaries contribute neither applications nor definitions.
 	for _, tc := range []struct {
 		app, code, vendor uint32
 	}{
 		{4, 461, 0},             // Service-Context-Id, CreditControl
-		{gx, 461, 0},            // the same, through Gx's parent
-		{1, 2, 0},               // User-Password, NASREQ
+		{16777238, 1001, 10415}, // Charging-Rule-Install, Gx
 		{16777251, 1407, 10415}, // Visited-PLMN-Id, S6a
 	} {
-		if avp, err := p.FindAVPByCode(tc.app, tc.code, tc.vendor); err == nil {
+		if avp, err := p.FindAVP(tc.app, tc.code, tc.vendor); err == nil {
 			t.Errorf("app %d code %d vendor %d resolves to %s", tc.app, tc.code, tc.vendor, avp.Name)
 		}
 	}
-	s := p.Snapshot()
-	for idx, avp := range s.avpcode {
-		if !slices.Contains([]uint32{0, 3, gx}, avp.App.ID) {
+	for idx, avp := range p.Snapshot().avpcode {
+		if !slices.Contains([]uint32{0, 3, 1, cx}, avp.App.ID) {
 			t.Errorf("index %v holds %s of application %d", idx, avp.Name, avp.App.ID)
 		}
 	}
 }
 
 func TestNewIgnoresOrderAndDuplicates(t *testing.T) {
-	want := dumpSnapshot(New(Base, CreditControl, RoRf).Snapshot())
-	diffDumps(t, "reordered", dumpSnapshot(New(RoRf, Base, CreditControl, RoRf, Base).Snapshot()), want)
+	want := dumpSnapshot(New(Base, NASREQ, CreditControl, RoRf).Snapshot())
+	diffDumps(t, "reordered", dumpSnapshot(New(RoRf, Base, NASREQ, CreditControl, RoRf, Base).Snapshot()), want)
 }
 
 func TestNewWithoutDictionaries(t *testing.T) {
@@ -337,8 +356,8 @@ func TestNewWithoutDictionaries(t *testing.T) {
 	if !p.Strict() || p.MaxGroupedDepth() != DefaultMaxGroupedDepth {
 		t.Fatalf("policy: strict %t, depth %d", p.Strict(), p.MaxGroupedDepth())
 	}
-	if avp, err := p.FindAVPByCode(0, 263, 0); err == nil || avp.Name != "Unknown-263-0" {
-		t.Fatalf("FindAVPByCode = %v, %v", avp, err)
+	if avp, err := p.FindAVP(0, 263, 0); err == nil || avp != nil {
+		t.Fatalf("FindAVP = %v, %v", avp, err)
 	}
 }
 
@@ -365,7 +384,7 @@ func TestBundledBaseAVPFlagRules(t *testing.T) {
 		}
 		for _, app := range f.App {
 			for _, a := range app.AVP {
-				_, baseErr := base.FindAVPWithVendor(0, a.Code, a.VendorID)
+				_, baseErr := base.FindAVP(0, a.Code, a.VendorID)
 				if baseErr == nil && (strings.Contains(a.Must, "P") || strings.Contains(a.MustNot, "P")) {
 					t.Errorf("%s: %s has obsolete P constraint", b, a.Name)
 				}

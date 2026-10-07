@@ -148,7 +148,7 @@ func smsRoundTrip(t *testing.T, appid, code uint32, request bool) {
 
 func smsAVP(t *testing.T, appid uint32, name string) *AVP {
 	t.Helper()
-	d, err := dict.Default.FindAVP(appid, name)
+	d, err := dict.Default.FindAVPByName(appid, name)
 	if err != nil {
 		t.Fatal(err)
 	}

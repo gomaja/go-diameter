@@ -51,10 +51,10 @@ func TestSnapshotIsUnchangedByLaterChanges(t *testing.T) {
 
 	diffDumps(t, "old snapshot", dumpSnapshot(old), oldDump)
 	for _, code := range []uint32{70000, 70001} {
-		if _, err := old.FindAVPByCode(4, code, testVendor); err == nil {
+		if _, err := old.FindAVP(4, code, testVendor); err == nil {
 			t.Errorf("old snapshot resolves code %d", code)
 		}
-		if _, err := p.FindAVPByCode(4, code, testVendor); err != nil {
+		if _, err := p.FindAVP(4, code, testVendor); err != nil {
 			t.Errorf("current snapshot: %v", err)
 		}
 	}
@@ -129,15 +129,14 @@ func TestLookupsWhileChanging(t *testing.T) {
 					return
 				default:
 				}
-				_, _ = p.FindAVPByCode(gxAppID, 70000, testVendor)
-				_, _ = p.FindAVPWithVendor(gxAppID, "Test-Changing-0", testVendor)
-				_, _ = p.FindAVP(gxAppID, "Session-Id")
+				_, _ = p.FindAVP(gxAppID, 70000, testVendor)
+				_, _ = p.FindAVPByName(gxAppID, "Test-Changing-0")
+				_, _ = p.FindAVPByName(gxAppID, "Session-Id")
 				_, _ = p.FindCommand(gxAppID, 272)
 				_, _ = p.App(4)
 				_ = p.Apps()
-				_, _ = p.Enum(0, 274, 1)
-				_, _ = p.Rule(0, 284, "Proxy-Host")
-				_, _ = p.ScanAVP("Session-Id")
+				_, _ = p.Enum(0, 274, 0, 1)
+				_, _ = p.Rule(0, 284, 0, "Proxy-Host")
 				_ = p.Strict()
 				_ = p.MaxGroupedDepth()
 			}
@@ -160,7 +159,7 @@ func TestLookupsWhileChanging(t *testing.T) {
 	close(done)
 	wg.Wait()
 	for i := range changes {
-		if _, err := p.FindAVPByCode(gxAppID, 70000+uint32(i), testVendor); err != nil {
+		if _, err := p.FindAVP(gxAppID, 70000+uint32(i), testVendor); err != nil {
 			t.Error(err)
 		}
 	}

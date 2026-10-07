@@ -14,7 +14,7 @@ import (
 )
 
 func TestCERMalformedSecurityReturnsFailedAVP(t *testing.T) {
-	dictionary := dict.New(dict.Base, dict.CreditControl)
+	dictionary := dict.New(dict.Base, dict.NASREQ, dict.CreditControl, dict.RoRf)
 	dictionary.SetStrict(false)
 	settings := testSettings("local.example.net")
 	settings.Dict = dictionary

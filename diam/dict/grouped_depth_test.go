@@ -32,7 +32,7 @@ func TestDefaultGroupedNestingWithinLimit(t *testing.T) {
 				if rule.AVP == "AVP" { // Diameter's arbitrary AVP wildcard.
 					continue
 				}
-				child, err := Default.FindAVP(app.ID, rule.AVP)
+				child, err := Default.FindAVPByName(app.ID, rule.AVP)
 				if err != nil || child == nil || child.Data.TypeName != "Grouped" {
 					continue
 				}
@@ -48,7 +48,7 @@ func TestDefaultGroupedNestingWithinLimit(t *testing.T) {
 		for _, cmd := range app.Command {
 			for _, rules := range [][]*Rule{cmd.Request.Rule, cmd.Answer.Rule} {
 				for _, rule := range rules {
-					avp, err := Default.FindAVP(app.ID, rule.AVP)
+					avp, err := Default.FindAVPByName(app.ID, rule.AVP)
 					if err != nil || avp == nil || avp.Data.TypeName != "Grouped" {
 						continue
 					}

@@ -17,7 +17,7 @@ import (
 	"github.com/gomaja/go-diameter/diam/dict"
 )
 
-func mustPrettyAVP(t *testing.T, msg *Message, code interface{}, flags uint8, vendor uint32, data datatype.Type) {
+func mustPrettyAVP(t *testing.T, msg *Message, code uint32, flags uint8, vendor uint32, data datatype.Type) {
 	t.Helper()
 	if _, err := msg.NewAVP(code, flags, vendor, data); err != nil {
 		t.Fatal(err)

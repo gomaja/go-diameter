@@ -34,7 +34,8 @@ func TestValidateOutgoingFlags(t *testing.T) {
 			return a
 		}, InvalidAVPBits},
 		{"unknown V set without vendor", func(m *Message) *AVP {
-			a := NewAVP(0xfedc, avp.Vbit, 0, datatype.OctetString("unknown"))
+			a := NewAVP(0xfedc, 0, 0, datatype.OctetString("unknown"))
+			a.Flags |= avp.Vbit // Deliberately corrupt the normalized constructor output.
 			m.AddAVP(a)
 			return a
 		}, InvalidAVPBits},
@@ -147,7 +148,7 @@ func TestValidateOutgoingApplicationPRestriction(t *testing.T) {
 }
 
 func TestValidateOutgoingUnruledGroup(t *testing.T) {
-	d := dict.New(dict.Base, dict.S6a)
+	d := dict.New(dict.Base, dict.NASREQ, dict.CreditControl, dict.RoRf, dict.S6c, dict.S6a)
 	if err := d.Load(bytes.NewBufferString(`<diameter><application id="16777251" name="test"><avp name="Unruled" code="65000"><data type="Grouped"/></avp></application></diameter>`)); err != nil {
 		t.Fatal(err)
 	}

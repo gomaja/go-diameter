@@ -55,7 +55,7 @@ func TestDisconnectTimeoutBoundsBlockedWrite(t *testing.T) {
 
 func addDPAIdentity(t *testing.T, m *diam.Message, code string, value datatype.DiameterIdentity) {
 	t.Helper()
-	if _, err := m.NewAVP(code, 0, 0, value); err != nil {
+	if _, err := m.NewAVPByName(code, 0, value); err != nil {
 		t.Errorf("add %s: %v", code, err)
 	}
 }

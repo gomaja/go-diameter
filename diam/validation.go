@@ -121,7 +121,7 @@ func validateAVPs(items []*AVP, rules []*dict.Rule, appID uint32, dictionary *di
 			allowAny = true
 			continue
 		}
-		definition, err := dictionary.FindAVPWithVendor(appID, rule.AVP, dict.UndefinedVendorID)
+		definition, err := dictionary.FindAVPByName(appID, rule.AVP)
 		if err != nil {
 			continue
 		} // An incomplete dictionary cannot identify this rule's AVP.
@@ -137,7 +137,7 @@ func validateAVPs(items []*AVP, rules []*dict.Rule, appID uint32, dictionary *di
 		}
 		key := validationKey{a.Code, a.VendorID}
 		entry, listed := byKey[key]
-		definition, known := dictionary.FindAVPByCode(appID, a.Code, a.VendorID)
+		definition, known := dictionary.FindAVP(appID, a.Code, a.VendorID)
 		if known == nil {
 			if invalidAVPFlags(a.Flags, definition) {
 				return &ValidationError{ResultCode: InvalidAVPBits, FailedAVP: a, Reason: "AVP flags disagree with dictionary"}
@@ -206,7 +206,7 @@ func validateAVPs(items []*AVP, rules []*dict.Rule, appID uint32, dictionary *di
 		if known == nil && definition.Data.Type == datatype.GroupedType && a.Code != avp.FailedAVP && len(definition.Data.Rule) > 0 {
 			if _, ok := a.Data.(*GroupedAVP); ok {
 				if childErr := validateAVPs(members(a), definition.Data.Rule, appID, dictionary); childErr != nil {
-					childErr.FailedAVP = NewAVP(a.Code, a.Flags, a.VendorID, &GroupedAVP{AVP: []*AVP{childErr.FailedAVP}})
+					childErr.FailedAVP = newAVPWithFlags(a.Code, a.Flags, a.VendorID, &GroupedAVP{AVP: []*AVP{childErr.FailedAVP}})
 					return childErr
 				}
 				if definition.Code == avp.VendorSpecificApplicationID && definition.VendorID == 0 {
@@ -246,7 +246,7 @@ func missingAVPExample(definition *dict.AVP, appID uint32, dictionary *dict.Snap
 				if rule.AVP == "AVP" {
 					continue
 				}
-				child, err := dictionary.FindAVPWithVendor(appID, rule.AVP, dict.UndefinedVendorID)
+				child, err := dictionary.FindAVPByName(appID, rule.AVP)
 				if err != nil {
 					continue
 				}
@@ -285,7 +285,7 @@ func validateVendorApplicationChoice(parent *AVP, children []*AVP) *ValidationEr
 	}
 	return &ValidationError{
 		ResultCode: code,
-		FailedAVP:  NewAVP(parent.Code, parent.Flags, parent.VendorID, &GroupedAVP{AVP: choices}),
+		FailedAVP:  newAVPWithFlags(parent.Code, parent.Flags, parent.VendorID, &GroupedAVP{AVP: choices}),
 		Reason:     "Vendor-Specific-Application-Id requires exactly one application ID",
 	}
 }
@@ -340,7 +340,7 @@ func walkOutgoingFlags(items []*AVP, appID uint32, dictionary *dict.Snapshot, an
 		// RFC 6733 §§4.1-4.1.1 also govern unknown AVPs' reserved bits and
 		// Vendor-Id presence. Only dictionary-specific M/P checks need lookup.
 		invalid := a.Flags&0x1f != 0 || (a.Flags&avp.Vbit != 0) != (a.VendorID != 0)
-		if definition, err := dictionary.FindAVPByCode(appID, a.Code, a.VendorID); err == nil {
+		if definition, err := dictionary.FindAVP(appID, a.Code, a.VendorID); err == nil {
 			for _, flag := range []struct {
 				name string
 				bit  uint8

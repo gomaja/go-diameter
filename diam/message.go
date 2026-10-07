@@ -10,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"math/rand"
 	"net"
 	"sync"
@@ -69,7 +68,7 @@ func unknownMandatoryHierarchy(a *AVP, appID uint32, dictionary *dict.Snapshot) 
 	// Raw data from a known but undecodable AVP is not an unknown AVP.
 	if a.Flags&avp.Mbit != 0 {
 		if _, raw := a.Data.(datatype.Unknown); raw {
-			if _, err := dictionary.FindAVPByCode(appID, a.Code, a.VendorID); err != nil {
+			if _, found := dictionary.AVP(appID, a.Code, a.VendorID); !found {
 				return a
 			}
 		}
@@ -87,7 +86,7 @@ func unknownMandatoryHierarchy(a *AVP, appID uint32, dictionary *dict.Snapshot) 
 		return nil
 	}
 	// RFC 6733 §7.5 permits the Failed-AVP to retain the Grouped hierarchy.
-	return NewAVP(a.Code, a.Flags, a.VendorID, &GroupedAVP{AVP: children})
+	return newAVPWithFlags(a.Code, a.Flags, a.VendorID, &GroupedAVP{AVP: children})
 }
 
 var readerBufferPool sync.Pool
@@ -332,7 +331,7 @@ func (m *Message) Dictionary() *dict.Parser {
 
 // NewAVP creates and initializes a new AVP and adds it to the Message.
 // It is not safe for concurrent calls.
-func (m *Message) NewAVP(code interface{}, flags uint8, vendor uint32, data datatype.Type) (*AVP, error) {
+func (m *Message) NewAVP(code uint32, flags uint8, vendor uint32, data datatype.Type) (*AVP, error) {
 	// RFC 6733 §4.3.1: locally supplied addresses must have a valid family and length.
 	switch address := data.(type) {
 	case datatype.Address:
@@ -348,28 +347,21 @@ func (m *Message) NewAVP(code interface{}, flags uint8, vendor uint32, data data
 		}
 		data = *address
 	}
-	var a *AVP
-	switch code := code.(type) {
-	case int:
-		a = NewAVP(uint32(code), flags, vendor, data)
-	case uint32:
-		a = NewAVP(code, flags, vendor, data)
-	case string:
-		dictAVP, err := m.Dictionary().FindAVPWithVendor(
-			m.Header.ApplicationID,
-			code,
-			vendor,
-		)
-		if err != nil {
-			return nil, err
-		}
-		a = NewAVP(dictAVP.Code, flags, vendor, data)
-	default:
-		return nil, fmt.Errorf("unsupported AVP code type %T", code)
-	}
+	a := NewAVP(code, flags, vendor, data)
 	m.AVP = append(m.AVP, a)
 	m.Header.MessageLength += uint32(a.Len())
 	return a, nil
+}
+
+// NewAVPByName resolves name in the message's application dictionary, then
+// creates an AVP with the definition's code and Vendor-Id.
+// It is not safe for concurrent calls.
+func (m *Message) NewAVPByName(name string, flags uint8, data datatype.Type) (*AVP, error) {
+	definition, err := m.Dictionary().FindAVPByName(m.Header.ApplicationID, name)
+	if err != nil {
+		return nil, err
+	}
+	return m.NewAVP(definition.Code, flags, definition.VendorID, data)
 }
 
 // AddAVP adds the AVP to the Message. It is not safe for concurrent calls.
@@ -559,42 +551,12 @@ func (m *Message) Len() int {
 	return l
 }
 
-// AVPRef identifies an AVP as Message.NewAVP takes one: Code is the AVP
-// code (int or uint32) or the AVP's dictionary name (string), and VendorID
-// is its Vendor-Id, 0 for an AVP of the IETF space. An AVP is identified by
+// AVPRef identifies an AVP by its code and Vendor-Id. An AVP is identified by
 // its code and its Vendor-Id together (RFC 6733 §4.1): one code denotes
 // different AVPs in different vendors' spaces.
 type AVPRef struct {
-	Code     any
+	Code     uint32
 	VendorID uint32
-}
-
-// lookupKey resolves an AVP reference to the code and Vendor-Id the AVP
-// carries. A name is looked up, with its vendor, in the message's
-// application in dictionary.
-func (m *Message) lookupKey(dictionary *dict.Snapshot, ref AVPRef) (avpKey, error) {
-	// dict.UndefinedVendorID asks the dictionary for any vendor's AVP; here
-	// the vendor is part of what is matched, so it must be a Vendor-Id.
-	if ref.VendorID == dict.UndefinedVendorID {
-		return avpKey{}, errors.New("AVP lookup needs a Vendor-Id; 0 is the IETF space")
-	}
-	switch code := ref.Code.(type) {
-	case uint32:
-		return avpKey{code, ref.VendorID}, nil
-	case int:
-		if code < 0 || uint64(code) > math.MaxUint32 {
-			return avpKey{}, fmt.Errorf("AVP code %d out of range", code)
-		}
-		return avpKey{uint32(code), ref.VendorID}, nil
-	case string:
-		definition, err := dictionary.FindAVPWithVendor(m.Header.ApplicationID, code, ref.VendorID)
-		if err != nil {
-			return avpKey{}, err
-		}
-		return avpKey{definition.Code, definition.VendorID}, nil
-	default:
-		return avpKey{}, fmt.Errorf("unsupported AVP code type %T", ref.Code)
-	}
 }
 
 // members returns the members of a Grouped AVP: none when a is nil or not
@@ -633,7 +595,7 @@ func findAVPs(found, avps []*AVP, key avpKey, first bool) []*AVP {
 
 // avpsWithPath returns the AVPs at the end of path, where path[0] is among
 // avps and each following element is a member of the Grouped AVP before it.
-func avpsWithPath(avps []*AVP, path []avpKey) []*AVP {
+func avpsWithPath(avps []*AVP, path []AVPRef) []*AVP {
 	if len(path) == 0 {
 		return avps
 	}
@@ -651,36 +613,31 @@ func avpsWithPath(avps []*AVP, path []avpKey) []*AVP {
 	return found
 }
 
+// ErrAVPNotFound indicates that a message contains no AVP matching the lookup.
+var ErrAVPNotFound = errors.New("AVP not found in message")
+
 // findAVP is FindAVP and, with all, FindAVPs.
-func (m *Message) findAVP(code any, vendorID uint32, all bool) ([]*AVP, error) {
-	key, err := m.lookupKey(m.Dictionary().Snapshot(), AVPRef{code, vendorID})
-	if err != nil {
-		return nil, err
-	}
+func (m *Message) findAVP(code, vendorID uint32, all bool) ([]*AVP, error) {
+	key := avpKey{code, vendorID}
 	found := findAVPs(nil, m.AVP, key, !all)
 	if len(found) == 0 {
-		return nil, fmt.Errorf("AVP %d of vendor %d not found", key.Code, key.VendorID)
+		return nil, fmt.Errorf("AVP %d of vendor %d: %w", key.Code, key.VendorID, ErrAVPNotFound)
 	}
 	return found, nil
 }
 
 // FindAVPs returns every AVP of the Message, at the top level and inside
 // Grouped AVPs at any depth, depth-first, whose code and Vendor-Id are
-// those of code and vendorID. It returns an error when there is none.
+// those of code and vendorID. A miss wraps ErrAVPNotFound.
 //
-// The code is the AVP code (int, uint32) or the AVP's dictionary name
-// (string). vendorID is the AVP's Vendor-Id, 0 for an IETF AVP, and is
-// always matched (RFC 6733 §4.1); for a name it also selects that vendor's
-// definition of the name, in the message's dictionary and application. A
-// code needs no dictionary. dict.UndefinedVendorID is not a Vendor-Id and
-// is refused.
+// vendorID is the AVP's Vendor-Id, 0 for an IETF AVP, and is always
+// matched (RFC 6733 §4.1). A code needs no dictionary.
 //
 // Example:
 //
 //	avps, err := m.FindAVPs(avp.SupportedVendorID, 0)
-//	avps, err := m.FindAVPs("Supported-Vendor-Id", 0)
 //	avps, err := m.FindAVPs(avp.SubscriptionData, 10415)
-func (m *Message) FindAVPs(code any, vendorID uint32) ([]*AVP, error) {
+func (m *Message) FindAVPs(code, vendorID uint32) ([]*AVP, error) {
 	return m.findAVP(code, vendorID, true)
 }
 
@@ -689,9 +646,8 @@ func (m *Message) FindAVPs(code any, vendorID uint32) ([]*AVP, error) {
 // Example:
 //
 //	a, err := m.FindAVP(avp.OriginHost, 0)
-//	a, err := m.FindAVP("Origin-Host", 0)
 //	a, err := m.FindAVP(avp.VisitedPLMNID, 10415)
-func (m *Message) FindAVP(code any, vendorID uint32) (*AVP, error) {
+func (m *Message) FindAVP(code, vendorID uint32) (*AVP, error) {
 	found, err := m.findAVP(code, vendorID, false)
 	if err != nil {
 		return nil, err
@@ -699,34 +655,46 @@ func (m *Message) FindAVP(code any, vendorID uint32) (*AVP, error) {
 	return found[0], nil
 }
 
+// FindAVPsByName resolves name in the message's application dictionary and
+// finds every AVP with its code and Vendor-Id. A missing definition wraps
+// dict.ErrNotFound; an absent AVP wraps ErrAVPNotFound.
+func (m *Message) FindAVPsByName(name string) ([]*AVP, error) {
+	definition, err := m.Dictionary().FindAVPByName(m.Header.ApplicationID, name)
+	if err != nil {
+		return nil, err
+	}
+	return m.FindAVPs(definition.Code, definition.VendorID)
+}
+
+// FindAVPByName resolves name in the message's application dictionary and
+// finds the first AVP with its code and Vendor-Id. A missing definition wraps
+// dict.ErrNotFound; an absent AVP wraps ErrAVPNotFound.
+func (m *Message) FindAVPByName(name string) (*AVP, error) {
+	definition, err := m.Dictionary().FindAVPByName(m.Header.ApplicationID, name)
+	if err != nil {
+		return nil, err
+	}
+	return m.FindAVP(definition.Code, definition.VendorID)
+}
+
 // FindAVPsWithPath returns the AVPs reached by path through the Grouped
 // AVP hierarchy: path[0] is an AVP at the top level of the Message and
 // each following element a member of the Grouped AVP before it. Each
 // element is matched by its own code and Vendor-Id, as in FindAVPs, since
 // the members of a vendor's Grouped AVP can belong to another vendor's
-// space. Names are resolved against one dict.Snapshot of the message's
-// dictionary. An empty path returns the top-level AVPs; a path that leads
-// nowhere returns none and no error.
+// space. An empty path returns the top-level AVPs; a path that leads
+// nowhere returns none.
 //
 // Example:
 //
-//	avps, err := m.FindAVPsWithPath(
+//	avps := m.FindAVPsWithPath(
 //		diam.AVPRef{Code: avp.SubscriptionData, VendorID: 10415},
 //		diam.AVPRef{Code: avp.APNConfigurationProfile, VendorID: 10415},
 //		diam.AVPRef{Code: avp.APNConfiguration, VendorID: 10415},
-//		diam.AVPRef{Code: "Service-Selection"},
+//		diam.AVPRef{Code: avp.ServiceSelection},
 //	)
-func (m *Message) FindAVPsWithPath(path ...AVPRef) ([]*AVP, error) {
-	dictionary := m.Dictionary().Snapshot()
-	keys := make([]avpKey, len(path))
-	for i, ref := range path {
-		key, err := m.lookupKey(dictionary, ref)
-		if err != nil {
-			return nil, err
-		}
-		keys[i] = key
-	}
-	return avpsWithPath(m.AVP, keys), nil
+func (m *Message) FindAVPsWithPath(path ...AVPRef) []*AVP {
+	return avpsWithPath(m.AVP, path)
 }
 
 // Answer creates an answer for the current Message
@@ -780,7 +748,7 @@ func (m *Message) String() string {
 		)
 	}
 	for _, a := range m.AVP {
-		if dictAVP, err := m.Dictionary().FindAVPWithVendor(
+		if dictAVP, err := m.Dictionary().FindAVP(
 			m.Header.ApplicationID,
 			a.Code,
 			a.VendorID,
@@ -804,7 +772,7 @@ func printGrouped(prefix string, m *Message, a *AVP, indent int) string {
 		a.VendorID,
 	)
 	for _, ga := range members(a) {
-		if dictAVP, err := m.Dictionary().FindAVPWithVendor(
+		if dictAVP, err := m.Dictionary().FindAVP(
 			m.Header.ApplicationID,
 			ga.Code,
 			ga.VendorID,

@@ -296,8 +296,8 @@ func result(m *diam.Message) (attribute.Key, uint32, bool) {
 // unsigned32 returns the value of the first AVP at path in m, if it is an
 // Unsigned32.
 func unsigned32(m *diam.Message, path ...diam.AVPRef) (uint32, bool) {
-	avps, err := m.FindAVPsWithPath(path...)
-	if err != nil || len(avps) == 0 {
+	avps := m.FindAVPsWithPath(path...)
+	if len(avps) == 0 {
 		return 0, false
 	}
 	v, ok := avps[0].Data.(datatype.Unsigned32)

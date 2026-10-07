@@ -15,9 +15,16 @@ func TestBuildErrorAnswerRebuildsReceivedFlags(t *testing.T) {
 	for _, flags := range []uint8{0, avp.Mbit | 0x1f, avp.Mbit | avp.Pbit, avp.Mbit | avp.Vbit} {
 		for _, raw := range []bool{false, true} {
 			t.Run(fmt.Sprintf("flags_%02x/raw_%t", flags, raw), func(t *testing.T) {
+				// Received evidence may have invalid flags; NewAVP normalizes V.
+				receivedAVP := func(code uint32, data datatype.Type) *diam.AVP {
+					a := diam.NewAVP(code, flags, 0, data)
+					a.Flags = flags
+					a.Length = a.Len() - data.Padding()
+					return a
+				}
 				request := diam.NewRequest(diam.UserAuthorization, diam.TGPP_CX_APP_ID, dict.Default)
-				vendor := diam.NewAVP(avp.VendorID, flags, 0, datatype.Unsigned32(10415))
-				application := diam.NewAVP(avp.AuthApplicationID, flags, 0, datatype.Unsigned32(diam.TGPP_CX_APP_ID))
+				vendor := receivedAVP(avp.VendorID, datatype.Unsigned32(10415))
+				application := receivedAVP(avp.AuthApplicationID, datatype.Unsigned32(diam.TGPP_CX_APP_ID))
 				group := &diam.GroupedAVP{AVP: []*diam.AVP{vendor, application}}
 				var data datatype.Type = group
 				if raw {
@@ -27,10 +34,10 @@ func TestBuildErrorAnswerRebuildsReceivedFlags(t *testing.T) {
 					}
 					data = datatype.Grouped(group.Serialize())
 				}
-				received := diam.NewAVP(avp.VendorSpecificApplicationID, flags, 0, data)
+				received := receivedAVP(avp.VendorSpecificApplicationID, data)
 				request.AddAVP(received)
-				request.AddAVP(diam.NewAVP(avp.SessionID, flags, 0, datatype.UTF8String("cx;123")))
-				request.AddAVP(diam.NewAVP(avp.AuthSessionState, flags, 0, datatype.Enumerated(1)))
+				request.AddAVP(receivedAVP(avp.SessionID, datatype.UTF8String("cx;123")))
+				request.AddAVP(receivedAVP(avp.AuthSessionState, datatype.Enumerated(1)))
 				answer, err := base.BuildErrorAnswer(request, fixtureSettings(), diam.InvalidAVPValue, []*diam.AVP{received}, false)
 				if err != nil {
 					t.Fatal(err)

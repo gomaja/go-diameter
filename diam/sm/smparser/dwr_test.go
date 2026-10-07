@@ -59,7 +59,7 @@ func TestDWRParseReturnsUnmarshalError(t *testing.T) {
 	}
 }
 
-func mustDWRAVP(t *testing.T, m *diam.Message, code interface{}, flags uint8, vendor uint32, data datatype.Type) {
+func mustDWRAVP(t *testing.T, m *diam.Message, code uint32, flags uint8, vendor uint32, data datatype.Type) {
 	t.Helper()
 	if _, err := m.NewAVP(code, flags, vendor, data); err != nil {
 		t.Fatal(err)

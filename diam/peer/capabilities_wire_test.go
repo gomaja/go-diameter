@@ -91,7 +91,7 @@ func TestPeerCapabilitiesOnWire(t *testing.T) {
 		auth, vendors, apps []uint32
 	}{
 		{"Default", dict.Default, []uint32{1, 4}, []uint32{5535, 10415, 13019}, []uint32{16777216, 16777217, 16777236, 16777238, 16777251, 16777252, 16777265, 16777302, 16777312, 16777313}},
-		{"S6a", dict.New(dict.Base, dict.S6a), nil, []uint32{10415}, []uint32{16777251}},
+		{"S6a", dict.New(dict.Base, dict.NASREQ, dict.CreditControl, dict.RoRf, dict.S6c, dict.S6a), []uint32{1, 4}, []uint32{5535, 10415, 13019}, []uint32{16777251, 16777312}},
 		{"Cx", dict.New(dict.Base, dict.NASREQ, dict.Cx), []uint32{1}, []uint32{10415, 13019}, []uint32{16777216}},
 		{"CreditControl-RoRf", dict.New(dict.Base, dict.NASREQ, dict.CreditControl, dict.RoRf), []uint32{1, 4}, []uint32{5535, 13019}, nil},
 	} {

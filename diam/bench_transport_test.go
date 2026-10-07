@@ -73,7 +73,7 @@ func benchmarkDiamTransport(b *testing.B, network string) {
 	}
 }
 
-func mustBenchmarkAVP(b *testing.B, msg *Message, code interface{}, flags uint8, vendor uint32, data datatype.Type) {
+func mustBenchmarkAVP(b *testing.B, msg *Message, code uint32, flags uint8, vendor uint32, data datatype.Type) {
 	b.Helper()
 	if _, err := msg.NewAVP(code, flags, vendor, data); err != nil {
 		b.Fatal(err)

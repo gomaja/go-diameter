@@ -26,11 +26,11 @@ func TestBaseOverloadLoadAVPs(t *testing.T) {
 		{"Load-Value", 652, "Unsigned64"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			byName, err := d.FindAVPWithVendor(0, tc.name, 0)
+			byName, err := d.FindAVPByName(0, tc.name)
 			if err != nil {
 				t.Fatal(err)
 			}
-			byCode, err := d.FindAVPByCode(0, tc.code, 0)
+			byCode, err := d.FindAVP(0, tc.code, 0)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -80,7 +80,7 @@ func TestBaseOverloadLoadGroupedRules(t *testing.T) {
 		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			a, err := d.FindAVPWithVendor(0, tc.name, 0)
+			a, err := d.FindAVPByName(0, tc.name)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -92,7 +92,7 @@ func TestBaseOverloadLoadGroupedRules(t *testing.T) {
 					t.Errorf("rule %d = %+v, want %+v", i, *got, want)
 				}
 				if want.AVP != "AVP" {
-					if _, err := d.FindAVPWithVendor(0, want.AVP, 0); err != nil {
+					if _, err := d.FindAVPByName(0, want.AVP); err != nil {
 						t.Errorf("rule %d does not resolve in Base: %v", i, err)
 					}
 				}
@@ -120,7 +120,7 @@ func TestBaseOverloadLoadEnumerations(t *testing.T) {
 		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			a, err := d.FindAVPWithVendor(0, tc.name, 0)
+			a, err := d.FindAVPByName(0, tc.name)
 			if err != nil {
 				t.Fatal(err)
 			}

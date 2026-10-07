@@ -33,7 +33,7 @@ func cerPayload(tb testing.TB) []byte {
 	return b
 }
 
-func mustPayloadAVP(tb testing.TB, msg *Message, code interface{}, flags uint8, vendor uint32, data datatype.Type) {
+func mustPayloadAVP(tb testing.TB, msg *Message, code uint32, flags uint8, vendor uint32, data datatype.Type) {
 	tb.Helper()
 	if _, err := msg.NewAVP(code, flags, vendor, data); err != nil {
 		tb.Fatalf("new AVP: %v", err)

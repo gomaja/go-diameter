@@ -199,7 +199,7 @@ func sendSLR(c diam.Conn, cfg *sm.Settings) error {
 	return err
 }
 
-func addAVP(m *diam.Message, code interface{}, flags uint8, vendor uint32, data datatype.Type) error {
+func addAVP(m *diam.Message, code uint32, flags uint8, vendor uint32, data datatype.Type) error {
 	_, err := m.NewAVP(code, flags, vendor, data)
 	return err
 }

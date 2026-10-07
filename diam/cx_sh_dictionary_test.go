@@ -238,7 +238,7 @@ func cxShMessage(t testing.TB, app, code uint32, request, full bool) *Message {
 
 func cxShAVP(t testing.TB, app uint32, name string, full bool) *AVP {
 	t.Helper()
-	d, err := dict.Default.FindAVP(app, name)
+	d, err := dict.Default.FindAVPByName(app, name)
 	if err != nil {
 		t.Fatal(err)
 	}

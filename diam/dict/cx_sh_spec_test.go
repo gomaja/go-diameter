@@ -133,11 +133,11 @@ func TestCxShAVPTable(t *testing.T) {
 		{16777217, "External-Identifier", 3111, 10415, "UTF8String", "M,V", "", ""},
 	} {
 		t.Run(fmt.Sprintf("%d/%s", tc.app, tc.name), func(t *testing.T) {
-			byName, err := Default.FindAVPWithVendor(tc.app, tc.name, tc.vendor)
+			byName, err := Default.FindAVPByName(tc.app, tc.name)
 			if err != nil {
 				t.Fatal(err)
 			}
-			byCode, err := Default.FindAVPByCode(tc.app, tc.code, tc.vendor)
+			byCode, err := Default.FindAVP(tc.app, tc.code, tc.vendor)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -261,7 +261,7 @@ func TestCxShEnumerations(t *testing.T) {
 		{16777217, "Local-Time-Zone-Indication", "0=ONLY_LOCAL_TIME_ZONE_REQUESTED 1=LOCAL_TIME_ZONE_WITH_LOCATION_INFO_REQUESTED"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			a, err := Default.FindAVP(tc.app, tc.name)
+			a, err := Default.FindAVPByName(tc.app, tc.name)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -320,7 +320,7 @@ func TestCxShGroupedCCF(t *testing.T) {
 		{16777217, "OC-OLR", "!OC-Sequence-Number !OC-Report-Type ?OC-Reduction-Percentage ?OC-Validity-Duration ?SourceID *AVP"},
 	} {
 		t.Run(fmt.Sprintf("%d/%s", tc.app, tc.name), func(t *testing.T) {
-			a, err := Default.FindAVP(tc.app, tc.name)
+			a, err := Default.FindAVPByName(tc.app, tc.name)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -342,7 +342,7 @@ func TestCxShInheritedAVPs(t *testing.T) {
 			{"Framed-IP-Address", 8, "OctetString"}, {"Framed-IPv6-Prefix", 97, "OctetString"}, {"Framed-Interface-Id", 96, "Unsigned64"},
 			{"Load-Value", 652, "Unsigned64"}, {"SourceID", 649, "DiameterIdentity"}, {"OC-Peer-Algo", 648, "Unsigned64"},
 		} {
-			d, err := Default.FindAVPWithVendor(app, tc.name, 0)
+			d, err := Default.FindAVPByName(app, tc.name)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -379,11 +379,11 @@ func TestCxShInheritedAVPs(t *testing.T) {
 	}
 	// TS 29.336 V20.0.0 Table 6.4.1/1 requires M,V, as does Sh.
 	// Sh does not inherit S6c, whose application-specific definition forbids M.
-	sh, err := Default.FindAVPWithVendor(16777217, "External-Identifier", 10415)
+	sh, err := Default.FindAVPByName(16777217, "External-Identifier")
 	if err != nil {
 		t.Fatal(err)
 	}
-	sms, err := Default.FindAVPWithVendor(16777312, "External-Identifier", 10415)
+	sms, err := Default.FindAVPByName(16777312, "External-Identifier")
 	if err != nil {
 		t.Fatal(err)
 	}

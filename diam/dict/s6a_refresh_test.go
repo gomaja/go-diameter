@@ -18,7 +18,7 @@ func TestS6aRefreshInheritedAVPs(t *testing.T) {
 			{"Feature-List-ID", 629, "Unsigned32"},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
-				a, err := d.FindAVPWithVendor(16777251, tc.name, 10415)
+				a, err := d.FindAVPByName(16777251, tc.name)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -26,7 +26,7 @@ func TestS6aRefreshInheritedAVPs(t *testing.T) {
 				if tc.code == 628 || tc.code == 629 {
 					owner = 4
 				}
-				byCode, err := d.FindAVPWithVendor(16777251, tc.code, 10415)
+				byCode, err := d.FindAVP(16777251, tc.code, 10415)
 				if err != nil || a != byCode || a.Code != tc.code || a.Data.TypeName != tc.typ || a.App.ID != owner {
 					t.Fatalf("%s: definition=%+v owner=%d code lookup=%+v err=%v; want owner %d", tc.name, a, a.App.ID, byCode, err, owner)
 				}
@@ -50,15 +50,15 @@ func TestS6aRefreshLocalTimeAVPs(t *testing.T) {
 		{"Day-Of-Week-Mask", 563},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			d := New(Base, S6a)
-			a, err := d.FindAVPWithVendor(16777251, tc.name, 0)
+			d := New(Base, NASREQ, CreditControl, RoRf, S6c, S6a)
+			a, err := d.FindAVPByName(16777251, tc.name)
 			if err != nil {
 				t.Fatal(err)
 			}
 			if a.App.ID != 16777251 || a.Code != tc.code || a.Data.TypeName != "Unsigned32" || a.Must != "" || a.MustNot != "V" {
 				t.Fatalf("S6a time definition: %+v owner=%d", a, a.App.ID)
 			}
-			if _, err := d.FindAVPWithVendor(0, tc.code, 0); err == nil {
+			if _, err := d.FindAVP(0, tc.code, 0); err == nil {
 				t.Fatal("time AVP leaked into base")
 			}
 		})
@@ -68,7 +68,7 @@ func TestS6aRefreshLocalTimeAVPs(t *testing.T) {
 // TS 29.272 V19.6.0 Table 7.3.1/2 applies the same M-bit policy to S13/S13'.
 func TestS13RefreshDRMP(t *testing.T) {
 	d := New(Base, S13)
-	a, err := d.FindAVPWithVendor(16777252, "DRMP", 0)
+	a, err := d.FindAVPByName(16777252, "DRMP")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -80,7 +80,7 @@ func TestS13RefreshDRMP(t *testing.T) {
 			t.Errorf("priority %d has code %d", i, item.Code)
 		}
 	}
-	base, err := d.FindAVPWithVendor(0, "DRMP", 0)
+	base, err := d.FindAVPByName(0, "DRMP")
 	if err != nil || base.MustNot != "V" {
 		t.Fatalf("base DRMP changed: %+v, %v", base, err)
 	}
@@ -89,7 +89,7 @@ func TestS13RefreshDRMP(t *testing.T) {
 // TS 29.229 V19.1.0 §6.3.29; reused by TS 29.272 V19.6.0 Table 7.3.1/2.
 func TestS6aRefreshSupportedFeaturesGrammar(t *testing.T) {
 	for _, appID := range []uint32{16777251, 4, 16777236} {
-		a, err := Default.FindAVPWithVendor(appID, "Supported-Features", 10415)
+		a, err := Default.FindAVPByName(appID, "Supported-Features")
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -31,7 +31,7 @@ func TestSWxDictionaryClosureWire(t *testing.T) {
 		{"3GPP2-MEID", 1471, 10415, "OctetString"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			d, err := dict.Default.FindAVP(appID, tc.name)
+			d, err := dict.Default.FindAVPByName(appID, tc.name)
 			if err != nil || d.Code != tc.code || d.VendorID != tc.vendor || d.Data.TypeName != tc.typeName {
 				t.Fatalf("definition: %v, %v", d, err)
 			}
@@ -74,7 +74,7 @@ func TestSyDictionaryClosureWire(t *testing.T) {
 		{"Subscription-Id", 443, 0, "Grouped"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			d, err := dict.Default.FindAVP(appID, tc.name)
+			d, err := dict.Default.FindAVPByName(appID, tc.name)
 			if err != nil || d.Code != tc.code || d.VendorID != tc.vendor || d.Data.TypeName != tc.typeName {
 				t.Fatalf("definition: %v, %v", d, err)
 			}
@@ -115,7 +115,7 @@ func TestRxDictionaryClosureWire(t *testing.T) {
 		{"TGPP-User-Location-Info", 22, 10415, "OctetString"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			d, err := dict.Default.FindAVP(appID, tc.name)
+			d, err := dict.Default.FindAVPByName(appID, tc.name)
 			if err != nil || d.Code != tc.code || d.VendorID != tc.vendor || d.Data.TypeName != tc.typeName {
 				t.Fatalf("definition: %v, %v", d, err)
 			}
@@ -166,7 +166,7 @@ func TestChargingDictionaryClosureWire(t *testing.T) {
 		{"SGSN-Realm", 2410, 10415, "DiameterIdentity"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			d, err := dict.Default.FindAVP(4, tc.name)
+			d, err := dict.Default.FindAVPByName(4, tc.name)
 			if err != nil || d.Code != tc.code || d.VendorID != tc.vendor || d.Data.TypeName != tc.typeName {
 				t.Fatalf("definition: %v, %v", d, err)
 			}
@@ -218,7 +218,7 @@ func TestNASDictionaryClosureWire(t *testing.T) {
 		{"State", 24, "OctetString"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			d, err := dict.Default.FindAVP(1, tc.name)
+			d, err := dict.Default.FindAVPByName(1, tc.name)
 			if err != nil || d.Code != tc.code || d.VendorID != 0 || d.Data.TypeName != tc.typeName {
 				t.Fatalf("definition: %v, %v", d, err)
 			}
@@ -282,7 +282,7 @@ func TestS6aDictionaryClosureWire(t *testing.T) {
 		{"Supported-Services", 3143, "Grouped"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			d, err := dict.Default.FindAVP(appID, tc.name)
+			d, err := dict.Default.FindAVPByName(appID, tc.name)
 			if err != nil || d.Code != tc.code || d.VendorID != 10415 || d.Data.TypeName != tc.typeName {
 				t.Fatalf("definition: %v, %v", d, err)
 			}

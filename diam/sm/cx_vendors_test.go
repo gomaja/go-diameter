@@ -206,7 +206,7 @@ func TestClientCERAdvertisedVendorsFollowOffers(t *testing.T) {
 		{"no-offer", dict.Default, nil, []uint32{5535, 10415, 13019}},
 		{"Default-S6a-only", dict.Default, smVendorApp(16777251, 10415), []uint32{10415}},
 		{"Default-Cx-only", dict.Default, smVendorApp(16777216, 10415), []uint32{10415, 13019}},
-		{"S6a-bundle", dict.New(dict.Base, dict.S6a), smVendorApp(16777251, 10415), []uint32{10415}},
+		{"S6a-bundle", dict.New(dict.Base, dict.NASREQ, dict.CreditControl, dict.RoRf, dict.S6c, dict.S6a), smVendorApp(16777251, 10415), []uint32{10415}},
 		{"Cx-bundle", dict.New(dict.Base, dict.NASREQ, dict.Cx), smVendorApp(16777216, 10415), []uint32{10415, 13019}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -227,7 +227,7 @@ func TestClientCERAdvertisedVendorsFollowOffers(t *testing.T) {
 }
 
 func TestS6aBundledCapabilities(t *testing.T) {
-	dictionary := dict.New(dict.Base, dict.S6a)
+	dictionary := dict.New(dict.Base, dict.NASREQ, dict.CreditControl, dict.RoRf, dict.S6c, dict.S6a)
 	settings := *serverSettings
 	settings.Dict = dictionary
 	settings.HostIPAddresses = []datatype.Address{localhostAddress}
@@ -244,7 +244,11 @@ func TestS6aBundledCapabilities(t *testing.T) {
 	}
 	for _, message := range []*diam.Message{request, answer} {
 		got := readSMCapabilities(t, message, dictionary)
-		checkSMVendors(t, got.supported, []uint32{10415})
+		wantVendors := []uint32{10415}
+		if message == answer {
+			wantVendors = []uint32{5535, 10415, 13019}
+		}
+		checkSMVendors(t, got.supported, wantVendors)
 		if n := countSMGroup(got.groups, 16777251, 10415, avp.AuthApplicationID); n != 1 {
 			t.Errorf("3GPP S6a groups = %d, want 1", n)
 		}

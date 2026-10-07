@@ -724,11 +724,11 @@
             </data>
         </avp>
 
-        <!-- TS 29.272 V19.6.0 §7.3.135. -->
+        <!-- TS 29.272 V19.6.0 §7.3.135; omit the source's stray space before the underscore in each value label. -->
         <avp name="SIPTO-Permission" code="1613" vendor-id="10415" must="V" must-not="M" may-encrypt="N">
             <data type="Enumerated">
-                <item code="0" name="SIPTO_above_RAN _ALLOWED"/>
-                <item code="1" name="SIPTO_above_RAN _NOTALLOWED"/>
+                <item code="0" name="SIPTO_above_RAN_ALLOWED"/>
+                <item code="1" name="SIPTO_above_RAN_NOTALLOWED"/>
             </data>
         </avp>
 
@@ -2167,12 +2167,13 @@
             </data>
         </avp>
 
-        <!-- TS 29.212 V20.0.0 §5.3.31; TS 29.272 V19.6.0 §7.3.13 and Table 7.3.1/2 require M,V for S6a/S6d. -->
+        <!-- TS 29.212 V20.0.0 §5.3.31; TS 29.214 V20.0.0 Annex E.6 spells TRUSTED-N3GA without an internal space.
+             TS 29.272 V19.6.0 §7.3.13 and Table 7.3.1/2 require M,V for S6a/S6d. -->
         <avp name="RAT-Type" code="1032" vendor-id="10415" must="M,V" may="P" may-encrypt="Y">
             <data type="Enumerated">
                 <item code="0" name="WLAN"/>
                 <item code="1" name="VIRTUAL"/>
-                <item code="2" name="TRUSTED- N3GA"/>
+                <item code="2" name="TRUSTED-N3GA"/>
                 <item code="3" name="WIRELINE"/>
                 <item code="4" name="WIRELINE-CABLE"/>
                 <item code="5" name="WIRELINE-BBF"/>

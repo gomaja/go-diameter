@@ -1,6 +1,7 @@
 package dict
 
 import (
+	"errors"
 	"strings"
 	"testing"
 )
@@ -35,19 +36,21 @@ func withParentAppCycle(t *testing.T) {
 	})
 }
 
-func TestFindAVPWithVendorTerminatesOnParentCycle(t *testing.T) {
+func TestFindAVPByNameTerminatesOnParentCycle(t *testing.T) {
 	withParentAppCycle(t)
-	_, err := Default.FindAVPWithVendor(4, uint32(999999), UndefinedVendorID)
-	if err == nil || !strings.Contains(err.Error(), "cycle") {
-		t.Fatalf("lookup error = %v, want parent cycle", err)
+	for label, lookup := range map[string]vendorLookup{"parser": Default, "snapshot": Default.Snapshot()} {
+		a, err := lookup.FindAVPByName(4, "Not-Defined")
+		if a != nil || !errors.Is(err, ErrParentCycle) || errors.Is(err, ErrNotFound) {
+			t.Errorf("%s: lookup = %v, %v; want nil and ErrParentCycle", label, a, err)
+		}
 	}
 }
 
-func TestFindAVPByCodeTerminatesOnParentCycle(t *testing.T) {
+func TestFindAVPTerminatesOnParentCycle(t *testing.T) {
 	withParentAppCycle(t)
-	avp, err := Default.FindAVPByCode(16777238, 999999, 99999)
-	if err == nil || avp.Name != "Unknown-999999-99999" {
-		t.Fatalf("lookup = %v, %v; want Unknown", avp, err)
+	avp, err := Default.FindAVP(16777238, 999999, 99999)
+	if avp != nil || !errors.Is(err, ErrParentCycle) || errors.Is(err, ErrNotFound) {
+		t.Fatalf("lookup = %v, %v; want nil and ErrParentCycle", avp, err)
 	}
 }
 

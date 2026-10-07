@@ -35,7 +35,7 @@ func TestS6aRefreshAVPWireRoundTrip(t *testing.T) {
 		{"Adjacent-PLMNs", 1672, plmns()},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			d, err := dict.Default.FindAVPWithVendor(16777251, tc.name, 10415)
+			d, err := dict.Default.FindAVPByName(16777251, tc.name)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -47,7 +47,7 @@ func TestS6aRefreshAVPWireRoundTrip(t *testing.T) {
 				t.Fatalf("definition differs from TS 29.272: %+v", d)
 			}
 			m := NewRequest(316, 16777251, dict.Default)
-			if _, err := m.NewAVP(tc.name, avp.Vbit, 10415, tc.data); err != nil {
+			if _, err := m.NewAVPByName(tc.name, avp.Vbit, tc.data); err != nil {
 				t.Fatal(err)
 			}
 			assertRefreshWire(t, m, tc.code, avp.Vbit, 10415, tc.data)
@@ -75,7 +75,7 @@ func TestS6aS13RefreshMBitWire(t *testing.T) {
 		{"Load", 16777251, 650, 0, 0, "M,V", s6aLoadAVP(0, 37).Data},
 	} {
 		t.Run(tc.name+"/"+strconv.FormatUint(uint64(tc.app), 10), func(t *testing.T) {
-			d, err := dict.Default.FindAVPWithVendor(tc.app, tc.name, tc.vendor)
+			d, err := dict.Default.FindAVPByName(tc.app, tc.name)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -99,7 +99,7 @@ func TestS6aS13RefreshMBitWire(t *testing.T) {
 				t.Fatal(err)
 			}
 			m := NewRequest(code, tc.app, dict.Default)
-			if _, err := m.NewAVP(tc.name, flags, tc.vendor, tc.data); err != nil {
+			if _, err := m.NewAVPByName(tc.name, flags, tc.data); err != nil {
 				t.Fatal(err)
 			}
 			assertRefreshWire(t, m, tc.code, tc.flags, tc.vendor, tc.data)

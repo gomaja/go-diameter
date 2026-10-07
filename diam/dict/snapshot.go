@@ -27,13 +27,11 @@ type Snapshot struct {
 	appcode map[uint32]*App       // Application index by code
 	apptype map[appIdTypeIdx]*App // Application index by code and type
 	command map[commandIdx]*Command
-	// AVP indexes, own and inherited definitions. Loaded AVPs are also
-	// indexed with UndefinedVendorID; registered AVPs never are.
+	// AVP indexes contain own and inherited definitions. Codes always
+	// include the vendor (RFC 6733 (October 2012) §4.1); names are unique
+	// within each application, whether loaded or registered.
 	avpcode map[codeIdx]*AVP
-	avpname map[nameIdx]*AVP
-	// regname resolves a name without a vendor to a registered AVP, for
-	// names that no loaded AVP of the application's scope resolves.
-	regname map[appNameIdx]*AVP
+	avpname map[appNameIdx]*AVP
 
 	strict          bool
 	maxGroupedDepth int // Zero means DefaultMaxGroupedDepth
@@ -86,8 +84,7 @@ func (s *Snapshot) build(prev *Snapshot) error {
 	s.apptype = make(map[appIdTypeIdx]*App, len(prev.apptype))
 	s.command = make(map[commandIdx]*Command, len(prev.command))
 	s.avpcode = make(map[codeIdx]*AVP, len(prev.avpcode))
-	s.avpname = make(map[nameIdx]*AVP, len(prev.avpname))
-	s.regname = make(map[appNameIdx]*AVP, len(prev.regname))
+	s.avpname = make(map[appNameIdx]*AVP, len(prev.avpname))
 	for _, f := range s.files {
 		for _, app := range f.App {
 			// Cache supported applications by ID.
@@ -101,40 +98,96 @@ func (s *Snapshot) build(prev *Snapshot) error {
 				}
 				s.command[idx] = cmd
 			}
-			// Cache AVPs, also without vendorId.
+			// Resolve replacements by wire identity before considering names.
+			// A load may rename an AVP and reuse its former name in either order.
 			for _, avp := range app.AVP {
 				s.avpcode[codeIdx{app.ID, avp.Code, avp.VendorID}] = avp
-				s.avpcode[codeIdx{app.ID, avp.Code, UndefinedVendorID}] = avp
-				s.avpname[nameIdx{app.ID, avp.Name, avp.VendorID}] = avp
-				s.avpname[nameIdx{app.ID, avp.Name, UndefinedVendorID}] = avp
 			}
 		}
 	}
-	// A registered AVP is indexed by its code and vendor, and by its name
-	// and vendor (RFC 6733 §4.1), never in the vendor-agnostic slots: an
-	// application's code can belong to several vendors. Its name alone goes
-	// to regname instead.
+	// Names identify rules within an application; code/vendor identifies
+	// the wire AVP (RFC 6733 (October 2012) §§3.2, 4.1, 4.4). Check the
+	// final definitions, so intermediate names cannot cause a conflict.
+	for code, avp := range s.avpcode {
+		name := appNameIdx{code.appID, avp.Name}
+		if have := s.avpname[name]; have != nil {
+			return conflictError(code.appID, avp, have)
+		}
+		s.avpname[name] = avp
+	}
+	// Registered and loaded definitions use the same indexes.
 	for _, r := range s.regs {
 		code := codeIdx{r.app, r.avp.Code, r.avp.VendorID}
-		name := nameIdx{r.app, r.avp.Name, r.avp.VendorID}
-		bare := appNameIdx{r.app, r.avp.Name}
-		for _, have := range []*AVP{s.avpcode[code], s.avpname[name], s.regname[bare]} {
+		name := appNameIdx{r.app, r.avp.Name}
+		for _, have := range []*AVP{s.avpcode[code], s.avpname[name]} {
 			if have != nil && !sameAVP(have, r.avp) {
 				return conflictError(r.app, r.avp, have)
 			}
 		}
 		s.avpcode[code] = r.avp
 		s.avpname[name] = r.avp
-		s.regname[bare] = r.avp
 	}
 	if err := s.mergeInheritedAVPs(); err != nil {
 		return err
 	}
-	// A registration keeps its meaning in its application: a dictionary
-	// loaded later that resolves its name to another AVP is refused.
-	for _, r := range s.regs {
-		if have := s.resolveName(r.app, r.avp.Name); !sameAVP(have, r.avp) {
-			return conflictError(r.app, r.avp, have)
+	return s.validateRules()
+}
+
+// validateRules checks each application's final scope, including inherited
+// groups whose members may have been replaced by a child.
+func (s *Snapshot) validateRules() error {
+	for idx, avp := range s.avpcode {
+		if err := s.resolveRules(idx.appID, avp.Data.Rule); err != nil {
+			return fmt.Errorf("AVP %s in application %d: %w", avp.Name, idx.appID, err)
+		}
+	}
+	// FindCommand falls back to base commands, whose AVP names are resolved
+	// in the requesting application's scope. Include registered-only apps.
+	apps := make(map[uint32]bool, len(s.appcode))
+	for appID := range s.appcode {
+		apps[appID] = true
+	}
+	for idx := range s.avpcode {
+		apps[idx.appID] = true
+	}
+	for idx, cmd := range s.command {
+		if err := s.resolveCommandRules(idx.appID, cmd); err != nil {
+			return err
+		}
+		if idx.appID != 0 {
+			continue
+		}
+		for appID := range apps {
+			if appID == 0 || s.command[commandIdx{appID, idx.code}] != nil {
+				continue
+			}
+			if err := s.resolveCommandRules(appID, cmd); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (s *Snapshot) resolveCommandRules(appID uint32, cmd *Command) error {
+	if err := s.resolveRules(appID, cmd.Request.Rule); err != nil {
+		return fmt.Errorf("command %s (%d) request in application %d: %w", cmd.Name, cmd.Code, appID, err)
+	}
+	if err := s.resolveRules(appID, cmd.Answer.Rule); err != nil {
+		return fmt.Errorf("command %s (%d) answer in application %d: %w", cmd.Name, cmd.Code, appID, err)
+	}
+	return nil
+}
+
+func (s *Snapshot) resolveRules(appID uint32, rules []*Rule) error {
+	for _, rule := range rules {
+		// RFC 6733 (October 2012) §§3.2, 4.4: named command and Grouped
+		// members identify AVPs; the AVP wildcard admits arbitrary AVPs.
+		if rule.AVP == "AVP" {
+			continue
+		}
+		if _, err := s.FindAVPByName(appID, rule.AVP); err != nil {
+			return fmt.Errorf("%w: member %s does not resolve: %w", ErrAVPConflict, rule.AVP, err)
 		}
 	}
 	return nil
@@ -142,13 +195,14 @@ func (s *Snapshot) build(prev *Snapshot) error {
 
 // mergeInheritedAVPs copies the definitions of each application's
 // ancestors into its own index, nearest ancestor first, where the
-// application has no definition with the same key. A name without a vendor
-// is inherited only when neither the application nor a nearer ancestor
-// resolves that name already, by a loaded or a registered AVP.
+// application has no definition with the same key. A name is inherited only
+// when neither the application nor a nearer ancestor defines that name.
+// A child may therefore shadow an ancestor's name with its own definition.
+// Replacing an inherited code/vendor with a new name also hides its old name.
 //
 // Only applications with definitions of their own, loaded or registered,
 // get an index. Lookups for any other application walk its ancestors, so
-// that it inherits all the same (FindAVPByCode, FindAVPWithVendor).
+// that it inherits all the same (FindAVP, FindAVPByName).
 //
 // Memory: ancestor definitions are duplicated per child application when
 // the Snapshot is built, not per message; bounded by dictionary size.
@@ -157,9 +211,8 @@ func (s *Snapshot) mergeInheritedAVPs() error {
 	// declared application is included, so one that inherits all its AVPs
 	// is still processed, as is any application that only owns AVPs.
 	type ownDefs struct {
-		codes   []codeIdx
-		names   []nameIdx
-		regname []appNameIdx
+		codes []codeIdx
+		names []appNameIdx
 	}
 	own := make(map[uint32]*ownDefs, len(s.appcode))
 	defsOf := func(appID uint32) *ownDefs {
@@ -180,10 +233,6 @@ func (s *Snapshot) mergeInheritedAVPs() error {
 	for idx := range s.avpname {
 		d := defsOf(idx.appID)
 		d.names = append(d.names, idx)
-	}
-	for idx := range s.regname {
-		d := defsOf(idx.appID)
-		d.regname = append(d.regname, idx)
 	}
 
 	for appID := range own {
@@ -206,17 +255,15 @@ func (s *Snapshot) mergeInheritedAVPs() error {
 				}
 			}
 			for _, idx := range from.names {
-				child := nameIdx{appID, idx.name, idx.vendorID}
-				if idx.vendorID == UndefinedVendorID && s.resolvesName(appID, idx.name) {
+				avp := s.avpname[idx]
+				// A nearer replacement may rename this wire identity. Its old
+				// name must not capture Grouped rules in the child's scope.
+				if resolved := s.avpcode[codeIdx{appID, avp.Code, avp.VendorID}]; resolved.Name != avp.Name {
 					continue
 				}
+				child := appNameIdx{appID, idx.name}
 				if _, exists := s.avpname[child]; !exists {
-					s.avpname[child] = s.avpname[idx]
-				}
-			}
-			for _, idx := range from.regname {
-				if !s.resolvesName(appID, idx.name) {
-					s.regname[appNameIdx{appID, idx.name}] = s.regname[idx]
+					s.avpname[child] = avp
 				}
 			}
 		}
@@ -239,26 +286,10 @@ func ancestorApps(appID uint32) ([]uint32, error) {
 			return ancestors, nil
 		}
 		if visited[parent] {
-			return nil, fmt.Errorf("dictionary parent application cycle at %d", parent)
+			return nil, fmt.Errorf("%w at application %d", ErrParentCycle, parent)
 		}
 		visited[parent] = true
 		ancestors = append(ancestors, parent)
 		cur = parent
 	}
-}
-
-// resolvesName reports whether the index of appID resolves name without a
-// vendor.
-func (s *Snapshot) resolvesName(appID uint32, name string) bool {
-	return s.resolveName(appID, name) != nil
-}
-
-// resolveName returns the AVP that name denotes in the index of appID
-// without a vendor: the loaded AVP of that name, or else the registered
-// one, or nil.
-func (s *Snapshot) resolveName(appID uint32, name string) *AVP {
-	if avp, ok := s.avpname[nameIdx{appID, name, UndefinedVendorID}]; ok {
-		return avp
-	}
-	return s.regname[appNameIdx{appID, name}]
 }

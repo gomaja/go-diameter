@@ -17,7 +17,7 @@ import (
 
 // ErrAVPConflict is wrapped by the errors RegisterAVP, Load and LoadFile
 // return when a definition would change the meaning of an AVP that an
-// application already has.
+// application already has, or leave a command or Grouped rule unresolved.
 var ErrAVPConflict = errors.New("conflicting AVP definition")
 
 // registration is an AVP added by RegisterAVP to application app.
@@ -31,12 +31,9 @@ type registration struct {
 // flow. The definitions are copied, so changing avps afterwards has no
 // effect.
 //
-// An AVP is identified by its code and vendor (RFC 6733 §4.1), and that is
-// how a registered AVP is found: by code and vendor, as the decoder looks
-// AVPs up, or by name and vendor. Without a vendor only its name finds it,
-// and only when no loaded AVP of the application has that name. Unlike
-// Load, RegisterAVP never indexes an AVP under its code alone, which in one
-// application can belong to several vendors.
+// An AVP is identified by its code and vendor (RFC 6733 (October 2012)
+// §4.1). Look it up with FindAVP, or use FindAVPByName for its unique name
+// within the application's scope.
 //
 // The AVPs belong to app as if a dictionary declaring app had defined them,
 // so the applications that inherit from app (see parentAppIds) see them
@@ -47,9 +44,8 @@ type registration struct {
 // meaning of one is refused.
 //
 // Each definition needs a name in the Diameter name format (RFC 6733 §3.2,
-// §4.4), a non-zero code (§11.1.1), a vendor other than UndefinedVendorID,
-// a type name from datatype.Available, flag rules naming only the M, P and
-// V flags, enumerated items only if Enumerated and member rules only if
+// §4.4), a non-zero code (§11.1.1), a type name from datatype.Available,
+// flag rules naming only the M, P and V flags, enumerated items only if Enumerated and member rules only if
 // Grouped. Every member rule must resolve by name in app once the
 // definitions are registered, so register a Grouped AVP together with the
 // members it introduces. A Rule is bounded when MaxSet is true or Max is
@@ -83,7 +79,7 @@ func (p *Parser) RegisterAVP(app uint32, avps ...*AVP) error {
 				}
 			}
 			identical := false
-			if have, err := cur.FindAVPWithVendor(app, d.Code, d.VendorID); err == nil {
+			if have, err := cur.FindAVP(app, d.Code, d.VendorID); err == nil {
 				if !sameAVP(have, d) {
 					return nil, conflictError(app, d, have)
 				}
@@ -92,10 +88,8 @@ func (p *Parser) RegisterAVP(app uint32, avps ...*AVP) error {
 			// The name must denote d in app as well, even when app already
 			// has d by code: a nearer definition of the name would capture
 			// the rules naming it (RFC 6733 §3.2, §4.4).
-			for _, vendor := range []uint32{d.VendorID, UndefinedVendorID} {
-				if have, err := cur.FindAVPWithVendor(app, d.Name, vendor); err == nil && !sameAVP(have, d) {
-					return nil, conflictError(app, d, have)
-				}
+			if have, err := cur.FindAVPByName(app, d.Name); err == nil && !sameAVP(have, d) {
+				return nil, conflictError(app, d, have)
 			}
 			if !identical { // An identical definition changes nothing.
 				regs = append(regs, registration{app, d})
@@ -104,22 +98,7 @@ func (p *Parser) RegisterAVP(app uint32, avps ...*AVP) error {
 		if len(regs) == 0 {
 			return nil, nil
 		}
-		next, err := cur.with(nil, regs)
-		if err != nil {
-			return nil, err
-		}
-		for _, r := range regs {
-			for _, rule := range r.avp.Data.Rule {
-				if rule.AVP == "AVP" { // Diameter's arbitrary AVP wildcard.
-					continue
-				}
-				if _, err := next.FindAVP(app, rule.AVP); err != nil {
-					return nil, fmt.Errorf("register AVP %s in application %d: member %s does not resolve: %w",
-						r.avp.Name, app, rule.AVP, err)
-				}
-			}
-		}
-		return next, nil
+		return cur.with(nil, regs)
 	})
 }
 
@@ -140,8 +119,6 @@ func newRegisteredAVP(owner *App, a *AVP) (*AVP, error) {
 		return nil, fail("name AVP stands for any AVP in rules (RFC 6733 §3.2)")
 	case a.Code == 0:
 		return nil, fail("AVP code 0 is not used (RFC 6733 §11.1.1)")
-	case a.VendorID == UndefinedVendorID:
-		return nil, fail("UndefinedVendorID matches any vendor and identifies no AVP (RFC 6733 §4.1)")
 	}
 	typ, ok := datatype.Available[a.Data.TypeName]
 	if !ok {
