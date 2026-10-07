@@ -214,3 +214,79 @@ Framed-IPv6-Prefix remains OctetString under RFC 7155 §4.4.10.5.6.
 TS 32.299 V19.0.0 Table 7.2.0.1 has no encryption column; the four reused
 party-address AVPs therefore leave encryption unspecified in Rx.
 The Rx-only CER test pins Supported-Vendor-Id to 10415 and 13019.
+
+`sy_spec.json` covers TS 29.219 V19.0.0 (2025-09): all seven AVPs in
+Table 5.3.0.1, one Enumerated registry with two values, two Grouped grammars,
+eight reused roots in Table 5.4, and all six command bodies in §§5.6.2–5.6.7.
+The ordered rule counts are 18, 21, 14, 17, 13 and 17. The Sy entries and
+command grammars were extracted directly from the specification's Word XML.
+The [3GPP portal](https://portal.3gpp.org/desktopmodules/Specifications/SpecificationDetails.aspx?specificationId=1679)
+confirmed V19.0.0 as the latest version on 2026-10-07. The
+[official archive](https://www.3gpp.org/ftp/Specs/archive/29_series/29.219/29219-j00.zip)
+SHA-256 is `b02427f444861143f9622527ee997101de03cb548ec4b8f40c4cbc58aa0a94bc`;
+the enclosed document SHA-256 is
+`a478ed9a9d9986752d984cc4b3e704a27fb11d879af5fc5f482d4676fe431113`.
+
+`sy_reused_spec.json` pins the eight reused roots and all 22 definitions in
+their named-member closure, including five Grouped grammars. Shared source
+extractions from the Gx fixtures were checked against the defining documents;
+RFC 8506 §§8.46–8.48 and RFC enum registries were transcribed independently.
+No fixture is derived from dictionary XML. Source citations distinguish the
+original overload definitions from the RFC 8581 amendments. The
+[TS 29.229 V19.1.0 archive](https://www.3gpp.org/ftp/Specs/archive/29_series/29.229/29229-j10.zip)
+SHA-256 is `376b8793234f2f952a9f52a37771c56e51677e160160e5d48b1bf29585ac3b1e`;
+its document SHA-256 is
+`855ca97a19cb50a707fde220ce8ac043c2979200f0182aca3d4b530bd6a06c36`.
+The [ETSI ES 283 034 V2.2.0 PDF](https://www.etsi.org/deliver/etsi_es/283000_283099/283034/02.02.00_60/es_283034v020200p.pdf)
+SHA-256 is `e388719d1e6aea1b990bb8af5095348c7731f57ef7c14520902c3403aed7c35b`.
+Both reused source versions were checked against their official publication
+listings. Extraction tooling remains outside the repository.
+
+Sy-specific interpretation and scope:
+
+- Every Sy-specific AVP uses vendor 10415, including SL-Request-Type. The
+  seven rows agree with their defining clauses; no table/clause correction
+  or CR override is needed. Nonbreaking whitespace in CCF is normalized;
+  M/P/V rules are compared as exact sets using comma-separated syntax.
+- SN-Request-Type is an Unsigned32 bit mask, not an Enumerated AVP. Bits 0
+  and 1 can be combined. Its M bit is forbidden.
+- Load retains RFC 8583's extension point. Table 5.4 clears M on Load and
+  every member, including extensions, through a wildcard member rule.
+  SourceID retains its source definition outside Load.
+- TS 29.229 §7.2.1 forbids M on Supported-Features in answers; Sy §5.1.6
+  imports that rule, so the SLA member clears M. The initial SLR also
+  clears M, but intermediate SLRs can set it. The initial-request condition
+  depends on SL-Request-Type and cannot be represented by a static command
+  rule; the caller must enforce it.
+- Supported-Features and its children, Subscription-Id and its children,
+  DRMP, and overload definitions inherit identical source definitions.
+  ETSI vendor 13019 is declared for Logical-Access-ID and Physical-Access-ID,
+  with 3GPP retained as the application author.
+- Encryption metadata is compared only where the defining source supplies
+  it. Sy Table 5.3.0.1 and the current RFC flag tables do not supply an
+  encryption column; the fixture does not invent one.
+- Tests compare `dict.Default`, including inheritance, and round-trip all
+  29 Sy and reused definitions, all named grouped members, enum values,
+  and all six commands. Command boundaries, Load member flags, feature
+  flags and Sy's CER vendor advertisement have separate regressions.
+- Value-dependent procedures remain outside dictionary validation: initial
+  SLR identity/feature requirements, feature negotiation, result alternatives,
+  pending-counter chronological ordering, and the §5.2 prohibition of
+  Auth-Session-State through otherwise open command extension points.
+
+The Sy specification retains obsolete references to RFCs 4005 (replaced by
+7155), 4006 (8506), 5719 (6733), 2234 (via 4234 to 5234), and 4960 (9260).
+Its §5.1.4 also mislabels RFC 791, the Internet Protocol specification, as
+TCP; current TCP is RFC 9293. Current documents govern the new fixtures.
+RFC Editor and Datatracker relationships, errata and relevant working-group
+documents were cross-checked on 2026-10-07. RFC 6733 is updated by 7075/8553;
+7683 by 8581; 5234 by 7405; and 3046 by 6607. RFC 7944, the DRMP source, has
+no updates, obsoletes or errata. No database disagreement or
+pending replacement for the dictionary RFCs was found. Verified RFC 6733
+Erratum 4615 agrees with singleton Failed-AVP rules. Verified RFC 7683
+Erratum 4549 concerns overload realm interpretation, not dictionary shape.
+Held and rejected proposals were not applied: relevant held records include
+RFC 6733 4210/4234/5084 and RFC 5234 2820/2914/6172/6173; rejected records
+include RFC 6733 4209/4462/4463/4473/4931/6833, RFC 5234
+1423/3096/4040/4564/5110/4361, and RFC 7405 5334. Reported RFC 7683
+5277/5278 and RFC 6733 6832 remain unverified.

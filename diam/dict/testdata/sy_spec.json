@@ -1,0 +1,930 @@
+{
+  "document": "3GPP TS 29.219 V19.0.0 (2025-09)",
+  "source": "https://www.3gpp.org/ftp/Specs/archive/29_series/29.219/29219-j00.zip",
+  "archive_sha256": "b02427f444861143f9622527ee997101de03cb548ec4b8f40c4cbc58aa0a94bc",
+  "document_sha256": "a478ed9a9d9986752d984cc4b3e704a27fb11d879af5fc5f482d4676fe431113",
+  "avps": [
+    {
+      "name": "Pending-Policy-Counter-Information",
+      "code": 2905,
+      "section": "5.3.5",
+      "type": "Grouped",
+      "vendor": 10415,
+      "must": "M,V",
+      "may": "P",
+      "must_not": "",
+      "rules": [
+        {
+          "name": "Policy-Counter-Status",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Policy-Counter-Status }"
+        },
+        {
+          "name": "Pending-Policy-Counter-Change-Time",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Pending-Policy-Counter-Change-Time }"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ AVP ]"
+        }
+      ]
+    },
+    {
+      "name": "Pending-Policy-Counter-Change-Time",
+      "code": 2906,
+      "section": "5.3.6",
+      "type": "Time",
+      "vendor": 10415,
+      "must": "M,V",
+      "may": "P",
+      "must_not": ""
+    },
+    {
+      "name": "Policy-Counter-Identifier",
+      "code": 2901,
+      "section": "5.3.1",
+      "type": "UTF8String",
+      "vendor": 10415,
+      "must": "M,V",
+      "may": "P",
+      "must_not": ""
+    },
+    {
+      "name": "Policy-Counter-Status",
+      "code": 2902,
+      "section": "5.3.2",
+      "type": "UTF8String",
+      "vendor": 10415,
+      "must": "M,V",
+      "may": "P",
+      "must_not": ""
+    },
+    {
+      "name": "Policy-Counter-Status-Report",
+      "code": 2903,
+      "section": "5.3.3",
+      "type": "Grouped",
+      "vendor": 10415,
+      "must": "M,V",
+      "may": "P",
+      "must_not": "",
+      "rules": [
+        {
+          "name": "Policy-Counter-Identifier",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Policy-Counter-Identifier }"
+        },
+        {
+          "name": "Policy-Counter-Status",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Policy-Counter-Status }"
+        },
+        {
+          "name": "Pending-Policy-Counter-Information",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Pending-Policy-Counter-Information ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ AVP ]"
+        }
+      ]
+    },
+    {
+      "name": "SL-Request-Type",
+      "code": 2904,
+      "section": "5.3.4",
+      "type": "Enumerated",
+      "vendor": 10415,
+      "must": "M,V",
+      "may": "P",
+      "must_not": "",
+      "items": {
+        "0": "INITIAL_REQUEST",
+        "1": "INTERMEDIATE_REQUEST"
+      }
+    },
+    {
+      "name": "SN-Request-Type",
+      "code": 2907,
+      "section": "5.3.7",
+      "type": "Unsigned32",
+      "vendor": 10415,
+      "must": "V",
+      "may": "P",
+      "must_not": "M"
+    }
+  ],
+  "commands": [
+    {
+      "section": "5.6.2",
+      "code": 8388635,
+      "request": true,
+      "proxiable": true,
+      "rules": [
+        {
+          "name": "Session-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": true,
+          "abnf": "< Session-Id >"
+        },
+        {
+          "name": "DRMP",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ DRMP ]"
+        },
+        {
+          "name": "Auth-Application-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Auth-Application-Id }"
+        },
+        {
+          "name": "Origin-Host",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Origin-Host }"
+        },
+        {
+          "name": "Origin-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Origin-Realm }"
+        },
+        {
+          "name": "Destination-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Destination-Realm }"
+        },
+        {
+          "name": "Destination-Host",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Destination-Host ]"
+        },
+        {
+          "name": "Origin-State-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Origin-State-Id ]"
+        },
+        {
+          "name": "OC-Supported-Features",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ OC-Supported-Features ]"
+        },
+        {
+          "name": "Supported-Features",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Supported-Features ]",
+          "conditional_flags": "TS 29.219 V19.0.0 \u00a75.1.6 clears M in the initial SLR; this value-dependent rule is outside the dictionary grammar."
+        },
+        {
+          "name": "SL-Request-Type",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ SL-Request-Type }"
+        },
+        {
+          "name": "Subscription-Id",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Subscription-Id ]"
+        },
+        {
+          "name": "Policy-Counter-Identifier",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Policy-Counter-Identifier ]"
+        },
+        {
+          "name": "Logical-Access-ID",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Logical-Access-ID ]"
+        },
+        {
+          "name": "Physical-Access-ID",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Physical-Access-ID ]"
+        },
+        {
+          "name": "Proxy-Info",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Proxy-Info ]"
+        },
+        {
+          "name": "Route-Record",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Route-Record ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ AVP ]"
+        }
+      ]
+    },
+    {
+      "section": "5.6.3",
+      "code": 8388635,
+      "request": false,
+      "proxiable": true,
+      "rules": [
+        {
+          "name": "Session-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": true,
+          "abnf": "< Session-Id >"
+        },
+        {
+          "name": "DRMP",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ DRMP ]"
+        },
+        {
+          "name": "Auth-Application-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Auth-Application-Id }"
+        },
+        {
+          "name": "Origin-Host",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Origin-Host }"
+        },
+        {
+          "name": "Origin-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Origin-Realm }"
+        },
+        {
+          "name": "Result-Code",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Result-Code ]"
+        },
+        {
+          "name": "Experimental-Result",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Experimental-Result ]"
+        },
+        {
+          "name": "OC-Supported-Features",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ OC-Supported-Features ]"
+        },
+        {
+          "name": "OC-OLR",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ OC-OLR ]"
+        },
+        {
+          "name": "Supported-Features",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Supported-Features ]",
+          "must_not": "M",
+          "flag_source": "TS 29.219 V19.0.0 \u00a75.1.6; TS 29.229 V19.1.0 \u00a77.2.1"
+        },
+        {
+          "name": "Policy-Counter-Status-Report",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Policy-Counter-Status-Report ]"
+        },
+        {
+          "name": "Error-Message",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Error-Message ]"
+        },
+        {
+          "name": "Error-Reporting-Host",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Error-Reporting-Host ]"
+        },
+        {
+          "name": "Failed-AVP",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Failed-AVP ]"
+        },
+        {
+          "name": "Origin-State-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Origin-State-Id ]"
+        },
+        {
+          "name": "Redirect-Host",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Redirect-Host ]"
+        },
+        {
+          "name": "Redirect-Host-Usage",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Redirect-Host-Usage ]"
+        },
+        {
+          "name": "Redirect-Max-Cache-Time",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Redirect-Max-Cache-Time ]"
+        },
+        {
+          "name": "Proxy-Info",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Proxy-Info ]"
+        },
+        {
+          "name": "Load",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Load ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ AVP ]"
+        }
+      ]
+    },
+    {
+      "section": "5.6.4",
+      "code": 8388636,
+      "request": true,
+      "proxiable": true,
+      "rules": [
+        {
+          "name": "Session-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": true,
+          "abnf": "< Session-Id >"
+        },
+        {
+          "name": "DRMP",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ DRMP ]"
+        },
+        {
+          "name": "Origin-Host",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Origin-Host }"
+        },
+        {
+          "name": "Origin-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Origin-Realm }"
+        },
+        {
+          "name": "Destination-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Destination-Realm }"
+        },
+        {
+          "name": "Destination-Host",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Destination-Host }"
+        },
+        {
+          "name": "Auth-Application-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Auth-Application-Id }"
+        },
+        {
+          "name": "Origin-State-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Origin-State-Id ]"
+        },
+        {
+          "name": "OC-Supported-Features",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ OC-Supported-Features ]"
+        },
+        {
+          "name": "Policy-Counter-Status-Report",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Policy-Counter-Status-Report ]"
+        },
+        {
+          "name": "SN-Request-Type",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ SN-Request-Type ]"
+        },
+        {
+          "name": "Proxy-Info",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Proxy-Info ]"
+        },
+        {
+          "name": "Route-Record",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Route-Record ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ AVP ]"
+        }
+      ]
+    },
+    {
+      "section": "5.6.5",
+      "code": 8388636,
+      "request": false,
+      "proxiable": true,
+      "rules": [
+        {
+          "name": "Session-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": true,
+          "abnf": "< Session-Id >"
+        },
+        {
+          "name": "DRMP",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ DRMP ]"
+        },
+        {
+          "name": "Origin-Host",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Origin-Host }"
+        },
+        {
+          "name": "Origin-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Origin-Realm }"
+        },
+        {
+          "name": "Result-Code",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Result-Code ]"
+        },
+        {
+          "name": "Experimental-Result",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Experimental-Result ]"
+        },
+        {
+          "name": "Origin-State-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Origin-State-Id ]"
+        },
+        {
+          "name": "OC-Supported-Features",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ OC-Supported-Features ]"
+        },
+        {
+          "name": "OC-OLR",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ OC-OLR ]"
+        },
+        {
+          "name": "Error-Message",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Error-Message ]"
+        },
+        {
+          "name": "Error-Reporting-Host",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Error-Reporting-Host ]"
+        },
+        {
+          "name": "Redirect-Host",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Redirect-Host ]"
+        },
+        {
+          "name": "Redirect-Host-Usage",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Redirect-Host-Usage ]"
+        },
+        {
+          "name": "Redirect-Max-Cache-Time",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Redirect-Max-Cache-Time ]"
+        },
+        {
+          "name": "Failed-AVP",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Failed-AVP ]"
+        },
+        {
+          "name": "Proxy-Info",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Proxy-Info ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ AVP ]"
+        }
+      ]
+    },
+    {
+      "section": "5.6.6",
+      "code": 275,
+      "request": true,
+      "proxiable": true,
+      "rules": [
+        {
+          "name": "Session-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": true,
+          "abnf": "< Session-Id >"
+        },
+        {
+          "name": "DRMP",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ DRMP ]"
+        },
+        {
+          "name": "Origin-Host",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Origin-Host }"
+        },
+        {
+          "name": "Origin-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Origin-Realm }"
+        },
+        {
+          "name": "Destination-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Destination-Realm }"
+        },
+        {
+          "name": "Auth-Application-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Auth-Application-Id }"
+        },
+        {
+          "name": "Termination-Cause",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Termination-Cause }"
+        },
+        {
+          "name": "Destination-Host",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Destination-Host ]"
+        },
+        {
+          "name": "OC-Supported-Features",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ OC-Supported-Features ]"
+        },
+        {
+          "name": "Origin-State-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Origin-State-Id ]"
+        },
+        {
+          "name": "Proxy-Info",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Proxy-Info ]"
+        },
+        {
+          "name": "Route-Record",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Route-Record ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ AVP ]"
+        }
+      ]
+    },
+    {
+      "section": "5.6.7",
+      "code": 275,
+      "request": false,
+      "proxiable": true,
+      "rules": [
+        {
+          "name": "Session-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": true,
+          "abnf": "< Session-Id >"
+        },
+        {
+          "name": "DRMP",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ DRMP ]"
+        },
+        {
+          "name": "Origin-Host",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Origin-Host }"
+        },
+        {
+          "name": "Origin-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Origin-Realm }"
+        },
+        {
+          "name": "Result-Code",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Result-Code ]"
+        },
+        {
+          "name": "Error-Message",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Error-Message ]"
+        },
+        {
+          "name": "Error-Reporting-Host",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Error-Reporting-Host ]"
+        },
+        {
+          "name": "Failed-AVP",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Failed-AVP ]"
+        },
+        {
+          "name": "Origin-State-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Origin-State-Id ]"
+        },
+        {
+          "name": "OC-Supported-Features",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ OC-Supported-Features ]"
+        },
+        {
+          "name": "OC-OLR",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ OC-OLR ]"
+        },
+        {
+          "name": "Redirect-Host",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Redirect-Host ]"
+        },
+        {
+          "name": "Redirect-Host-Usage",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Redirect-Host-Usage ]"
+        },
+        {
+          "name": "Redirect-Max-Cache-Time",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Redirect-Max-Cache-Time ]"
+        },
+        {
+          "name": "Proxy-Info",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Proxy-Info ]"
+        },
+        {
+          "name": "Load",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Load ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ AVP ]"
+        }
+      ]
+    }
+  ],
+  "reused": [
+    {
+      "name": "DRMP",
+      "reference": "IETF RFC 7944 [21]",
+      "usage": "Allows Diameter endpoints to indicate the relative priority of Diameter transactions."
+    },
+    {
+      "name": "Subscription-Id",
+      "reference": "IETF RFC 4006 [5]",
+      "usage": "The identification of the subscription (IMSI, MSISDN, etc)"
+    },
+    {
+      "name": "Load",
+      "reference": "IETF RFC 8583 [22]",
+      "usage": "The AVP used to convey load information between Diameter nodes.This AVP and all AVPs within this grouped AVP shall have the 'M' bit cleared."
+    },
+    {
+      "name": "Logical-Access-ID",
+      "reference": "ETSI TS 283 034 [17]",
+      "usage": "Contains a CircuitID (as defined in IETF RFC 3046 [18]). The Logical Access ID may explicitly contain the identity of the Virtual Path and Virtual Channel carrying the traffic. Applicable only for Fixed Broadband Access network convergence as defined in annex A.This AVP shall have the 'M' bit cleared."
+    },
+    {
+      "name": "OC-OLR",
+      "reference": "IETF 7683 [20]",
+      "usage": "Contains the necessary information to convey an overload report."
+    },
+    {
+      "name": "OC-Supported-Features",
+      "reference": "IETF 7683 [20]",
+      "usage": "Defines the support for the Diameter overload indication conveyence by the sending node."
+    },
+    {
+      "name": "Physical-Access-ID",
+      "reference": "ETSI TS 283 034 [17]",
+      "usage": "Identifies the physical access to which the user equipment is connected. Includes a port identifier and the identity of the access node where the port resides. Applicable only for Fixed Broadband Access network convergence as defined in annex A.This AVP shall have the 'M' bit cleared."
+    },
+    {
+      "name": "Supported-Features",
+      "reference": "3GPP TS 29.229 [15]",
+      "usage": "If present in a request, this AVP informs the destination host about the features that the origin host supports. If present in an answer, this AVP informs the destination host about common features with the origin host."
+    }
+  ]
+}

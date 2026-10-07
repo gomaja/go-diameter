@@ -1,56 +1,203 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <diameter>
-
 	<application id="16777302" type="auth" name="Diameter Sy">
 		<!-- 3GPP TS 29.219 V19.0.0 §5.1.5: Sy application author. -->
 		<vendor id="10415" name="TGPP"/>
-		<!-- Diameter Credit Control Application -->
-		<!-- https://www.rfc-editor.org/rfc/rfc8506 -->
-		<!-- proxiable: the request CCF is "REQ, PXY", the answer "PXY" (3GPP TS 29.219 V19.0.0 §§5.6.2-5.6.3). -->
+		<!-- TS 29.219 V19.0.0 Table 5.4; ETSI ES 283 034 V2.2.0 §7.3; RFC 6733 §5.3.6. -->
+		<vendor id="13019" name="ETSI"/>
 
+		<!-- 3GPP TS 29.219 V19.0.0 §§5.6.2–5.6.3. -->
 		<command code="8388635" short="SL" name="Spending-Limit">
 			<request proxiable="true">
-				<!-- https://www.rfc-editor.org/rfc/rfc8506#section-3.1 -->
-				<rule avp="Session-Id" required="true" max="1"/>
+				<rule avp="Session-Id" required="true" max="1" fixed="true"/>
+				<rule avp="DRMP" required="false" max="1"/>
 				<rule avp="Auth-Application-Id" required="true" max="1"/>
 				<rule avp="Origin-Host" required="true" max="1"/>
 				<rule avp="Origin-Realm" required="true" max="1"/>
 				<rule avp="Destination-Realm" required="true" max="1"/>
-				<rule avp="SL-Request-Type" required="true" max="1"/>
 				<rule avp="Destination-Host" required="false" max="1"/>
 				<rule avp="Origin-State-Id" required="false" max="1"/>
-				<rule avp="Subscription-Id" required="false" max="1"/>
-				<rule avp="Policy-Counter-Identifier" required="false" max="1"/>
-				<rule avp="Proxy-Info" required="false" max="1"/>
-				<rule avp="Route-Record" required="false" max="1"/>
-				<rule avp="Service-Information" required="false" max="1"/>
+				<rule avp="OC-Supported-Features" required="false" max="1"/>
+				<!-- TS 29.219 V19.0.0 §5.1.6: the caller clears M on Supported-Features in the initial SLR. -->
+				<rule avp="Supported-Features" required="false"/>
+				<rule avp="SL-Request-Type" required="true" max="1"/>
+				<rule avp="Subscription-Id" required="false"/>
+				<rule avp="Policy-Counter-Identifier" required="false"/>
+				<rule avp="Logical-Access-ID" required="false" max="1"/>
+				<rule avp="Physical-Access-ID" required="false" max="1"/>
+				<rule avp="Proxy-Info" required="false"/>
+				<rule avp="Route-Record" required="false"/>
+				<rule avp="AVP" required="false"/>
 			</request>
 			<answer proxiable="true">
-				<!-- https://www.rfc-editor.org/rfc/rfc8506#section-3.2 -->
-				<rule avp="Session-Id" required="true" max="1"/>
-				<rule avp="Result-Code" required="true" max="1"/>
+				<rule avp="Session-Id" required="true" max="1" fixed="true"/>
+				<rule avp="DRMP" required="false" max="1"/>
+				<rule avp="Auth-Application-Id" required="true" max="1"/>
 				<rule avp="Origin-Host" required="true" max="1"/>
 				<rule avp="Origin-Realm" required="true" max="1"/>
+				<rule avp="Result-Code" required="false" max="1"/>
+				<rule avp="Experimental-Result" required="false" max="1"/>
+				<rule avp="OC-Supported-Features" required="false" max="1"/>
+				<rule avp="OC-OLR" required="false" max="1"/>
+				<!-- TS 29.219 V19.0.0 §5.1.6; TS 29.229 V19.1.0 §7.2.1: answers clear M. -->
+				<rule avp="Supported-Features" required="false" must-not="M"/>
+				<rule avp="Policy-Counter-Status-Report" required="false"/>
+				<rule avp="Error-Message" required="false" max="1"/>
+				<rule avp="Error-Reporting-Host" required="false" max="1"/>
+				<rule avp="Failed-AVP" required="false" max="1"/>
 				<rule avp="Origin-State-Id" required="false" max="1"/>
-				<rule avp="Redirect-Host" required="false" max="1"/>
+				<rule avp="Redirect-Host" required="false"/>
 				<rule avp="Redirect-Host-Usage" required="false" max="1"/>
 				<rule avp="Redirect-Max-Cache-Time" required="false" max="1"/>
-				<rule avp="Proxy-Info" required="false" max="1"/>
-				<rule avp="Route-Record" required="false" max="1"/>
-				<rule avp="Failed-AVP" required="false" max="1"/>
+				<rule avp="Proxy-Info" required="false"/>
+				<rule avp="Load" required="false"/>
+				<rule avp="AVP" required="false"/>
 			</answer>
 		</command>
 
-		<!-- 3GPP TS 29.219 V19.0.0 §5.3.1, Table 5.3.0.1. -->
-		<avp name="Policy-Counter-Identifier" code="2901" vendor-id="10415" must="M,V" may="P" may-encrypt="Y">
+		<!-- 3GPP TS 29.219 V19.0.0 §§5.6.4–5.6.5. -->
+		<command code="8388636" short="SN" name="Spending-Status-Notification">
+			<request proxiable="true">
+				<rule avp="Session-Id" required="true" max="1" fixed="true"/>
+				<rule avp="DRMP" required="false" max="1"/>
+				<rule avp="Origin-Host" required="true" max="1"/>
+				<rule avp="Origin-Realm" required="true" max="1"/>
+				<rule avp="Destination-Realm" required="true" max="1"/>
+				<rule avp="Destination-Host" required="true" max="1"/>
+				<rule avp="Auth-Application-Id" required="true" max="1"/>
+				<rule avp="Origin-State-Id" required="false" max="1"/>
+				<rule avp="OC-Supported-Features" required="false" max="1"/>
+				<rule avp="Policy-Counter-Status-Report" required="false"/>
+				<rule avp="SN-Request-Type" required="false" max="1"/>
+				<rule avp="Proxy-Info" required="false"/>
+				<rule avp="Route-Record" required="false"/>
+				<rule avp="AVP" required="false"/>
+			</request>
+			<answer proxiable="true">
+				<rule avp="Session-Id" required="true" max="1" fixed="true"/>
+				<rule avp="DRMP" required="false" max="1"/>
+				<rule avp="Origin-Host" required="true" max="1"/>
+				<rule avp="Origin-Realm" required="true" max="1"/>
+				<rule avp="Result-Code" required="false" max="1"/>
+				<rule avp="Experimental-Result" required="false" max="1"/>
+				<rule avp="Origin-State-Id" required="false" max="1"/>
+				<rule avp="OC-Supported-Features" required="false" max="1"/>
+				<rule avp="OC-OLR" required="false" max="1"/>
+				<rule avp="Error-Message" required="false" max="1"/>
+				<rule avp="Error-Reporting-Host" required="false" max="1"/>
+				<rule avp="Redirect-Host" required="false"/>
+				<rule avp="Redirect-Host-Usage" required="false" max="1"/>
+				<rule avp="Redirect-Max-Cache-Time" required="false" max="1"/>
+				<rule avp="Failed-AVP" required="false" max="1"/>
+				<rule avp="Proxy-Info" required="false"/>
+				<rule avp="AVP" required="false"/>
+			</answer>
+		</command>
+
+		<!-- 3GPP TS 29.219 V19.0.0 §§5.6.6–5.6.7. -->
+		<command code="275" short="ST" name="Session-Termination">
+			<request proxiable="true">
+				<rule avp="Session-Id" required="true" max="1" fixed="true"/>
+				<rule avp="DRMP" required="false" max="1"/>
+				<rule avp="Origin-Host" required="true" max="1"/>
+				<rule avp="Origin-Realm" required="true" max="1"/>
+				<rule avp="Destination-Realm" required="true" max="1"/>
+				<rule avp="Auth-Application-Id" required="true" max="1"/>
+				<rule avp="Termination-Cause" required="true" max="1"/>
+				<rule avp="Destination-Host" required="false" max="1"/>
+				<rule avp="OC-Supported-Features" required="false" max="1"/>
+				<rule avp="Origin-State-Id" required="false" max="1"/>
+				<rule avp="Proxy-Info" required="false"/>
+				<rule avp="Route-Record" required="false"/>
+				<rule avp="AVP" required="false"/>
+			</request>
+			<answer proxiable="true">
+				<rule avp="Session-Id" required="true" max="1" fixed="true"/>
+				<rule avp="DRMP" required="false" max="1"/>
+				<rule avp="Origin-Host" required="true" max="1"/>
+				<rule avp="Origin-Realm" required="true" max="1"/>
+				<rule avp="Result-Code" required="false" max="1"/>
+				<rule avp="Error-Message" required="false" max="1"/>
+				<rule avp="Error-Reporting-Host" required="false" max="1"/>
+				<rule avp="Failed-AVP" required="false" max="1"/>
+				<rule avp="Origin-State-Id" required="false" max="1"/>
+				<rule avp="OC-Supported-Features" required="false" max="1"/>
+				<rule avp="OC-OLR" required="false" max="1"/>
+				<rule avp="Redirect-Host" required="false"/>
+				<rule avp="Redirect-Host-Usage" required="false" max="1"/>
+				<rule avp="Redirect-Max-Cache-Time" required="false" max="1"/>
+				<rule avp="Proxy-Info" required="false"/>
+				<rule avp="Load" required="false"/>
+				<rule avp="AVP" required="false"/>
+			</answer>
+		</command>
+
+		<!-- 3GPP TS 29.219 V19.0.0 Table 5.3.0.1, §5.3.5. -->
+		<avp name="Pending-Policy-Counter-Information" code="2905" vendor-id="10415" must="M,V" may="P">
+			<data type="Grouped">
+				<rule avp="Policy-Counter-Status" required="true" max="1"/>
+				<rule avp="Pending-Policy-Counter-Change-Time" required="true" max="1"/>
+				<rule avp="AVP" required="false"/>
+			</data>
+		</avp>
+
+		<!-- 3GPP TS 29.219 V19.0.0 Table 5.3.0.1, §5.3.6. -->
+		<avp name="Pending-Policy-Counter-Change-Time" code="2906" vendor-id="10415" must="M,V" may="P">
+			<data type="Time"/>
+		</avp>
+
+		<!-- 3GPP TS 29.219 V19.0.0 Table 5.3.0.1, §5.3.1. -->
+		<avp name="Policy-Counter-Identifier" code="2901" vendor-id="10415" must="M,V" may="P">
 			<data type="UTF8String"/>
 		</avp>
-		<avp name="SL-Request-Type" code="2904" must="M" may="P" must-not="V" may-encrypt="-">
+
+		<!-- 3GPP TS 29.219 V19.0.0 Table 5.3.0.1, §5.3.2. -->
+		<avp name="Policy-Counter-Status" code="2902" vendor-id="10415" must="M,V" may="P">
+			<data type="UTF8String"/>
+		</avp>
+
+		<!-- 3GPP TS 29.219 V19.0.0 Table 5.3.0.1, §5.3.3. -->
+		<avp name="Policy-Counter-Status-Report" code="2903" vendor-id="10415" must="M,V" may="P">
+			<data type="Grouped">
+				<rule avp="Policy-Counter-Identifier" required="true" max="1"/>
+				<rule avp="Policy-Counter-Status" required="true" max="1"/>
+				<rule avp="Pending-Policy-Counter-Information" required="false"/>
+				<rule avp="AVP" required="false"/>
+			</data>
+		</avp>
+
+		<!-- 3GPP TS 29.219 V19.0.0 Table 5.3.0.1, §5.3.4. -->
+		<avp name="SL-Request-Type" code="2904" vendor-id="10415" must="M,V" may="P">
 			<data type="Enumerated">
 				<item code="0" name="INITIAL_REQUEST"/>
 				<item code="1" name="INTERMEDIATE_REQUEST"/>
 			</data>
 		</avp>
-		
-    </application>
+
+		<!-- 3GPP TS 29.219 V19.0.0 Table 5.3.0.1, §5.3.7. -->
+		<avp name="SN-Request-Type" code="2907" vendor-id="10415" must="V" may="P" must-not="M">
+			<data type="Unsigned32"/>
+		</avp>
+
+		<!-- 3GPP TS 29.219 V19.0.0 Table 5.4; RFC 8583 (August 2019) §§7.1, 7.5. -->
+		<avp name="Load" code="650" vendor-id="0" must-not="M,V">
+			<data type="Grouped">
+				<rule avp="Load-Type" required="false" max="1"/>
+				<rule avp="Load-Value" required="false" max="1"/>
+				<rule avp="SourceID" required="false" max="1"/>
+				<rule avp="AVP" required="false" must-not="M"/>
+			</data>
+		</avp>
+
+		<!-- 3GPP TS 29.219 V19.0.0 Table 5.4; ETSI ES 283 034 V2.2.0 Table 10, §7.3.3. -->
+		<avp name="Logical-Access-ID" code="302" vendor-id="13019" must="V" must-not="M" may-encrypt="Y">
+			<data type="OctetString"/>
+		</avp>
+
+		<!-- 3GPP TS 29.219 V19.0.0 Table 5.4; ETSI ES 283 034 V2.2.0 Table 10, §7.3.14. -->
+		<avp name="Physical-Access-ID" code="313" vendor-id="13019" must="V" must-not="M" may-encrypt="Y">
+			<data type="UTF8String"/>
+		</avp>
+
+	</application>
 </diameter>
