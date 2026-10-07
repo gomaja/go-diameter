@@ -17,7 +17,7 @@ func rebuildAnswerAVP(received *diam.AVP, appID uint32, dictionary *dict.Parser,
 		return nil
 	}
 	flags := received.Flags & avp.Mbit
-	definition, err := definitions.FindAVPByCode(appID, received.Code, received.VendorID)
+	definition, err := definitions.FindAVP(appID, received.Code, received.VendorID)
 	if err == nil {
 		if _, raw := received.Data.(datatype.Unknown); raw {
 			// Undecoded known values cannot be reused as ordinary answer fields.

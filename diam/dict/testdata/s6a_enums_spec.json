@@ -245,8 +245,8 @@
   },
   "SIPTO-Permission": {
     "items": {
-      "0": "SIPTO_above_RAN _ALLOWED",
-      "1": "SIPTO_above_RAN _NOTALLOWED"
+      "0": "SIPTO_above_RAN_ALLOWED",
+      "1": "SIPTO_above_RAN_NOTALLOWED"
     },
     "source": "TS 29.272 V19.6.0 §7.3.135",
     "code": 1613,
@@ -669,7 +669,7 @@
     "items": {
       "0": "WLAN",
       "1": "VIRTUAL",
-      "2": "TRUSTED- N3GA",
+      "2": "TRUSTED-N3GA",
       "3": "WIRELINE",
       "4": "WIRELINE-CABLE",
       "5": "WIRELINE-BBF",

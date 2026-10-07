@@ -38,7 +38,7 @@ func requireUnchanged(t *testing.T, p *Parser, before *Snapshot) {
 // the vendor together identify an AVP.
 func TestRegisterAVPIsVendorScoped(t *testing.T) {
 	p := New(AllBundled()...)
-	wildcard, err := p.FindAVP(4, uint32(9))
+	ietf, err := p.FindAVP(4, uint32(9), 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,44 +52,31 @@ func TestRegisterAVPIsVendorScoped(t *testing.T) {
 		{testVendor, "Test-Code-Nine"},
 	} {
 		for _, app := range []uint32{4, gxAppID} {
-			if avp, err := p.FindAVPByCode(app, 9, tc.vendor); err != nil || avp.Name != tc.name {
+			if avp, err := p.FindAVP(app, 9, tc.vendor); err != nil || avp.Name != tc.name {
 				t.Errorf("app %d code 9 vendor %d = %v, %v; want %s", app, tc.vendor, avp, err, tc.name)
 			}
 		}
 	}
-	if avp, err := p.FindAVP(4, uint32(9)); err != nil || avp != wildcard {
-		t.Errorf("vendor-agnostic code 9 = %v, %v; want %s unchanged", avp, err, wildcard.Name)
+	if avp, err := p.FindAVP(4, uint32(9), 0); err != nil || avp != ietf {
+		t.Errorf("vendor-0 code 9 = %v, %v; want %s unchanged", avp, err, ietf.Name)
 	}
 	assertNoWildcardRegistrations(t, p.Snapshot())
 
-	// Without loaded AVPs, nothing answers for the code alone.
+	// A vendor-specific registration cannot answer a vendor-0 lookup.
 	fresh := New()
 	mustRegister(t, fresh, 4, &AVP{Name: "TGPP-GGSN-MCC-MNC", Code: 9, VendorID: 10415, Must: "V", Data: Data{TypeName: "UTF8String"}})
-	if avp, err := fresh.FindAVP(4, uint32(9)); err == nil {
-		t.Errorf("vendor-agnostic code 9 = %v", avp)
-	}
-	if avp, err := fresh.FindAVPByCode(4, 9, 0); err == nil {
+	if avp, err := fresh.FindAVP(4, 9, 0); err == nil {
 		t.Errorf("code 9 vendor 0 = %v", avp)
 	}
 	assertNoWildcardRegistrations(t, fresh.Snapshot())
 }
 
-// assertNoWildcardRegistrations fails if a registered AVP sits in a slot
-// indexed with UndefinedVendorID.
+// assertNoWildcardRegistrations checks every code index retains its vendor.
 func assertNoWildcardRegistrations(t *testing.T, s *Snapshot) {
 	t.Helper()
-	registered := make(map[*AVP]bool)
-	for _, r := range s.regs {
-		registered[r.avp] = true
-	}
 	for idx, avp := range s.avpcode {
-		if idx.vendorID == UndefinedVendorID && registered[avp] {
-			t.Errorf("registered %s indexed by code %d without vendor in app %d", avp.Name, idx.code, idx.appID)
-		}
-	}
-	for idx, avp := range s.avpname {
-		if idx.vendorID == UndefinedVendorID && registered[avp] {
-			t.Errorf("registered %s indexed by name without vendor in app %d", avp.Name, idx.appID)
+		if idx.vendorID != avp.VendorID {
+			t.Errorf("%s indexed under vendor %d, want %d", avp.Name, idx.vendorID, avp.VendorID)
 		}
 	}
 }
@@ -117,7 +104,6 @@ func TestRegisterAVPRejectsInvalidDefinitions(t *testing.T) {
 		{"name with space", with(func(a *AVP) { a.Name = "Test AVP" }), "name"},
 		{"name AVP", with(func(a *AVP) { a.Name = "AVP" }), "any AVP"},
 		{"code 0", with(func(a *AVP) { a.Code = 0 }), "code 0"},
-		{"wildcard vendor", with(func(a *AVP) { a.VendorID = UndefinedVendorID; a.Must = "" }), "UndefinedVendorID"},
 		{"unknown type", with(func(a *AVP) { a.Data.TypeName = "Unknown" }), "data type"},
 		{"no type", with(func(a *AVP) { a.Data.TypeName = "" }), "data type"},
 		{"items on non-enumerated", with(func(a *AVP) { a.Data.Enum = []*Enum{{Code: 1, Name: "ONE"}} }), "Enumerated"},
@@ -175,7 +161,7 @@ func TestRegisterAVPConflicts(t *testing.T) {
 			requireUnchanged(t, p, before)
 		})
 	}
-	if avp, err := p.FindAVPByCode(4, 70004, testVendor); err == nil {
+	if avp, err := p.FindAVP(4, 70004, testVendor); err == nil {
 		t.Errorf("a refused call registered %s", avp.Name)
 	}
 }
@@ -188,9 +174,9 @@ func TestRegisterAVPIdenticalIsNoOp(t *testing.T) {
 	again := vendorAVP("Test-Alpha", 70000, "UTF8String")
 	again.Must, again.MustNot = " V ", "M" // the same rules, written differently
 	mustRegister(t, p, 4, again)
-	mustRegister(t, p, gxAppID, alpha)           // already inherited from application 4
-	mustRegister(t, p, 4, alpha, alpha)          // a duplicate within one call
-	sessionID, err := p.FindAVPByCode(0, 263, 0) // a loaded AVP, copied field by field
+	mustRegister(t, p, gxAppID, alpha)     // already inherited from application 4
+	mustRegister(t, p, 4, alpha, alpha)    // a duplicate within one call
+	sessionID, err := p.FindAVP(0, 263, 0) // a loaded AVP, copied field by field
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -217,11 +203,11 @@ func TestRegisterAVPIdenticalByCodeStillChecksName(t *testing.T) {
 	</diameter>`)); err != nil {
 		t.Fatal(err)
 	}
-	member, err := p.FindAVPByCode(0, 70001, testVendor)
+	member, err := p.FindAVP(0, 70001, testVendor)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if have, err := p.FindAVPByCode(4, 70001, testVendor); err != nil || have != member {
+	if have, err := p.FindAVP(4, 70001, testVendor); err != nil || have != member {
 		t.Fatalf("application 4 does not inherit the base member: %v, %v", have, err)
 	}
 	group := vendorAVP("Test-Group", 70000, "Grouped")
@@ -245,11 +231,10 @@ func TestRegisterAVPIdenticalByCodeStillChecksName(t *testing.T) {
 	requireUnchanged(t, p, before)
 }
 
-// TestFindAVPByCodeInheritsInUndeclaredApplications: an application that no
+// TestFindAVPInheritsInUndeclaredApplications: an application that no
 // dictionary declares inherits from its ancestors (parentAppIds) for the
-// decoder too, for loaded and registered AVPs alike: FindAVPByCode answers
-// as FindAVPWithVendor does for every application and key.
-func TestFindAVPByCodeInheritsInUndeclaredApplications(t *testing.T) {
+// decoder too, for loaded and registered AVPs alike.
+func TestFindAVPInheritsInUndeclaredApplications(t *testing.T) {
 	registered := New(Base)
 	mustRegister(t, registered, 4, vendorAVP("Test-Counter", 70000, "Unsigned32"))
 	mustRegister(t, registered, 0, vendorAVP("Test-Base-Vendor", 70001, "Unsigned32"))
@@ -269,18 +254,33 @@ func TestFindAVPByCodeInheritsInUndeclaredApplications(t *testing.T) {
 	for name, p := range map[string]*Parser{"registered": registered, "loaded": loaded} {
 		for _, app := range apps {
 			for _, key := range keys {
-				byCode, errByCode := p.FindAVPByCode(app, key.code, key.vendor)
-				walked, errWalked := p.FindAVPWithVendor(app, key.code, key.vendor)
-				if (errByCode == nil) != (errWalked == nil) || byCode.Name != walked.Name {
-					t.Errorf("%s: app %d code %d vendor %d: FindAVPByCode %s (%v), FindAVPWithVendor %s (%v)",
-						name, app, key.code, key.vendor, byCode.Name, errByCode, walked.Name, errWalked)
+				want := ""
+				switch key.code {
+				case 70000:
+					switch app {
+					case 4, 16777236, 16777238, 16777251, 16777265, 16777302, 16777312, 16777313:
+						want = "Test-Counter"
+					}
+				case 70001:
+					want = "Test-Base-Vendor"
+				case 263:
+					want = "Session-Id"
 				}
+				got, err := p.FindAVP(app, key.code, key.vendor)
+				if want == "" {
+					if err == nil {
+						t.Errorf("%s: app %d key %v = %v; want miss", name, app, key, got)
+					}
+				} else if err != nil || got.Name != want || got.VendorID != key.vendor {
+					t.Errorf("%s: app %d key %v = %v, %v; want %s", name, app, key, got, err, want)
+				}
+
 			}
 		}
 		// Gx, Rx, Sy and S6c descend from application 4; SWx through S6a
 		// and S6c. Application 1, its parent, and S13 do not.
 		for app, want := range map[uint32]bool{16777238: true, 16777265: true, 16777313: true, 1: false, 16777252: false} {
-			if _, err := p.FindAVPByCode(app, 70000, testVendor); (err == nil) != want {
+			if _, err := p.FindAVP(app, 70000, testVendor); (err == nil) != want {
 				t.Errorf("%s: app %d Test-Counter found = %t, want %t", name, app, err == nil, want)
 			}
 		}
@@ -305,15 +305,15 @@ func TestRegisterAVPInheritsLikeLoad(t *testing.T) {
 
 	for _, app := range []uint32{0, 1, 3, 4, 16777236, 16777238, 16777251, 16777252, 16777265, 16777302, 16777312, 16777313, 16777999} {
 		for _, key := range []struct{ code, vendor uint32 }{{70000, testVendor}, {1001, 10415}} {
-			r, rerr := registered.FindAVPByCode(app, key.code, key.vendor)
-			l, lerr := loaded.FindAVPByCode(app, key.code, key.vendor)
-			if (rerr == nil) != (lerr == nil) || r.Name != l.Name {
-				t.Errorf("app %d code %d vendor %d: registered %s (%v), loaded %s (%v)",
-					app, key.code, key.vendor, r.Name, rerr, l.Name, lerr)
+			r, rerr := registered.FindAVP(app, key.code, key.vendor)
+			l, lerr := loaded.FindAVP(app, key.code, key.vendor)
+			if (rerr == nil) != (lerr == nil) || (rerr == nil && r.Name != l.Name) {
+				t.Errorf("app %d code %d vendor %d: registered %v (%v), loaded %v (%v)",
+					app, key.code, key.vendor, r, rerr, l, lerr)
 			}
 		}
-		r, rerr := registered.FindAVPWithVendor(app, "Test-Inherited", testVendor)
-		l, lerr := loaded.FindAVPWithVendor(app, "Test-Inherited", testVendor)
+		r, rerr := registered.FindAVPByName(app, "Test-Inherited")
+		l, lerr := loaded.FindAVPByName(app, "Test-Inherited")
 		if (rerr == nil) != (lerr == nil) || (rerr == nil && r.Code != l.Code) {
 			t.Errorf("app %d by name and vendor: registered %v (%v), loaded %v (%v)", app, r, rerr, l, lerr)
 		}
@@ -324,15 +324,15 @@ func TestRegisterAVPInheritsLikeLoad(t *testing.T) {
 		16777238: "Test-Inherited", 16777265: "Test-Inherited", 16777313: "Test-Inherited",
 		1: "", 0: "", 16777252: "",
 	} {
-		avp, err := registered.FindAVPByCode(app, 70000, testVendor)
+		avp, err := registered.FindAVP(app, 70000, testVendor)
 		if want == "" && err == nil || want != "" && (err != nil || avp.Name != want) {
 			t.Errorf("app %d: %v, %v; want %q", app, avp, err, want)
 		}
 	}
-	if avp, _ := registered.FindAVPByCode(gxAppID, 1001, 10415); avp.Name != "Charging-Rule-Install" {
+	if avp, _ := registered.FindAVP(gxAppID, 1001, 10415); avp.Name != "Charging-Rule-Install" {
 		t.Errorf("Gx code 1001 = %s, want its own Charging-Rule-Install", avp.Name)
 	}
-	if avp, _ := registered.FindAVPByCode(16777236, 1001, 10415); avp.Name != "Test-Shadowed" {
+	if avp, _ := registered.FindAVP(16777236, 1001, 10415); avp.Name != "Test-Shadowed" {
 		t.Errorf("Rx code 1001 = %s, want Test-Shadowed from application 4", avp.Name)
 	}
 }
@@ -348,7 +348,7 @@ func TestRegisterAVPDeclaresNoApplication(t *testing.T) {
 	if _, err := p.App(private); !errors.Is(err, ErrApplicationUnsupported) {
 		t.Errorf("App(%d) error = %v, want ErrApplicationUnsupported", private, err)
 	}
-	if avp, err := p.FindAVPByCode(private, 70000, testVendor); err != nil || avp.App.ID != private {
+	if avp, err := p.FindAVP(private, 70000, testVendor); err != nil || avp.App.ID != private {
 		t.Errorf("registered AVP = %v, %v", avp, err)
 	}
 	if !strings.Contains(p.String(), "Test-Private") {
@@ -391,12 +391,12 @@ func TestRegisterAVPSurvivesLoad(t *testing.T) {
 		t.Fatal(err)
 	}
 	for app, vendor := range map[uint32]uint32{4: testVendor, gxAppID: testVendor, 1: 94} {
-		if avp, err := p.FindAVP(app, "Test-Kept"); err != nil || avp.VendorID != vendor {
+		if avp, err := p.FindAVPByName(app, "Test-Kept"); err != nil || avp.VendorID != vendor {
 			t.Errorf("app %d Test-Kept = %v, %v; want vendor %d", app, avp, err, vendor)
 		}
 	}
 	for _, key := range []struct{ code, vendor uint32 }{{70000, testVendor}, {70001, testVendor}} {
-		if _, err := p.FindAVPByCode(4, key.code, key.vendor); err != nil {
+		if _, err := p.FindAVP(4, key.code, key.vendor); err != nil {
 			t.Error(err)
 		}
 	}
@@ -411,7 +411,7 @@ func TestRegisterAVPNameScope(t *testing.T) {
 	mustRegister(t, p, 4, vendorAVP("Test-Name", 70000, "UTF8String"))
 	mustRegister(t, p, 1, &AVP{Name: "Test-Name", Code: 70000, VendorID: 94, Must: "V", Data: Data{TypeName: "UTF8String"}})
 	for app, vendor := range map[uint32]uint32{4: testVendor, gxAppID: testVendor, 1: 94} {
-		if avp, err := p.FindAVP(app, "Test-Name"); err != nil || avp.VendorID != vendor {
+		if avp, err := p.FindAVPByName(app, "Test-Name"); err != nil || avp.VendorID != vendor {
 			t.Errorf("app %d Test-Name = %v, %v; want vendor %d", app, avp, err, vendor)
 		}
 	}
@@ -436,7 +436,7 @@ func TestRegisterGroupedAVP(t *testing.T) {
 	level.Data.Enum = []*Enum{{Code: 0, Name: "LOW"}, {Code: 1, Name: "HIGH"}}
 	mustRegister(t, p, 4, group, vendorAVP("Test-Member", 70001, "UTF8String"), level)
 
-	have, err := p.FindAVPByCode(4, 70000, testVendor)
+	have, err := p.FindAVP(4, 70000, testVendor)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -446,11 +446,11 @@ func TestRegisterGroupedAVP(t *testing.T) {
 	// The members resolve by name, also from Gx, which no dictionary
 	// declares here and whose lookups walk up to application 4.
 	for _, rule := range have.Data.Rule[:3] {
-		if _, err := p.FindAVP(gxAppID, rule.AVP); err != nil {
+		if _, err := p.FindAVPByName(gxAppID, rule.AVP); err != nil {
 			t.Errorf("member %s: %v", rule.AVP, err)
 		}
 	}
-	if avp, err := p.FindAVPWithVendor(4, "Test-Level", testVendor); err != nil || len(avp.Data.Enum) != 2 {
+	if avp, err := p.FindAVPByName(4, "Test-Level"); err != nil || len(avp.Data.Enum) != 2 {
 		t.Errorf("Test-Level = %v, %v", avp, err)
 	}
 	// The definitions are copies: changing the arguments changes nothing.
@@ -460,7 +460,7 @@ func TestRegisterGroupedAVP(t *testing.T) {
 	if have.Data.Rule[0].AVP != "Test-Member" {
 		t.Error("registered rule follows the caller's change")
 	}
-	if avp, _ := p.FindAVPByCode(4, 70002, testVendor); avp.Data.Enum[0].Name != "LOW" {
+	if avp, _ := p.FindAVP(4, 70002, testVendor); avp.Data.Enum[0].Name != "LOW" {
 		t.Error("registered item follows the caller's change")
 	}
 }
@@ -478,11 +478,11 @@ func TestRegisterAVPOnFreshParsers(t *testing.T) {
 			group := vendorAVP("Test-Group", 70000, "Grouped")
 			group.Data.Rule = []*Rule{{AVP: "Test-Member"}}
 			mustRegister(t, p, 0, group, vendorAVP("Test-Member", 70001, "UTF8String"))
-			if avp, err := p.FindAVPByCode(0, 70000, testVendor); err != nil || avp.Name != "Test-Group" {
+			if avp, err := p.FindAVP(0, 70000, testVendor); err != nil || avp.Name != "Test-Group" {
 				t.Errorf("by code: %v, %v", avp, err)
 			}
 			for _, app := range []uint32{0, 4, 16777999} {
-				if avp, err := p.FindAVP(app, "Test-Member"); err != nil || avp.Code != 70001 {
+				if avp, err := p.FindAVPByName(app, "Test-Member"); err != nil || avp.Code != 70001 {
 					t.Errorf("app %d by name: %v, %v", app, avp, err)
 				}
 			}

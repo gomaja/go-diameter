@@ -331,7 +331,7 @@ func readMessageBytes(t *testing.T, b []byte, d *dict.Parser) (*Message, error) 
 
 func lenientParser(t *testing.T, limit int) *dict.Parser {
 	t.Helper()
-	p := dict.New(dict.Base, dict.CreditControl)
+	p := dict.New(dict.Base, dict.NASREQ, dict.CreditControl, dict.RoRf)
 	p.SetStrict(false)
 	p.SetMaxGroupedDepth(limit)
 	return p

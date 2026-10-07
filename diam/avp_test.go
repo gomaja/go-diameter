@@ -394,7 +394,7 @@ func BenchmarkEncodeAVP(b *testing.B) {
 	}
 }
 
-func mustAddAVP(t *testing.T, m *Message, code interface{}, flags uint8, vendor uint32, data datatype.Type) {
+func mustAddAVP(t *testing.T, m *Message, code uint32, flags uint8, vendor uint32, data datatype.Type) {
 	t.Helper()
 	if _, err := m.NewAVP(code, flags, vendor, data); err != nil {
 		t.Fatal(err)

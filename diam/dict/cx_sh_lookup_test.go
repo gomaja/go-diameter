@@ -23,7 +23,7 @@ func TestCxShBundledSelection(t *testing.T) {
 		check := func(rules []*Rule) {
 			for _, r := range rules {
 				if r.AVP != "AVP" {
-					if _, err := d.FindAVP(appID, r.AVP); err != nil {
+					if _, err := d.FindAVPByName(appID, r.AVP); err != nil {
 						t.Errorf("application %d: %v", appID, err)
 					}
 				}
@@ -34,12 +34,12 @@ func TestCxShBundledSelection(t *testing.T) {
 			check(c.Answer.Rule)
 		}
 		for idx, a := range d.Snapshot().avpname {
-			if idx.appID == appID && idx.vendorID == UndefinedVendorID {
+			if idx.appID == appID {
 				check(a.Data.Rule)
 			}
 		}
 		if selection[0] == Sh {
-			a, err := d.FindAVPWithVendor(appID, "External-Identifier", 10415)
+			a, err := d.FindAVPByName(appID, "External-Identifier")
 			if err != nil || a.Must != "M,V" {
 				t.Fatalf("Sh requires its local External-Identifier with M,V: %v, %v", a, err)
 			}
@@ -47,7 +47,7 @@ func TestCxShBundledSelection(t *testing.T) {
 	}
 }
 
-func TestCxShCodeOnlyScopeAndVendorLookup(t *testing.T) {
+func TestCxShVendorLookup(t *testing.T) {
 	selection := []Bundled{Base, NASREQ, Cx, Sh}
 	normal := New(selection...).Snapshot()
 	// Reverse both file order and AVP declaration order before publication.
@@ -71,28 +71,26 @@ func TestCxShCodeOnlyScopeAndVendorLookup(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// RFC 6733 §4.1 identifies AVPs by code and vendor. Code-only lookup is
-	// ambiguous on a collision; explicit vendor lookup remains authoritative.
+	// RFC 6733 §4.1 identifies AVPs by code and vendor. Declaration order
+	// cannot change vendor-explicit lookup results.
 	// A definition owned by Sh must win over an inherited Cx definition.
 	codes := []uint32{621, 622, 623, 624, 625, 626, 648, 649, 650, 651, 652}
 	for _, d := range []*Snapshot{normal, reversed} {
 		for _, app := range []uint32{16777216, 16777217} {
 			for _, code := range codes {
 				t.Run(fmt.Sprintf("%d/%d", app, code), func(t *testing.T) {
-					gpp, err := d.FindAVPByCode(app, code, 10415)
+					gpp, err := d.FindAVP(app, code, 10415)
 					if err != nil {
 						t.Fatal(err)
 					}
-					ietf, err := d.FindAVPByCode(app, code, 0)
+					ietf, err := d.FindAVP(app, code, 0)
 					if err != nil || ietf == gpp || ietf.VendorID != 0 {
 						t.Fatalf("IETF lookup lost: %v, %v", ietf, err)
 					}
-					got, err := d.FindAVP(app, code)
-					if err != nil || (got != gpp && got != ietf) {
-						t.Fatalf("code-only lookup = %v, %v; want an in-scope loaded definition", got, err)
-					}
-					if app == 16777217 && code == 623 && got != ietf {
-						t.Fatalf("Sh code-only 623 = %v; want its own OC-OLR", got)
+					for _, want := range []*AVP{gpp, ietf} {
+						if got, err := d.FindAVPByName(app, want.Name); err != nil || got != want {
+							t.Fatalf("name lookup = %v, %v; want %v", got, err, want)
+						}
 					}
 				})
 			}
@@ -100,7 +98,7 @@ func TestCxShCodeOnlyScopeAndVendorLookup(t *testing.T) {
 	}
 }
 
-func TestShCodeOnly623UsesOwnGroupedDefinition(t *testing.T) {
+func TestShVendorZero623UsesOwnGroupedDefinition(t *testing.T) {
 	d := New(Base, NASREQ, Cx, Sh)
 	app, err := d.App(16777217)
 	if err != nil {
@@ -116,28 +114,28 @@ func TestShCodeOnly623UsesOwnGroupedDefinition(t *testing.T) {
 	if own == nil {
 		t.Fatal("Sh dictionary has no own vendor-0 OC-OLR")
 	}
-	avp, err := d.FindAVP(16777217, uint32(623))
+	avp, err := d.FindAVP(16777217, uint32(623), 0)
 	if err != nil || avp != own || avp.Name != "OC-OLR" || avp.Data.TypeName != "Grouped" {
-		t.Fatalf("Sh code-only 623 = %v, %v; want its own vendor-0 OC-OLR %v", avp, err, own)
+		t.Fatalf("Sh vendor-0 623 = %v, %v; want its own vendor-0 OC-OLR %v", avp, err, own)
 	}
-	if rule, err := d.Rule(16777217, 623, "OC-Sequence-Number"); err != nil || rule == nil || rule.AVP != "OC-Sequence-Number" {
+	if rule, err := d.Rule(16777217, 623, 0, "OC-Sequence-Number"); err != nil || rule == nil || rule.AVP != "OC-Sequence-Number" {
 		t.Fatalf("Sh OC-OLR rule = %v, %v", rule, err)
 	}
-	if enum, err := d.Enum(16777217, 623, 0); err == nil || enum != nil {
-		t.Fatalf("Sh code-only 623 must not resolve the Cx REGISTRATION enum: %v, %v", enum, err)
+	if enum, err := d.Enum(16777217, 623, 0, 0); err == nil || enum != nil {
+		t.Fatalf("Sh vendor-0 623 must not resolve the Cx REGISTRATION enum: %v, %v", enum, err)
 	}
-	if gpp, err := d.FindAVPByCode(16777217, 623, 10415); err != nil || gpp == nil || gpp.Name != "User-Authorization-Type" {
+	if gpp, err := d.FindAVP(16777217, 623, 10415); err != nil || gpp == nil || gpp.Name != "User-Authorization-Type" {
 		t.Fatalf("Sh vendor-scoped 623 = %v, %v; want inherited Cx AVP", gpp, err)
 	}
 }
 
 func TestRxInheritsFramedIPv6Prefix(t *testing.T) {
 	d := New(Rx, CreditControl, RoRf, NASREQ, Base)
-	want, err := d.FindAVPWithVendor(1, "Framed-IPv6-Prefix", 0)
+	want, err := d.FindAVPByName(1, "Framed-IPv6-Prefix")
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, err := d.FindAVPWithVendor(16777236, "Framed-IPv6-Prefix", 0)
+	got, err := d.FindAVPByName(16777236, "Framed-IPv6-Prefix")
 	if err != nil || got != want {
 		t.Fatalf("Rx must inherit RFC 7155 §4.4.10.5.6: %v, %v", got, err)
 	}

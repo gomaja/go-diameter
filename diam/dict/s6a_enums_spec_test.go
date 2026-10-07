@@ -40,7 +40,7 @@ func TestS6aS13EnumeratedSpec(t *testing.T) {
 			if name == "Equipment-Status" {
 				appID = 16777252 // TS 29.272 §7.2.21: S13/S13' only.
 			}
-			avp, err := Default.FindAVP(appID, name)
+			avp, err := Default.FindAVPByName(appID, name)
 			if err != nil {
 				t.Fatalf("%s: %v", want.Source, err)
 			}
@@ -131,7 +131,7 @@ func TestS6aS13NewAVPMetadataSpec(t *testing.T) {
 		{"SF-Provisional-Indication", "Enumerated", 1730},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			avp, err := Default.FindAVP(16777251, tc.name)
+			avp, err := Default.FindAVPByName(16777251, tc.name)
 			if err != nil {
 				t.Fatal(err)
 			}

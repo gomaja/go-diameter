@@ -46,7 +46,7 @@ func TestValidateUnderstoodAVPFlags(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			m := validationULR(t)
-			definition, err := m.Dictionary().FindAVPWithVendor(m.Header.ApplicationID, tc.code, tc.vendor)
+			definition, err := m.Dictionary().FindAVP(m.Header.ApplicationID, tc.code, tc.vendor)
 			if err != nil {
 				t.Fatal(err)
 			}

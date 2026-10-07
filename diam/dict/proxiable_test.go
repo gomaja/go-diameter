@@ -13,7 +13,7 @@ import "testing"
 func TestBundledCommandsStateTheirPBit(t *testing.T) {
 	hopByHop := map[uint32]bool{257: true, 280: true, 282: true}
 	for _, b := range AllBundled() {
-		for _, app := range New(b).Snapshot().Apps() {
+		for _, app := range bundledApps(t, b) {
 			for _, cmd := range app.Command {
 				want := app.ID != 0 || !hopByHop[cmd.Code]
 				for _, side := range []struct {

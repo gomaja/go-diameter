@@ -121,7 +121,7 @@ func TestCERAcceptsAnyCommonSecurityValue(t *testing.T) {
 }
 
 func TestCERMalformedInbandSecurityReturnsFailedAVP(t *testing.T) {
-	dictionary := dict.New(dict.Base, dict.CreditControl)
+	dictionary := dict.New(dict.Base, dict.NASREQ, dict.CreditControl, dict.RoRf)
 	dictionary.SetStrict(false)
 	settings := *serverSettings
 	observed := make(chan uint32, 2)

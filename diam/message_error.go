@@ -54,7 +54,7 @@ func (e *avpLengthError) Unwrap() error {
 }
 
 func (e *avpLengthError) withGroupedParent(parent *AVP) *avpLengthError {
-	failedParent := NewAVP(parent.Code, parent.Flags, parent.VendorID, &GroupedAVP{
+	failedParent := newAVPWithFlags(parent.Code, parent.Flags, parent.VendorID, &GroupedAVP{
 		AVP: []*AVP{e.failedAVP},
 	})
 	return &avpLengthError{
@@ -87,11 +87,11 @@ func failedAVPFromWire(data []byte, application uint32, dictionary *dict.Snapsho
 
 	payloadLength := 0
 	if dictionary != nil {
-		if definition, err := dictionary.FindAVPByCode(application, code, vendorID); err == nil {
+		if definition, err := dictionary.FindAVP(application, code, vendorID); err == nil {
 			payloadLength = minimumAVPPayloadLength(definition.Data.Type)
 		}
 	}
-	return NewAVP(code, flags, vendorID, datatype.Unknown(make([]byte, payloadLength)))
+	return newAVPWithFlags(code, flags, vendorID, datatype.Unknown(make([]byte, payloadLength)))
 }
 
 // minimumAVPPayloadLength returns the fixed minimum from RFC 6733 Sections
@@ -134,7 +134,7 @@ func (e *avpDecodeError) withGroupedParent(parent *AVP, err error) *avpDecodeErr
 	// RFC 6733 §7.5 permits retaining the hierarchy leading to the offending AVP.
 	return &avpDecodeError{
 		resultCode: e.resultCode,
-		failedAVP:  NewAVP(parent.Code, parent.Flags, parent.VendorID, &GroupedAVP{AVP: []*AVP{e.failedAVP}}),
+		failedAVP:  newAVPWithFlags(parent.Code, parent.Flags, parent.VendorID, &GroupedAVP{AVP: []*AVP{e.failedAVP}}),
 		err:        err,
 	}
 }
@@ -158,7 +158,7 @@ func newAVPDecodeError(a *AVP, typeID datatype.TypeID, err error) *avpDecodeErro
 	// minimum zero-filled payload. This leaf holds at most its own bytes;
 	// an over-deep Grouped leaf is empty. Each ancestor adds only its
 	// 8/12-byte header, never siblings or another payload copy.
-	failed := NewAVP(a.Code, a.Flags, a.VendorID, data)
+	failed := newAVPWithFlags(a.Code, a.Flags, a.VendorID, data)
 	if typeID != datatype.GroupedType {
 		ownAVPData(failed) // A nested fallback may still alias the input.
 	}

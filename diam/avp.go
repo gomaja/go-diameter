@@ -43,7 +43,7 @@ func decodingSnapshot(d *dict.Parser) *dict.Snapshot {
 type AVP struct {
 	Code     uint32        // Code of this AVP
 	Flags    uint8         // Flags of this AVP
-	Length   int           // Length of this AVP's payload
+	Length   int           // Header and payload length, excluding padding
 	VendorID uint32        // VendorId of this AVP
 	Data     datatype.Type // Data of this AVP (payload)
 }
@@ -51,23 +51,28 @@ type AVP struct {
 // NewAVP creates and initializes a new AVP. Address pointers are stored as
 // values; a nil Address pointer becomes the invalid zero Address. Message
 // serialization rejects invalid Addresses, including Grouped descendants.
+// The V bit is derived from vendor; the remaining flags are kept.
 func NewAVP(code uint32, flags uint8, vendor uint32, data datatype.Type) *AVP {
+	// RFC 6733 (October 2012) §§4.1, 4.1.1: V controls the Vendor-Id field;
+	// Vendor-Id 0 belongs to the IETF space and must not be sent in that field.
+	flags &^= avp.Vbit
+	if vendor != 0 {
+		flags |= avp.Vbit
+	}
+	return newAVPWithFlags(code, flags, vendor, data)
+}
+
+// newAVPWithFlags also serves received Failed-AVP evidence: RFC 6733
+// (October 2012) §7.5 preserves the offending header, including invalid flags.
+func newAVPWithFlags(code uint32, flags uint8, vendor uint32, data datatype.Type) *AVP {
 	if address, ok := data.(*datatype.Address); ok {
 		data = datatype.Address{}
 		if address != nil {
 			data = *address
 		}
 	}
-	a := &AVP{
-		Code:     code,
-		Flags:    flags,
-		VendorID: vendor,
-		Data:     data,
-	}
+	a := &AVP{Code: code, Flags: flags, VendorID: vendor, Data: data}
 	a.Length = a.headerLen() + a.Data.Len() // no padding length
-	if vendor > 0 && flags&avp.Vbit != avp.Vbit {
-		a.Flags |= avp.Vbit
-	}
 	return a
 }
 
@@ -139,17 +144,20 @@ func (a *AVP) decodeFromBytes(data []byte, application uint32, dictionary *dict.
 		payload = data[12:]
 		hdrLength = 12
 	} else {
+		a.VendorID = 0 // RFC 6733 §4.1.1: no field means the IETF code space.
 		payload = data[8:]
 		hdrLength = 8
-	}
-	// Find this code in the dictionary.
-	dictAVP, err := dictionary.FindAVPByCode(application, a.Code, a.VendorID)
-	if err != nil && dictAVP == nil {
-		return err
 	}
 	bodyLen := a.Length - hdrLength
 	if n := len(payload); n < bodyLen {
 		return fmt.Errorf("%w: have %d need %d", errAVPDataTooShort, n, bodyLen)
+	}
+	dictAVP, ok := dictionary.AVP(application, a.Code, a.VendorID)
+	if !ok {
+		// RFC 6733 (October 2012) §4.1: retain unknown AVPs, with owned bytes.
+		// Handling their M bit belongs to message processing, not decoding.
+		a.Data = unknownCopy(payload[:bodyLen])
+		return nil
 	}
 	// Handle grouped AVPs directly to avoid an intermediate copy.
 	if dictAVP.Data.Type == datatype.GroupedType {

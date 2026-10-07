@@ -1670,15 +1670,42 @@
 			</data>
 		</avp>
 
+		<!-- TS 29.212 V20.0.0 §5.3.31 and Table 5.3.0.1; TS 29.214 V20.0.0 Annex E.6 confirms the TRUSTED-N3GA spelling. -->
 		<avp name="RAT-Type" code="1032" must="V"	may="P" must-not="M" may-encrypt="Y" vendor-id="10415">
 			<data type="Enumerated">
 				<item code="0" name="WLAN"/>
 				<item code="1" name="VIRTUAL"/>
+				<item code="2" name="TRUSTED-N3GA"/>
+				<item code="3" name="WIRELINE"/>
+				<item code="4" name="WIRELINE-CABLE"/>
+				<item code="5" name="WIRELINE-BBF"/>
 				<item code="1000" name="UTRAN"/>
 				<item code="1001" name="GERAN"/>
 				<item code="1002" name="GAN"/>
 				<item code="1003" name="HSPA_EVOLUTION"/>
 				<item code="1004" name="EUTRAN"/>
+				<item code="1005" name="EUTRAN-NB-IoT"/>
+				<item code="1006" name="NR"/>
+				<item code="1007" name="LTE-M"/>
+				<item code="1008" name="NR-U"/>
+				<item code="1011" name="EUTRAN(LEO)"/>
+				<item code="1012" name="EUTRAN(MEO)"/>
+				<item code="1013" name="EUTRAN(GEO)"/>
+				<item code="1014" name="EUTRAN(OTHERSAT)"/>
+				<item code="1021" name="EUTRAN-NB-IoT(LEO)"/>
+				<item code="1022" name="EUTRAN-NB-IoT(MEO)"/>
+				<item code="1023" name="EUTRAN-NB-IoT(GEO)"/>
+				<item code="1024" name="EUTRAN-NB-IoT(OTHERSAT)"/>
+				<item code="1031" name="LTE-M(LEO)"/>
+				<item code="1032" name="LTE-M(MEO)"/>
+				<item code="1033" name="LTE-M(GEO)"/>
+				<item code="1034" name="LTE-M(OTHERSAT)"/>
+				<item code="1035" name="NR(LEO)"/>
+				<item code="1036" name="NR(MEO)"/>
+				<item code="1037" name="NR(GEO)"/>
+				<item code="1038" name="NR(OTHERSAT)"/>
+				<item code="1039" name="NR-REDCAP"/>
+				<item code="1040" name="NR-EREDCAP"/>
 				<item code="2000" name="CDMA2000_1X"/>
 				<item code="2001" name="HRPD"/>
 				<item code="2002" name="UMB"/>

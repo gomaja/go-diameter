@@ -55,7 +55,7 @@ func checkS6aGroupedGrammar(t *testing.T, appID uint32, tc s6aGroupedAVPSpec) {
 	if name == "Service-Type" { // §7.3.94's AVP is 3GPP Service-Type.
 		name = "TGPP-Service-Type"
 	}
-	avp, err := Default.FindAVP(appID, name)
+	avp, err := Default.FindAVPByName(appID, name)
 	if err != nil {
 		t.Fatalf("TS 29.272 V19.6.0 %s app %d: %v", tc.Section, appID, err)
 	}

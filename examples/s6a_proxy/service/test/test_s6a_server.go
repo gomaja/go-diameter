@@ -261,7 +261,7 @@ func testSendULA(settings *sm.Settings, w io.Writer, m *diam.Message) (int64, er
 	return int64(n), err
 }
 
-func testAddAVP(m *diam.Message, code interface{}, flags uint8, vendor uint32, data datatype.Type) error {
+func testAddAVP(m *diam.Message, code uint32, flags uint8, vendor uint32, data datatype.Type) error {
 	_, err := m.NewAVP(code, flags, vendor, data)
 	return err
 }

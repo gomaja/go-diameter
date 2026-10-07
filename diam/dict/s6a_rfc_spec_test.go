@@ -27,7 +27,7 @@ func TestS6aOverloadAndLoadSpec(t *testing.T) {
 		{"Load-Value", 652, "Unsigned64"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			a, err := Default.FindAVP(16777251, tc.name)
+			a, err := Default.FindAVPByName(16777251, tc.name)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -51,7 +51,7 @@ func TestS6aOverloadAndLoadSpec(t *testing.T) {
 		{"OC-OLR", "< OC-Sequence-Number >\n< OC-Report-Type >\n[ OC-Reduction-Percentage ]\n[ OC-Validity-Duration ]\n[ SourceID ]\n*[ AVP ]"},
 		{"Load", "[ Load-Type ]\n[ Load-Value ]\n[ SourceID ]\n*[ AVP ]"},
 	} {
-		a, err := Default.FindAVP(16777251, tc.name)
+		a, err := Default.FindAVPByName(16777251, tc.name)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -66,7 +66,7 @@ func TestS6aOverloadAndLoadSpec(t *testing.T) {
 		{626, []Enum{{Code: 0, Name: "HOST_REPORT"}, {Code: 1, Name: "REALM_REPORT"}, {Code: 2, Name: "PEER_REPORT"}}},
 		{651, []Enum{{Code: 0, Name: "HOST"}, {Code: 1, Name: "PEER"}}},
 	} {
-		a, err := Default.FindAVPWithVendor(16777251, tc.code, 0)
+		a, err := Default.FindAVP(16777251, tc.code, 0)
 		if err != nil {
 			t.Fatal(err)
 		}

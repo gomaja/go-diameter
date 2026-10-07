@@ -103,7 +103,7 @@ func buildGyCCA() *Message {
 	return m
 }
 
-func mustGyAVP(m *Message, code interface{}, flags uint8, vendor uint32, data datatype.Type) {
+func mustGyAVP(m *Message, code uint32, flags uint8, vendor uint32, data datatype.Type) {
 	if _, err := m.NewAVP(code, flags, vendor, data); err != nil {
 		panic(err)
 	}

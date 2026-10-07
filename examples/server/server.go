@@ -147,7 +147,7 @@ func handleHMR(silent bool) diam.HandlerFunc {
 	}
 }
 
-func addAVP(m *diam.Message, code interface{}, flags uint8, vendor uint32, data datatype.Type) error {
+func addAVP(m *diam.Message, code uint32, flags uint8, vendor uint32, data datatype.Type) error {
 	_, err := m.NewAVP(code, flags, vendor, data)
 	return err
 }

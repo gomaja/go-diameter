@@ -110,18 +110,45 @@
             </answer>
         </command>
 
-        <!-- TS 29.273 V19.2.0 §8.2.3.5 and Table 8.2.3.0/2 (NOTE 1): reused TS 29.212 AVP with a blank M-bit
+        <!-- TS 29.273 V19.2.0 §8.2.3.5 and Table 8.2.3.0/2 (NOTE 1): reused TS 29.212 V20.0.0 §5.3.31 AVP without an M-bit
              override, so TS 29.212 V20.0.0 Table 5.3.0.1 applies: V must, P may, M must not. The "M,V" of
-             TS 29.273 §5.2.3.6 is the STa rule. Defined here so SWx does not inherit the S6a override. -->
+             TS 29.273 §5.2.3.6 is the STa rule. TS 29.214 V20.0.0 Annex E.6 confirms the
+             TRUSTED-N3GA spelling. Defined here so SWx does not inherit the S6a override. -->
         <avp name="RAT-Type" code="1032" must="V" may="P" must-not="M" may-encrypt="Y" vendor-id="10415">
             <data type="Enumerated">
                 <item code="0" name="WLAN"/>
                 <item code="1" name="VIRTUAL"/>
+                <item code="2" name="TRUSTED-N3GA"/>
+                <item code="3" name="WIRELINE"/>
+                <item code="4" name="WIRELINE-CABLE"/>
+                <item code="5" name="WIRELINE-BBF"/>
                 <item code="1000" name="UTRAN"/>
                 <item code="1001" name="GERAN"/>
                 <item code="1002" name="GAN"/>
                 <item code="1003" name="HSPA_EVOLUTION"/>
                 <item code="1004" name="EUTRAN"/>
+                <item code="1005" name="EUTRAN-NB-IoT"/>
+                <item code="1006" name="NR"/>
+                <item code="1007" name="LTE-M"/>
+                <item code="1008" name="NR-U"/>
+                <item code="1011" name="EUTRAN(LEO)"/>
+                <item code="1012" name="EUTRAN(MEO)"/>
+                <item code="1013" name="EUTRAN(GEO)"/>
+                <item code="1014" name="EUTRAN(OTHERSAT)"/>
+                <item code="1021" name="EUTRAN-NB-IoT(LEO)"/>
+                <item code="1022" name="EUTRAN-NB-IoT(MEO)"/>
+                <item code="1023" name="EUTRAN-NB-IoT(GEO)"/>
+                <item code="1024" name="EUTRAN-NB-IoT(OTHERSAT)"/>
+                <item code="1031" name="LTE-M(LEO)"/>
+                <item code="1032" name="LTE-M(MEO)"/>
+                <item code="1033" name="LTE-M(GEO)"/>
+                <item code="1034" name="LTE-M(OTHERSAT)"/>
+                <item code="1035" name="NR(LEO)"/>
+                <item code="1036" name="NR(MEO)"/>
+                <item code="1037" name="NR(GEO)"/>
+                <item code="1038" name="NR(OTHERSAT)"/>
+                <item code="1039" name="NR-REDCAP"/>
+                <item code="1040" name="NR-EREDCAP"/>
                 <item code="2000" name="CDMA2000_1X"/>
                 <item code="2001" name="HRPD"/>
                 <item code="2002" name="UMB"/>
@@ -263,12 +290,12 @@
         </avp>
 
         <avp name="Reason-Code" code="616" must="M,V" may-encrypt="N" vendor-id="10415">
-             <!-- https://www.3gpp.org/dynareport/29229.htm -->
+             <!-- TS 29.229 V19.1.0 §6.3.17. -->
              <data type="Enumerated">
                 <item code="0" name="PERMANENT_TERMINATION"/>
-                <item code="1" name="NEW_SERVER_ASSIGNMENT"/>
+                <item code="1" name="NEW_SERVER_ASSIGNED"/>
                 <item code="2" name="SERVER_CHANGE"/>
-                <item code="3" name="REMOVE_S_CSCF"/>
+                <item code="3" name="REMOVE_S-CSCF"/>
              </data>
         </avp>
 
@@ -376,7 +403,6 @@
             <data type="UTF8String"/>
         </avp>
 
-
         <avp name="APN-OI-Replacement" code="1427" must="M,V" may-encrypt="N" vendor-id="10415">
             <!-- 3GPP TS 29.272 Section 7.3.32 -->
             <data type="UTF8String"/>
@@ -398,6 +424,8 @@
                 <rule avp="AMBR" required="false" max="1"/>
                 <rule avp="Specific-APN-Info" required="false"/>
                 <rule avp="APN-OI-Replacement" required="false" max="1"/>
+                <!-- TS 29.272 V19.6.0 Table 7.3.1/1: inherit SIPTO-Permission (1613) and LIPA-Permission (1618)
+                     from S6a, with V required, M forbidden, encryption forbidden. -->
                 <rule avp="SIPTO-Permission" required="false" max="1"/>
                 <rule avp="LIPA-Permission" required="false" max="1"/>
                 <rule avp="AVP" required="false"/>
@@ -422,30 +450,10 @@
         <avp name="EPS-Subscribed-QoS-Profile" code="1431" must="M,V" may-encrypt="N" vendor-id="10415">
             <!-- 3GPP TS 29.272 Section 7.3.37 -->
             <data type="Grouped">
+                <!-- TS 29.212 V20.0.0 §5.3.17 and Table 5.3.0.1: inherit QoS-Class-Identifier (1028) from application 4, with M,V required, P permitted, encryption permitted. -->
                 <rule avp="QoS-Class-Identifier" required="true" max="1"/>
                 <rule avp="Allocation-Retention-Priority" required="true" max="1"/>
                 <rule avp="AVP" required="false"/>
-            </data>
-        </avp>
-
-        <avp name="QoS-Class-Identifier" code="1028" must="V,M" may="P" must-not="-" may-encrypt="Y" vendor-id="10415">
-            <!-- 3GPP TS 29.212 [10] -->
-            <data type="Enumerated">
-                <item code="1" name="QCI_1"/>
-                <item code="2" name="QCI_2"/>
-                <item code="3" name="QCI_3"/>
-                <item code="4" name="QCI_4"/>
-                <item code="5" name="QCI_5"/>
-                <item code="6" name="QCI_6"/>
-                <item code="7" name="QCI_7"/>
-                <item code="8" name="QCI_8"/>
-                <item code="9" name="QCI_9"/>
-                <item code="65" name="QCI_65"/>
-                <item code="66" name="QCI_66"/>
-                <item code="69" name="QCI_69"/>
-                <item code="70" name="QCI_70"/>
-                <item code="75" name="QCI_75"/>
-                <item code="79" name="QCI_79"/>
             </data>
         </avp>
 
@@ -505,23 +513,6 @@
             </data>
         </avp>
 
-        <avp name="SIPTO-Permission" code="1613" must="V" must-not="M" may-encrypt="N" vendor-id="10415">
-            <!-- 3GPP TS 29.272 Section 7.3.135 -->
-            <data type="Enumerated">
-                <item code="0" name="SIPTO_ALLOWED"/>
-                <item code="1" name="SIPTO_NOTALLOWED"/>
-            </data>
-        </avp>
-
-        <avp name="LIPA-Permission" code="1618" must="V" must-not="M" may-encrypt="N" vendor-id="10415">
-            <!-- 3GPP TS 29.272 Section 7.3.132 -->
-            <data type="Enumerated">
-                <item code="0" name="LIPA-PROHIBITED"/>
-                <item code="1" name="LIPA-ONLY"/>
-                <item code="2" name="LIPA-CONDITIONAL"/>
-            </data>
-        </avp>
-
         <avp name="Trace-Info" code="1505" must="V" must-not="M" vendor-id="10415">
             <!-- https://www.3gpp.org/dynareport/29273.htm Section 8.2.3.13 -->
             <data type="Grouped">
@@ -534,6 +525,8 @@
             <!-- 3GPP TS 29.272 Section 7.3.63 -->
             <data type="Grouped">
                 <rule avp="Trace-Reference" required="true" max="1"/>
+                <!-- TS 29.272 V19.6.0 §7.3.67 and Table 7.3.1/1; TS 32.422 V20.3.0 §5.3:
+                     inherit Trace-Depth (1462) from S6a, with M,V required and encryption forbidden. -->
                 <rule avp="Trace-Depth" required="true" max="1"/>
                 <rule avp="Trace-NE-Type-List" required="true" max="1"/>
                 <rule avp="Trace-Interface-List" required="false" max="1"/>
@@ -548,15 +541,6 @@
         <avp name="Trace-Reference" code="1459" must="M,V" may-encrypt="N" vendor-id="10415">
             <!-- 3GPP TS 29.272 Section 7.3.64 -->
             <data type="OctetString"/>
-        </avp>
-
-        <avp name="Trace-Depth" code="1462" must="M,V" may-encrypt="N" vendor-id="10415">
-            <!-- 3GPP TS 29.272 Section 7.3.67 -->
-            <data type="Enumerated">
-                <item code="0" name="LIPA-PROHIBITED"/>
-                <item code="1" name="LIPA-ONLY"/>
-                <item code="2" name="LIPA-CONDITIONAL"/>
-            </data>
         </avp>
 
         <avp name="Trace-NE-Type-List" code="1463" must="M,V" may-encrypt="N" vendor-id="10415">

@@ -123,11 +123,14 @@ func TestMarshalAddressOwnsValue(t *testing.T) {
 
 func TestMessageNewAVPRejectsInvalidAddress(t *testing.T) {
 	for _, addr := range []datatype.Address{{}, {Family: datatype.AddressFamilyIPv4, Value: make([]byte, 16)}, {Value: []byte{10, 0, 0, 1}}, {Family: 65535}, {Family: datatype.AddressFamilyIPv6, Value: make([]byte, 4)}} {
-		for _, code := range []any{int(avp.HostIPAddress), avp.HostIPAddress, "Host-IP-Address"} {
+		for name, add := range map[string]func(*Message) (*AVP, error){
+			"code": func(m *Message) (*AVP, error) { return m.NewAVP(avp.HostIPAddress, avp.Mbit, 0, addr) },
+			"name": func(m *Message) (*AVP, error) { return m.NewAVPByName("Host-IP-Address", avp.Mbit, addr) },
+		} {
 			m := NewRequest(CapabilitiesExchange, 0, nil)
 			length := m.Header.MessageLength
-			if a, err := m.NewAVP(code, avp.Mbit, 0, addr); err == nil || a != nil {
-				t.Errorf("NewAVP accepted invalid Address %v for %T code", addr, code)
+			if a, err := add(m); err == nil || a != nil {
+				t.Errorf("NewAVP accepted invalid Address %v for %s", addr, name)
 			}
 			if len(m.AVP) != 0 || m.Header.MessageLength != length {
 				t.Error("failed NewAVP changed message")

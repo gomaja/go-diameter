@@ -312,19 +312,19 @@ func TestMessageFindAVP(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Log(a)
-	a, err = m.FindAVP("Origin-State-Id", 0)
+	a, err = m.FindAVPByName("Origin-State-Id")
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Log(a)
 
-	a, err = m.FindAVP("Vendor-Id", 0)
+	a, err = m.FindAVPByName("Vendor-Id")
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Log(a)
 	var avps []*AVP
-	avps, err = m.FindAVPs("Supported-Vendor-Id", 0)
+	avps, err = m.FindAVPsByName("Supported-Vendor-Id")
 	if err != nil || len(avps) != 2 {
 		t.Fatal(err)
 	}
@@ -333,20 +333,20 @@ func TestMessageFindAVP(t *testing.T) {
 
 func TestMessageFindAVPsWithPath(t *testing.T) {
 	m, _ := ReadMessage(bytes.NewReader(testMessage), dict.Default)
-	if avps, err := m.FindAVPsWithPath(); err != nil || len(avps) != len(m.AVP) {
-		t.Errorf("Received nr of AVPs: %d, error: %v", len(avps), err)
+	if avps := m.FindAVPsWithPath(); len(avps) != len(m.AVP) {
+		t.Errorf("Received nr of AVPs: %d", len(avps))
 	}
-	if avps, err := m.FindAVPsWithPath(AVPRef{Code: avp.VendorID}); len(avps) != 1 {
-		t.Errorf("Received nr of AVPs: %d, error: %v", len(avps), err)
+	if avps := m.FindAVPsWithPath(AVPRef{Code: avp.VendorID}); len(avps) != 1 {
+		t.Errorf("Received nr of AVPs: %d", len(avps))
 	}
-	if avps, err := m.FindAVPsWithPath(AVPRef{Code: avp.VendorSpecificApplicationID}); len(avps) != 1 {
-		t.Errorf("Received nr of AVPs: %d, error: %v", len(avps), err)
+	if avps := m.FindAVPsWithPath(AVPRef{Code: avp.VendorSpecificApplicationID}); len(avps) != 1 {
+		t.Errorf("Received nr of AVPs: %d", len(avps))
 	}
-	if avps, err := m.FindAVPsWithPath(AVPRef{Code: "Vendor-Specific-Application-Id"}, AVPRef{Code: avp.VendorID}); len(avps) != 1 {
-		t.Errorf("Received nr of AVPs: %d, error: %v", len(avps), err)
+	if avps := m.FindAVPsWithPath(AVPRef{Code: avp.VendorSpecificApplicationID}, AVPRef{Code: avp.VendorID}); len(avps) != 1 {
+		t.Errorf("Received nr of AVPs: %d", len(avps))
 	}
-	if avps, err := m.FindAVPsWithPath(AVPRef{Code: avp.VendorSpecificApplicationID}, AVPRef{Code: avp.OriginStateID}); len(avps) != 0 {
-		t.Errorf("Received nr of AVPs: %d, error: %v", len(avps), err)
+	if avps := m.FindAVPsWithPath(AVPRef{Code: avp.VendorSpecificApplicationID}, AVPRef{Code: avp.OriginStateID}); len(avps) != 0 {
+		t.Errorf("Received nr of AVPs: %d", len(avps))
 	}
 }
 
@@ -373,13 +373,15 @@ func TestMessageWriteTo(t *testing.T) {
     </avp>
   </application>
 </diameter>`
-	parser := dict.New(dict.Base, dict.CreditControl)
+	parser := dict.New(dict.Base, dict.NASREQ, dict.CreditControl, dict.RoRf)
 	if err := parser.Load(bytes.NewReader([]byte(mydictXML))); err != nil {
 		t.Fatal(err)
 	}
 	m := NewRequest(CreditControl, 4, parser)
-	mustMessageAVP(t, m, "Session-Id", avp.Mbit, 0, datatype.UTF8String("890f81bee22a0dfddc8b9037eb367781cea1f328"))
-	mustMessageAVP(t, m, "Service-Information", avp.Mbit, 10415, &GroupedAVP{
+	if _, err := m.NewAVPByName("Session-Id", avp.Mbit, datatype.UTF8String("890f81bee22a0dfddc8b9037eb367781cea1f328")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.NewAVPByName("Service-Information", avp.Mbit, &GroupedAVP{
 		AVP: []*AVP{
 			NewAVP(20300, avp.Mbit, 20300, &GroupedAVP{ // IN-Information
 				AVP: []*AVP{
@@ -387,7 +389,9 @@ func TestMessageWriteTo(t *testing.T) {
 					NewAVP(20302, avp.Mbit, 20300, datatype.UTF8String("")), // Calling-Vlr-Number
 				},
 			}),
-		}})
+		}}); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := m.WriteTo(io.Discard); err != nil {
 		t.Error(err)
 	}
@@ -467,7 +471,7 @@ func BenchmarkWriteMessage(b *testing.B) {
 	}
 }
 
-func mustMessageAVP(t *testing.T, m *Message, code interface{}, flags uint8, vendor uint32, data datatype.Type) {
+func mustMessageAVP(t *testing.T, m *Message, code uint32, flags uint8, vendor uint32, data datatype.Type) {
 	t.Helper()
 	if _, err := m.NewAVP(code, flags, vendor, data); err != nil {
 		t.Fatal(err)

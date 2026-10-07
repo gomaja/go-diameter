@@ -18,11 +18,6 @@ import (
 	"github.com/gomaja/go-diameter/diam/datatype"
 )
 
-const (
-	// UndefinedVendorID specifies a non existing vendorID
-	UndefinedVendorID = 4294967295
-)
-
 // Parser is the root element for dictionaries and supports multiple XML
 // dictionary files loaded together. Diameter applications use dictionaries
 // to parse messages received from peers as well as to encode crafted
@@ -61,12 +56,6 @@ type codeIdx struct {
 	vendorID uint32
 }
 
-type nameIdx struct {
-	appID    uint32
-	name     string
-	vendorID uint32
-}
-
 type appNameIdx struct {
 	appID uint32
 	name  string
@@ -84,52 +73,62 @@ type appIdTypeIdx struct {
 
 // NewParser allocates a new Parser optionally loading dictionary XML files.
 // The files are loaded together: if one fails to load, NewParser returns
-// the error and no Parser.
-func NewParser(filename ...string) (*Parser, error) {
-	files := make([]*File, 0, len(filename))
-	for _, name := range filename {
-		f, err := parseFileNamed(name)
-		if err != nil {
-			return nil, err
-		}
-		files = append(files, f)
-	}
+// the error and no Parser. See Load for replacement and rule validation.
+func NewParser(filenames ...string) (*Parser, error) {
 	p := new(Parser)
-	if err := p.update(func(cur *Snapshot) (*Snapshot, error) {
-		return cur.with(files, nil)
-	}); err != nil {
+	if err := p.LoadFile(filenames...); err != nil {
 		return nil, err
 	}
 	return p, nil
 }
 
-// LoadFile loads a dictionary XML file. May be used multiple times. See Load.
-func (p *Parser) LoadFile(filename string) error {
-	f, err := parseFileNamed(filename)
-	if err != nil {
-		return err
+// LoadFile loads dictionary XML files together as one atomic change. Files
+// may depend on definitions in later files. See Load. No filenames is a no-op.
+func (p *Parser) LoadFile(filenames ...string) error {
+	files := make([]*File, 0, len(filenames))
+	for _, name := range filenames {
+		f, err := parseFileNamed(name)
+		if err != nil {
+			return err
+		}
+		files = append(files, f)
 	}
-	return p.add(f)
+	return p.add(files...)
 }
 
-// Load loads a dictionary from an XML stream. May be used multiple times.
+// Load loads XML streams together as one atomic change. Streams may depend
+// on definitions in later streams. No readers is a no-op.
 //
-// A definition replaces an earlier loaded one with the same application and
-// AVP code and vendor, or name and vendor. A dictionary that would change
-// the meaning of a registered AVP in its application is refused, as is one
-// that defines a command already loaded for the same application. Load
-// either applies the whole dictionary or, returning an error, none of it.
-func (p *Parser) Load(r io.Reader) error {
-	f, err := parseFile(r)
-	if err != nil {
-		return err
+// A definition replaces an earlier loaded definition in the same application
+// with the same code and vendor, removing the earlier name if it changes.
+// Names must be unique in the final state of the load: a replacement may
+// rename an AVP and another definition may reuse its former name in either
+// order. A remaining name clash is refused with ErrAVPConflict. A child
+// application may shadow an ancestor's name. Every command request/answer
+// rule and Grouped member rule must resolve by name after replacements and
+// inheritance, except the AVP wildcard (RFC 6733 (October 2012) §§3.2, 4.4).
+// An unresolved rule returns an error wrapping ErrAVPConflict and ErrNotFound.
+// A dictionary that changes a registered definition is refused with
+// ErrAVPConflict. Duplicate commands in one application are refused as well.
+// Load either publishes all streams or, on any error, nothing.
+func (p *Parser) Load(readers ...io.Reader) error {
+	files := make([]*File, 0, len(readers))
+	for _, r := range readers {
+		f, err := parseFile(r)
+		if err != nil {
+			return err
+		}
+		files = append(files, f)
 	}
-	return p.add(f)
+	return p.add(files...)
 }
 
-func (p *Parser) add(f *File) error {
+func (p *Parser) add(files ...*File) error {
+	if len(files) == 0 {
+		return nil
+	}
 	return p.update(func(cur *Snapshot) (*Snapshot, error) {
-		return cur.with([]*File{f}, nil)
+		return cur.with(files, nil)
 	})
 }
 

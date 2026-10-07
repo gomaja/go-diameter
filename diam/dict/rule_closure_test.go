@@ -20,7 +20,7 @@ func TestDefaultRuleClosure(t *testing.T) {
 					if rule.AVP == "AVP" { // Diameter's arbitrary AVP wildcard.
 						continue
 					}
-					avp, err := Default.FindAVP(app.ID, rule.AVP)
+					avp, err := Default.FindAVPByName(app.ID, rule.AVP)
 					if err != nil || avp == nil {
 						if _, seen := missing[rule.AVP]; !seen {
 							missing[rule.AVP] = owner
@@ -39,7 +39,7 @@ func TestDefaultRuleClosure(t *testing.T) {
 			}
 			// Include inherited groups even when no command in this app names them.
 			for idx, avp := range Default.Snapshot().avpname {
-				if idx.appID != app.ID || idx.vendorID != UndefinedVendorID {
+				if idx.appID != app.ID {
 					continue
 				}
 				if avp.Data.TypeName == "Grouped" && !visited[avp.Name] {

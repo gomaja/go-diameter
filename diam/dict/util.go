@@ -34,7 +34,7 @@ var parentAppIds map[uint32]uint32 = map[uint32]uint32{
 	16777236: 4,
 	// 3GPP TS 29.219 V19.0.0 §5.2 reuses charging AVPs on Sy.
 	16777302: 4,
-	// 3GPP TS 29.273 V19.2.0 §9.2 reuses S6a and charging AVPs on SWx.
+	// 3GPP TS 29.273 V19.2.0 §8.2.3.0/Table 8.2.3.0/2 reuses S6a and charging AVPs on SWx.
 	16777265: 16777251,
 	4:        1,
 }
@@ -78,6 +78,14 @@ func (p *Parser) App(code uint32, typ ...string) (*App, error) {
 // does not exist in the dictionary Parser object.
 var ErrApplicationUnsupported = errors.New("application unsupported")
 
+// ErrNotFound indicates that a dictionary lookup has no matching definition.
+var ErrNotFound = errors.New("dictionary entry not found")
+
+// ErrParentCycle indicates a cycle in the application inheritance chain.
+var ErrParentCycle = errors.New("dictionary parent application cycle")
+
+// MakeUnknownAVP constructs an explicit placeholder for undecodable AVP data.
+// It is independent of lookup: callers decide whether an unknown AVP is allowed.
 func MakeUnknownAVP(appid, code, vendorID uint32) *AVP {
 	return &AVP{
 		Name:     fmt.Sprintf("Unknown-%d-%d", code, vendorID),
@@ -94,169 +102,83 @@ func MakeUnknownAVP(appid, code, vendorID uint32) *AVP {
 	}
 }
 
-// FindAVPWithVendor is a helper function that returns a pre-loaded AVP from the Parser, considering vendorID as filter.
-// For no vendorID filter, use UndefinedVendorID constant
-// If the AVP code is not found for the given appid it tries with appid=0
-// before returning an error.
-// Code can be either the AVP code (int, uint32) or name (string).
-//
-// Without a vendor filter a name resolves to the loaded AVP of that name
-// or, when no loaded AVP has it, to the registered AVP of that name. A code
-// without a vendor resolves only to a loaded AVP: an AVP is identified by
-// its code and vendor together (RFC 6733 §4.1), and a registered AVP is
-// found by both.
-func (s *Snapshot) FindAVPWithVendor(appid uint32, code interface{}, vendorID uint32) (*AVP, error) {
-	var (
-		avp     *AVP
-		ok      bool
-		err     error
-		visited = make(map[uint32]bool)
-	)
-	origAppID := appid
-retry:
-	if visited[appid] {
-		return nil, fmt.Errorf("dictionary parent application cycle at %d", appid)
+// AVP returns the definition identified by code and vendorID in appid, or
+// nil, false if it is absent. It uses the same inheritance order as FindAVP
+// without allocating a diagnostic or placeholder on a miss.
+// RFC 6733 (October 2012) §4.1: code and Vendor-Id together identify an AVP.
+func (s *Snapshot) AVP(appid, code, vendorID uint32) (*AVP, bool) {
+	a, err := s.lookupAVP(appid, code, vendorID)
+	return a, err == nil
+}
+
+// AVP is Snapshot.AVP on the current Snapshot.
+func (p *Parser) AVP(appid, code, vendorID uint32) (*AVP, bool) {
+	return p.Snapshot().AVP(appid, code, vendorID)
+}
+
+// FindAVP returns the definition identified by code and vendorID in appid.
+// RFC 6733 (October 2012) §4.1 identifies an AVP by (code, Vendor-Id);
+// vendorID 0 selects the IETF code space. No vendor value is a wildcard.
+// The application's own definitions take precedence over its nearest parent,
+// then more distant ancestors and base application 0 (RFC 6733 §2).
+// Undeclared applications inherit too. A miss returns nil and an error wrapping
+// ErrNotFound. An inheritance cycle returns an error wrapping ErrParentCycle.
+func (s *Snapshot) FindAVP(appid, code, vendorID uint32) (*AVP, error) {
+	a, err := s.lookupAVP(appid, code, vendorID)
+	if err == nil {
+		return a, nil
 	}
-	visited[appid] = true
-	switch codeVal := code.(type) {
-	case string:
-		avp, ok = s.avpname[nameIdx{appid, codeVal, vendorID}]
-		if !ok && vendorID == UndefinedVendorID {
-			avp, ok = s.regname[appNameIdx{appid, codeVal}]
-		}
-		if !ok && appid == 0 {
-			err = fmt.Errorf("could not find AVP %T(%q) for Vendor: %d", codeVal, codeVal, vendorID)
-		}
-	case uint32:
-		avp, ok = s.avpcode[codeIdx{appid, codeVal, vendorID}]
-		if !ok && appid == 0 {
-			err = fmt.Errorf("could not find AVP %T(%d) for Vendor: %d", codeVal, codeVal, vendorID)
-		}
-	case int:
-		avp, ok = s.avpcode[codeIdx{appid, uint32(codeVal), vendorID}]
-		if !ok && appid == 0 {
-			err = fmt.Errorf("could not find AVP %T(%d) for Vendor: %d", codeVal, codeVal, vendorID)
-		}
-	default:
-		return nil, fmt.Errorf("unsupported AVP code type %T(%#v)", codeVal, code)
+	if err == ErrParentCycle {
+		return nil, fmt.Errorf("application %d: %w", appid, err)
 	}
-	if ok {
-		return avp, nil
-	} else if appid != 0 {
-		parentAppId, isScoppedApp := parentAppIds[appid]
-		if isScoppedApp {
-			// Try searching 'parent' dictionary
-			appid = parentAppId
-		} else {
-			// Try searching the base dictionary.
-			appid = 0
+	return nil, fmt.Errorf("application %d: AVP code %d vendor %d: %w", appid, code, vendorID, err)
+}
+
+// lookupAVP is the allocation-free core shared by AVP and FindAVP.
+func (s *Snapshot) lookupAVP(appid, code, vendorID uint32) (*AVP, error) {
+	for app, steps := appid, 0; steps <= len(parentAppIds)+1; steps++ {
+		if a, ok := s.avpcode[codeIdx{app, code, vendorID}]; ok {
+			return a, nil
 		}
-		goto retry
-	} else {
-		if codeU32, isUint32 := code.(uint32); isUint32 {
-			return MakeUnknownAVP(origAppID, codeU32, vendorID), err
+		if app == 0 {
+			return nil, ErrNotFound
 		}
+		app = parentAppIds[app]
 	}
-
-	return nil, err
+	return nil, ErrParentCycle
 }
 
-// FindAVPWithVendor is Snapshot.FindAVPWithVendor on the current Snapshot.
-func (p *Parser) FindAVPWithVendor(appid uint32, code interface{}, vendorID uint32) (*AVP, error) {
-	return p.Snapshot().FindAVPWithVendor(appid, code, vendorID)
+// FindAVP is Snapshot.FindAVP on the current Snapshot. Lookups that must
+// agree, such as those decoding one message, should share one Snapshot.
+func (p *Parser) FindAVP(appid, code, vendorID uint32) (*AVP, error) {
+	return p.Snapshot().FindAVP(appid, code, vendorID)
 }
 
-// FindAVPByCode is a fast-path lookup that takes typed uint32 arguments,
-// avoiding the interface{} boxing and type switch overhead of FindAVPWithVendor.
-// It is intended for the hot decode path where code is always uint32.
-//
-// It finds what FindAVPWithVendor finds for a code and vendor. Because
-// inherited AVPs are pre-merged into the index of every application with
-// definitions when the Snapshot is built, a lookup that finds an AVP for
-// such an application is a single map access.
-func (s *Snapshot) FindAVPByCode(appid, code, vendorID uint32) (*AVP, error) {
-	// Exact (appid, code, vendorID) match; inherited AVPs are pre-merged by mergeInheritedAVPs().
-	// An absent vendor AVP resolves to Unknown, never cross-vendor (RFC 6733 §4.1/§11.1.1).
-	if avp, ok := s.avpcode[codeIdx{appid, code, vendorID}]; ok {
-		return avp, nil
-	}
-	// An application that no dictionary declares has no index of its own and
-	// inherits like a declared one: from its parentAppIds ancestors, nearest
-	// first, then from the base application, whose AVPs are common to all
-	// Diameter messages (RFC 6733 §2). For an indexed application the walk
-	// finds nothing more. parentAppIds is acyclic; the bound only guarantees
-	// termination.
-	for app, steps := appid, 0; app != 0 && steps <= len(parentAppIds); steps++ {
-		app = parentAppIds[app] // 0, the base application, when app has no parent
-		if avp, ok := s.avpcode[codeIdx{app, code, vendorID}]; ok {
-			return avp, nil
-		}
-	}
-	return MakeUnknownAVP(appid, code, vendorID),
-		fmt.Errorf("could not find AVP %d for Vendor: %d", code, vendorID)
-}
-
-// FindAVPByCode is Snapshot.FindAVPByCode on the current Snapshot. Lookups
-// that must agree, such as those decoding one message, should share one
-// Snapshot instead.
-func (p *Parser) FindAVPByCode(appid, code, vendorID uint32) (*AVP, error) {
-	return p.Snapshot().FindAVPByCode(appid, code, vendorID)
-}
-
-// FindAVP is a helper function that returns a pre-loaded AVP from the Parser.
-// If the AVP code is not found for the given appid it tries with appid=0
-// before returning an error.
-// Code can be either the AVP code (int, uint32) or name (string).
-// It is FindAVPWithVendor without a vendor filter. If loaded AVPs share a
-// code across vendors, this lookup is ambiguous: use FindAVPWithVendor or
-// FindAVPByCode with an explicit vendor to identify the AVP (RFC 6733 §4.1).
-// An application's own loaded code takes precedence over inherited codes;
-// among inherited definitions, the nearest ancestor takes precedence.
-func (s *Snapshot) FindAVP(appid uint32, code interface{}) (*AVP, error) {
-	return s.FindAVPWithVendor(appid, code, UndefinedVendorID)
-}
-
-// FindAVP is Snapshot.FindAVP on the current Snapshot.
-func (p *Parser) FindAVP(appid uint32, code interface{}) (*AVP, error) {
-	return p.Snapshot().FindAVP(appid, code)
-}
-
-// ScanAVP is a helper function that returns a pre-loaded AVP from the Dict.
-// It's similar to FindAPI except that it scans the list of available AVPs
-// instead of looking into one specific appid.
-//
-// ScanAVP is 20x or more slower than FindAVP. Use with care.
-// Code can be either the AVP code (uint32) or name (string).
-func (s *Snapshot) ScanAVP(code interface{}) (*AVP, error) {
-	switch code := code.(type) {
-	case string:
-		for idx, avp := range s.avpname {
-			if idx.name == code {
-				return avp, nil
+// FindAVPByName returns the AVP named name in appid, using the same
+// inheritance order as FindAVP. Names are unique within each application;
+// rules use these names (RFC 6733 (October 2012) §§3.2, 4.4).
+// A miss returns nil and an error wrapping ErrNotFound; an inheritance cycle
+// returns an error wrapping ErrParentCycle.
+func (s *Snapshot) FindAVPByName(appid uint32, name string) (*AVP, error) {
+	for app, steps := appid, 0; steps <= len(parentAppIds)+1; steps++ {
+		if avp, ok := s.avpname[appNameIdx{app, name}]; ok {
+			// An inherited name cannot revive a wire identity renamed by a
+			// nearer application. Resolve in the original application's scope.
+			if resolved, found := s.AVP(appid, avp.Code, avp.VendorID); found && resolved.Name == name {
+				return resolved, nil
 			}
 		}
-		return nil, fmt.Errorf("could not find AVP %s", code)
-	case uint32:
-		for idx, avp := range s.avpcode {
-			if idx.code == code {
-				return avp, nil
-			}
+		if app == 0 {
+			return nil, fmt.Errorf("application %d: AVP name %q: %w", appid, name, ErrNotFound)
 		}
-		return nil, fmt.Errorf("could not find AVP code %d", code)
-	case int:
-		for idx, avp := range s.avpcode {
-			if idx.code == uint32(code) {
-				return avp, nil
-			}
-		}
-		return nil, fmt.Errorf("could not find AVP code %d", code)
+		app = parentAppIds[app]
 	}
-	return nil, fmt.Errorf("unsupported AVP code type %#v", code)
+	return nil, fmt.Errorf("application %d: %w", appid, ErrParentCycle)
 }
 
-// ScanAVP is Snapshot.ScanAVP on the current Snapshot.
-func (p *Parser) ScanAVP(code interface{}) (*AVP, error) {
-	return p.Snapshot().ScanAVP(code)
+// FindAVPByName is Snapshot.FindAVPByName on the current Snapshot.
+func (p *Parser) FindAVPByName(appid uint32, name string) (*AVP, error) {
+	return p.Snapshot().FindAVPByName(appid, name)
 }
 
 // FindCommand returns a pre-loaded Command from the Parser.
@@ -267,7 +189,7 @@ func (s *Snapshot) FindCommand(appid, code uint32) (*Command, error) {
 		// Always fall back to base dict.
 		return cmd, nil
 	}
-	return nil, fmt.Errorf("could not find preloaded Command with code %d", code)
+	return nil, fmt.Errorf("application %d: command code %d: %w", appid, code, ErrNotFound)
 }
 
 // FindCommand is Snapshot.FindCommand on the current Snapshot.
@@ -276,16 +198,16 @@ func (p *Parser) FindCommand(appid, code uint32) (*Command, error) {
 }
 
 // Enum is a helper function that returns a pre-loaded Enum item for the
-// given AVP appid, code and n. (n is the enum code in the dictionary)
-func (s *Snapshot) Enum(appid, code uint32, n int32) (*Enum, error) {
-	avp, err := s.FindAVP(appid, code)
+// given AVP appid, code, vendorID and n. (n is the enum code in the dictionary)
+func (s *Snapshot) Enum(appid, code, vendorID uint32, n int32) (*Enum, error) {
+	avp, err := s.FindAVP(appid, code, vendorID)
 	if err != nil {
 		return nil, err
 	}
 	if avp.Data.Type != datatype.EnumeratedType {
 		return nil, fmt.Errorf(
-			"data of AVP %s (%d) data is not Enumerated",
-			avp.Name, avp.Code)
+			"application %d: AVP code %d vendor %d: expected Enumerated, got %s",
+			appid, code, vendorID, avp.Data.TypeName)
 	}
 	for _, item := range avp.Data.Enum {
 		if item.Code == n {
@@ -293,26 +215,26 @@ func (s *Snapshot) Enum(appid, code uint32, n int32) (*Enum, error) {
 		}
 	}
 	return nil, fmt.Errorf(
-		"could not find preload Enum %d for AVP %s (%d)",
-		n, avp.Name, avp.Code)
+		"application %d: AVP code %d vendor %d: enum value %d: %w",
+		appid, code, vendorID, n, ErrNotFound)
 }
 
 // Enum is Snapshot.Enum on the current Snapshot.
-func (p *Parser) Enum(appid, code uint32, n int32) (*Enum, error) {
-	return p.Snapshot().Enum(appid, code, n)
+func (p *Parser) Enum(appid, code, vendorID uint32, n int32) (*Enum, error) {
+	return p.Snapshot().Enum(appid, code, vendorID, n)
 }
 
 // Rule is a helper function that returns a pre-loaded Rule item for the
-// given AVP code and name.
-func (s *Snapshot) Rule(appid, code uint32, n string) (*Rule, error) {
-	avp, err := s.FindAVP(appid, code)
+// given AVP appid, code, vendorID and member name.
+func (s *Snapshot) Rule(appid, code, vendorID uint32, n string) (*Rule, error) {
+	avp, err := s.FindAVP(appid, code, vendorID)
 	if err != nil {
 		return nil, err
 	}
 	if avp.Data.Type != datatype.GroupedType {
 		return nil, fmt.Errorf(
-			"data of AVP %s (%d) data is not Grouped",
-			avp.Name, avp.Code)
+			"application %d: AVP code %d vendor %d: expected Grouped, got %s",
+			appid, code, vendorID, avp.Data.TypeName)
 	}
 	for _, item := range avp.Data.Rule {
 		if item.AVP == n {
@@ -320,11 +242,11 @@ func (s *Snapshot) Rule(appid, code uint32, n string) (*Rule, error) {
 		}
 	}
 	return nil, fmt.Errorf(
-		"could not find preload Rule for %s for AVP %s (%d)",
-		n, avp.Name, avp.Code)
+		"application %d: AVP code %d vendor %d: rule member %q: %w",
+		appid, code, vendorID, n, ErrNotFound)
 }
 
 // Rule is Snapshot.Rule on the current Snapshot.
-func (p *Parser) Rule(appid, code uint32, n string) (*Rule, error) {
-	return p.Snapshot().Rule(appid, code, n)
+func (p *Parser) Rule(appid, code, vendorID uint32, n string) (*Rule, error) {
+	return p.Snapshot().Rule(appid, code, vendorID, n)
 }

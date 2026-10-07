@@ -18,7 +18,7 @@ import (
 
 func TestManagerRejectsNonStrictMalformedCEAHostIPAddress(t *testing.T) {
 	// RFC 6733 §§5.3.2 and 7.1.5: a malformed CEA ends the exchange.
-	p := dict.New(dict.Base, dict.CreditControl)
+	p := dict.New(dict.Base, dict.NASREQ, dict.CreditControl, dict.RoRf)
 	p.SetStrict(false)
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {

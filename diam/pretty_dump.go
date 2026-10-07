@@ -163,7 +163,7 @@ func avpToString(m *Message, a *AVP) (string, string, string, bool) {
 	var avpData string
 	var isGrouped bool
 
-	if dictAVP, err := m.Dictionary().FindAVPWithVendor(
+	if dictAVP, err := m.Dictionary().FindAVP(
 		m.Header.ApplicationID,
 		a.Code,
 		a.VendorID,

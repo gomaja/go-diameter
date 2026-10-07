@@ -38,7 +38,7 @@ func TestAddressE164DecodeValidate(t *testing.T) {
 }
 
 func TestMissingAddressMinimum(t *testing.T) {
-	definition, err := dict.Default.FindAVPByCode(0, avp.HostIPAddress, 0)
+	definition, err := dict.Default.FindAVP(0, avp.HostIPAddress, 0)
 	if err != nil {
 		t.Fatal(err)
 	}

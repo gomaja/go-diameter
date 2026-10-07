@@ -10,22 +10,16 @@ import (
 	"testing"
 )
 
-var testDicts = []string{
-	"./bundled/base.xml",
-	"./bundled/credit_control.xml",
-	"./bundled/network_access_server.xml",
-	"./bundled/tgpp_ro_rf.xml",
-	"./bundled/tgpp_s6a.xml",
-	"./bundled/tgpp_swx.xml"}
-
 func TestNewParser(t *testing.T) {
-	for _, dict := range testDicts {
-		p, err := NewParser(dict)
-		if err != nil {
-			t.Fatalf("Error Creating Parser from %s: %s", dict, err)
-		}
-		t.Log(p)
+	var files []string
+	for _, b := range AllBundled() {
+		files = append(files, "bundled/"+string(b))
 	}
+	p, err := NewParser(files...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	diffDumps(t, "NewParser", dumpSnapshot(p.Snapshot()), dumpSnapshot(Default.Snapshot()))
 }
 
 // TS 29.214 §5.3.0 and §5.4.0: Rx AVPs with V set carry a vendor ID.
@@ -57,13 +51,13 @@ func TestRxVendorIDs(t *testing.T) {
 			load func() (*Parser, error)
 		}{
 			{"embedded", func() (*Parser, error) { return Default, nil }},
-			{"selected", func() (*Parser, error) { return New(Rx), nil }},
+			{"selected", func() (*Parser, error) { return New(Rx, CreditControl, RoRf, NASREQ, Base), nil }},
 		} {
 			p, err := source.load()
 			if err != nil {
 				t.Fatal(err)
 			}
-			avp, err := p.FindAVPWithVendor(rxAppID, tc.code, vendorID)
+			avp, err := p.FindAVP(rxAppID, tc.code, vendorID)
 			if err != nil || avp.Name != tc.name || avp.VendorID != vendorID {
 				t.Errorf("%s: %s (%d) vendor lookup = %v, %v", source.name, tc.name, tc.code, avp, err)
 			}
@@ -79,7 +73,7 @@ func TestS6aReusedIETFAVPsHaveNoVendor(t *testing.T) {
 		load func() (*Parser, error)
 	}{
 		{"embedded", func() (*Parser, error) { return Default, nil }},
-		{"selected", func() (*Parser, error) { return New(S6a), nil }},
+		{"selected", func() (*Parser, error) { return New(S6a, S6c, CreditControl, RoRf, NASREQ, Base), nil }},
 	} {
 		p, err := source.load()
 		if err != nil {
@@ -93,7 +87,7 @@ func TestS6aReusedIETFAVPsHaveNoVendor(t *testing.T) {
 			{"MIP6-Agent-Info", 486},
 			{"Service-Selection", 493},
 		} {
-			avp, err := p.FindAVPWithVendor(s6aAppID, tc.code, 0)
+			avp, err := p.FindAVP(s6aAppID, tc.code, 0)
 			if err != nil || avp.Name != tc.name || avp.VendorID != 0 {
 				t.Errorf("%s: %s (%d) vendor-zero lookup = %v, %v", source.name, tc.name, tc.code, avp, err)
 			}
@@ -102,11 +96,8 @@ func TestS6aReusedIETFAVPsHaveNoVendor(t *testing.T) {
 }
 
 func TestLoadFile(t *testing.T) {
-	for _, dict := range testDicts {
-		p, err := NewParser()
-		if err != nil {
-			t.Fatal(err)
-		}
+	p := New()
+	for _, dict := range []string{"bundled/base.xml", "bundled/network_access_server.xml"} {
 		if err := p.LoadFile(dict); err != nil {
 			t.Fatalf("Error Loading %s: %s", dict, err)
 		}
@@ -114,12 +105,12 @@ func TestLoadFile(t *testing.T) {
 }
 
 func TestLoad(t *testing.T) {
-	for _, dict := range testDicts {
+	p := New()
+	for _, dict := range []string{"bundled/base.xml", "bundled/network_access_server.xml"} {
 		f, err := os.Open(dict)
 		if err != nil {
 			t.Fatalf("Error Opening %s: %s", dict, err)
 		}
-		p, _ := NewParser()
 		if err = p.Load(f); err != nil {
 			t.Fatalf("Error Loading Parsing %s: %s", dict, err)
 		}

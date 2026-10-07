@@ -97,7 +97,7 @@ func sendAIA(settings sm.Settings, w io.Writer, m *diam.Message) (n int64, err e
 	return m.WriteTo(w)
 }
 
-func addAVP(m *diam.Message, code interface{}, flags uint8, vendor uint32, data datatype.Type) error {
+func addAVP(m *diam.Message, code uint32, flags uint8, vendor uint32, data datatype.Type) error {
 	_, err := m.NewAVP(code, flags, vendor, data)
 	return err
 }

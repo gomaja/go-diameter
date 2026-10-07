@@ -105,7 +105,7 @@ func marshalStruct(m *Message, field reflect.Value) ([]*AVP, error) {
 		}
 
 		// Lookup the AVP name (tag) in the dictionary, the dictionary AVP has the code.
-		dictAVP, err = m.Dictionary().FindAVP(m.Header.ApplicationID, avpName)
+		dictAVP, err = m.Dictionary().FindAVPByName(m.Header.ApplicationID, avpName)
 		if err != nil {
 			return nil, err
 		}
@@ -219,9 +219,9 @@ BASIC_TYPE:
 					// TODO: check the required attribute in AVP rule?
 					continue
 				}
-				// Lookup the AVP name (tag) in the dictionary, the dictionary AVP has the code.
-				// Relies on the fact that in the same app will not be AVPs with same code but different vendorId
-				d, err := m.Dictionary().FindAVP(m.Header.ApplicationID, avpname)
+				// Names are unique in the application's scope; the definition
+				// supplies both code and vendor (RFC 6733 §4.1).
+				d, err := m.Dictionary().FindAVPByName(m.Header.ApplicationID, avpname)
 				if err != nil {
 					return nil, err
 				}
@@ -405,7 +405,7 @@ func scanStruct(m *Message, field reflect.Value, avps []*AVP) error {
 		}
 		// Lookup the AVP name (tag) in the dictionary.
 		// The dictionary AVP has the code.
-		d, err := m.Dictionary().FindAVP(m.Header.ApplicationID, avpname)
+		d, err := m.Dictionary().FindAVPByName(m.Header.ApplicationID, avpname)
 		if err != nil {
 			return err
 		}

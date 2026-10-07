@@ -15,7 +15,7 @@ import (
 
 func TestCERNonStrictMalformedHostIPAddressAnswer(t *testing.T) {
 	// RFC 6733 §§5.3, 7.1.5, 7.5 and Verified Erratum 4615.
-	p := dict.New(dict.Base, dict.CreditControl)
+	p := dict.New(dict.Base, dict.NASREQ, dict.CreditControl, dict.RoRf)
 	p.SetStrict(false)
 	server := diamtest.NewServer(mustNewStateMachine(t, testMessageErrorSettings()), p)
 	defer server.Close()

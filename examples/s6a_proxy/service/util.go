@@ -19,7 +19,7 @@ func genSID() string {
 	return fmt.Sprintf("s6a_proxy;%d_%X", uint(time.Now().Unix()), rand.Uint32())
 }
 
-func addAVP(m *diam.Message, code interface{}, flags uint8, vendor uint32, data datatype.Type) error {
+func addAVP(m *diam.Message, code uint32, flags uint8, vendor uint32, data datatype.Type) error {
 	_, err := m.NewAVP(code, flags, vendor, data)
 	return err
 }

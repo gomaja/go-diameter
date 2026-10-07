@@ -130,8 +130,8 @@ func TestPeerDictionaryApplicationFallbacks(t *testing.T) {
 	}{
 		{"vendorless-private", dict.New(dict.Base), 16777999, 0, nil},
 		{"bare-typeless", dict.New(dict.Base), 999, 0, nil},
-		{"Gx-extended", dict.New(dict.Base, dict.Gx), 16777238, 10415, []uint32{9999, 10415}},
-		{"Credit-Control-RoRf", dict.New(dict.Base, dict.CreditControl, dict.RoRf), 4, 0, []uint32{5535, 10415, 13019}},
+		{"Gx-extended", dict.New(dict.Base, dict.NASREQ, dict.CreditControl, dict.RoRf, dict.Gx), 16777238, 10415, []uint32{5535, 9999, 10415, 13019}},
+		{"Credit-Control-RoRf", dict.New(dict.Base, dict.NASREQ, dict.CreditControl, dict.RoRf), 4, 0, []uint32{5535, 10415, 13019}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var extension string
@@ -249,11 +249,11 @@ func TestCxSupportedVendors(t *testing.T) {
 
 func TestPeerS6aBundledCapabilities(t *testing.T) {
 	settings := testSettings("s6a.example.net")
-	settings.Dict = dict.New(dict.Base, dict.S6a)
+	settings.Dict = dict.New(dict.Base, dict.NASREQ, dict.CreditControl, dict.RoRf, dict.S6c, dict.S6a)
 	request, answer := peerMessages(t, Config{Settings: settings})
 	for _, message := range []*diam.Message{request, answer} {
 		got := readPeerCapabilities(t, message, settings.Dict)
-		checkPeerVendors(t, got.supported, []uint32{10415})
+		checkPeerVendors(t, got.supported, []uint32{5535, 10415, 13019})
 		if n := countPeerGroup(got.groups, 16777251, 10415, avp.AuthApplicationID); n != 1 {
 			t.Errorf("3GPP S6a groups = %d, want 1", n)
 		}

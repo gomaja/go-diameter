@@ -81,7 +81,7 @@ func TestSMSAVPCodesAndTypes(t *testing.T) {
 		{"MSISDN", 701, "OctetString", true},
 	} {
 		for _, app := range []uint32{16777312, 16777313} {
-			a, err := Default.FindAVPWithVendor(app, tc.name, 10415)
+			a, err := Default.FindAVPByName(app, tc.name)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -105,7 +105,7 @@ func TestSMSServingNodeReferences(t *testing.T) {
 		{"LCS-Capabilities-Sets", 2404, "Unsigned32", []uint32{4, 16777312, 16777313}},
 	} {
 		for _, appID := range tc.apps {
-			got, err := Default.FindAVPWithVendor(appID, tc.name, 10415)
+			got, err := Default.FindAVPByName(appID, tc.name)
 			if err != nil || got.Code != tc.code || got.Data.TypeName != tc.typ || got.VendorID != 10415 || got.Must != "M,V" {
 				t.Errorf("app %d %s: got %v, err %v", appID, tc.name, got, err)
 			}
@@ -114,7 +114,7 @@ func TestSMSServingNodeReferences(t *testing.T) {
 }
 
 func TestSMSFlagRuleFormat(t *testing.T) {
-	app, err := New(S6c).App(16777312)
+	app, err := New(S6c, CreditControl, RoRf, NASREQ, Base).App(16777312)
 	if err != nil {
 		t.Fatal(err)
 	}
