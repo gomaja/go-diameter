@@ -14,7 +14,7 @@ import (
 
 // RFC 6733 §6.2 applies to every answer, including all error classes.
 // Iterate every effective command, including inherited common commands.
-func TestFixErrorAnswerEveryCommand(t *testing.T) {
+func TestErrorAnswerEveryCommand(t *testing.T) {
 	codes := map[uint32]bool{}
 	apps := map[uint32]bool{}
 	for _, a := range dict.Default.Apps() {
@@ -94,7 +94,7 @@ func TestFixErrorAnswerEveryCommand(t *testing.T) {
 }
 
 // RFC 6733 §6.2 requires the proxy chain in both protocol and application errors.
-func TestFixErrorAnswerProxyInfo(t *testing.T) {
+func TestErrorAnswerProxyInfo(t *testing.T) {
 	r := diam.NewRequest(diam.SessionTermination, 0, dict.Default)
 	for _, state := range []string{"first", "second"} {
 		r.AddAVP(diam.NewAVP(avp.ProxyInfo, avp.Mbit, 0, &diam.GroupedAVP{AVP: []*diam.AVP{diam.NewAVP(avp.ProxyHost, avp.Mbit, 0, datatype.DiameterIdentity("proxy.example")), diam.NewAVP(avp.ProxyState, avp.Mbit, 0, datatype.OctetString(state))}}))

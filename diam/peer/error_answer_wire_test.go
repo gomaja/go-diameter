@@ -14,7 +14,7 @@ import (
 
 // RFC 6733 §§6.2 and 7.1.5: Manager shares the error-answer builder;
 // undecodable Session-Id must not prevent the 5014 answer.
-func TestFixManagerAnswersTCP(t *testing.T) {
+func TestManagerErrorAnswersOnWire(t *testing.T) {
 	t.Run("length7", func(t *testing.T) {
 		settings := testSettings("local.example.net")
 		settings.RejectUnknownMandatoryAVPs = true
