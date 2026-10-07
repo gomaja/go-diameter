@@ -279,6 +279,50 @@ func TestValidateCreditControlExtensionAVP(t *testing.T) {
 	}
 }
 
+// RFC 6733 §3.2 bounds the wildcard qualifier independently of named AVPs;
+// RFC 8506 §8.52 uses [ AVP ] for exactly one optional extension.
+func TestValidateWildcardMaximum(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		rule  dict.Rule
+		codes []uint32
+		want  uint32
+	}{
+		{"absent", dict.Rule{Max: 1}, nil, 0},
+		{"one known", dict.Rule{Max: 1}, []uint32{5}, 0},
+		{"same known twice", dict.Rule{Max: 1}, []uint32{5, 5}, AVPOccursTooManyTimes},
+		{"different known", dict.Rule{Max: 1}, []uint32{5, 6}, AVPOccursTooManyTimes},
+		{"one unknown", dict.Rule{Max: 1}, []uint32{77}, 0},
+		// RFC 6733 §4.1: unknown AVPs with M clear are informational and are
+		// not counted against the wildcard's maximum.
+		{"two unknown", dict.Rule{Max: 1}, []uint32{77, 78}, 0},
+		{"known and unknown", dict.Rule{Max: 1}, []uint32{5, 77}, 0},
+		{"two known and unknown", dict.Rule{Max: 1}, []uint32{77, 5, 6}, AVPOccursTooManyTimes},
+		{"named excluded from count", dict.Rule{Max: 1}, []uint32{2, 5}, 0},
+		{"explicit zero", dict.Rule{MaxSet: true}, []uint32{5}, AVPNotAllowed},
+		{"unlimited", dict.Rule{}, []uint32{5, 6, 77, 78}, 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, p := validationFixture(t)
+			wildcard := tc.rule
+			wildcard.AVP = "AVP"
+			rules := []*dict.Rule{{AVP: "Required", Max: 1}, &wildcard}
+			var items []*AVP
+			for _, code := range tc.codes {
+				items = append(items, NewAVP(code, 0, 0, datatype.Unsigned32(1)))
+			}
+			err := validateAVPs(items, rules, 0, p.Snapshot())
+			if tc.want == 0 {
+				if err != nil {
+					t.Fatal(err)
+				}
+			} else if err == nil || err.ResultCode != tc.want || err.FailedAVP != items[len(items)-1] {
+				t.Fatalf("got %v, want code %d with first excess extension", err, tc.want)
+			}
+		})
+	}
+}
+
 func TestValidateNestedGrouped(t *testing.T) {
 	m, _ := validationFixture(t)
 	group := NewAVP(3, avp.Mbit, 0, &GroupedAVP{})
