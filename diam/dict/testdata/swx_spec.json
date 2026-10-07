@@ -1,0 +1,2855 @@
+{
+  "document": "3GPP TS 29.273 V19.2.0 (2026-03)",
+  "source": "https://www.3gpp.org/ftp/Specs/archive/29_series/29.273/29273-j20.zip",
+  "sha256": "bed4ee977fe0846c74d6cf3e7c649923d4296bde046c7da6555291ee70ec2b4c",
+  "archive_sha256": "9ca4a7c8de3ce7fa82ac5ed6c39088ca69799137944df0d90ba6caf4697b1531",
+  "avps": [
+    {
+      "name": "Non-3GPP-User-Data",
+      "code": 1500,
+      "section": "8.2.3.1",
+      "type": "Grouped",
+      "vendor": 10415,
+      "must": "M,V",
+      "may": "",
+      "must_not": "P",
+      "rules": [
+        {
+          "name": "Subscription-ID",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Subscription-ID ]"
+        },
+        {
+          "name": "Non-3GPP-IP-Access",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Non-3GPP-IP-Access ]"
+        },
+        {
+          "name": "Non-3GPP-IP-Access-APN",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Non-3GPP-IP-Access-APN ]"
+        },
+        {
+          "name": "RAT-Type",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ RAT-Type ]"
+        },
+        {
+          "name": "Session-Timeout",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Session-Timeout ]"
+        },
+        {
+          "name": "MIP6-Feature-Vector",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ MIP6-Feature-Vector ]"
+        },
+        {
+          "name": "AMBR",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ AMBR ]"
+        },
+        {
+          "name": "3GPP-Charging-Characteristics",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ 3GPP-Charging-Characteristics ]"
+        },
+        {
+          "name": "Context-Identifier",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Context-Identifier ]"
+        },
+        {
+          "name": "APN-OI-Replacement",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ APN-OI-Replacement ]"
+        },
+        {
+          "name": "APN-Configuration",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ APN-Configuration ]"
+        },
+        {
+          "name": "Trace-Info",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Trace-Info ]"
+        },
+        {
+          "name": "TWAN-Default-APN-Context-Id",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ TWAN-Default-APN-Context-Id ]"
+        },
+        {
+          "name": "TWAN-Access-Info",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ TWAN-Access-Info]"
+        },
+        {
+          "name": "UE-Usage-Type",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ UE-Usage-Type ]"
+        },
+        {
+          "name": "Emergency-Info",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Emergency-Info ]"
+        },
+        {
+          "name": "ERP-Authorization",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ ERP-Authorization ]"
+        },
+        {
+          "name": "Core-Network-Restrictions",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Core-Network-Restrictions ]"
+        },
+        {
+          "name": "MPS-Priority",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ MPS-Priority ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ AVP ]"
+        }
+      ]
+    },
+    {
+      "name": "Non-3GPP-IP-Access",
+      "code": 1501,
+      "section": "8.2.3.3",
+      "type": "Enumerated",
+      "vendor": 10415,
+      "must": "M,V",
+      "may": "",
+      "must_not": "P",
+      "items": {
+        "0": "NON_3GPP_SUBSCRIPTION_ALLOWED",
+        "1": "NON_3GPP_SUBSCRIPTION_BARRED"
+      }
+    },
+    {
+      "name": "Non-3GPP-IP-Access-APN",
+      "code": 1502,
+      "section": "8.2.3.4",
+      "type": "Enumerated",
+      "vendor": 10415,
+      "must": "M,V",
+      "may": "",
+      "must_not": "P",
+      "items": {
+        "0": "Non_3GPP_APNS_ENABLE",
+        "1": "Non_3GPP_APNS_DISABLE"
+      }
+    },
+    {
+      "name": "ANID",
+      "code": 1504,
+      "section": "5.2.3.7",
+      "type": "UTF8String",
+      "vendor": 10415,
+      "must": "M,V",
+      "may": "",
+      "must_not": "P"
+    },
+    {
+      "name": "Trace-Info",
+      "code": 1505,
+      "section": "8.2.3.13",
+      "type": "Grouped",
+      "vendor": 10415,
+      "must": "V",
+      "may": "",
+      "must_not": "M,P",
+      "rules": [
+        {
+          "name": "Trace-Data",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[Trace-Data]"
+        },
+        {
+          "name": "Trace-Reference",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[Trace-Reference]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[AVP]"
+        }
+      ]
+    },
+    {
+      "name": "PPR-Flags",
+      "code": 1508,
+      "section": "8.2.3.17",
+      "type": "Unsigned32",
+      "vendor": 10415,
+      "must": "V",
+      "may": "",
+      "must_not": "M,P"
+    },
+    {
+      "name": "TWAN-Default-APN-Context-Id",
+      "code": 1512,
+      "section": "8.2.3.18",
+      "type": "Unsigned32",
+      "vendor": 10415,
+      "must": "V",
+      "may": "",
+      "must_not": "M,P"
+    },
+    {
+      "name": "TWAN-Access-Info",
+      "code": 1510,
+      "section": "8.2.3.19",
+      "type": "Grouped",
+      "vendor": 10415,
+      "must": "V",
+      "may": "",
+      "must_not": "M,P",
+      "rules": [
+        {
+          "name": "Access-Authorization-Flags",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Access-Authorization-Flags ]"
+        },
+        {
+          "name": "WLAN-Identifier",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ WLAN-Identifier ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ AVP ]"
+        }
+      ]
+    },
+    {
+      "name": "Access-Authorization-Flags",
+      "code": 1511,
+      "section": "8.2.3.20",
+      "type": "Unsigned32",
+      "vendor": 10415,
+      "must": "V",
+      "may": "",
+      "must_not": "M,P"
+    },
+    {
+      "name": "WLAN-Identifier",
+      "code": 1509,
+      "section": "5.2.3.18",
+      "type": "Grouped",
+      "vendor": 10415,
+      "must": "V",
+      "may": "",
+      "must_not": "M,P",
+      "rules": [
+        {
+          "name": "SSID",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[SSID ]"
+        },
+        {
+          "name": "HESSID",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[HESSID ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ AVP ]"
+        }
+      ]
+    },
+    {
+      "name": "Service-Selection",
+      "code": 493,
+      "section": "5.2.3.5",
+      "type": "UTF8String",
+      "vendor": 0,
+      "must": "M",
+      "may": "",
+      "must_not": "V,P"
+    },
+    {
+      "name": "AAA-Failure-Indication",
+      "code": 1518,
+      "section": "8.2.3.21",
+      "type": "Unsigned32",
+      "vendor": 10415,
+      "must": "V",
+      "may": "",
+      "must_not": "M,P"
+    },
+    {
+      "name": "Access-Network-Info",
+      "code": 1526,
+      "section": "5.2.3.24",
+      "type": "Grouped",
+      "vendor": 10415,
+      "must": "V",
+      "may": "",
+      "must_not": "M,P",
+      "rules": [
+        {
+          "name": "SSID",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ SSID ]"
+        },
+        {
+          "name": "BSSID",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ BSSID ]"
+        },
+        {
+          "name": "Location-Information",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Location-Information ]"
+        },
+        {
+          "name": "Location-Data",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Location-Data ]"
+        },
+        {
+          "name": "Operator-Name",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Operator-Name ]"
+        },
+        {
+          "name": "Logical-Access-ID",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Logical-Access-ID ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ AVP ]"
+        }
+      ]
+    },
+    {
+      "name": "3GPP-AAA-Server-Name",
+      "code": 318,
+      "section": "8.2.3.24",
+      "type": "DiameterIdentity",
+      "vendor": 10415,
+      "must": "M,V",
+      "may": "",
+      "must_not": "P"
+    },
+    {
+      "name": "ERP-Authorization",
+      "code": 1541,
+      "section": "8.2.3.27",
+      "type": "Unsigned32",
+      "vendor": 10415,
+      "must": "V",
+      "may": "",
+      "must_not": "M,P"
+    },
+    {
+      "name": "AN-Trusted",
+      "code": 1503,
+      "section": "5.2.3.9",
+      "type": "Enumerated",
+      "vendor": 10415,
+      "must": "V",
+      "may": "",
+      "must_not": "M,P",
+      "items": {
+        "0": "TRUSTED",
+        "1": "UNTRUSTED"
+      }
+    }
+  ],
+  "commands": [
+    {
+      "section": "8.2.2.1",
+      "code": 303,
+      "request": true,
+      "proxiable": true,
+      "rules": [
+        {
+          "name": "Session-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": true,
+          "abnf": "< Session-Id >"
+        },
+        {
+          "name": "DRMP",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ DRMP ]"
+        },
+        {
+          "name": "Vendor-Specific-Application-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Vendor-Specific-Application-Id }"
+        },
+        {
+          "name": "Auth-Session-State",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Auth-Session-State }"
+        },
+        {
+          "name": "Origin-Host",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Origin-Host }"
+        },
+        {
+          "name": "Origin-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Origin-Realm }"
+        },
+        {
+          "name": "Destination-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Destination-Realm }"
+        },
+        {
+          "name": "Destination-Host",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Destination-Host ]"
+        },
+        {
+          "name": "User-Name",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ User-Name }"
+        },
+        {
+          "name": "RAT-Type",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ RAT-Type ]"
+        },
+        {
+          "name": "AN-Trusted",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ AN-Trusted ]"
+        },
+        {
+          "name": "ANID",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ ANID ]"
+        },
+        {
+          "name": "Visited-Network-Identifier",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Visited-Network-Identifier]"
+        },
+        {
+          "name": "Terminal-Information",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Terminal-Information ]"
+        },
+        {
+          "name": "SIP-Auth-Data-Item",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ SIP-Auth-Data-Item }"
+        },
+        {
+          "name": "SIP-Number-Auth-Items",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ SIP-Number-Auth-Items }"
+        },
+        {
+          "name": "AAA-Failure-Indication",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[AAA-Failure-Indication ]"
+        },
+        {
+          "name": "OC-Supported-Features",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ OC-Supported-Features ]"
+        },
+        {
+          "name": "Supported-Features",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Supported-Features ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ AVP ]"
+        }
+      ]
+    },
+    {
+      "section": "8.2.2.1",
+      "code": 303,
+      "request": false,
+      "proxiable": true,
+      "rules": [
+        {
+          "name": "Session-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": true,
+          "abnf": "< Session-Id >"
+        },
+        {
+          "name": "DRMP",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ DRMP ]"
+        },
+        {
+          "name": "Vendor-Specific-Application-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Vendor-Specific-Application-Id }"
+        },
+        {
+          "name": "Result-Code",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Result-Code ]"
+        },
+        {
+          "name": "Experimental-Result",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Experimental-Result ]"
+        },
+        {
+          "name": "Auth-Session-State",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Auth-Session-State }"
+        },
+        {
+          "name": "Origin-Host",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Origin-Host }"
+        },
+        {
+          "name": "Origin-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Origin-Realm }"
+        },
+        {
+          "name": "User-Name",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ User-Name}"
+        },
+        {
+          "name": "SIP-Number-Auth-Items",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ SIP-Number-Auth-Items ]"
+        },
+        {
+          "name": "SIP-Auth-Data-Item",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ SIP-Auth-Data-Item ]"
+        },
+        {
+          "name": "3GPP-AAA-Server-Name",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ 3GPP-AAA-Server-Name ]"
+        },
+        {
+          "name": "OC-Supported-Features",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ OC-Supported-Features ]"
+        },
+        {
+          "name": "OC-OLR",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ OC-OLR ]"
+        },
+        {
+          "name": "Load",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Load ]"
+        },
+        {
+          "name": "Supported-Features",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Supported-Features ]",
+          "must_not": "M",
+          "flag_source": "TS 29.229 V19.1.0 \u00a77.2.1 (TS 29.273 V19.2.0 Table 8.2.3.0/2 reuse)"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ AVP ]"
+        }
+      ]
+    },
+    {
+      "section": "8.2.2.2",
+      "code": 305,
+      "request": true,
+      "proxiable": true,
+      "rules": [
+        {
+          "name": "Session-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": true,
+          "abnf": "< Session-Id >"
+        },
+        {
+          "name": "DRMP",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ DRMP ]"
+        },
+        {
+          "name": "Vendor-Specific-Application-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Vendor-Specific-Application-Id }"
+        },
+        {
+          "name": "Auth-Session-State",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Auth-Session-State }"
+        },
+        {
+          "name": "Origin-Host",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Origin-Host }"
+        },
+        {
+          "name": "Origin-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Origin-Realm }"
+        },
+        {
+          "name": "Destination-Host",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Destination-Host }"
+        },
+        {
+          "name": "Destination-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Destination-Realm }"
+        },
+        {
+          "name": "User-Name",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ User-Name }"
+        },
+        {
+          "name": "Non-3GPP-User-Data",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Non-3GPP-User-Data ]"
+        },
+        {
+          "name": "PPR-Flags",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ PPR-Flags ]"
+        },
+        {
+          "name": "Supported-Features",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Supported-Features ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ AVP ]"
+        }
+      ],
+      "published_header": "< Push-Profile-Request > ::=< Diameter Header: 305, REQ, 16777265 >",
+      "proxiability_note": "TS 29.273 V19.2.0 section 8.2.2.2 omits PXY from PPR but includes it in PPA; section 8.2.2.3 uses PXY in SAR/SAA. Require PXY for both PPR and PPA under RFC 6733 section 6.2, which requires the answer P bit to match the request. The omission persists in every published version since V8.0.0. Cx PPR also uses command 305 with REQ, PXY (TS 29.229 V19.1.0 section 6.1.11). RFC 6733 section 3 requires local processing when P is clear. With ValidateRequests enabled a P-clear SWx PPR is answered with DIAMETER_INVALID_HDR_BITS (3008)."
+    },
+    {
+      "section": "8.2.2.2",
+      "code": 305,
+      "request": false,
+      "proxiable": true,
+      "rules": [
+        {
+          "name": "Session-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": true,
+          "abnf": "< Session-Id >"
+        },
+        {
+          "name": "DRMP",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ DRMP ]"
+        },
+        {
+          "name": "Vendor-Specific-Application-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Vendor-Specific-Application-Id }"
+        },
+        {
+          "name": "Result-Code",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Result-Code ]"
+        },
+        {
+          "name": "Experimental-Result",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Experimental-Result ]"
+        },
+        {
+          "name": "Auth-Session-State",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Auth-Session-State }"
+        },
+        {
+          "name": "Origin-Host",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Origin-Host }"
+        },
+        {
+          "name": "Origin-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Origin-Realm }"
+        },
+        {
+          "name": "Access-Network-Info",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Access-Network-Info ]"
+        },
+        {
+          "name": "Local-Time-Zone",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Local-Time-Zone ]"
+        },
+        {
+          "name": "Supported-Features",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Supported-Features ]",
+          "must_not": "M",
+          "flag_source": "TS 29.229 V19.1.0 \u00a77.2.1 (TS 29.273 V19.2.0 Table 8.2.3.0/2 reuse)"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ AVP ]"
+        }
+      ]
+    },
+    {
+      "section": "8.2.2.3",
+      "code": 301,
+      "request": true,
+      "proxiable": true,
+      "rules": [
+        {
+          "name": "Session-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": true,
+          "abnf": "< Session-Id >"
+        },
+        {
+          "name": "DRMP",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ DRMP ]"
+        },
+        {
+          "name": "Vendor-Specific-Application-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Vendor-Specific-Application-Id }"
+        },
+        {
+          "name": "Auth-Session-State",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Auth-Session-State }"
+        },
+        {
+          "name": "Origin-Host",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Origin-Host }"
+        },
+        {
+          "name": "Origin-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Origin-Realm }"
+        },
+        {
+          "name": "Destination-Host",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Destination-Host ]"
+        },
+        {
+          "name": "Destination-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Destination-Realm }"
+        },
+        {
+          "name": "Service-Selection",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Service-Selection ]"
+        },
+        {
+          "name": "Context-Identifier",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Context-Identifier ]"
+        },
+        {
+          "name": "MIP6-Agent-Info",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ MIP6-Agent-Info ]"
+        },
+        {
+          "name": "Visited-Network-Identifier",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Visited-Network-Identifier ]"
+        },
+        {
+          "name": "User-Name",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ User-Name}"
+        },
+        {
+          "name": "Server-Assignment-Type",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Server-Assignment-Type }"
+        },
+        {
+          "name": "Active-APN",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Active-APN ]"
+        },
+        {
+          "name": "OC-Supported-Features",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ OC-Supported-Features ]"
+        },
+        {
+          "name": "Supported-Features",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Supported-Features ]"
+        },
+        {
+          "name": "Terminal-Information",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Terminal-Information ]"
+        },
+        {
+          "name": "Emergency-Services",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Emergency-Services ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ AVP ]"
+        }
+      ]
+    },
+    {
+      "section": "8.2.2.3",
+      "code": 301,
+      "request": false,
+      "proxiable": true,
+      "rules": [
+        {
+          "name": "Session-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": true,
+          "abnf": "< Session-Id >"
+        },
+        {
+          "name": "DRMP",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ DRMP ]"
+        },
+        {
+          "name": "Vendor-Specific-Application-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Vendor-Specific-Application-Id }"
+        },
+        {
+          "name": "Result-Code",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Result-Code ]"
+        },
+        {
+          "name": "Experimental-Result",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Experimental-Result ]"
+        },
+        {
+          "name": "Auth-Session-State",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Auth-Session-State }"
+        },
+        {
+          "name": "Origin-Host",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Origin-Host }"
+        },
+        {
+          "name": "Origin-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Origin-Realm }"
+        },
+        {
+          "name": "User-Name",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ User-Name}"
+        },
+        {
+          "name": "Non-3GPP-User-Data",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Non-3GPP-User-Data ]"
+        },
+        {
+          "name": "3GPP-AAA-Server-Name",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ 3GPP-AAA-Server-Name ]"
+        },
+        {
+          "name": "OC-Supported-Features",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ OC-Supported-Features ]"
+        },
+        {
+          "name": "OC-OLR",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ OC-OLR ]"
+        },
+        {
+          "name": "Load",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Load ]"
+        },
+        {
+          "name": "Supported-Features",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Supported-Features ]",
+          "must_not": "M",
+          "flag_source": "TS 29.229 V19.1.0 \u00a77.2.1 (TS 29.273 V19.2.0 Table 8.2.3.0/2 reuse)"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ AVP ]"
+        }
+      ]
+    },
+    {
+      "section": "8.2.2.4",
+      "code": 304,
+      "request": true,
+      "proxiable": true,
+      "rules": [
+        {
+          "name": "Session-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": true,
+          "abnf": "< Session-Id >"
+        },
+        {
+          "name": "DRMP",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ DRMP ]"
+        },
+        {
+          "name": "Vendor-Specific-Application-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Vendor-Specific-Application-Id }"
+        },
+        {
+          "name": "Auth-Session-State",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Auth-Session-State }"
+        },
+        {
+          "name": "Origin-Host",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Origin-Host }"
+        },
+        {
+          "name": "Origin-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Origin-Realm }"
+        },
+        {
+          "name": "Destination-Host",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Destination-Host }"
+        },
+        {
+          "name": "Destination-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Destination-Realm }"
+        },
+        {
+          "name": "User-Name",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ User-Name }"
+        },
+        {
+          "name": "Deregistration-Reason",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Deregistration-Reason }"
+        },
+        {
+          "name": "Supported-Features",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Supported-Features ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ AVP ]"
+        }
+      ]
+    },
+    {
+      "section": "8.2.2.4",
+      "code": 304,
+      "request": false,
+      "proxiable": true,
+      "rules": [
+        {
+          "name": "Session-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": true,
+          "abnf": "< Session-Id >"
+        },
+        {
+          "name": "DRMP",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ DRMP ]"
+        },
+        {
+          "name": "Vendor-Specific-Application-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Vendor-Specific-Application-Id }"
+        },
+        {
+          "name": "Result-Code",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Result-Code ]"
+        },
+        {
+          "name": "Experimental-Result",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Experimental-Result ]"
+        },
+        {
+          "name": "Auth-Session-State",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Auth-Session-State }"
+        },
+        {
+          "name": "Origin-Host",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Origin-Host }"
+        },
+        {
+          "name": "Origin-Realm",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Origin-Realm }"
+        },
+        {
+          "name": "Supported-Features",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ Supported-Features ]",
+          "must_not": "M",
+          "flag_source": "TS 29.229 V19.1.0 \u00a77.2.1 (TS 29.273 V19.2.0 Table 8.2.3.0/2 reuse)"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ AVP ]"
+        }
+      ]
+    }
+  ],
+  "reused": [
+    {
+      "name": "User-Name",
+      "reference": "ETF RFC 6733 [58]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "usage": "",
+      "metadata": {
+        "name": "User-Name",
+        "code": 1,
+        "type": "UTF8String",
+        "vendor": 0,
+        "must": "M",
+        "may": "",
+        "must_not": "V",
+        "source": "RFC 6733 \u00a74.5, \u00a78.14",
+        "known_shared_metadata_gap": {
+          "may": "P",
+          "source_application": 0,
+          "reason": "The inherited shared dictionary retains legacy MAY-P metadata. It is informational, with no validation behavior change; accept either the source flag set or this documented legacy flag set until the shared dictionary is refreshed."
+        }
+      }
+    },
+    {
+      "name": "Session-Timeout",
+      "reference": "ETF RFC 6733 [58]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "usage": "",
+      "metadata": {
+        "name": "Session-Timeout",
+        "code": 27,
+        "type": "Unsigned32",
+        "vendor": 0,
+        "must": "M",
+        "may": "",
+        "must_not": "V",
+        "source": "RFC 6733 \u00a74.5, \u00a78.13",
+        "known_shared_metadata_gap": {
+          "may": "P",
+          "source_application": 0,
+          "reason": "The inherited shared dictionary retains legacy MAY-P metadata. It is informational, with no validation behavior change; accept either the source flag set or this documented legacy flag set until the shared dictionary is refreshed."
+        }
+      }
+    },
+    {
+      "name": "Subscription-ID",
+      "reference": "IETF RFC 4006 [20]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "usage": "",
+      "metadata": {
+        "name": "Subscription-ID",
+        "code": 443,
+        "vendor": 0,
+        "type": "Grouped",
+        "must": "M",
+        "may": "",
+        "must_not": "V",
+        "source": "RFC 8506 (March 2019) \u00a78.46",
+        "rules": [
+          {
+            "name": "Subscription-Id-Type",
+            "min": 0,
+            "max": 1,
+            "fixed": false,
+            "abnf": "[ Subscription-Id-Type ]"
+          },
+          {
+            "name": "Subscription-Id-Data",
+            "min": 0,
+            "max": 1,
+            "fixed": false,
+            "abnf": "[ Subscription-Id-Data ]"
+          }
+        ],
+        "grammar_source": "TS 29.273 V19.2.0 \u00a78.2.3.2"
+      }
+    },
+    {
+      "name": "MIP6-Agent-Info",
+      "reference": "IETF RFC 5447 [6]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "usage": "",
+      "metadata": {
+        "name": "MIP6-Agent-Info",
+        "code": 486,
+        "type": "Grouped",
+        "vendor": 0,
+        "must": "M",
+        "may": "P",
+        "must_not": "V",
+        "source": "RFC 5447 \u00a74.2.1; RFC 5778 \u00a76",
+        "rules": [
+          {
+            "name": "MIP-Home-Agent-Address",
+            "min": 0,
+            "max": 2,
+            "fixed": false,
+            "abnf": "*2[ MIP-Home-Agent-Address ]"
+          },
+          {
+            "name": "MIP-Home-Agent-Host",
+            "min": 0,
+            "max": 1,
+            "fixed": false,
+            "abnf": "[ MIP-Home-Agent-Host ]"
+          },
+          {
+            "name": "MIP6-Home-Link-Prefix",
+            "min": 0,
+            "max": 1,
+            "fixed": false,
+            "abnf": "[ MIP6-Home-Link-Prefix ]"
+          },
+          {
+            "name": "AVP",
+            "min": 0,
+            "max": null,
+            "fixed": false,
+            "abnf": "*[ AVP ]"
+          }
+        ],
+        "may_encrypt": "Y"
+      }
+    },
+    {
+      "name": "MIP6-Feature-Vector",
+      "reference": "IETF RFC 5447 [6]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "usage": "",
+      "metadata": {
+        "name": "MIP6-Feature-Vector",
+        "code": 124,
+        "type": "Unsigned64",
+        "vendor": 0,
+        "must": "M",
+        "may": "P",
+        "must_not": "V",
+        "may_encrypt": "Y",
+        "source": "RFC 5447 \u00a74.2.5; RFC 5778 \u00a76"
+      }
+    },
+    {
+      "name": "Service-Selection",
+      "reference": "IETF RFC 5778 [11]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "usage": "",
+      "metadata": {
+        "name": "Service-Selection",
+        "code": 493,
+        "section": "5.2.3.5",
+        "type": "UTF8String",
+        "vendor": 0,
+        "must": "M",
+        "may": "",
+        "must_not": "V,P",
+        "source": "TS 29.273 V19.2.0 Table 8.2.3.0/1, \u00a75.2.3.5"
+      }
+    },
+    {
+      "name": "3GPP-Charging-Characteristics",
+      "reference": "TS 29.061 [31]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "usage": "",
+      "metadata": {
+        "code": 13,
+        "vendor": 10415,
+        "type": "UTF8String",
+        "must": "V",
+        "may": "P",
+        "must_not": "M",
+        "source": "TS 29.061 V20.1.0 Table 9a, \u00a716.4.7.2",
+        "may_encrypt": "Y",
+        "name": "3GPP-Charging-Characteristics"
+      }
+    },
+    {
+      "name": "RAT-Type",
+      "reference": "TS 29.212 [23]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "usage": "",
+      "metadata": {
+        "name": "RAT-Type",
+        "code": 1032,
+        "section": "5.3.31",
+        "type": "Enumerated",
+        "vendor": 10415,
+        "must": "V",
+        "may": "P",
+        "should_not": "",
+        "must_not": "M",
+        "may_encrypt": "Y",
+        "items": {
+          "0": "WLAN",
+          "1": "VIRTUAL",
+          "2": "TRUSTED-N3GA",
+          "3": "WIRELINE",
+          "4": "WIRELINE-CABLE",
+          "5": "WIRELINE-BBF",
+          "1000": "UTRAN",
+          "1001": "GERAN",
+          "1002": "GAN",
+          "1003": "HSPA_EVOLUTION",
+          "1004": "EUTRAN",
+          "1005": "EUTRAN-NB-IoT",
+          "1006": "NR",
+          "1007": "LTE-M",
+          "1008": "NR-U",
+          "1011": "EUTRAN(LEO)",
+          "1012": "EUTRAN(MEO)",
+          "1013": "EUTRAN(GEO)",
+          "1014": "EUTRAN(OTHERSAT)",
+          "1021": "EUTRAN-NB-IoT(LEO)",
+          "1022": "EUTRAN-NB-IoT(MEO)",
+          "1023": "EUTRAN-NB-IoT(GEO)",
+          "1024": "EUTRAN-NB-IoT(OTHERSAT)",
+          "1031": "LTE-M(LEO)",
+          "1032": "LTE-M(MEO)",
+          "1033": "LTE-M(GEO)",
+          "1034": "LTE-M(OTHERSAT)",
+          "1035": "NR(LEO)",
+          "1036": "NR(MEO)",
+          "1037": "NR(GEO)",
+          "1038": "NR(OTHERSAT)",
+          "1039": "NR-REDCAP",
+          "1040": "NR-EREDCAP",
+          "2000": "CDMA2000_1X",
+          "2001": "HRPD",
+          "2002": "UMB",
+          "2003": "EHRPD"
+        },
+        "source": "TS 29.212 V20.0.0 \u00a75.3.31",
+        "values_source": "TS 29.212 V20.0.0 \u00a75.3.31; reused in TS 29.272 V19.6.0 Table 7.3.1/2"
+      }
+    },
+    {
+      "name": "Visited-Network-Identifier",
+      "reference": "TS 29.229 [24]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "usage": "",
+      "metadata": {
+        "name": "Visited-Network-Identifier",
+        "code": 600,
+        "type": "OctetString",
+        "vendor": 10415,
+        "must": "M,V",
+        "may": "",
+        "must_not": "",
+        "source": "TS 29.229 V19.1.0 Table 6.3.0.1: Diameter Multimedia Application AVPs, \u00a76.3.1",
+        "may_encrypt": "N"
+      }
+    },
+    {
+      "name": "SIP-Number-Auth-Items",
+      "reference": "TS 29.229 [24]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "usage": "",
+      "metadata": {
+        "name": "SIP-Number-Auth-Items",
+        "code": 607,
+        "type": "Unsigned32",
+        "vendor": 10415,
+        "must": "M,V",
+        "may": "",
+        "must_not": "",
+        "source": "TS 29.229 V19.1.0 Table 6.3.0.1: Diameter Multimedia Application AVPs, \u00a76.3.8",
+        "may_encrypt": "N"
+      }
+    },
+    {
+      "name": "SIP-Item-Number",
+      "reference": "TS 29.229 [24]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "usage": "",
+      "metadata": {
+        "name": "SIP-Item-Number",
+        "code": 613,
+        "type": "Unsigned32",
+        "vendor": 10415,
+        "must": "M,V",
+        "may": "",
+        "must_not": "",
+        "source": "TS 29.229 V19.1.0 Table 6.3.0.1: Diameter Multimedia Application AVPs, \u00a76.3.14",
+        "may_encrypt": "N"
+      }
+    },
+    {
+      "name": "SIP-Auth-Data-Item",
+      "reference": "TS 29.229 [24]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "usage": "",
+      "metadata": {
+        "name": "SIP-Auth-Data-Item",
+        "code": 612,
+        "type": "Grouped",
+        "vendor": 10415,
+        "must": "M,V",
+        "may": "",
+        "must_not": "",
+        "source": "TS 29.229 V19.1.0 Table 6.3.0.1: Diameter Multimedia Application AVPs, \u00a76.3.13",
+        "may_encrypt": "N",
+        "rules": [
+          {
+            "name": "SIP-Item-Number",
+            "min": 0,
+            "max": 1,
+            "fixed": false,
+            "abnf": "[ SIP-Item-Number ]"
+          },
+          {
+            "name": "SIP-Authentication-Scheme",
+            "min": 0,
+            "max": 1,
+            "fixed": false,
+            "abnf": "[ SIP-Authentication-Scheme ]"
+          },
+          {
+            "name": "SIP-Authenticate",
+            "min": 0,
+            "max": 1,
+            "fixed": false,
+            "abnf": "[ SIP-Authenticate ]"
+          },
+          {
+            "name": "SIP-Authorization",
+            "min": 0,
+            "max": 1,
+            "fixed": false,
+            "abnf": "[ SIP-Authorization ]"
+          },
+          {
+            "name": "Confidentiality-Key",
+            "min": 0,
+            "max": 1,
+            "fixed": false,
+            "abnf": "[ Confidentiality-Key ]"
+          },
+          {
+            "name": "Integrity-Key",
+            "min": 0,
+            "max": 1,
+            "fixed": false,
+            "abnf": "[ Integrity-Key ]"
+          },
+          {
+            "name": "AVP",
+            "min": 0,
+            "max": null,
+            "fixed": false,
+            "abnf": "*[ AVP ]"
+          }
+        ],
+        "grammar_source": "TS 29.273 V19.2.0 \u00a78.2.3.9"
+      }
+    },
+    {
+      "name": "SIP-Authentication-Scheme",
+      "reference": "TS 29.229 [24]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "usage": "",
+      "metadata": {
+        "name": "SIP-Authentication-Scheme",
+        "code": 608,
+        "type": "UTF8String",
+        "vendor": 10415,
+        "must": "M,V",
+        "may": "",
+        "must_not": "",
+        "source": "TS 29.229 V19.1.0 Table 6.3.0.1: Diameter Multimedia Application AVPs, \u00a76.3.9",
+        "may_encrypt": "N"
+      }
+    },
+    {
+      "name": "SIP-Authenticate",
+      "reference": "TS 29.229 [24]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "usage": "",
+      "metadata": {
+        "name": "SIP-Authenticate",
+        "code": 609,
+        "type": "OctetString",
+        "vendor": 10415,
+        "must": "M,V",
+        "may": "",
+        "must_not": "",
+        "source": "TS 29.229 V19.1.0 Table 6.3.0.1: Diameter Multimedia Application AVPs, \u00a76.3.10",
+        "may_encrypt": "N"
+      }
+    },
+    {
+      "name": "SIP-Authorization",
+      "reference": "TS 29.229 [24]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "usage": "",
+      "metadata": {
+        "name": "SIP-Authorization",
+        "code": 610,
+        "type": "OctetString",
+        "vendor": 10415,
+        "must": "M,V",
+        "may": "",
+        "must_not": "",
+        "source": "TS 29.229 V19.1.0 Table 6.3.0.1: Diameter Multimedia Application AVPs, \u00a76.3.11",
+        "may_encrypt": "N"
+      }
+    },
+    {
+      "name": "Confidentiality-Key",
+      "reference": "TS 29.229 [24]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "usage": "",
+      "metadata": {
+        "name": "Confidentiality-Key",
+        "code": 625,
+        "type": "OctetString",
+        "vendor": 10415,
+        "must": "M,V",
+        "may": "",
+        "must_not": "",
+        "source": "TS 29.229 V19.1.0 Table 6.3.0.1: Diameter Multimedia Application AVPs, \u00a76.3.27",
+        "may_encrypt": "N"
+      }
+    },
+    {
+      "name": "Integrity-Key",
+      "reference": "TS 29.229 [24]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "usage": "",
+      "metadata": {
+        "name": "Integrity-Key",
+        "code": 626,
+        "type": "OctetString",
+        "vendor": 10415,
+        "must": "M,V",
+        "may": "",
+        "must_not": "",
+        "source": "TS 29.229 V19.1.0 Table 6.3.0.1: Diameter Multimedia Application AVPs, \u00a76.3.28",
+        "may_encrypt": "N"
+      }
+    },
+    {
+      "name": "Server-Assignment-Type",
+      "reference": "TS 29.229 [24]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "usage": "",
+      "metadata": {
+        "name": "Server-Assignment-Type",
+        "code": 614,
+        "type": "Enumerated",
+        "vendor": 10415,
+        "must": "M,V",
+        "may": "",
+        "must_not": "",
+        "source": "TS 29.229 V19.1.0 Table 6.3.0.1: Diameter Multimedia Application AVPs, \u00a76.3.15",
+        "may_encrypt": "N",
+        "items": {
+          "0": "NO_ASSIGNMENT",
+          "1": "REGISTRATION",
+          "2": "RE_REGISTRATION",
+          "3": "UNREGISTERED_USER",
+          "4": "TIMEOUT_DEREGISTRATION",
+          "5": "USER_DEREGISTRATION",
+          "6": "TIMEOUT_DEREGISTRATION_STORE_SERVER_NAME",
+          "7": "USER_DEREGISTRATION_STORE_SERVER_NAME",
+          "8": "ADMINISTRATIVE_DEREGISTRATION",
+          "9": "AUTHENTICATION_FAILURE",
+          "10": "AUTHENTICATION_TIMEOUT",
+          "11": "DEREGISTRATION_TOO_MUCH_DATA",
+          "12": "AAA_USER_DATA_REQUEST",
+          "13": "PGW_UPDATE",
+          "14": "RESTORATION"
+        }
+      }
+    },
+    {
+      "name": "Deregistration-Reason",
+      "reference": "TS 29.229 [24]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "usage": "",
+      "metadata": {
+        "name": "Deregistration-Reason",
+        "code": 615,
+        "type": "Grouped",
+        "vendor": 10415,
+        "must": "M,V",
+        "may": "",
+        "must_not": "",
+        "source": "TS 29.229 V19.1.0 Table 6.3.0.1: Diameter Multimedia Application AVPs, \u00a76.3.16",
+        "may_encrypt": "N",
+        "rules": [
+          {
+            "name": "Reason-Code",
+            "min": 1,
+            "max": 1,
+            "fixed": false,
+            "abnf": "{ Reason-Code }"
+          },
+          {
+            "name": "Reason-Info",
+            "min": 0,
+            "max": 1,
+            "fixed": false,
+            "abnf": "[ Reason-Info ]"
+          },
+          {
+            "name": "AVP",
+            "min": 0,
+            "max": null,
+            "fixed": false,
+            "abnf": "* [AVP]"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Supported-Features",
+      "reference": "TS 29.229 [24]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "usage": "",
+      "metadata": {
+        "code": 628,
+        "vendor": 10415,
+        "type": "Grouped",
+        "must": "V",
+        "may": "M",
+        "must_not": "",
+        "source": "TS 29.229 V19.1.0 \u00a76.3.29",
+        "may_encrypt": "N",
+        "name": "Supported-Features",
+        "rules": [
+          {
+            "name": "Vendor-Id",
+            "min": 1,
+            "max": 1,
+            "fixed": false,
+            "abnf": "{ Vendor-Id }"
+          },
+          {
+            "name": "Feature-List-ID",
+            "min": 1,
+            "max": 1,
+            "fixed": false,
+            "abnf": "{ Feature-List-ID }"
+          },
+          {
+            "name": "Feature-List",
+            "min": 1,
+            "max": 1,
+            "fixed": false,
+            "abnf": "{ Feature-List }"
+          },
+          {
+            "name": "AVP",
+            "min": 0,
+            "max": null,
+            "fixed": false,
+            "abnf": "*[AVP]"
+          }
+        ],
+        "grammar_source": "TS 29.229 V19.1.0"
+      }
+    },
+    {
+      "name": "Feature-List-ID",
+      "reference": "TS 29.229 [24]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "usage": "",
+      "metadata": {
+        "code": 629,
+        "vendor": 10415,
+        "type": "Unsigned32",
+        "must": "V",
+        "may": "",
+        "must_not": "M",
+        "source": "TS 29.229 V19.1.0 \u00a76.3.30",
+        "may_encrypt": "N",
+        "name": "Feature-List-ID"
+      }
+    },
+    {
+      "name": "Feature-List",
+      "reference": "TS 29.229 [24]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "usage": "",
+      "metadata": {
+        "code": 630,
+        "vendor": 10415,
+        "type": "Unsigned32",
+        "must": "V",
+        "may": "",
+        "must_not": "M",
+        "source": "TS 29.229 V19.1.0 \u00a76.3.31",
+        "may_encrypt": "N",
+        "name": "Feature-List"
+      }
+    },
+    {
+      "name": "APN-Configuration",
+      "reference": "TS 29.272 [29]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "usage": "",
+      "metadata": {
+        "name": "APN-Configuration",
+        "code": 1430,
+        "type": "Grouped",
+        "vendor": 10415,
+        "must": "M,V",
+        "may": "",
+        "must_not": "",
+        "source": "TS 29.272 V19.6.0 Table 7.3.1/1: S6a/S6d, S7a/S7d and S13/S13' specific DiameterAVPs, \u00a77.3.35",
+        "may_encrypt": "N",
+        "rules": [
+          {
+            "name": "Context-Identifier",
+            "min": 1,
+            "max": 1,
+            "fixed": false
+          },
+          {
+            "name": "Served-Party-IP-Address",
+            "min": 0,
+            "max": 2,
+            "fixed": false
+          },
+          {
+            "name": "PDN-Type",
+            "min": 1,
+            "max": 1,
+            "fixed": false
+          },
+          {
+            "name": "Service-Selection",
+            "min": 1,
+            "max": 1,
+            "fixed": false
+          },
+          {
+            "name": "EPS-Subscribed-QoS-Profile",
+            "min": 0,
+            "max": 1,
+            "fixed": false
+          },
+          {
+            "name": "VPLMN-Dynamic-Address-Allowed",
+            "min": 0,
+            "max": 1,
+            "fixed": false
+          },
+          {
+            "name": "MIP6-Agent-Info",
+            "min": 0,
+            "max": 1,
+            "fixed": false
+          },
+          {
+            "name": "Visited-Network-Identifier",
+            "min": 0,
+            "max": 1,
+            "fixed": false
+          },
+          {
+            "name": "PDN-GW-Allocation-Type",
+            "min": 0,
+            "max": 1,
+            "fixed": false
+          },
+          {
+            "name": "3GPP-Charging-Characteristics",
+            "min": 0,
+            "max": 1,
+            "fixed": false
+          },
+          {
+            "name": "AMBR",
+            "min": 0,
+            "max": 1,
+            "fixed": false
+          },
+          {
+            "name": "Specific-APN-Info",
+            "min": 0,
+            "max": null,
+            "fixed": false
+          },
+          {
+            "name": "APN-OI-Replacement",
+            "min": 0,
+            "max": 1,
+            "fixed": false
+          },
+          {
+            "name": "SIPTO-Permission",
+            "min": 0,
+            "max": 1,
+            "fixed": false
+          },
+          {
+            "name": "LIPA-Permission",
+            "min": 0,
+            "max": 1,
+            "fixed": false
+          },
+          {
+            "name": "Restoration-Priority",
+            "min": 0,
+            "max": 1,
+            "fixed": false
+          },
+          {
+            "name": "SIPTO-Local-Network-Permission",
+            "min": 0,
+            "max": 1,
+            "fixed": false
+          },
+          {
+            "name": "WLAN-offloadability",
+            "min": 0,
+            "max": 1,
+            "fixed": false
+          },
+          {
+            "name": "Non-IP-PDN-Type-Indicator",
+            "min": 0,
+            "max": 1,
+            "fixed": false
+          },
+          {
+            "name": "Non-IP-Data-Delivery-Mechanism",
+            "min": 0,
+            "max": 1,
+            "fixed": false
+          },
+          {
+            "name": "SCEF-ID",
+            "min": 0,
+            "max": 1,
+            "fixed": false
+          },
+          {
+            "name": "SCEF-Realm",
+            "min": 0,
+            "max": 1,
+            "fixed": false
+          },
+          {
+            "name": "Preferred-Data-Mode",
+            "min": 0,
+            "max": 1,
+            "fixed": false
+          },
+          {
+            "name": "PDN-Connection-Continuity",
+            "min": 0,
+            "max": 1,
+            "fixed": false
+          },
+          {
+            "name": "RDS-Indicator",
+            "min": 0,
+            "max": 1,
+            "fixed": false
+          },
+          {
+            "name": "Interworking-5GS-Indicator",
+            "min": 0,
+            "max": 1,
+            "fixed": false
+          },
+          {
+            "name": "Ethernet-PDN-Type-Indicator",
+            "min": 0,
+            "max": 1,
+            "fixed": false
+          },
+          {
+            "name": "AVP",
+            "min": 0,
+            "max": null,
+            "fixed": false
+          }
+        ],
+        "grammar_source": "TS 29.272 V19.6.0 \u00a77.3.35"
+      }
+    },
+    {
+      "name": "Context-Identifier",
+      "reference": "TS 29.272 [29]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "usage": "",
+      "metadata": {
+        "name": "Context-Identifier",
+        "code": 1423,
+        "type": "Unsigned32",
+        "vendor": 10415,
+        "must": "M,V",
+        "may": "",
+        "must_not": "",
+        "source": "TS 29.272 V19.6.0 Table 7.3.1/1: S6a/S6d, S7a/S7d and S13/S13' specific DiameterAVPs, \u00a77.3.27",
+        "may_encrypt": "N"
+      }
+    },
+    {
+      "name": "Terminal-Information",
+      "reference": "TS 29.272 [29]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "usage": "",
+      "metadata": {
+        "name": "Terminal-Information",
+        "code": 1401,
+        "type": "Grouped",
+        "vendor": 10415,
+        "must": "M,V",
+        "may": "",
+        "must_not": "",
+        "source": "TS 29.272 V19.6.0 Table 7.3.1/1: S6a/S6d, S7a/S7d and S13/S13' specific DiameterAVPs, \u00a77.3.3",
+        "may_encrypt": "N",
+        "rules": [
+          {
+            "name": "IMEI",
+            "min": 0,
+            "max": 1,
+            "fixed": false
+          },
+          {
+            "name": "3GPP2-MEID",
+            "min": 0,
+            "max": 1,
+            "fixed": false
+          },
+          {
+            "name": "Software-Version",
+            "min": 0,
+            "max": 1,
+            "fixed": false
+          },
+          {
+            "name": "AVP",
+            "min": 0,
+            "max": null,
+            "fixed": false
+          }
+        ],
+        "grammar_source": "TS 29.272 V19.6.0 \u00a77.3.3"
+      }
+    },
+    {
+      "name": "AMBR",
+      "reference": "TS 29.272 [29]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "usage": "",
+      "metadata": {
+        "name": "AMBR",
+        "code": 1435,
+        "type": "Grouped",
+        "vendor": 10415,
+        "must": "M,V",
+        "may": "",
+        "must_not": "",
+        "source": "TS 29.272 V19.6.0 Table 7.3.1/1: S6a/S6d, S7a/S7d and S13/S13' specific DiameterAVPs, \u00a77.3.41",
+        "may_encrypt": "N",
+        "rules": [
+          {
+            "name": "Max-Requested-Bandwidth-UL",
+            "min": 1,
+            "max": 1,
+            "fixed": false
+          },
+          {
+            "name": "Max-Requested-Bandwidth-DL",
+            "min": 1,
+            "max": 1,
+            "fixed": false
+          },
+          {
+            "name": "Extended-Max-Requested-BW-UL",
+            "min": 0,
+            "max": 1,
+            "fixed": false
+          },
+          {
+            "name": "Extended-Max-Requested-BW-DL",
+            "min": 0,
+            "max": 1,
+            "fixed": false
+          },
+          {
+            "name": "AVP",
+            "min": 0,
+            "max": null,
+            "fixed": false
+          }
+        ],
+        "grammar_source": "TS 29.272 V19.6.0 \u00a77.3.41"
+      }
+    },
+    {
+      "name": "APN-OI-Replacement",
+      "reference": "TS 29.272 [29]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "usage": "",
+      "metadata": {
+        "name": "APN-OI-Replacement",
+        "code": 1427,
+        "type": "UTF8String",
+        "vendor": 10415,
+        "must": "M,V",
+        "may": "",
+        "must_not": "",
+        "source": "TS 29.272 V19.6.0 Table 7.3.1/1: S6a/S6d, S7a/S7d and S13/S13' specific DiameterAVPs, \u00a77.3.32",
+        "may_encrypt": "N"
+      }
+    },
+    {
+      "name": "Trace-Reference",
+      "reference": "TS 29.272 [29]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "usage": "",
+      "metadata": {
+        "name": "Trace-Reference",
+        "code": 1459,
+        "type": "OctetString",
+        "vendor": 10415,
+        "must": "M,V",
+        "may": "",
+        "must_not": "",
+        "source": "TS 29.272 V19.6.0 Table 7.3.1/1: S6a/S6d, S7a/S7d and S13/S13' specific DiameterAVPs, \u00a77.3.64",
+        "may_encrypt": "N"
+      }
+    },
+    {
+      "name": "Trace-Data",
+      "reference": "TS 29.272 [29]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "usage": "",
+      "metadata": {
+        "name": "Trace-Data",
+        "code": 1458,
+        "type": "Grouped",
+        "vendor": 10415,
+        "must": "M,V",
+        "may": "",
+        "must_not": "",
+        "source": "TS 29.272 V19.6.0 Table 7.3.1/1: S6a/S6d, S7a/S7d and S13/S13' specific DiameterAVPs, \u00a77.3.63",
+        "may_encrypt": "N",
+        "rules": [
+          {
+            "name": "Trace-Reference",
+            "min": 1,
+            "max": 1,
+            "fixed": false
+          },
+          {
+            "name": "Trace-Depth",
+            "min": 1,
+            "max": 1,
+            "fixed": false
+          },
+          {
+            "name": "Trace-NE-Type-List",
+            "min": 1,
+            "max": 1,
+            "fixed": false
+          },
+          {
+            "name": "Trace-Interface-List",
+            "min": 0,
+            "max": 1,
+            "fixed": false
+          },
+          {
+            "name": "Trace-Event-List",
+            "min": 1,
+            "max": 1,
+            "fixed": false
+          },
+          {
+            "name": "OMC-Id",
+            "min": 0,
+            "max": 1,
+            "fixed": false
+          },
+          {
+            "name": "Trace-Collection-Entity",
+            "min": 1,
+            "max": 1,
+            "fixed": false
+          },
+          {
+            "name": "MDT-Configuration",
+            "min": 0,
+            "max": 1,
+            "fixed": false
+          },
+          {
+            "name": "MDT-Configuration-NR",
+            "min": 0,
+            "max": 1,
+            "fixed": false
+          },
+          {
+            "name": "Trace-Reporting-Consumer-Uri",
+            "min": 0,
+            "max": 1,
+            "fixed": false
+          },
+          {
+            "name": "AVP",
+            "min": 0,
+            "max": null,
+            "fixed": false
+          }
+        ],
+        "grammar_source": "TS 29.272 V19.6.0 \u00a77.3.63"
+      }
+    },
+    {
+      "name": "Active-APN",
+      "reference": "TS 29.272 [29]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "usage": "",
+      "metadata": {
+        "name": "Active-APN",
+        "code": 1612,
+        "type": "Grouped",
+        "vendor": 10415,
+        "must": "V",
+        "may": "",
+        "must_not": "M",
+        "source": "TS 29.272 V19.6.0 Table 7.3.1/1: S6a/S6d, S7a/S7d and S13/S13' specific DiameterAVPs, \u00a77.3.127",
+        "may_encrypt": "N",
+        "rules": [
+          {
+            "name": "Context-Identifier",
+            "min": 1,
+            "max": 1,
+            "fixed": false
+          },
+          {
+            "name": "Service-Selection",
+            "min": 0,
+            "max": 1,
+            "fixed": false
+          },
+          {
+            "name": "MIP6-Agent-Info",
+            "min": 0,
+            "max": 1,
+            "fixed": false
+          },
+          {
+            "name": "Visited-Network-Identifier",
+            "min": 0,
+            "max": 1,
+            "fixed": false
+          },
+          {
+            "name": "Specific-APN-Info",
+            "min": 0,
+            "max": null,
+            "fixed": false
+          },
+          {
+            "name": "AVP",
+            "min": 0,
+            "max": null,
+            "fixed": false
+          }
+        ],
+        "grammar_source": "TS 29.272 V19.6.0 \u00a77.3.127"
+      }
+    },
+    {
+      "name": "BSSID",
+      "reference": "TS 32.299 [30]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "usage": "",
+      "metadata": {
+        "name": "BSSID",
+        "code": 2716,
+        "type": "UTF8String",
+        "vendor": 10415,
+        "must": "M,V",
+        "may": "",
+        "must_not": "",
+        "source": "TS 32.299 V19.0.0 Table 7.2.0.1: 3GPP specific AVPs; \u00a77.2.30A",
+        "known_shared_metadata_gap": {
+          "may": "P",
+          "source_application": 4,
+          "reason": "The inherited shared dictionary retains legacy MAY-P metadata. It is informational, with no validation behavior change; accept either the source flag set or this documented legacy flag set until the shared dictionary is refreshed."
+        }
+      }
+    },
+    {
+      "name": "Location-Information",
+      "reference": "IETF RFC 5580 [46]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "usage": "",
+      "metadata": {
+        "name": "Location-Information",
+        "code": 127,
+        "type": "OctetString",
+        "vendor": 0,
+        "must": "",
+        "may": "P",
+        "must_not": "M,V",
+        "may_encrypt": "Y",
+        "source": "RFC 5580 \u00a74.2, \u00a76"
+      }
+    },
+    {
+      "name": "Location-Data",
+      "reference": "IETF RFC 5580 [46]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "usage": "",
+      "metadata": {
+        "name": "Location-Data",
+        "code": 128,
+        "type": "OctetString",
+        "vendor": 0,
+        "must": "",
+        "may": "P",
+        "must_not": "M,V",
+        "may_encrypt": "Y",
+        "source": "RFC 5580 \u00a74.3, \u00a76"
+      }
+    },
+    {
+      "name": "Operator-Name",
+      "reference": "IETF RFC 5580 [46]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "usage": "",
+      "metadata": {
+        "name": "Operator-Name",
+        "code": 126,
+        "type": "OctetString",
+        "vendor": 0,
+        "must": "",
+        "may": "P",
+        "must_not": "M,V",
+        "may_encrypt": "Y",
+        "source": "RFC 5580 \u00a74.1, \u00a76"
+      }
+    },
+    {
+      "name": "Local-Time-Zone",
+      "reference": "TS 29.272 [29]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "usage": "",
+      "metadata": {
+        "name": "Local-Time-Zone",
+        "code": 1649,
+        "type": "Grouped",
+        "vendor": 10415,
+        "must": "V",
+        "may": "",
+        "must_not": "M",
+        "source": "TS 29.272 V19.6.0 Table 7.3.1/1: S6a/S6d, S7a/S7d and S13/S13' specific DiameterAVPs, \u00a77.3.156",
+        "may_encrypt": "N",
+        "rules": [
+          {
+            "name": "Time-Zone",
+            "min": 1,
+            "max": 1,
+            "fixed": false
+          },
+          {
+            "name": "Daylight-Saving-Time",
+            "min": 1,
+            "max": 1,
+            "fixed": false
+          },
+          {
+            "name": "AVP",
+            "min": 0,
+            "max": null,
+            "fixed": false
+          }
+        ],
+        "grammar_source": "TS 29.272 V19.6.0 \u00a77.3.156"
+      }
+    },
+    {
+      "name": "OC-Supported-Features",
+      "reference": "IETF RFC 7683 [47]",
+      "clear_m": true,
+      "nested_clear_m": false,
+      "usage": "See clause 8.2.3.22",
+      "metadata": {
+        "name": "OC-Supported-Features",
+        "code": 621,
+        "type": "Grouped",
+        "vendor": 0,
+        "must": "",
+        "may": "",
+        "must_not": "M,V",
+        "source": "RFC 8581 \u00a77.1; RFC 7683 \u00a77.1",
+        "rules": [
+          {
+            "name": "OC-Feature-Vector",
+            "min": 0,
+            "max": 1,
+            "fixed": false,
+            "abnf": "[ OC-Feature-Vector ]"
+          },
+          {
+            "name": "SourceID",
+            "min": 0,
+            "max": 1,
+            "fixed": false,
+            "abnf": "[ SourceID ]"
+          },
+          {
+            "name": "OC-Peer-Algo",
+            "min": 0,
+            "max": 1,
+            "fixed": false,
+            "abnf": "[ OC-Peer-Algo ]"
+          },
+          {
+            "name": "AVP",
+            "min": 0,
+            "max": null,
+            "fixed": false,
+            "abnf": "*[ AVP ]"
+          }
+        ],
+        "flag_source": "TS 29.273 V19.2.0 Table 8.2.3.0/2"
+      }
+    },
+    {
+      "name": "OC-OLR",
+      "reference": "IETF RFC 7683 [47]",
+      "clear_m": true,
+      "nested_clear_m": false,
+      "usage": "See clause 8.2.3.23",
+      "metadata": {
+        "name": "OC-OLR",
+        "code": 623,
+        "type": "Grouped",
+        "vendor": 0,
+        "must": "",
+        "may": "",
+        "must_not": "M,V",
+        "source": "RFC 8581 \u00a77.2; RFC 7683 \u00a77.3",
+        "rules": [
+          {
+            "name": "OC-Sequence-Number",
+            "min": 1,
+            "max": 1,
+            "fixed": true,
+            "abnf": "< OC-Sequence-Number >"
+          },
+          {
+            "name": "OC-Report-Type",
+            "min": 1,
+            "max": 1,
+            "fixed": true,
+            "abnf": "< OC-Report-Type >"
+          },
+          {
+            "name": "OC-Reduction-Percentage",
+            "min": 0,
+            "max": 1,
+            "fixed": false,
+            "abnf": "[ OC-Reduction-Percentage ]"
+          },
+          {
+            "name": "OC-Validity-Duration",
+            "min": 0,
+            "max": 1,
+            "fixed": false,
+            "abnf": "[ OC-Validity-Duration ]"
+          },
+          {
+            "name": "SourceID",
+            "min": 0,
+            "max": 1,
+            "fixed": false,
+            "abnf": "[ SourceID ]"
+          },
+          {
+            "name": "AVP",
+            "min": 0,
+            "max": null,
+            "fixed": false,
+            "abnf": "*[ AVP ]"
+          }
+        ],
+        "flag_source": "TS 29.273 V19.2.0 Table 8.2.3.0/2"
+      }
+    },
+    {
+      "name": "DRMP",
+      "reference": "IETF RFC 7944 [53]",
+      "clear_m": true,
+      "nested_clear_m": false,
+      "usage": "See clause 8.2.3.25",
+      "metadata": {
+        "name": "DRMP",
+        "code": 301,
+        "type": "Enumerated",
+        "vendor": 0,
+        "must": "",
+        "may": "",
+        "must_not": "M,V",
+        "source": "RFC 7944 \u00a75",
+        "items": {
+          "0": "PRIORITY_0",
+          "1": "PRIORITY_1",
+          "2": "PRIORITY_2",
+          "3": "PRIORITY_3",
+          "4": "PRIORITY_4",
+          "5": "PRIORITY_5",
+          "6": "PRIORITY_6",
+          "7": "PRIORITY_7",
+          "8": "PRIORITY_8",
+          "9": "PRIORITY_9",
+          "10": "PRIORITY_10",
+          "11": "PRIORITY_11",
+          "12": "PRIORITY_12",
+          "13": "PRIORITY_13",
+          "14": "PRIORITY_14",
+          "15": "PRIORITY_15"
+        },
+        "flag_source": "TS 29.273 V19.2.0 Table 8.2.3.0/2"
+      }
+    },
+    {
+      "name": "Emergency-Info",
+      "reference": "TS 29.272 [29]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "usage": "",
+      "metadata": {
+        "name": "Emergency-Info",
+        "code": 1687,
+        "type": "Grouped",
+        "vendor": 10415,
+        "must": "V",
+        "may": "",
+        "must_not": "M",
+        "source": "TS 29.272 V19.6.0 Table 7.3.1/1: S6a/S6d, S7a/S7d and S13/S13' specific DiameterAVPs, \u00a77.3.210",
+        "may_encrypt": "N",
+        "rules": [
+          {
+            "name": "MIP6-Agent-Info",
+            "min": 0,
+            "max": 1,
+            "fixed": false
+          },
+          {
+            "name": "AVP",
+            "min": 0,
+            "max": null,
+            "fixed": false
+          }
+        ],
+        "grammar_source": "TS 29.272 V19.6.0 \u00a77.3.210"
+      }
+    },
+    {
+      "name": "Load",
+      "reference": "IETF RFC 8583 [54]",
+      "clear_m": true,
+      "nested_clear_m": false,
+      "usage": "See clause 8.2.3.26",
+      "metadata": {
+        "name": "Load",
+        "code": 650,
+        "type": "Grouped",
+        "vendor": 0,
+        "must": "",
+        "may": "",
+        "must_not": "M,V",
+        "source": "RFC 8583 \u00a77.1, \u00a77.5",
+        "rules": [
+          {
+            "name": "Load-Type",
+            "min": 0,
+            "max": 1,
+            "fixed": false,
+            "abnf": "[ Load-Type ]"
+          },
+          {
+            "name": "Load-Value",
+            "min": 0,
+            "max": 1,
+            "fixed": false,
+            "abnf": "[ Load-Value ]"
+          },
+          {
+            "name": "SourceID",
+            "min": 0,
+            "max": 1,
+            "fixed": false,
+            "abnf": "[ SourceID ]"
+          },
+          {
+            "name": "AVP",
+            "min": 0,
+            "max": null,
+            "fixed": false,
+            "abnf": "*[ AVP ]"
+          }
+        ],
+        "flag_source": "TS 29.273 V19.2.0 Table 8.2.3.0/2"
+      }
+    },
+    {
+      "name": "UE-Usage-Type",
+      "reference": "TS 29.272 [29]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "usage": "",
+      "metadata": {
+        "name": "UE-Usage-Type",
+        "code": 1680,
+        "type": "Unsigned32",
+        "vendor": 10415,
+        "must": "V",
+        "may": "",
+        "must_not": "M",
+        "source": "TS 29.272 V19.6.0 Table 7.3.1/1: S6a/S6d, S7a/S7d and S13/S13' specific DiameterAVPs, \u00a77.3.202",
+        "may_encrypt": "N"
+      }
+    },
+    {
+      "name": "Core-Network-Restrictions",
+      "reference": "TS 29.272 [29]",
+      "clear_m": false,
+      "nested_clear_m": false,
+      "usage": "",
+      "metadata": {
+        "name": "Core-Network-Restrictions",
+        "code": 1704,
+        "type": "Unsigned32",
+        "vendor": 10415,
+        "must": "V",
+        "may": "",
+        "must_not": "M",
+        "source": "TS 29.272 V19.6.0 Table 7.3.1/1: S6a/S6d, S7a/S7d and S13/S13' specific DiameterAVPs, \u00a77.3.230",
+        "may_encrypt": "N"
+      }
+    },
+    {
+      "name": "MPS-Priority",
+      "reference": "TS 29.272 [29]",
+      "clear_m": true,
+      "nested_clear_m": false,
+      "usage": "",
+      "metadata": {
+        "name": "MPS-Priority",
+        "code": 1616,
+        "type": "Unsigned32",
+        "vendor": 10415,
+        "must": "V",
+        "may": "",
+        "must_not": "M",
+        "source": "TS 29.272 V19.6.0 Table 7.3.1/1: S6a/S6d, S7a/S7d and S13/S13' specific DiameterAVPs, \u00a77.3.131",
+        "may_encrypt": "N",
+        "flag_source": "TS 29.273 V19.2.0 Table 8.2.3.0/2"
+      }
+    }
+  ]
+}
