@@ -718,7 +718,7 @@
       "must": "M",
       "may": "P",
       "must_not": "V",
-      "source": "RFC 6733 §6.22",
+      "source": "RFC 6733 (October 2012) §5.3.3 and §4.5 AVP flag table",
       "name": "Vendor-Id"
     },
     {

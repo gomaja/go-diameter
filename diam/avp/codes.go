@@ -571,6 +571,7 @@ const (
 	MonitoringTime                             = 2810
 	MonitoringType                             = 3127
 	MONTELocationType                          = 3136
+	MPSAction                                  = 582
 	MPSIdentifier                              = 528
 	MPSPriority                                = 1616
 	MSCAbsentUserDiagnosticSM                  = 3314
@@ -924,6 +925,7 @@ const (
 	ServingNode                                = 2401
 	ServingNodeIndication                      = 714
 	ServingNodeType                            = 2047
+	ServingSatelliteIdentity                   = 583
 	SessionBinding                             = 270
 	SessionDirection                           = 2707
 	SessionID                                  = 263
@@ -1012,6 +1014,7 @@ const (
 	SpecificAPNInfo                            = 1472
 	SponsoredConnectivityData                  = 530
 	SponsorIdentity                            = 531
+	SponsoringAction                           = 542
 	SRES                                       = 1454
 	SRRFlags                                   = 3310
 	SSCode                                     = 1476

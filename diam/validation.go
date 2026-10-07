@@ -115,10 +115,10 @@ func (m *Message) validate(outgoing bool) *ValidationError {
 func validateAVPs(items []*AVP, rules []*dict.Rule, appID uint32, dictionary *dict.Snapshot) *ValidationError {
 	byKey := make(map[validationKey]validationRule, len(rules))
 	ordered := make([]validationRule, 0, len(rules))
-	allowAny := false
+	var wildcard *dict.Rule
 	for _, rule := range rules {
 		if rule.AVP == "AVP" {
-			allowAny = true
+			wildcard = rule
 			continue
 		}
 		definition, err := dictionary.FindAVPByName(appID, rule.AVP)
@@ -130,6 +130,7 @@ func validateAVPs(items []*AVP, rules []*dict.Rule, appID uint32, dictionary *di
 		ordered = append(ordered, entry)
 	}
 	counts := make(map[validationKey]int, len(ordered))
+	extensionCount := 0
 	fixedIndex, fixedClosed := 0, false
 	for i, a := range items {
 		if a == nil {
@@ -148,8 +149,22 @@ func validateAVPs(items []*AVP, rules []*dict.Rule, appID uint32, dictionary *di
 		// is left to §4.1: ignored when M is clear, or answered with 5001 by the
 		// separate unknown-mandatory check. Rejecting it here would also turn
 		// every gap in an incomplete dictionary into a false 5008.
-		if !listed && !allowAny && known == nil {
+		if !listed && wildcard == nil && known == nil {
 			return &ValidationError{ResultCode: AVPNotAllowed, FailedAVP: a, Reason: "AVP not in grammar"}
+		}
+		// RFC 6733 §3.2: the wildcard counts the known AVPs not otherwise
+		// listed, regardless of their names; RFC 8506 §8.52 uses a maximum of
+		// one. An AVP the dictionary does not know is left to §4.1, as above,
+		// so a wildcard never makes a group stricter than no wildcard.
+		if !listed && wildcard != nil && known == nil {
+			extensionCount++
+			if hasMaximum(wildcard) && extensionCount > wildcard.Max {
+				code := uint32(AVPOccursTooManyTimes)
+				if wildcard.Max == 0 {
+					code = AVPNotAllowed
+				}
+				return &ValidationError{ResultCode: code, FailedAVP: a, Reason: "extension AVP exceeds maximum occurrences"}
+			}
 		}
 		if listed && entry.rule.Fixed {
 			if fixedClosed {

@@ -8,7 +8,8 @@ import (
 )
 
 // TS 29.212 V20.0.0 §5.3.31 defines the complete RAT-Type enumeration.
-// Every redeclaration must keep the full list in its own XML definition.
+// Every effective application view must retain the complete list, whether
+// declared locally or inherited from a bundled dependency.
 func TestRATTypeSpec(t *testing.T) {
 	data, err := os.ReadFile("testdata/s6a_enums_spec.json")
 	if err != nil {
@@ -37,18 +38,10 @@ func TestRATTypeSpec(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(string(tc.bundle), func(t *testing.T) {
-			var own *AVP
-			for _, app := range bundledApps(t, tc.bundle) {
-				for _, a := range app.AVP {
-					if app.ID == tc.app && a.Code == 1032 && a.VendorID == 10415 {
-						own = a
-					}
-				}
-			}
-			if own == nil {
-				t.Fatal("bundle has no RAT-Type definition")
-			}
-			for label, a := range map[string]*AVP{"local": own, "default": mustRATType(t, Default, tc.app)} {
+			// Reused AVPs may come from a bundled dependency. Check the
+			// application's effective view with both loader configurations.
+			selected := mustRATType(t, New(tc.bundle), tc.app)
+			for label, a := range map[string]*AVP{"selected": selected, "default": mustRATType(t, Default, tc.app)} {
 				t.Run(label, func(t *testing.T) {
 					if a.Name != "RAT-Type" || a.Data.TypeName != "Enumerated" || len(a.Data.Enum) != len(want) {
 						t.Fatalf("RAT-Type identity/type/count = %s/%s/%d", a.Name, a.Data.TypeName, len(a.Data.Enum))

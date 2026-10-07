@@ -1,0 +1,667 @@
+{
+  "document": "Rx reused AVPs: source grammars with TS 29.214 V20.0.0 Table 5.4.0.1 overrides",
+  "roots": [
+    "Granted-Service-Unit",
+    "Load",
+    "OC-OLR",
+    "OC-Supported-Features",
+    "Subscription-Id",
+    "Supported-Features",
+    "Used-Service-Unit",
+    "User-Equipment-Info",
+    "User-Equipment-Info-Extension"
+  ],
+  "avps": [
+    {
+      "name": "Granted-Service-Unit",
+      "code": 431,
+      "vendor": 0,
+      "type": "Grouped",
+      "must": "",
+      "may": "",
+      "must_not": "M,V",
+      "source": "RFC 8506 (March 2019) §8.17",
+      "rules": [
+        {
+          "name": "CC-Time",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "CC-Total-Octets",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "CC-Input-Octets",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "CC-Output-Octets",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ AVP ]"
+        }
+      ],
+      "flag_source": "TS 29.214 V20.0.0 Table 5.4.0.1",
+      "grammar_source": "RFC 8506 §§8.17/8.19; TS 29.214 V20.0.0 Table 5.4.0.1 and §5.4.1 (defined members restricted; extension point retained)"
+    },
+    {
+      "name": "CC-Time",
+      "code": 420,
+      "vendor": 0,
+      "type": "Unsigned32",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "source": "RFC 8506 (March 2019) §8.21"
+    },
+    {
+      "name": "CC-Total-Octets",
+      "code": 421,
+      "vendor": 0,
+      "type": "Unsigned64",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "source": "RFC 8506 (March 2019) §8.23"
+    },
+    {
+      "name": "CC-Input-Octets",
+      "code": 412,
+      "vendor": 0,
+      "type": "Unsigned64",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "source": "RFC 8506 (March 2019) §8.24"
+    },
+    {
+      "name": "CC-Output-Octets",
+      "code": 414,
+      "vendor": 0,
+      "type": "Unsigned64",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "source": "RFC 8506 (March 2019) §8.25"
+    },
+    {
+      "code": 650,
+      "vendor": 0,
+      "type": "Grouped",
+      "must": "",
+      "may": "",
+      "must_not": "M,V",
+      "source": "RFC 8583 (August 2019) §7.1",
+      "name": "Load",
+      "rules": [
+        {
+          "name": "Load-Type",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Load-Type ]"
+        },
+        {
+          "name": "Load-Value",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ Load-Value ]"
+        },
+        {
+          "name": "SourceID",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ SourceID ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "* [ AVP ]",
+          "must_not": "M"
+        }
+      ],
+      "grammar_source": "RFC 8583 (August 2019)",
+      "flag_source": "TS 29.214 V20.0.0 Table 5.4.0.1"
+    },
+    {
+      "code": 651,
+      "vendor": 0,
+      "type": "Enumerated",
+      "must": "",
+      "may": "",
+      "must_not": "V",
+      "source": "RFC 8583 §7.2, §7.4",
+      "name": "Load-Type",
+      "items": {
+        "0": "HOST",
+        "1": "PEER"
+      }
+    },
+    {
+      "code": 652,
+      "vendor": 0,
+      "type": "Unsigned64",
+      "must": "",
+      "may": "",
+      "must_not": "V",
+      "source": "RFC 8583 §7.3–7.4",
+      "name": "Load-Value"
+    },
+    {
+      "code": 649,
+      "vendor": 0,
+      "type": "DiameterIdentity",
+      "must": "",
+      "may": "",
+      "must_not": "V",
+      "source": "RFC 8581 §7.3–7.4",
+      "name": "SourceID"
+    },
+    {
+      "code": 623,
+      "vendor": 0,
+      "type": "Grouped",
+      "must": "",
+      "may": "",
+      "must_not": "V",
+      "source": "RFC 7683 (October 2015) §7.3",
+      "name": "OC-OLR",
+      "rules": [
+        {
+          "name": "OC-Sequence-Number",
+          "min": 1,
+          "max": 1,
+          "fixed": true,
+          "abnf": "< OC-Sequence-Number >"
+        },
+        {
+          "name": "OC-Report-Type",
+          "min": 1,
+          "max": 1,
+          "fixed": true,
+          "abnf": "< OC-Report-Type >"
+        },
+        {
+          "name": "OC-Reduction-Percentage",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ OC-Reduction-Percentage ]"
+        },
+        {
+          "name": "OC-Validity-Duration",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ OC-Validity-Duration ]"
+        },
+        {
+          "name": "SourceID",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ SourceID ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "* [ AVP ]"
+        }
+      ],
+      "grammar_source": "RFC 8581 (August 2019)"
+    },
+    {
+      "code": 624,
+      "vendor": 0,
+      "type": "Unsigned64",
+      "must": "",
+      "may": "",
+      "must_not": "V",
+      "source": "RFC 7683 §7.4",
+      "name": "OC-Sequence-Number"
+    },
+    {
+      "code": 626,
+      "vendor": 0,
+      "type": "Enumerated",
+      "must": "",
+      "may": "",
+      "must_not": "V",
+      "source": "RFC 8581 §7.2.1",
+      "name": "OC-Report-Type",
+      "items": {
+        "0": "HOST_REPORT",
+        "1": "REALM_REPORT",
+        "2": "PEER_REPORT"
+      }
+    },
+    {
+      "code": 627,
+      "vendor": 0,
+      "type": "Unsigned32",
+      "must": "",
+      "may": "",
+      "must_not": "V",
+      "source": "RFC 7683 §7.6",
+      "name": "OC-Reduction-Percentage"
+    },
+    {
+      "code": 625,
+      "vendor": 0,
+      "type": "Unsigned32",
+      "must": "",
+      "may": "",
+      "must_not": "V",
+      "source": "RFC 7683 §7.5",
+      "name": "OC-Validity-Duration"
+    },
+    {
+      "code": 621,
+      "vendor": 0,
+      "type": "Grouped",
+      "must": "",
+      "may": "",
+      "must_not": "V",
+      "source": "RFC 7683 (October 2015) §7.1",
+      "name": "OC-Supported-Features",
+      "rules": [
+        {
+          "name": "OC-Feature-Vector",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ OC-Feature-Vector ]"
+        },
+        {
+          "name": "SourceID",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ SourceID ]"
+        },
+        {
+          "name": "OC-Peer-Algo",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ OC-Peer-Algo]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "* [ AVP ]"
+        }
+      ],
+      "grammar_source": "RFC 8581 (August 2019)"
+    },
+    {
+      "code": 622,
+      "vendor": 0,
+      "type": "Unsigned64",
+      "must": "",
+      "may": "",
+      "must_not": "V",
+      "source": "RFC 8581 §7.1.1",
+      "name": "OC-Feature-Vector"
+    },
+    {
+      "code": 648,
+      "vendor": 0,
+      "type": "Unsigned64",
+      "must": "",
+      "may": "",
+      "must_not": "V",
+      "source": "RFC 8581 §7.1.2",
+      "name": "OC-Peer-Algo"
+    },
+    {
+      "name": "Subscription-Id",
+      "code": 443,
+      "vendor": 0,
+      "type": "Grouped",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "source": "RFC 8506 (March 2019) §8.46",
+      "rules": [
+        {
+          "name": "Subscription-Id-Type",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Subscription-Id-Type }"
+        },
+        {
+          "name": "Subscription-Id-Data",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Subscription-Id-Data }"
+        }
+      ]
+    },
+    {
+      "name": "Subscription-Id-Type",
+      "code": 450,
+      "vendor": 0,
+      "type": "Enumerated",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "source": "RFC 8506 (March 2019) §8.47",
+      "items": {
+        "0": "END_USER_E164",
+        "1": "END_USER_IMSI",
+        "2": "END_USER_SIP_URI",
+        "3": "END_USER_NAI",
+        "4": "END_USER_PRIVATE"
+      }
+    },
+    {
+      "name": "Subscription-Id-Data",
+      "code": 444,
+      "vendor": 0,
+      "type": "UTF8String",
+      "must": "M",
+      "may": "",
+      "must_not": "V",
+      "source": "RFC 8506 (March 2019) §8.48"
+    },
+    {
+      "code": 628,
+      "vendor": 10415,
+      "type": "Grouped",
+      "must": "V",
+      "may": "M",
+      "must_not": "",
+      "source": "TS 29.229 V19.1.0 §6.3.29",
+      "may_encrypt": "N",
+      "name": "Supported-Features",
+      "rules": [
+        {
+          "name": "Vendor-Id",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Vendor-Id }"
+        },
+        {
+          "name": "Feature-List-ID",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Feature-List-ID }"
+        },
+        {
+          "name": "Feature-List",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ Feature-List }"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[AVP]"
+        }
+      ],
+      "grammar_source": "TS 29.229 V19.1.0"
+    },
+    {
+      "code": 266,
+      "vendor": 0,
+      "type": "Unsigned32",
+      "must": "M",
+      "may": "P",
+      "must_not": "V",
+      "source": "RFC 6733 (October 2012) §5.3.3 and §4.5 AVP flag table",
+      "name": "Vendor-Id"
+    },
+    {
+      "code": 629,
+      "vendor": 10415,
+      "type": "Unsigned32",
+      "must": "V",
+      "may": "",
+      "must_not": "M",
+      "source": "TS 29.229 V19.1.0 §6.3.30",
+      "may_encrypt": "N",
+      "name": "Feature-List-ID"
+    },
+    {
+      "code": 630,
+      "vendor": 10415,
+      "type": "Unsigned32",
+      "must": "V",
+      "may": "",
+      "must_not": "M",
+      "source": "TS 29.229 V19.1.0 §6.3.31",
+      "may_encrypt": "N",
+      "name": "Feature-List"
+    },
+    {
+      "name": "Used-Service-Unit",
+      "code": 446,
+      "vendor": 0,
+      "type": "Grouped",
+      "must": "",
+      "may": "",
+      "must_not": "M,V",
+      "source": "RFC 8506 (March 2019) §8.19",
+      "rules": [
+        {
+          "name": "CC-Time",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "CC-Total-Octets",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "CC-Input-Octets",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "CC-Output-Octets",
+          "min": 0,
+          "max": 1,
+          "fixed": false
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": null,
+          "fixed": false,
+          "abnf": "*[ AVP ]"
+        }
+      ],
+      "flag_source": "TS 29.214 V20.0.0 Table 5.4.0.1",
+      "grammar_source": "RFC 8506 §§8.17/8.19; TS 29.214 V20.0.0 Table 5.4.0.1 and §5.4.1 (defined members restricted; extension point retained)"
+    },
+    {
+      "name": "User-Equipment-Info",
+      "code": 458,
+      "vendor": 0,
+      "type": "Grouped",
+      "must": "",
+      "may": "M",
+      "must_not": "V",
+      "source": "RFC 8506 (March 2019) §8.49",
+      "rules": [
+        {
+          "name": "User-Equipment-Info-Type",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ User-Equipment-Info-Type }"
+        },
+        {
+          "name": "User-Equipment-Info-Value",
+          "min": 1,
+          "max": 1,
+          "fixed": false,
+          "abnf": "{ User-Equipment-Info-Value }"
+        }
+      ]
+    },
+    {
+      "name": "User-Equipment-Info-Type",
+      "code": 459,
+      "vendor": 0,
+      "type": "Enumerated",
+      "must": "",
+      "may": "M",
+      "must_not": "V",
+      "source": "RFC 8506 (March 2019) §8.50",
+      "items": {
+        "0": "IMEISV",
+        "1": "MAC",
+        "2": "EUI64",
+        "3": "MODIFIED_EUI64"
+      }
+    },
+    {
+      "name": "User-Equipment-Info-Value",
+      "code": 460,
+      "vendor": 0,
+      "type": "OctetString",
+      "must": "",
+      "may": "M",
+      "must_not": "V",
+      "source": "RFC 8506 (March 2019) §8.51"
+    },
+    {
+      "name": "User-Equipment-Info-Extension",
+      "code": 653,
+      "vendor": 0,
+      "type": "Grouped",
+      "must": "",
+      "may": "M",
+      "must_not": "V",
+      "source": "RFC 8506 (March 2019) §8.52",
+      "rules": [
+        {
+          "name": "User-Equipment-Info-IMEISV",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ User-Equipment-Info-IMEISV ]"
+        },
+        {
+          "name": "User-Equipment-Info-MAC",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ User-Equipment-Info-MAC ]"
+        },
+        {
+          "name": "User-Equipment-Info-EUI64",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ User-Equipment-Info-EUI64 ]"
+        },
+        {
+          "name": "User-Equipment-Info-ModifiedEUI64",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ User-Equipment-Info-ModifiedEUI64 ]"
+        },
+        {
+          "name": "User-Equipment-Info-IMEI",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ User-Equipment-Info-IMEI ]"
+        },
+        {
+          "name": "AVP",
+          "min": 0,
+          "max": 1,
+          "fixed": false,
+          "abnf": "[ AVP ]"
+        }
+      ]
+    },
+    {
+      "name": "User-Equipment-Info-IMEISV",
+      "code": 654,
+      "vendor": 0,
+      "type": "OctetString",
+      "must": "",
+      "may": "M",
+      "must_not": "V",
+      "source": "RFC 8506 (March 2019) §8.53"
+    },
+    {
+      "name": "User-Equipment-Info-MAC",
+      "code": 655,
+      "vendor": 0,
+      "type": "OctetString",
+      "must": "",
+      "may": "M",
+      "must_not": "V",
+      "source": "RFC 8506 (March 2019) §8.54"
+    },
+    {
+      "name": "User-Equipment-Info-EUI64",
+      "code": 656,
+      "vendor": 0,
+      "type": "OctetString",
+      "must": "",
+      "may": "M",
+      "must_not": "V",
+      "source": "RFC 8506 (March 2019) §8.55"
+    },
+    {
+      "name": "User-Equipment-Info-ModifiedEUI64",
+      "code": 657,
+      "vendor": 0,
+      "type": "OctetString",
+      "must": "",
+      "may": "M",
+      "must_not": "V",
+      "source": "RFC 8506 (March 2019) §8.56"
+    },
+    {
+      "name": "User-Equipment-Info-IMEI",
+      "code": 658,
+      "vendor": 0,
+      "type": "OctetString",
+      "must": "",
+      "may": "M",
+      "must_not": "V",
+      "source": "RFC 8506 (March 2019) §8.57"
+    }
+  ]
+}

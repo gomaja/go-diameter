@@ -76,7 +76,7 @@ var bundledDependencies = map[Bundled][]Bundled{
 	NASREQ:        {Base},
 	Cx:            {Base, NASREQ},
 	RoRf:          {Base, CreditControl, NASREQ},
-	Rx:            {Base, CreditControl, NASREQ},
+	Rx:            {Base, CreditControl, NASREQ, RoRf},
 	S13:           {Base},
 	S6a:           {Base, RoRf, S6c},
 	S6c:           {Base, RoRf},

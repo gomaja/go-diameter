@@ -461,7 +461,10 @@
 				<rule avp="User-Equipment-Info-EUI64" required="false" max="1"/>
 				<rule avp="User-Equipment-Info-ModifiedEUI64" required="false" max="1"/>
 				<rule avp="User-Equipment-Info-IMEI" required="false" max="1"/>
-				<!-- *[ AVP ]-->
+				<!-- RFC 8506 §8.52: [ AVP ] allows one optional extension.
+				     Its requirement that exactly one AVP be included in this group
+				     is a sender rule that this grammar cannot express. -->
+				<rule avp="AVP" required="false" max="1"/>
 			</data>
 		</avp>
 

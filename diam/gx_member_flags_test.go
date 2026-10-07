@@ -120,8 +120,9 @@ func TestMemberFlagsUseSameCodeDifferentVendors(t *testing.T) {
 	}
 }
 
-// TS 29.212 V20.0.0 Table 5.4.0.1 clears M on every member of Gx Load,
-// including extensions. RFC 8583 §7.5 leaves M policy to each application.
+// TS 29.212 and TS 29.214 V20.0.0 Table 5.4.0.1 clear M on every
+// member of Gx/Rx Load, including extensions. RFC 8583 §7.5 leaves M
+// policy to each application.
 func TestGxLoadWildcardFlags(t *testing.T) {
 	for _, app := range []uint32{16777238, 0, 16777236} {
 		for _, code := range []uint32{649, 651, 652, 70000} {
@@ -145,9 +146,9 @@ func TestGxLoadWildcardFlags(t *testing.T) {
 				}
 				m.AddAVP(NewAVP(650, 0, 0, &GroupedAVP{AVP: []*AVP{NewAVP(code, mBit, 0, data)}}))
 				outgoing := m.ValidateOutgoing()
-				if app == 16777238 && mBit != 0 {
+				if (app == 16777238 || app == 16777236) && mBit != 0 {
 					if outgoing == nil || outgoing.ResultCode != InvalidAVPBits {
-						t.Errorf("Gx member %d M: %v", code, outgoing)
+						t.Errorf("app %d member %d M: %v", app, code, outgoing)
 					}
 				} else if outgoing != nil {
 					t.Errorf("app %d member %d M=%x: %v", app, code, mBit, outgoing)
