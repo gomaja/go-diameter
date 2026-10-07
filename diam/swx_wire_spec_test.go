@@ -332,9 +332,6 @@ func TestSWxCommandWireAndBoundaries(t *testing.T) {
 					}
 				}
 				wantCode := uint32(MissingAVP)
-				if rule.Fixed {
-					wantCode = AVPNotAllowed
-				}
 				if err := m.Validate(); err == nil || err.ResultCode != wantCode {
 					t.Errorf("missing %s: %v", rule.Name, err)
 				}
@@ -470,9 +467,6 @@ func TestSWxGroupedBoundaries(t *testing.T) {
 				}
 				if rule.Min > 0 {
 					want := uint32(MissingAVP)
-					if rule.Fixed {
-						want = AVPNotAllowed
-					}
 					if err := check(withCount(rule.Min - 1)); err == nil || err.ResultCode != want {
 						t.Errorf("missing %s: %v", rule.Name, err)
 					}

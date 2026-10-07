@@ -1370,12 +1370,7 @@
         "must": "M",
         "may": "",
         "must_not": "V",
-        "source": "RFC 6733 \u00a74.5, \u00a78.14",
-        "known_shared_metadata_gap": {
-          "may": "P",
-          "source_application": 0,
-          "reason": "The inherited shared dictionary retains legacy MAY-P metadata. It is informational, with no validation behavior change; accept either the source flag set or this documented legacy flag set until the shared dictionary is refreshed."
-        }
+        "source": "RFC 6733 \u00a74.5, \u00a78.14"
       }
     },
     {
@@ -1392,12 +1387,7 @@
         "must": "M",
         "may": "",
         "must_not": "V",
-        "source": "RFC 6733 \u00a74.5, \u00a78.13",
-        "known_shared_metadata_gap": {
-          "may": "P",
-          "source_application": 0,
-          "reason": "The inherited shared dictionary retains legacy MAY-P metadata. It is informational, with no validation behavior change; accept either the source flag set or this documented legacy flag set until the shared dictionary is refreshed."
-        }
+        "source": "RFC 6733 \u00a74.5, \u00a78.13"
       }
     },
     {

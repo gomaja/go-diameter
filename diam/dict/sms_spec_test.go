@@ -101,6 +101,9 @@ func TestSMSApplicationSpec(t *testing.T) {
 					// Keep source expectations intact; separately pin explicit shared-file
 					// defects that this refresh is forbidden to edit.
 					if gap := w.SharedGap; gap != nil {
+						if gap.Dictionary == "base.xml" {
+							t.Fatal("base RFC definitions must use exact source expectations")
+						}
 						t.Logf("shared dictionary gap in %s: %s", gap.Dictionary, gap.Reason)
 						if gap.May != nil {
 							w.May = *gap.May

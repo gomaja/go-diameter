@@ -1,12 +1,14 @@
 package diam
 
 import (
+	"bytes"
 	"fmt"
 	"strings"
 
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/dict"
+	"github.com/gomaja/go-diameter/diam/internal/validation"
 )
 
 // ValidationError is the first dictionary grammar violation in a message.
@@ -31,22 +33,27 @@ type validationRule struct {
 	definition *dict.AVP
 }
 
+// RFC 6733 §7.2: optional Session-Id occupies the fixed prefix.
 var genericErrorRules = []*dict.Rule{
+	{AVP: "Session-Id", Max: 1, MaxSet: true, Fixed: true},
 	{AVP: "Origin-Host", Required: true, Max: 1, MaxSet: true},
 	{AVP: "Origin-Realm", Required: true, Max: 1, MaxSet: true},
 	{AVP: "Result-Code", Required: true, Max: 1, MaxSet: true},
-	{AVP: "Session-Id", Max: 1, MaxSet: true},
 	{AVP: "Origin-State-Id", Max: 1, MaxSet: true},
 	{AVP: "Error-Message", Max: 1, MaxSet: true},
 	{AVP: "Error-Reporting-Host", Max: 1, MaxSet: true},
 	{AVP: "Failed-AVP", Max: 1, MaxSet: true},
+	{AVP: "Experimental-Result", Max: 1, MaxSet: true},
+	{AVP: "Proxy-Info"},
 	{AVP: "AVP"},
 }
 
 // Validate checks the message against its request or answer command grammar
 // and each known Grouped AVP grammar. It does not mutate the message.
 // RFC 6733 §§3.1-3.2, 4.1, 4.4-4.5, 7.1 and 7.5 define these checks.
-// Receive validation is opt-in. Use ValidateOutgoing for locally built messages;
+// Receive validation is opt-in and enforces §3.2 fixed positions; §8.8
+// describes first-position Session-Id as SHOULD for senders.
+// Use ValidateOutgoing for locally built messages;
 // Validate does not enforce dictionary M/P sending rules on understood AVPs.
 // The whole message is checked against one dict.Snapshot of its dictionary.
 func (m *Message) Validate() *ValidationError {
@@ -58,11 +65,25 @@ func (m *Message) Validate() *ValidationError {
 // reserved bits and follow the application's AVP flag definitions. Unknown
 // AVPs have no dictionary M/P rules to check. Per §7.5, Failed-AVP contents
 // retain the offending flags as evidence; only their container is checked.
+// Proxy-Info copied by Answer is a peer echo under §6.2. Answer clears its
+// reserved bits (§4.1), retaining all other flags and contents. Newly added
+// Proxy-Info remains subject to sending rules.
 func (m *Message) ValidateOutgoing() *ValidationError {
 	return m.validate(true)
 }
 
-func (m *Message) validate(outgoing bool) *ValidationError {
+// errorAnswerOption is inaccessible to callers outside the Diameter tree.
+// The internal builder alone can authorize omission under RFC 6733 §6.2.
+type errorAnswerOption = validation.ErrorAnswer
+
+// ValidateErrorAnswer is the internal builder bridge. Its option can only be
+// constructed by the internal validation package; its zero value is strict.
+// Public callers use ValidateOutgoing, which never relaxes Session-Id presence.
+func (m *Message) ValidateErrorAnswer(option errorAnswerOption) *ValidationError {
+	return m.validate(true, option)
+}
+
+func (m *Message) validate(outgoing bool, options ...errorAnswerOption) *ValidationError {
 	if m == nil || m.Header == nil {
 		return &ValidationError{ResultCode: InvalidHDRBits, Reason: "missing Diameter header"}
 	}
@@ -73,8 +94,12 @@ func (m *Message) validate(outgoing bool) *ValidationError {
 	if outgoing && h.CommandFlags&0x0f != 0 || h.CommandFlags&RequestFlag != 0 && h.CommandFlags&ErrorFlag != 0 || h.CommandFlags&RequestFlag == 0 && h.CommandFlags&RetransmittedFlag != 0 {
 		return &ValidationError{ResultCode: InvalidHDRBits, Reason: "invalid command header flags"}
 	}
+	var echoes map[*AVP][]byte
+	if outgoing && h.CommandFlags&RequestFlag == 0 {
+		echoes = m.echoedProxyInfo
+	}
 	if outgoing {
-		if err := walkOutgoingFlags(m.AVP, h.ApplicationID, dictionary, make(map[*GroupedAVP]bool), outgoingCommandRules(h, dictionary)); err != nil {
+		if err := walkOutgoingFlags(m.AVP, h.ApplicationID, dictionary, make(map[*GroupedAVP]bool), outgoingCommandRules(h, dictionary), echoes); err != nil {
 			return err
 		}
 	}
@@ -93,7 +118,7 @@ func (m *Message) validate(outgoing bool) *ValidationError {
 		if code < 3000 || code >= 4000 {
 			return &ValidationError{ResultCode: InvalidHDRBits, Reason: "E bit requires a 3xxx result code"}
 		}
-		return validateAVPs(m.AVP, genericErrorRules, h.ApplicationID, dictionary)
+		return validateAVPs(m.AVP, genericErrorRules, h.ApplicationID, dictionary, echoes)
 	}
 	command, err := dictionary.FindCommand(h.ApplicationID, h.CommandCode)
 	if err != nil {
@@ -109,10 +134,64 @@ func (m *Message) validate(outgoing bool) *ValidationError {
 	if grammar.Proxiable != nil && (h.CommandFlags&ProxiableFlag != 0) != *grammar.Proxiable {
 		return &ValidationError{ResultCode: InvalidHDRBits, Reason: "P bit disagrees with command grammar"}
 	}
-	return validateAVPs(m.AVP, grammar.Rule, h.ApplicationID, dictionary)
+	rules := grammar.Rule
+	// RFC 6733 §6.2 applies to errors too: a request without Session-Id
+	// still receives an answer. Error answers may therefore omit it,
+	// independently of Failed-AVP (§7.1.5: SHOULD). Only presence/minimum
+	// is relaxed; fixed placement, maximum and every other rule remain.
+	// On send, only the internal builder can authorize this exception after
+	// checking the request. Ordinary ValidateOutgoing calls remain strict.
+	allowMissingSession := !outgoing
+	for _, option := range options {
+		allowMissingSession = allowMissingSession || option.MissingSessionID()
+	}
+	if allowMissingSession && h.CommandFlags&RequestFlag == 0 && errorAnswer(m.AVP) {
+		rules = append([]*dict.Rule(nil), rules...)
+		for i, rule := range rules {
+			if rule.AVP == "Session-Id" {
+				optional := *rule
+				optional.Required, optional.Min = false, 0
+				rules[i] = &optional
+			}
+		}
+	}
+	return validateAVPs(m.AVP, rules, h.ApplicationID, dictionary, echoes)
 }
 
-func validateAVPs(items []*AVP, rules []*dict.Rule, appID uint32, dictionary *dict.Snapshot) *ValidationError {
+// RFC 6733 §7.1: 3xxx, 4xxx and 5xxx are error classes. Informational
+// and success answers retain all mandatory command members.
+func errorAnswer(items []*AVP) bool {
+	for _, a := range items {
+		if a != nil && a.Code == avp.ResultCode && a.VendorID == 0 {
+			if result, ok := a.Data.(datatype.Unsigned32); ok {
+				return result >= 3000 && result < 6000
+			}
+			return false
+		}
+	}
+	return false
+}
+
+// RFC 6733 §7.5 requires 1* { AVP }, but the members are peer evidence:
+// unknown AVPs, invalid flags and incomplete grouped ancestry must survive.
+// Enforce the container's nonempty shape without validating its contents.
+func validateFailedEvidence(a *AVP) *ValidationError {
+	g, ok := a.Data.(*GroupedAVP)
+	if !ok || g == nil {
+		return &ValidationError{ResultCode: InvalidAVPValue, FailedAVP: a, Reason: "Failed-AVP must contain grouped evidence"}
+	}
+	if len(g.AVP) == 0 {
+		return &ValidationError{ResultCode: MissingAVP, FailedAVP: a, Reason: "Failed-AVP requires at least one evidence AVP"}
+	}
+	for _, member := range g.AVP {
+		if member == nil {
+			return &ValidationError{ResultCode: InvalidAVPValue, FailedAVP: a, Reason: "nil Failed-AVP evidence"}
+		}
+	}
+	return nil
+}
+
+func validateAVPs(items []*AVP, rules []*dict.Rule, appID uint32, dictionary *dict.Snapshot, echoes ...map[*AVP][]byte) *ValidationError {
 	byKey := make(map[validationKey]validationRule, len(rules))
 	ordered := make([]validationRule, 0, len(rules))
 	var wildcard *dict.Rule
@@ -129,8 +208,23 @@ func validateAVPs(items []*AVP, rules []*dict.Rule, appID uint32, dictionary *di
 		byKey[validationKey{definition.Code, definition.VendorID}] = entry
 		ordered = append(ordered, entry)
 	}
+	// RFC 6733 §7.1.5 distinguishes an absent required AVP (5005) from
+	// an AVP present outside its fixed position (§3.2, 5008). Count first
+	// so an absent fixed member is not mistaken for an ordering violation.
+	present := make(map[validationKey]int, len(ordered))
+	for _, a := range items {
+		if a != nil {
+			present[validationKey{a.Code, a.VendorID}]++
+		}
+	}
+	for _, entry := range ordered {
+		key := validationKey{entry.definition.Code, entry.definition.VendorID}
+		if entry.rule.Fixed && present[key] < minimumCount(entry.rule) {
+			return &ValidationError{ResultCode: MissingAVP, FailedAVP: missingAVPExample(entry.definition, appID, dictionary, make(map[validationKey]bool)), Reason: "required fixed AVP missing"}
+		}
+	}
 	counts := make(map[validationKey]int, len(ordered))
-	extensionCount := 0
+	extensionCount, extensionMinimumCount := 0, 0
 	fixedIndex, fixedClosed := 0, false
 	for i, a := range items {
 		if a == nil {
@@ -139,7 +233,7 @@ func validateAVPs(items []*AVP, rules []*dict.Rule, appID uint32, dictionary *di
 		key := validationKey{a.Code, a.VendorID}
 		entry, listed := byKey[key]
 		definition, known := dictionary.FindAVP(appID, a.Code, a.VendorID)
-		if known == nil {
+		if known == nil && !isEchoedProxy(a, echoes) {
 			if invalidAVPFlags(a.Flags, definition) {
 				return &ValidationError{ResultCode: InvalidAVPBits, FailedAVP: a, Reason: "AVP flags disagree with dictionary"}
 			}
@@ -152,10 +246,17 @@ func validateAVPs(items []*AVP, rules []*dict.Rule, appID uint32, dictionary *di
 		if !listed && wildcard == nil && known == nil {
 			return &ValidationError{ResultCode: AVPNotAllowed, FailedAVP: a, Reason: "AVP not in grammar"}
 		}
-		// RFC 6733 §3.2: the wildcard counts the known AVPs not otherwise
-		// listed, regardless of their names; RFC 8506 §8.52 uses a maximum of
-		// one. An AVP the dictionary does not know is left to §4.1, as above,
-		// so a wildcard never makes a group stricter than no wildcard.
+		// RFC 6733 §3.2 calls a wildcard any arbitrary AVP: unknown
+		// AVPs satisfy its minimum too. Maxima count known AVPs only,
+		// so an unknown optional AVP never causes rejection (§4.1).
+		if !listed && wildcard != nil {
+			extensionMinimumCount++
+		}
+		// Unknown AVPs do not occupy a fixed position or close its prefix.
+		// Mandatory unknowns remain the separate §4.1 check's concern.
+		if !listed && known != nil {
+			continue
+		}
 		if !listed && wildcard != nil && known == nil {
 			extensionCount++
 			if hasMaximum(wildcard) && extensionCount > wildcard.Max {
@@ -167,9 +268,6 @@ func validateAVPs(items []*AVP, rules []*dict.Rule, appID uint32, dictionary *di
 			}
 		}
 		if listed && entry.rule.Fixed {
-			if fixedClosed {
-				return &ValidationError{ResultCode: AVPNotAllowed, FailedAVP: a, Reason: "fixed AVP appears after the prefix"}
-			}
 			max := 1
 			if hasMaximum(entry.rule) {
 				max = entry.rule.Max
@@ -180,6 +278,12 @@ func validateAVPs(items []*AVP, rules []*dict.Rule, appID uint32, dictionary *di
 					code = AVPNotAllowed
 				}
 				return &ValidationError{ResultCode: code, FailedAVP: a, Reason: "fixed AVP exceeds maximum occurrences"}
+			}
+			// RFC 6733 §7.1.5: report the first excess instance as 5009
+			// even when it follows the fixed prefix. A single misplaced
+			// instance still violates §3.2 and receives 5008.
+			if fixedClosed {
+				return &ValidationError{ResultCode: AVPNotAllowed, FailedAVP: a, Reason: "fixed AVP appears after the prefix"}
 			}
 			for fixedIndex < len(ordered) {
 				candidate := ordered[fixedIndex]
@@ -204,11 +308,6 @@ func validateAVPs(items []*AVP, rules []*dict.Rule, appID uint32, dictionary *di
 			}
 		} else {
 			fixedClosed = true
-			for _, fixed := range ordered {
-				if fixed.rule.Fixed && counts[validationKey{fixed.definition.Code, fixed.definition.VendorID}] < minimumCount(fixed.rule) {
-					return &ValidationError{ResultCode: AVPNotAllowed, FailedAVP: a, Reason: "AVP precedes required fixed AVP"}
-				}
-			}
 		}
 		counts[key]++
 		if listed && hasMaximum(entry.rule) && counts[key] > entry.rule.Max {
@@ -218,10 +317,25 @@ func validateAVPs(items []*AVP, rules []*dict.Rule, appID uint32, dictionary *di
 			}
 			return &ValidationError{ResultCode: code, FailedAVP: a, Reason: "AVP exceeds maximum occurrences"}
 		}
-		if known == nil && definition.Data.Type == datatype.GroupedType && a.Code != avp.FailedAVP && len(definition.Data.Rule) > 0 {
+		// RFC 6733 §6.2 requires the peer's complete Proxy-Info echo,
+		// even when its members violate a grammar. Cardinality above still applies.
+		if isEchoedProxy(a, echoes) {
+			continue
+		}
+		if a.Code == avp.FailedAVP && a.VendorID == 0 {
+			if err := validateFailedEvidence(a); err != nil {
+				return err
+			}
+			continue
+		}
+		if known == nil && definition.Data.Type == datatype.GroupedType && len(definition.Data.Rule) > 0 {
 			if _, ok := a.Data.(*GroupedAVP); ok {
 				if childErr := validateAVPs(members(a), definition.Data.Rule, appID, dictionary); childErr != nil {
-					childErr.FailedAVP = newAVPWithFlags(a.Code, a.Flags, a.VendorID, &GroupedAVP{AVP: []*AVP{childErr.FailedAVP}})
+					example := &GroupedAVP{}
+					if childErr.FailedAVP != nil {
+						example.AVP = []*AVP{childErr.FailedAVP}
+					}
+					childErr.FailedAVP = newAVPWithFlags(a.Code, a.Flags, a.VendorID, example)
 					return childErr
 				}
 				if definition.Code == avp.VendorSpecificApplicationID && definition.VendorID == 0 {
@@ -238,6 +352,13 @@ func validateAVPs(items []*AVP, rules []*dict.Rule, appID uint32, dictionary *di
 			failed := missingAVPExample(entry.definition, appID, dictionary, make(map[validationKey]bool))
 			return &ValidationError{ResultCode: MissingAVP, FailedAVP: failed, Reason: "required AVP missing"}
 		}
+	}
+	// RFC 6733 §3.2: a wildcard's minimum is independent of named AVPs.
+	// No concrete missing code exists for a wildcard; a containing Grouped
+	// AVP supplies the identifiable example when this error is propagated.
+	// At top level no example exists, so 5005 omits Failed-AVP (§7.1.5 SHOULD).
+	if wildcard != nil && extensionMinimumCount < minimumCount(wildcard) {
+		return &ValidationError{ResultCode: MissingAVP, Reason: "required extension AVP missing"}
 	}
 	return nil
 }
@@ -343,10 +464,16 @@ func invalidAVPFlags(flags uint8, definition *dict.AVP) bool {
 	return set != (definition.VendorID != 0)
 }
 
-func walkOutgoingFlags(items []*AVP, appID uint32, dictionary *dict.Snapshot, ancestors map[*GroupedAVP]bool, rules []*dict.Rule) *ValidationError {
+func walkOutgoingFlags(items []*AVP, appID uint32, dictionary *dict.Snapshot, ancestors map[*GroupedAVP]bool, rules []*dict.Rule, echoes ...map[*AVP][]byte) *ValidationError {
 	for _, a := range items {
 		if a == nil {
 			return &ValidationError{ResultCode: AVPNotAllowed, Reason: "nil outgoing AVP"}
+		}
+		// RFC 6733 §6.2: echoed Proxy-Info belongs to the peer, including
+		// its header flags and descendants, except reserved bits cleared by Answer
+		// under §4.1. Locally added AVPs remain strict.
+		if isEchoedProxy(a, echoes) {
+			continue
 		}
 		// RFC 6733 §§4.1-4.1.1 also govern unknown AVPs' reserved bits and
 		// Vendor-Id presence. Only dictionary-specific M/P checks need lookup.
@@ -386,6 +513,9 @@ func walkOutgoingFlags(items []*AVP, appID uint32, dictionary *dict.Snapshot, an
 		// RFC 6733 §7.5: preserve erroneous AVPs, including Grouped ancestry,
 		// inside the base Failed-AVP. A vendor's code 279 is a different AVP.
 		if a.Code == avp.FailedAVP && a.VendorID == 0 {
+			if err := validateFailedEvidence(a); err != nil {
+				return err
+			}
 			continue
 		}
 		if group, ok := a.Data.(*GroupedAVP); ok {
@@ -454,4 +584,18 @@ func outgoingCommandRules(h *Header, dictionary *dict.Snapshot) []*dict.Rule {
 		return c.Request.Rule
 	}
 	return c.Answer.Rule
+}
+
+// isEchoedProxy reports whether a is a Proxy-Info that Answer copied from the
+// request and that still has the bytes it was echoed with.
+func isEchoedProxy(a *AVP, echoes []map[*AVP][]byte) bool {
+	if a == nil || a.Code != avp.ProxyInfo || a.VendorID != 0 || len(echoes) == 0 {
+		return false
+	}
+	echoed, ok := echoes[0][a]
+	if !ok {
+		return false
+	}
+	current, err := a.Serialize()
+	return err == nil && bytes.Equal(current, echoed)
 }

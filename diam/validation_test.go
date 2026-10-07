@@ -53,7 +53,7 @@ func TestValidateDictionaryRules(t *testing.T) {
 		{"not allowed", func(m *Message) { m.AddAVP(NewAVP(6, avp.Mbit, 0, datatype.Unsigned32(1))) }, AVPNotAllowed, 6},
 		{"unknown optional AVP ignored", func(m *Message) { m.AddAVP(NewAVP(77, 0, 0, datatype.Unknown{1})) }, 0, 0},
 		{"unknown mandatory AVP left to 5001", func(m *Message) { m.AddAVP(NewAVP(78, avp.Mbit, 0, datatype.Unknown{1})) }, 0, 0},
-		{"fixed position", func(m *Message) { m.AVP[0], m.AVP[1] = m.AVP[1], m.AVP[0] }, AVPNotAllowed, 2},
+		{"fixed position", func(m *Message) { m.AVP[0], m.AVP[1] = m.AVP[1], m.AVP[0] }, AVPNotAllowed, 1},
 		{"missing M", func(m *Message) { m.AVP[0].Flags = 0 }, 0, 0},
 		{"reserved P", func(m *Message) { m.AVP[0].Flags |= avp.Pbit }, 0, 0},
 		{"forbidden V", func(m *Message) { m.AVP[0].Flags |= avp.Vbit }, InvalidAVPBits, 1},
@@ -240,7 +240,7 @@ func TestValidateCreditControlFixedSessionID(t *testing.T) {
 	request.AddAVP(NewAVP(avp.ServiceContextID, avp.Mbit, 0, datatype.UTF8String("service")))
 	request.AddAVP(NewAVP(avp.CCRequestType, avp.Mbit, 0, datatype.Enumerated(1)))
 	request.AddAVP(NewAVP(avp.CCRequestNumber, avp.Mbit, 0, datatype.Unsigned32(7)))
-	if got := request.Validate(); got == nil || got.ResultCode != AVPNotAllowed || got.FailedAVP != request.AVP[0] {
+	if got := request.Validate(); got == nil || got.ResultCode != AVPNotAllowed || got.FailedAVP.Code != avp.SessionID {
 		t.Fatalf("CCR fixed Session-Id: %v", got)
 	}
 	answer := NewMessage(CreditControl, ProxiableFlag, 4, 1, 2, dict.Default)
@@ -251,7 +251,7 @@ func TestValidateCreditControlFixedSessionID(t *testing.T) {
 	answer.AddAVP(NewAVP(avp.AuthApplicationID, avp.Mbit, 0, datatype.Unsigned32(4)))
 	answer.AddAVP(NewAVP(avp.CCRequestType, avp.Mbit, 0, datatype.Enumerated(1)))
 	answer.AddAVP(NewAVP(avp.CCRequestNumber, avp.Mbit, 0, datatype.Unsigned32(7)))
-	if got := answer.Validate(); got == nil || got.ResultCode != AVPNotAllowed || got.FailedAVP != answer.AVP[0] {
+	if got := answer.Validate(); got == nil || got.ResultCode != AVPNotAllowed || got.FailedAVP.Code != avp.SessionID {
 		t.Fatalf("CCA fixed Session-Id: %v", got)
 	}
 }

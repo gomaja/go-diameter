@@ -264,27 +264,6 @@ type nasreqReusedAVPSpec struct {
 	Rules                     []nasreqRuleSpec
 }
 
-// RFC 6733 §4.5 has no P or encryption columns. These are the exact
-// out-of-scope base.xml annotations inherited by NASREQ before base refresh.
-// An empty annotation is also accepted so the source can be corrected later.
-var nasreqLegacyBaseP = func() map[string]bool {
-	names := strings.Fields(`Accounting-Realtime-Required Accounting-Record-Number Accounting-Record-Type Accounting-Sub-Session-Id Acct-Application-Id Acct-Interim-Interval Acct-Multi-Session-Id Acct-Session-Id Auth-Application-Id Auth-Grace-Period Auth-Request-Type Auth-Session-State Authorization-Lifetime Class Destination-Host Destination-Realm Error-Message Error-Reporting-Host Event-Timestamp Failed-AVP Multi-Round-Time-Out Origin-Host Origin-Realm Origin-State-Id Re-Auth-Request-Type Redirect-Host Redirect-Host-Usage Redirect-Max-Cache-Time Result-Code Session-Id Session-Timeout Termination-Cause User-Name`)
-	result := make(map[string]bool, len(names))
-	for _, name := range names {
-		result[name] = true
-	}
-	return result
-}()
-
-var nasreqLegacyBaseEncryptY = func() map[string]bool {
-	names := strings.Fields(`Accounting-Realtime-Required Accounting-Record-Number Accounting-Record-Type Accounting-Sub-Session-Id Acct-Interim-Interval Acct-Multi-Session-Id Acct-Session-Id Class Multi-Round-Time-Out Session-Id User-Name`)
-	result := make(map[string]bool, len(names))
-	for _, name := range names {
-		result[name] = true
-	}
-	return result
-}()
-
 // RFC 6733 §4.5 and §6.7.2 are independent source data for the AVPs
 // referenced by RFC 7155 command bodies but inherited from the base app.
 func TestNASREQReusedSourceSpec(t *testing.T) {
@@ -308,35 +287,12 @@ func TestNASREQReusedSourceSpec(t *testing.T) {
 			if got.Name != want.Name || got.Data.TypeName != want.Type || nasreqFlags(t, got.Must) != nasreqFlags(t, want.Must) || nasreqFlags(t, got.MustNot) != nasreqFlags(t, want.MustNot) {
 				t.Errorf("RFC 6733 §%s identity/type/M/V: got %s/%s/%s/%s, want %s/%s/%s/%s", want.Section, got.Name, got.Data.TypeName, got.Must, got.MustNot, want.Name, want.Type, want.Must, want.MustNot)
 			}
-			if nasreqFlags(t, got.May) != 0 && (got.May != "P" || !nasreqLegacyBaseP[want.Name]) {
-				t.Errorf("%s has unexpected inherited MAY flags %q", want.Name, got.May)
-			}
-			legacyEncrypt := "-"
-			if nasreqLegacyBaseEncryptY[want.Name] {
-				legacyEncrypt = "Y"
-			}
-			if got.MayEncrypt != "" && got.MayEncrypt != legacyEncrypt {
-				t.Errorf("%s has unexpected inherited encryption annotation %q", want.Name, got.MayEncrypt)
+			// RFC 6733 §4.5 has no P or encryption columns.
+			if nasreqFlags(t, got.May) != 0 || got.MayEncrypt != "" {
+				t.Errorf("obsolete base metadata: MAY=%q encrypt=%q", got.May, got.MayEncrypt)
 			}
 			if want.Items != nil {
-				// IANA assigns Termination-Cause 11–32 beyond RFC 6733's
-				// eight base values. base.xml owns this inherited gap.
-				if want.Name == "Termination-Cause" {
-					if len(got.Data.Enum) != 8 && len(got.Data.Enum) != len(want.Items) {
-						t.Errorf("enum count %d, want 8 or %d", len(got.Data.Enum), len(want.Items))
-					}
-					if len(got.Data.Enum) == 8 {
-						for code := 1; code <= 8; code++ {
-							found := false
-							for _, item := range got.Data.Enum {
-								found = found || item.Code == int32(code)
-							}
-							if !found {
-								t.Errorf("missing RFC 6733 Termination-Cause %d", code)
-							}
-						}
-					}
-				} else if len(got.Data.Enum) != len(want.Items) {
+				if len(got.Data.Enum) != len(want.Items) {
 					t.Errorf("enum count %d, want %d", len(got.Data.Enum), len(want.Items))
 				}
 				for _, item := range got.Data.Enum {
@@ -346,12 +302,9 @@ func TestNASREQReusedSourceSpec(t *testing.T) {
 					}
 				}
 			}
-			if want.Name == "Proxy-Info" {
-				// The missing RFC 6733 §6.7.2 extension point is a base.xml
-				// change outside this NASREQ-only update. Pin the two present
-				// members and reject any other divergence until base is fixed.
-				if len(got.Data.Rule) != 2 && len(got.Data.Rule) != len(want.Rules) {
-					t.Fatalf("Proxy-Info has %d members, want 2 or 3", len(got.Data.Rule))
+			if want.Rules != nil {
+				if len(got.Data.Rule) != len(want.Rules) {
+					t.Fatalf("%s has %d members, want %d", want.Name, len(got.Data.Rule), len(want.Rules))
 				}
 				for i, r := range got.Data.Rule {
 					min := r.Min
@@ -359,7 +312,7 @@ func TestNASREQReusedSourceSpec(t *testing.T) {
 						min = 1
 					}
 					if r.AVP != want.Rules[i].Name || min != want.Rules[i].Min || r.Fixed != want.Rules[i].Fixed || nasreqFlags(t, r.MustNot) != nasreqFlags(t, want.Rules[i].MustNot) || (want.Rules[i].Max == nil && r.MaxSet) || (want.Rules[i].Max != nil && (!r.MaxSet || r.Max != *want.Rules[i].Max)) {
-						t.Errorf("Proxy-Info member %d: %+v, want %+v", i, r, want.Rules[i])
+						t.Errorf("%s member %d: %+v, want %+v", want.Name, i, r, want.Rules[i])
 					}
 				}
 			}

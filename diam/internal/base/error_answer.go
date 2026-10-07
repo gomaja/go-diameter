@@ -6,10 +6,11 @@ import (
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
+	"github.com/gomaja/go-diameter/diam/internal/validation"
 )
 
 // BuildErrorAnswer constructs RFC 6733 §§6.2 and 7 answers; Verified Errata
-// 4615 and 4887 govern Failed-AVP and local Origin-Realm respectively.
+// 4808 and 4887 govern Failed-AVP and local Origin-Realm respectively.
 func BuildErrorAnswer(request *diam.Message, cfg Settings, resultCode uint32, failedAVPs []*diam.AVP, protocolError bool) (*diam.Message, error) {
 	answer := request.Answer(0)
 	dictionary := answer.Dictionary()
@@ -53,7 +54,7 @@ func BuildErrorAnswer(request *diam.Message, cfg Settings, resultCode uint32, fa
 		}
 	}
 	if len(failedAVPs) != 0 {
-		// RFC 6733 Section 7.5 and Verified Errata 4615 require one
+		// RFC 6733 Section 7.5 and Verified Errata 4808 require one
 		// Failed-AVP container; it may retain the Grouped hierarchy.
 		failed := &diam.GroupedAVP{AVP: failedAVPs}
 		if _, err := answer.NewAVP(avp.FailedAVP, avp.Mbit, 0, failed); err != nil {
@@ -88,21 +89,33 @@ func BuildErrorAnswer(request *diam.Message, cfg Settings, resultCode uint32, fa
 	}
 	// RFC 6733 §§7.2 and 8.3.2: copy Session-Id when the complete answer
 	// still fits, and place it first for application-specific answers.
-	if sessionID, err := request.FindAVP(avp.SessionID, 0); err == nil &&
-		answer.Len()+sessionID.Len() <= diam.MaxMessageLength {
+	validationOption := validation.WithoutSessionID()
+	for _, sessionID := range request.AVP {
+		// RFC 6733 §6.2 refers to the command's Session-Id, not one
+		// nested in a Grouped AVP or retained as peer evidence.
+		if sessionID == nil || sessionID.Code != avp.SessionID || sessionID.VendorID != 0 {
+			continue
+		}
+		if _, ok := sessionID.Data.(datatype.UTF8String); !ok {
+			break // Do not substitute a later duplicate for undecodable evidence (§7.5).
+		}
+		validationOption = validation.ErrorAnswer{}
+		if answer.Len()+sessionID.Len() > diam.MaxMessageLength {
+			break
+		}
 		copied := rebuildAnswerAVP(sessionID, answer.Header.ApplicationID, dictionary, definitions, 0)
 		if copied == nil {
-			// RFC 6733 §7.5: use the minimum example, not undecoded bytes.
-			copied = diam.NewAVP(avp.SessionID, avp.Mbit, 0, datatype.UTF8String(""))
+			continue
 		}
 		answer.InsertAVP(copied)
+		break
 	}
 	// RFC 6733 §§3.2 and 7.1.5: permanent errors keep the application
 	// answer grammar. If the request omitted a field also required in that
 	// answer, use the dictionary's zero-filled example for that field.
 	if !protocolError {
 		for i := 0; i < 32; i++ {
-			validationErr := answer.ValidateOutgoing()
+			validationErr := answer.ValidateErrorAnswer(validationOption)
 			if validationErr == nil {
 				break
 			}
@@ -110,6 +123,7 @@ func BuildErrorAnswer(request *diam.Message, cfg Settings, resultCode uint32, fa
 				return nil, fmt.Errorf("cannot form valid Diameter error answer: %w", validationErr)
 			}
 			missing := validationErr.FailedAVP
+			synthesized := true
 			// RFC 8506 §3.2 requires the CCA's application and request
 			// identifiers. Reuse matching request values before falling back
 			// to RFC 6733 §7.5's zero-filled missing-AVP example.
@@ -117,24 +131,47 @@ func BuildErrorAnswer(request *diam.Message, cfg Settings, resultCode uint32, fa
 				if received != nil && received.Code == missing.Code && received.VendorID == missing.VendorID && received.Data != nil {
 					if rebuilt := rebuildAnswerAVP(received, answer.Header.ApplicationID, dictionary, definitions, 0); rebuilt != nil {
 						missing = rebuilt
+						synthesized = false
 						break
 					}
 				}
 			}
-			if missing.Code == avp.SessionID && missing.VendorID == 0 {
-				if _, ok := missing.Data.(datatype.Unknown); ok {
-					missing = diam.NewAVP(avp.SessionID, avp.Mbit, 0, datatype.UTF8String(""))
+			// RFC 6733 §6.11: a missing VSAI needs one application-ID
+			// alternative, not two independent optional members. The header
+			// supplies the application even when decoding stopped before VSAI.
+			if missing.Code == avp.VendorSpecificApplicationID && missing.VendorID == 0 {
+				if group, ok := missing.Data.(*diam.GroupedAVP); ok && group != nil {
+					if synthesized {
+						if app, err := dictionary.App(answer.Header.ApplicationID); err == nil {
+							for _, child := range group.AVP {
+								if child != nil && child.Code == avp.VendorID && child.VendorID == 0 {
+									child.Data = datatype.Unsigned32(app.ApplicationVendor())
+								}
+							}
+						}
+					}
+					choice := false
+					for _, child := range group.AVP {
+						if child != nil && child.VendorID == 0 && (child.Code == avp.AuthApplicationID || child.Code == avp.AcctApplicationID) {
+							choice = true
+						}
+					}
+					if !choice {
+						code := uint32(avp.AuthApplicationID)
+						if app, err := dictionary.App(answer.Header.ApplicationID); err == nil && app.Type == "acct" {
+							code = avp.AcctApplicationID
+						}
+						group.AVP = append(group.AVP, diam.NewAVP(code, avp.Mbit, 0, datatype.Unsigned32(answer.Header.ApplicationID)))
+					}
 				}
-				answer.InsertAVP(missing)
-			} else {
-				answer.AddAVP(missing)
 			}
+			answer.AddAVP(missing)
 			if i == 31 {
 				return nil, fmt.Errorf("too many missing AVPs in Diameter error answer")
 			}
 		}
 	}
-	if validationErr := answer.ValidateOutgoing(); validationErr != nil {
+	if validationErr := answer.ValidateErrorAnswer(validationOption); validationErr != nil {
 		return nil, fmt.Errorf("cannot form valid Diameter error answer: %w", validationErr)
 	}
 

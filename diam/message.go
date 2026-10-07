@@ -36,9 +36,10 @@ var unknownCommand = &dict.Command{
 
 // Message represents a Diameter message.
 type Message struct {
-	Header   *Header
-	AVP      []*AVP           // AVPs in this message.
-	dispatch *dispatchBarrier // callback admission order on a Server connection
+	echoedProxyInfo map[*AVP][]byte // Peer-owned echoes required by RFC 6733 §6.2, with their bytes as echoed.
+	Header          *Header
+	AVP             []*AVP           // AVPs in this message.
+	dispatch        *dispatchBarrier // callback admission order on a Server connection
 
 	DecodeErr            error // Possible decoding error on one or more AVPs (does not halt parsing)
 	unknownMandatoryAVPs []*AVP
@@ -768,7 +769,10 @@ func (m *Message) FindAVPsWithPath(path ...AVPRef) []*AVP {
 }
 
 // Answer creates an answer for the current Message
-// with optinal ResultCode AVP
+// with an optional Result-Code AVP. Per RFC 6733 §6.2 it deep-copies every
+// top-level Proxy-Info in request order; callers must not copy them again.
+// Reserved AVP flag bits are cleared recursively (RFC 6733 §4.1). Other
+// peer flags and contents are retained and exempt from outgoing AVP validation. Locally added Proxy-Info AVPs are validated normally.
 func (m *Message) Answer(resultCode uint32) *Message {
 	nm := NewMessage(
 		m.Header.CommandCode,
@@ -789,6 +793,22 @@ func (m *Message) Answer(resultCode uint32) *Message {
 	if resultCode != 0 {
 		if _, err := nm.NewAVP(avp.ResultCode, avp.Mbit, 0, datatype.Unsigned32(resultCode)); err != nil {
 			panic(err)
+		}
+	}
+	// RFC 6733 §6.2: preserve every top-level Proxy-Info in request
+	// order, including for errors. Nested Proxy-Info is not a proxy hop.
+	for _, a := range m.AVP {
+		if a != nil && a.Code == avp.ProxyInfo && a.VendorID == 0 {
+			copied := cloneEchoAVP(a, make(map[*AVP]*AVP))
+			nm.AddAVP(copied)
+			// The exemption covers the echo as copied: a caller that later
+			// changes it is sending its own AVP, which the sending rules check.
+			if b, err := copied.Serialize(); err == nil {
+				if nm.echoedProxyInfo == nil {
+					nm.echoedProxyInfo = make(map[*AVP][]byte)
+				}
+				nm.echoedProxyInfo[copied] = b
+			}
 		}
 	}
 	nm.stream = m.stream
@@ -886,4 +906,48 @@ func (m *Message) Context() context.Context {
 // SetContext replaces the message's context.
 func (m *Message) SetContext(ctx context.Context) {
 	m.ctx = ctx
+}
+
+// cloneEchoAVP preserves peer data without sharing mutable payloads. Memoizing
+// pointers also preserves in-memory cycles for the serializer to reject.
+func cloneEchoAVP(a *AVP, copies map[*AVP]*AVP) *AVP {
+	if a == nil {
+		return nil
+	}
+	if copied := copies[a]; copied != nil {
+		return copied
+	}
+	copied := *a
+	// RFC 6733 §4.1: senders MUST clear reserved bits, including on §6.2 echoes.
+	copied.Flags &^= 0x1f
+	copies[a] = &copied
+	if a.Data == nil {
+		return &copied
+	}
+	switch data := a.Data.(type) {
+	case *GroupedAVP:
+		if data != nil {
+			group := &GroupedAVP{AVP: make([]*AVP, len(data.AVP))}
+			copied.Data = group
+			for i, child := range data.AVP {
+				group.AVP[i] = cloneEchoAVP(child, copies)
+			}
+		}
+	case datatype.Address:
+		copied.Data = data.Clone()
+	case *datatype.Address:
+		if data != nil {
+			address := data.Clone()
+			copied.Data = &address
+		}
+	default:
+		raw := append([]byte(nil), data.Serialize()...)
+		value, err := datatype.Decode(data.Type(), raw)
+		if err != nil {
+			copied.Data = datatype.Unknown(raw)
+		} else {
+			copied.Data = value
+		}
+	}
+	return &copied
 }

@@ -321,12 +321,7 @@
       "must": "M",
       "may": "",
       "must_not": "V",
-      "source": "RFC 6733 \u00a74.5, \u00a78.13",
-      "known_shared_metadata_gap": {
-        "may": "P",
-        "source_application": 0,
-        "reason": "The inherited shared dictionary retains legacy MAY-P metadata. It is informational, with no validation behavior change; accept either the source flag set or this documented legacy flag set until the shared dictionary is refreshed."
-      }
+      "source": "RFC 6733 \u00a74.5, \u00a78.13"
     },
     {
       "name": "MIP6-Feature-Vector",
@@ -948,12 +943,7 @@
       "must": "M",
       "may": "",
       "must_not": "V",
-      "source": "RFC 6733 \u00a74.5, \u00a76.6",
-      "known_shared_metadata_gap": {
-        "may": "P",
-        "source_application": 0,
-        "reason": "The inherited shared dictionary retains legacy MAY-P metadata. It is informational, with no validation behavior change; accept either the source flag set or this documented legacy flag set until the shared dictionary is refreshed."
-      }
+      "source": "RFC 6733 \u00a74.5, \u00a76.6"
     },
     {
       "name": "Destination-Host",
@@ -963,12 +953,7 @@
       "must": "M",
       "may": "",
       "must_not": "V",
-      "source": "RFC 6733 \u00a74.5, \u00a76.5",
-      "known_shared_metadata_gap": {
-        "may": "P",
-        "source_application": 0,
-        "reason": "The inherited shared dictionary retains legacy MAY-P metadata. It is informational, with no validation behavior change; accept either the source flag set or this documented legacy flag set until the shared dictionary is refreshed."
-      }
+      "source": "RFC 6733 \u00a74.5, \u00a76.5"
     },
     {
       "name": "MIP6-Home-Link-Prefix",
@@ -2859,12 +2844,7 @@
       "must": "M",
       "may": "",
       "must_not": "V",
-      "source": "RFC 6733 \u00a74.5, \u00a75.3.3",
-      "known_shared_metadata_gap": {
-        "may": "P",
-        "source_application": 0,
-        "reason": "The inherited shared dictionary retains legacy MAY-P metadata. It is informational, with no validation behavior change; accept either the source flag set or this documented legacy flag set until the shared dictionary is refreshed."
-      }
+      "source": "RFC 6733 \u00a74.5, \u00a75.3.3"
     },
     {
       "code": 629,
@@ -3313,12 +3293,7 @@
       "must": "M",
       "may": "",
       "must_not": "V",
-      "source": "RFC 6733 \u00a74.5, \u00a78.8",
-      "known_shared_metadata_gap": {
-        "may": "P",
-        "source_application": 0,
-        "reason": "The inherited shared dictionary retains legacy MAY-P metadata. It is informational, with no validation behavior change; accept either the source flag set or this documented legacy flag set until the shared dictionary is refreshed."
-      }
+      "source": "RFC 6733 \u00a74.5, \u00a78.8"
     },
     {
       "name": "DRMP",
@@ -3380,12 +3355,7 @@
           "fixed": false,
           "abnf": "[ Acct-Application-Id ]"
         }
-      ],
-      "known_shared_metadata_gap": {
-        "may": "P",
-        "source_application": 0,
-        "reason": "The inherited shared dictionary retains legacy MAY-P metadata. It is informational, with no validation behavior change; accept either the source flag set or this documented legacy flag set until the shared dictionary is refreshed."
-      }
+      ]
     },
     {
       "name": "Auth-Application-Id",
@@ -3395,12 +3365,7 @@
       "must": "M",
       "may": "",
       "must_not": "V",
-      "source": "RFC 6733 \u00a74.5, \u00a76.8",
-      "known_shared_metadata_gap": {
-        "may": "P",
-        "source_application": 0,
-        "reason": "The inherited shared dictionary retains legacy MAY-P metadata. It is informational, with no validation behavior change; accept either the source flag set or this documented legacy flag set until the shared dictionary is refreshed."
-      }
+      "source": "RFC 6733 \u00a74.5, \u00a76.8"
     },
     {
       "name": "Acct-Application-Id",
@@ -3410,12 +3375,7 @@
       "must": "M",
       "may": "",
       "must_not": "V",
-      "source": "RFC 6733 \u00a74.5, \u00a76.9",
-      "known_shared_metadata_gap": {
-        "may": "P",
-        "source_application": 0,
-        "reason": "The inherited shared dictionary retains legacy MAY-P metadata. It is informational, with no validation behavior change; accept either the source flag set or this documented legacy flag set until the shared dictionary is refreshed."
-      }
+      "source": "RFC 6733 \u00a74.5, \u00a76.9"
     },
     {
       "name": "Auth-Session-State",
@@ -3429,11 +3389,6 @@
       "items": {
         "0": "STATE_MAINTAINED",
         "1": "NO_STATE_MAINTAINED"
-      },
-      "known_shared_metadata_gap": {
-        "may": "P",
-        "source_application": 0,
-        "reason": "The inherited shared dictionary retains legacy MAY-P metadata. It is informational, with no validation behavior change; accept either the source flag set or this documented legacy flag set until the shared dictionary is refreshed."
       }
     },
     {
@@ -3444,12 +3399,7 @@
       "must": "M",
       "may": "",
       "must_not": "V",
-      "source": "RFC 6733 \u00a74.5, \u00a76.3",
-      "known_shared_metadata_gap": {
-        "may": "P",
-        "source_application": 0,
-        "reason": "The inherited shared dictionary retains legacy MAY-P metadata. It is informational, with no validation behavior change; accept either the source flag set or this documented legacy flag set until the shared dictionary is refreshed."
-      }
+      "source": "RFC 6733 \u00a74.5, \u00a76.3"
     },
     {
       "name": "Origin-Realm",
@@ -3459,12 +3409,7 @@
       "must": "M",
       "may": "",
       "must_not": "V",
-      "source": "RFC 6733 \u00a74.5, \u00a76.4",
-      "known_shared_metadata_gap": {
-        "may": "P",
-        "source_application": 0,
-        "reason": "The inherited shared dictionary retains legacy MAY-P metadata. It is informational, with no validation behavior change; accept either the source flag set or this documented legacy flag set until the shared dictionary is refreshed."
-      }
+      "source": "RFC 6733 \u00a74.5, \u00a76.4"
     },
     {
       "name": "User-Name",
@@ -3474,12 +3419,7 @@
       "must": "M",
       "may": "",
       "must_not": "V",
-      "source": "RFC 6733 \u00a74.5, \u00a78.14",
-      "known_shared_metadata_gap": {
-        "may": "P",
-        "source_application": 0,
-        "reason": "The inherited shared dictionary retains legacy MAY-P metadata. It is informational, with no validation behavior change; accept either the source flag set or this documented legacy flag set until the shared dictionary is refreshed."
-      }
+      "source": "RFC 6733 \u00a74.5, \u00a78.14"
     },
     {
       "name": "AN-Trusted",
@@ -3537,12 +3477,7 @@
       "must": "M",
       "may": "",
       "must_not": "V",
-      "source": "RFC 6733 \u00a74.5, \u00a77.1",
-      "known_shared_metadata_gap": {
-        "may": "P",
-        "source_application": 0,
-        "reason": "The inherited shared dictionary retains legacy MAY-P metadata. It is informational, with no validation behavior change; accept either the source flag set or this documented legacy flag set until the shared dictionary is refreshed."
-      }
+      "source": "RFC 6733 \u00a74.5, \u00a77.1"
     },
     {
       "name": "Experimental-Result",
@@ -3568,12 +3503,7 @@
           "fixed": false,
           "abnf": "{ Experimental-Result-Code }"
         }
-      ],
-      "known_shared_metadata_gap": {
-        "may": "P",
-        "source_application": 0,
-        "reason": "The inherited shared dictionary retains legacy MAY-P metadata. It is informational, with no validation behavior change; accept either the source flag set or this documented legacy flag set until the shared dictionary is refreshed."
-      }
+      ]
     },
     {
       "name": "Experimental-Result-Code",
@@ -3583,12 +3513,7 @@
       "must": "M",
       "may": "",
       "must_not": "V",
-      "source": "RFC 6733 \u00a74.5, \u00a77.7",
-      "known_shared_metadata_gap": {
-        "may": "P",
-        "source_application": 0,
-        "reason": "The inherited shared dictionary retains legacy MAY-P metadata. It is informational, with no validation behavior change; accept either the source flag set or this documented legacy flag set until the shared dictionary is refreshed."
-      }
+      "source": "RFC 6733 \u00a74.5, \u00a77.7"
     },
     {
       "name": "3GPP-AAA-Server-Name",

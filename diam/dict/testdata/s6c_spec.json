@@ -2955,12 +2955,7 @@
       "may": "",
       "must_not": "V",
       "section": "RFC 6733 (October 2012) §8.14",
-      "flag_source": "3GPP TS 29.338 V19.3.0 Table 5.3.3.1/2",
-      "shared_dictionary_gap": {
-        "dictionary": "base.xml",
-        "may": "P",
-        "reason": "RFC 6733 §4.5 has no MAY-P column; shared metadata retains obsolete P policy."
-      }
+      "flag_source": "3GPP TS 29.338 V19.3.0 Table 5.3.3.1/2"
     },
     {
       "name": "MSISDN",
@@ -3372,12 +3367,7 @@
       "must": "M",
       "may": "",
       "must_not": "V",
-      "section": "RFC 6733 (October 2012) §5.3.3",
-      "shared_dictionary_gap": {
-        "dictionary": "base.xml",
-        "may": "P",
-        "reason": "RFC 6733 §4.5 has no MAY-P column; shared metadata retains obsolete P policy."
-      }
+      "section": "RFC 6733 (October 2012) §5.3.3"
     },
     {
       "name": "Feature-List-ID",
@@ -3855,12 +3845,7 @@
       "must": "M",
       "may": "",
       "must_not": "V",
-      "section": "RFC 6733 (October 2012) §8.8",
-      "shared_dictionary_gap": {
-        "dictionary": "base.xml",
-        "may": "P",
-        "reason": "RFC 6733 §4.5 has no MAY-P column; shared metadata retains obsolete P policy."
-      }
+      "section": "RFC 6733 (October 2012) §8.8"
     },
     {
       "name": "Vendor-Specific-Application-Id",
@@ -3890,12 +3875,7 @@
           "max": 1,
           "fixed": false
         }
-      ],
-      "shared_dictionary_gap": {
-        "dictionary": "base.xml",
-        "may": "P",
-        "reason": "RFC 6733 §4.5 has no MAY-P column; shared metadata retains obsolete P policy."
-      }
+      ]
     },
     {
       "name": "Auth-Application-Id",
@@ -3905,12 +3885,7 @@
       "must": "M",
       "may": "",
       "must_not": "V",
-      "section": "RFC 6733 (October 2012) §6.8",
-      "shared_dictionary_gap": {
-        "dictionary": "base.xml",
-        "may": "P",
-        "reason": "RFC 6733 §4.5 has no MAY-P column; shared metadata retains obsolete P policy."
-      }
+      "section": "RFC 6733 (October 2012) §6.8"
     },
     {
       "name": "Acct-Application-Id",
@@ -3920,12 +3895,7 @@
       "must": "M",
       "may": "",
       "must_not": "V",
-      "section": "RFC 6733 (October 2012) §6.9",
-      "shared_dictionary_gap": {
-        "dictionary": "base.xml",
-        "may": "P",
-        "reason": "RFC 6733 §4.5 has no MAY-P column; shared metadata retains obsolete P policy."
-      }
+      "section": "RFC 6733 (October 2012) §6.9"
     },
     {
       "name": "Auth-Session-State",
@@ -3939,11 +3909,6 @@
       "items": {
         "0": "STATE_MAINTAINED",
         "1": "NO_STATE_MAINTAINED"
-      },
-      "shared_dictionary_gap": {
-        "dictionary": "base.xml",
-        "may": "P",
-        "reason": "RFC 6733 §4.5 has no MAY-P column; shared metadata retains obsolete P policy."
       }
     },
     {
@@ -3954,12 +3919,7 @@
       "must": "M",
       "may": "",
       "must_not": "V",
-      "section": "RFC 6733 (October 2012) §6.3",
-      "shared_dictionary_gap": {
-        "dictionary": "base.xml",
-        "may": "P",
-        "reason": "RFC 6733 §4.5 has no MAY-P column; shared metadata retains obsolete P policy."
-      }
+      "section": "RFC 6733 (October 2012) §6.3"
     },
     {
       "name": "Origin-Realm",
@@ -3969,12 +3929,7 @@
       "must": "M",
       "may": "",
       "must_not": "V",
-      "section": "RFC 6733 (October 2012) §6.4",
-      "shared_dictionary_gap": {
-        "dictionary": "base.xml",
-        "may": "P",
-        "reason": "RFC 6733 §4.5 has no MAY-P column; shared metadata retains obsolete P policy."
-      }
+      "section": "RFC 6733 (October 2012) §6.4"
     },
     {
       "name": "Destination-Host",
@@ -3984,12 +3939,7 @@
       "must": "M",
       "may": "",
       "must_not": "V",
-      "section": "RFC 6733 (October 2012) §6.5",
-      "shared_dictionary_gap": {
-        "dictionary": "base.xml",
-        "may": "P",
-        "reason": "RFC 6733 §4.5 has no MAY-P column; shared metadata retains obsolete P policy."
-      }
+      "section": "RFC 6733 (October 2012) §6.5"
     },
     {
       "name": "Destination-Realm",
@@ -3999,12 +3949,7 @@
       "must": "M",
       "may": "",
       "must_not": "V",
-      "section": "RFC 6733 (October 2012) §6.6",
-      "shared_dictionary_gap": {
-        "dictionary": "base.xml",
-        "may": "P",
-        "reason": "RFC 6733 §4.5 has no MAY-P column; shared metadata retains obsolete P policy."
-      }
+      "section": "RFC 6733 (October 2012) §6.6"
     },
     {
       "name": "Proxy-Info",
@@ -4034,25 +3979,7 @@
           "max": null,
           "fixed": false
         }
-      ],
-      "shared_dictionary_gap": {
-        "dictionary": "base.xml",
-        "rules": [
-          {
-            "name": "Proxy-Host",
-            "min": 1,
-            "max": 1,
-            "fixed": false
-          },
-          {
-            "name": "Proxy-State",
-            "min": 1,
-            "max": 1,
-            "fixed": false
-          }
-        ],
-        "reason": "RFC 6733 §6.7.2 includes *[AVP]; the shared grammar omits it."
-      }
+      ]
     },
     {
       "name": "Proxy-Host",
@@ -4092,12 +4019,7 @@
       "must": "M",
       "may": "",
       "must_not": "V",
-      "section": "RFC 6733 (October 2012) §7.1",
-      "shared_dictionary_gap": {
-        "dictionary": "base.xml",
-        "may": "P",
-        "reason": "RFC 6733 §4.5 has no MAY-P column; shared metadata retains obsolete P policy."
-      }
+      "section": "RFC 6733 (October 2012) §7.1"
     },
     {
       "name": "Experimental-Result",
@@ -4121,12 +4043,7 @@
           "max": 1,
           "fixed": false
         }
-      ],
-      "shared_dictionary_gap": {
-        "dictionary": "base.xml",
-        "may": "P",
-        "reason": "RFC 6733 §4.5 has no MAY-P column; shared metadata retains obsolete P policy."
-      }
+      ]
     },
     {
       "name": "Experimental-Result-Code",
@@ -4136,12 +4053,7 @@
       "must": "M",
       "may": "",
       "must_not": "V",
-      "section": "RFC 6733 (October 2012) §7.7",
-      "shared_dictionary_gap": {
-        "dictionary": "base.xml",
-        "may": "P",
-        "reason": "RFC 6733 §4.5 has no MAY-P column; shared metadata retains obsolete P policy."
-      }
+      "section": "RFC 6733 (October 2012) §7.7"
     },
     {
       "name": "Failed-AVP",
@@ -4159,13 +4071,7 @@
           "max": null,
           "fixed": false
         }
-      ],
-      "shared_dictionary_gap": {
-        "dictionary": "base.xml",
-        "may": "P",
-        "reason": "RFC 6733 §§4.5,7.5: remove MAY-P and add 1*{AVP}; shared metadata and grammar are stale.",
-        "rules": []
-      }
+      ]
     }
   ],
   "sources": [

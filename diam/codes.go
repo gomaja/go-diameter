@@ -42,3 +42,6 @@ const (
 	InvalidAVPBitCombo     = 5016
 	NoCommonSecurity       = 5017
 )
+
+// RFC 7075 §3.4: DIAMETER_REALM_REDIRECT_INDICATION.
+const RealmRedirectIndication = 3011

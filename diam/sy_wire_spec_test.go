@@ -55,6 +55,10 @@ func syWireSpec(t *testing.T) syWireFixture {
 }
 func sySampleData(t *testing.T, a *dict.AVP, depth int) datatype.Type {
 	t.Helper()
+	// RFC 6733 §7.5: one unknown AVP is valid Failed-AVP evidence.
+	if a.Code == avp.FailedAVP && a.VendorID == 0 {
+		return &GroupedAVP{AVP: []*AVP{NewAVP(999999, avp.Mbit, 0, datatype.OctetString("unsupported"))}}
+	}
 	if depth > 8 {
 		t.Fatalf("unexpected Sy recursion: %s", a.Name)
 	}
@@ -188,9 +192,6 @@ func TestSyCommandWireRoundTrip(t *testing.T) {
 							}
 						}
 						wantCode := uint32(MissingAVP)
-						if r.Fixed {
-							wantCode = AVPNotAllowed
-						}
 						if err := m.Validate(); err == nil || err.ResultCode != wantCode {
 							t.Fatalf("missing %s: %v", r.Name, err)
 						}

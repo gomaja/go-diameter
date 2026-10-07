@@ -189,10 +189,9 @@ func TestCreditControlInheritedAVPSpec(t *testing.T) {
 	}
 }
 
-// RFC 8506 §§3.1–3.2 and §8.68 reuse these Grouped AVPs. Their source
-// grammars live outside this RFC. Require the complete RFC 5777 grammar;
-// only the two documented RFC 6733 shared gaps may retain partial rules.
-func TestCreditControlReferencedGroupedSourceGaps(t *testing.T) {
+// RFC 8506 §§3.1–3.2 and §8.68 reuse these Grouped AVPs. Require their
+// complete source grammars: RFC 6733 §§6.7.2, 7.5 and RFC 5777 §3.2.
+func TestCreditControlReferencedGroupedSources(t *testing.T) {
 	data, err := os.ReadFile("testdata/credit_control_reused_spec.json")
 	if err != nil {
 		t.Fatal(err)
@@ -201,21 +200,24 @@ func TestCreditControlReferencedGroupedSourceGaps(t *testing.T) {
 		Name, Source, Type string
 		Code               uint32
 		Rules              []creditControlRule
-		KnownRuleCount     *int `json:"known_shared_rule_count"`
 	}
 	var fixture struct {
-		KnownSharedGaps []groupedSource `json:"known_shared_gaps"`
 		RequiredGrouped []groupedSource `json:"required_grouped"`
 	}
 	if err := json.Unmarshal(data, &fixture); err != nil {
 		t.Fatal(err)
 	}
-	if len(fixture.KnownSharedGaps) != 2 || len(fixture.RequiredGrouped) != 1 || fixture.RequiredGrouped[0].Name != "Filter-Rule" || fixture.RequiredGrouped[0].KnownRuleCount != nil {
-		t.Fatal("expected two base gaps and a strict Filter-Rule grammar")
+	expected := map[string]uint32{"Proxy-Info": 284, "Failed-AVP": 279, "Filter-Rule": 509}
+	if len(fixture.RequiredGrouped) != len(expected) {
+		t.Fatal("expected three strict source grammars")
 	}
-	for _, want := range append(fixture.RequiredGrouped, fixture.KnownSharedGaps...) {
+	for _, want := range fixture.RequiredGrouped {
+		if code, ok := expected[want.Name]; !ok || code != want.Code {
+			t.Fatalf("unexpected or duplicate source: %s/%d", want.Name, want.Code)
+		}
+		delete(expected, want.Name)
 		t.Run(want.Name, func(t *testing.T) {
-			if want.Source == "" || len(want.Rules) == 0 {
+			if want.Source == "" || want.Type != "Grouped" || len(want.Rules) == 0 {
 				t.Fatal("missing source grammar")
 			}
 			got, err := Default.FindAVP(4, want.Code, 0)
@@ -225,18 +227,7 @@ func TestCreditControlReferencedGroupedSourceGaps(t *testing.T) {
 			if got.Name != want.Name || got.Data.TypeName != want.Type {
 				t.Errorf("identity/type = %s/%s, want %s/%s", got.Name, got.Data.TypeName, want.Name, want.Type)
 			}
-			if want.KnownRuleCount == nil || len(got.Data.Rule) == len(want.Rules) {
-				checkCreditControlRules(t, got.Data.Rule, want.Rules)
-				return
-			}
-			if len(got.Data.Rule) != *want.KnownRuleCount || *want.KnownRuleCount >= len(want.Rules) {
-				t.Errorf("%s grammar has %d rules; source has %d; documented shared state is %d", want.Source, len(got.Data.Rule), len(want.Rules), *want.KnownRuleCount)
-				return
-			}
-			for i := 0; i < len(got.Data.Rule); i++ {
-				checkCreditControlRules(t, got.Data.Rule[i:i+1], want.Rules[i:i+1])
-			}
-			t.Logf("documented shared gap: %s has %d of %d %s rules", want.Name, len(got.Data.Rule), len(want.Rules), want.Source)
+			checkCreditControlRules(t, got.Data.Rule, want.Rules)
 		})
 	}
 }
@@ -294,18 +285,6 @@ func checkCreditControlReusedSourceClosure(t *testing.T, dictionary *Parser) {
 			pending = append(pending, r.Name)
 		}
 	}
-	// The legacy MAY-P values are shared base.xml metadata under the separate
-	// RFC 6733 refresh. Both the printed RFC flag set and this exact current
-	// shared gap are accepted; no other flag relaxation is allowed here.
-	legacyMayP := map[string]bool{
-		"Acct-Multi-Session-Id": true, "Auth-Application-Id": true,
-		"Destination-Host": true, "Destination-Realm": true,
-		"Event-Timestamp": true, "Failed-AVP": true,
-		"Origin-Host": true, "Origin-Realm": true, "Origin-State-Id": true,
-		"Redirect-Host": true, "Redirect-Host-Usage": true,
-		"Redirect-Max-Cache-Time": true, "Result-Code": true,
-		"Session-Id": true, "Termination-Cause": true, "User-Name": true, "Vendor-Id": true,
-	}
 	visited := map[string]bool{}
 	for len(pending) != 0 {
 		name := pending[0]
@@ -327,12 +306,10 @@ func checkCreditControlReusedSourceClosure(t *testing.T, dictionary *Parser) {
 		if got.Code != want.Code || got.VendorID != 0 || got.Data.TypeName != want.Type || creditControlFlagSet(t, got.Must) != creditControlFlagSet(t, want.Must) || creditControlFlagSet(t, got.MustNot) != creditControlFlagSet(t, want.MustNot) {
 			t.Errorf("%s identity/type/flags = %d/%d/%s/%q/%q; source %d/0/%s/%q/%q", name, got.Code, got.VendorID, got.Data.TypeName, got.Must, got.MustNot, want.Code, want.Type, want.Must, want.MustNot)
 		}
-		allowedLegacyMayP := legacyMayP[name] && got.App.ID == 0 && creditControlFlagSet(t, got.May) == creditControlFlagSet(t, "P") && creditControlFlagSet(t, want.May) == 0
-		if creditControlFlagSet(t, got.May) != creditControlFlagSet(t, want.May) && !allowedLegacyMayP {
+		if creditControlFlagSet(t, got.May) != creditControlFlagSet(t, want.May) {
 			t.Errorf("%s MAY flags %q, source %q", name, got.May, want.May)
 		}
-		knownTerminationGap := name == "Termination-Cause" && got.App.ID == 0 && len(got.Data.Enum) == 8 && len(want.Items) == 30
-		if len(got.Data.Enum) != len(want.Items) && !knownTerminationGap {
+		if len(got.Data.Enum) != len(want.Items) {
 			t.Errorf("%s enum count %d, source %d", name, len(got.Data.Enum), len(want.Items))
 		}
 		for _, item := range got.Data.Enum {
@@ -341,9 +318,7 @@ func checkCreditControlReusedSourceClosure(t *testing.T, dictionary *Parser) {
 				t.Errorf("%s enum %d=%s, source %s", name, item.Code, item.Name, label)
 			}
 		}
-		if name != "Proxy-Info" && name != "Failed-AVP" {
-			checkCreditControlRules(t, got.Data.Rule, want.Rules)
-		}
+		checkCreditControlRules(t, got.Data.Rule, want.Rules)
 		for _, rule := range want.Rules {
 			pending = append(pending, rule.Name)
 		}
