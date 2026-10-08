@@ -6,6 +6,7 @@ package diam
 
 import (
 	"net"
+	"sync"
 	"testing"
 	"time"
 )
@@ -121,5 +122,58 @@ func TestNotifyClientGoneLatchesWithoutRegistration(t *testing.T) {
 
 	if !gone {
 		t.Fatal("clientGone not latched when no channel was registered")
+	}
+}
+
+// TestCloseNotifyConcurrentWithServeExit races CloseNotify registrations
+// against the read loop exiting on a closed peer and against repeated
+// disconnect reports. Every caller must get the same channel, it must be
+// closed once the reports are in whichever order the scheduler picks, and
+// repeated reports must not close it twice. The ordering where the disconnect
+// is reported before anyone registers is pinned by
+// TestCloseNotifyAfterClientGone, since concurrent reports would mask it here.
+func TestCloseNotifyConcurrentWithServeExit(t *testing.T) {
+	c, remote := newTestConn(t)
+	closeRemote(t, remote)
+
+	const callers = 32
+	channels := make(chan (<-chan struct{}), callers)
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		<-start
+		c.serve()
+	}()
+	for range callers {
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			<-start
+			channels <- c.writer.CloseNotify()
+		}()
+		go func() {
+			defer wg.Done()
+			<-start
+			// The pipe copy routine and serve's exit both report the same
+			// disconnect; extra reports must be harmless.
+			c.notifyClientGone()
+		}()
+	}
+	close(start)
+	wg.Wait()
+	close(channels)
+
+	want := c.writer.CloseNotify()
+	for got := range channels {
+		if got != want {
+			t.Error("concurrent CloseNotify callers got different channels")
+		}
+		select {
+		case <-got:
+		default:
+			t.Error("a concurrent CloseNotify caller missed the disconnect")
+		}
 	}
 }

@@ -498,3 +498,53 @@ func TestRegisterAVPOnFreshParsers(t *testing.T) {
 		})
 	}
 }
+
+// A base AVP registered after a child already defines the same code/vendor
+// leaves the child's definition in force by code and by name: the base name
+// does not resolve in the child, and base itself sees the registered AVP.
+func TestRegisteredBaseAVPLeavesChildDefinition(t *testing.T) {
+	p := New(Base)
+	if err := p.Load(strings.NewReader(`<diameter><application id="16777999" type="auth" name="Child">
+		<vendor id="10415" name="TGPP"/>
+		<avp name="Child-X" code="70100" vendor-id="10415" must="V" must-not="M"><data type="Unsigned32"/></avp>
+	</application></diameter>`)); err != nil {
+		t.Fatal(err)
+	}
+	mustRegister(t, p, 0, &AVP{Name: "Base-X", Code: 70100, VendorID: 10415, Must: "V", MustNot: "M", Data: Data{TypeName: "OctetString"}})
+
+	if a, err := p.FindAVP(16777999, 70100, 10415); err != nil || a.Name != "Child-X" {
+		t.Fatalf("child by code = %v, %v; want Child-X", a, err)
+	}
+	if a, err := p.FindAVPByName(16777999, "Child-X"); err != nil || a.Code != 70100 {
+		t.Fatalf("child by own name = %v, %v", a, err)
+	}
+	if a, err := p.FindAVPByName(16777999, "Base-X"); a != nil || !errors.Is(err, ErrNotFound) {
+		t.Fatalf("child by base name = %v, %v; want ErrNotFound", a, err)
+	}
+	if a, err := p.FindAVP(0, 70100, 10415); err != nil || a.Name != "Base-X" {
+		t.Fatalf("base by code = %v, %v; want Base-X", a, err)
+	}
+}
+
+// A later load that replaces a base definition reaches every application that
+// falls back to it, by code and by name.
+func TestLaterBaseLoadReachesDescendants(t *testing.T) {
+	p := New(Base)
+	load := func(typ string) {
+		t.Helper()
+		if err := p.Load(strings.NewReader(`<diameter><application id="0"><vendor id="10415" name="TGPP"/>
+			<avp name="Base-Y" code="70101" vendor-id="10415" must="V" must-not="M"><data type="` + typ + `"/></avp>
+		</application><application id="16777999" type="auth" name="Child"/></diameter>`)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	load("Unsigned32")
+	load("OctetString")
+	byCode, err := p.FindAVP(16777999, 70101, 10415)
+	if err != nil || byCode.Data.TypeName != "OctetString" {
+		t.Fatalf("child by code after base replacement = %v, %v; want OctetString", byCode, err)
+	}
+	if byName, err := p.FindAVPByName(16777999, "Base-Y"); err != nil || byName != byCode {
+		t.Fatalf("child by name = %v, %v; want the replaced definition", byName, err)
+	}
+}
