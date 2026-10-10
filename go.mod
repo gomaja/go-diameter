@@ -3,7 +3,7 @@ module github.com/gomaja/go-diameter
 go 1.26.0
 
 require (
-	github.com/gomaja/go-sctp v1.1.1-0.20261010010422-da2f7fb8e3b0
+	github.com/gomaja/go-sctp v1.1.1-0.20261010090839-614ae6465de4
 	golang.org/x/sys v0.48.0
 	google.golang.org/grpc v1.84.0
 	google.golang.org/protobuf v1.36.12
