@@ -13,6 +13,7 @@ import (
 	"log/slog"
 	"net"
 	"net/netip"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -473,6 +474,7 @@ func (d oversizedSessionData) Type() datatype.TypeID {
 func (d oversizedSessionData) String() string { return "oversized Session-Id test data" }
 
 type messageErrorCaptureConn struct {
+	closed   atomic.Bool
 	wire     bytes.Buffer
 	writeLen int
 	ctx      context.Context
@@ -490,7 +492,8 @@ func (c *messageErrorCaptureConn) WriteStream(b []byte, _ uint) (int, error) {
 	return c.Write(b)
 }
 
-func (c *messageErrorCaptureConn) Close()                         {}
+func (c *messageErrorCaptureConn) Close()                         { c.closed.Store(true) }
+func (c *messageErrorCaptureConn) Closed() bool                   { return c.closed.Load() }
 func (c *messageErrorCaptureConn) LocalAddr() net.Addr            { return nil }
 func (c *messageErrorCaptureConn) RemoteAddr() net.Addr           { return nil }
 func (c *messageErrorCaptureConn) TLS() *tls.ConnectionState      { return nil }

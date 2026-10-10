@@ -27,11 +27,19 @@ func (c *blockingDisconnectConn) Write([]byte) (int, error) {
 }
 func (c *blockingDisconnectConn) WriteStream(b []byte, _ uint) (int, error) { return c.Write(b) }
 func (c *blockingDisconnectConn) Close()                                    { c.mu.Do(func() { close(c.closed) }) }
-func (c *blockingDisconnectConn) CloseNotify() <-chan struct{}              { return c.closed }
-func (c *blockingDisconnectConn) LocalAddr() net.Addr                       { return nil }
-func (c *blockingDisconnectConn) RemoteAddr() net.Addr                      { return nil }
-func (c *blockingDisconnectConn) TLS() *tls.ConnectionState                 { return nil }
-func (c *blockingDisconnectConn) Dictionary() *dict.Parser                  { return dict.Default }
+func (c *blockingDisconnectConn) Closed() bool {
+	select {
+	case <-c.closed:
+		return true
+	default:
+		return false
+	}
+}
+func (c *blockingDisconnectConn) CloseNotify() <-chan struct{} { return c.closed }
+func (c *blockingDisconnectConn) LocalAddr() net.Addr          { return nil }
+func (c *blockingDisconnectConn) RemoteAddr() net.Addr         { return nil }
+func (c *blockingDisconnectConn) TLS() *tls.ConnectionState    { return nil }
+func (c *blockingDisconnectConn) Dictionary() *dict.Parser     { return dict.Default }
 func (c *blockingDisconnectConn) Context() context.Context {
 	return smpeer.NewContext(context.Background(), &smpeer.Metadata{})
 }

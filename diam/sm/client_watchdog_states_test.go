@@ -30,7 +30,15 @@ func (c *watchdogProbeConn) Write(b []byte) (int, error) {
 func (c *watchdogProbeConn) WriteStream(b []byte, _ uint) (int, error) {
 	return c.Write(b)
 }
-func (c *watchdogProbeConn) Close()                       { c.once.Do(func() { close(c.closed) }) }
+func (c *watchdogProbeConn) Close() { c.once.Do(func() { close(c.closed) }) }
+func (c *watchdogProbeConn) Closed() bool {
+	select {
+	case <-c.closed:
+		return true
+	default:
+		return false
+	}
+}
 func (c *watchdogProbeConn) CloseNotify() <-chan struct{} { return c.closed }
 
 func TestWatchdogOneOutstandingRequestAndStateOrder(t *testing.T) {

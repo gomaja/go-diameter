@@ -16,6 +16,7 @@ import (
 	"log/slog"
 	"net"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gomaja/go-diameter/diam/dict"
@@ -61,13 +62,19 @@ type Conn interface {
 	Write(b []byte) (int, error)                    // Writes a msg to the connection
 	WriteStream(b []byte, stream uint) (int, error) // Writes a msg to the connection's stream
 	Close()                                         // Close the connection
-	LocalAddr() net.Addr                            // Returns the local IP
-	RemoteAddr() net.Addr                           // Returns the remote IP
-	TLS() *tls.ConnectionState                      // TLS or nil when not using TLS
-	Dictionary() *dict.Parser                       // Dictionary parser of the connection
-	Context() context.Context                       // Returns the internal context
-	SetContext(ctx context.Context)                 // Stores a new context
-	Connection() net.Conn                           // Returns network connection
+	// Closed reports whether Close has been called, or the server has finished
+	// with the connection. It is safe to call concurrently and requires no read.
+	// On read-loop exit the server waits for pending handlers before setting it.
+	// Close publishes it before closing the transport, without waiting for handlers;
+	// use DispatchDone to wait for them. Closing Connection() directly bypasses it.
+	Closed() bool
+	LocalAddr() net.Addr            // Returns the local IP
+	RemoteAddr() net.Addr           // Returns the remote IP
+	TLS() *tls.ConnectionState      // TLS or nil when not using TLS
+	Dictionary() *dict.Parser       // Dictionary parser of the connection
+	Context() context.Context       // Returns the internal context
+	SetContext(ctx context.Context) // Stores a new context
+	Connection() net.Conn           // Returns network connection
 }
 
 // The CloseNotifier interface is implemented by Conns which
@@ -129,6 +136,7 @@ type conn struct {
 	// accepted marks a connection taken from a listener by Serve. Dialed
 	// connections share serve but run the client side of the handshake.
 	accepted bool
+	closed   atomic.Bool
 
 	hwg           sync.WaitGroup // tracks in-flight handler goroutines
 	sem           chan struct{}  // bounds concurrent handlers; nil = unbounded/sequential
@@ -163,8 +171,8 @@ func (c *conn) closeNotify() <-chan struct{} {
 
 		if msc, isMulti := c.rwc.(MultistreamConn); isMulti {
 			// MultistreamConn provides it's own error handler
-			msc.SetErrorHandler(func(mc MultistreamConn, err error) {
-				if closeErr := mc.Close(); closeErr != nil && !errors.Is(closeErr, net.ErrClosed) {
+			msc.SetErrorHandler(func(_ MultistreamConn, err error) {
+				if closeErr := c.close(); closeErr != nil && !errors.Is(closeErr, net.ErrClosed) {
 					c.log(slog.LevelDebug, "diam: close connection after read error",
 						slog.Any(logKeyError, closeErr), slog.Any(logKeyReadError, err))
 				}
@@ -258,12 +266,12 @@ func (c *conn) serve() {
 		if v := recover(); v != nil {
 			c.logPanic(v)
 		}
-		// Wait for in-flight handler goroutines to finish so they are
-		// not writing to a closed connection when we call rwc.Close().
+		// RFC 6733 §5.6: finish already-received messages before publishing
+		// closure or closing the transport after a read-loop exit.
 		c.hwg.Wait()
 		// A connection that an earlier Close, Disconnect or Shutdown already
 		// closed is not an error worth logging.
-		if err := c.rwc.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
+		if err := c.close(); err != nil && !errors.Is(err, net.ErrClosed) {
 			c.log(slog.LevelDebug, "diam: close connection", slog.Any(logKeyError, err))
 		}
 		if onClose != nil {
@@ -564,10 +572,19 @@ func (w *response) SetWriterStream(stream uint) uint {
 // Close closes the connection. A failure to close a connection that is not
 // already closed is logged to Server.Logger at Debug level.
 func (w *response) Close() {
-	if err := w.conn.rwc.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
+	if err := w.conn.close(); err != nil && !errors.Is(err, net.ErrClosed) {
 		w.conn.log(slog.LevelDebug, "diam: close connection", slog.Any(logKeyError, err))
 	}
 }
+
+// close publishes the local close decision before touching the transport.
+func (c *conn) close() error {
+	c.closed.Store(true)
+	return c.rwc.Close()
+}
+
+// Closed implements Conn.Closed.
+func (w *response) Closed() bool { return w.conn.closed.Load() }
 
 // LocalAddr returns the local address of the connection.
 func (w *response) LocalAddr() net.Addr {
@@ -1024,7 +1041,7 @@ func (srv *Server) Shutdown(ctx context.Context) error {
 		select {
 		case <-ctx.Done():
 			for _, c := range conns {
-				_ = c.rwc.Close()
+				c.writer.Close()
 			}
 			return ctx.Err()
 		case <-ticker.C:

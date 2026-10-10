@@ -110,8 +110,10 @@ type Settings struct {
 	// OnCER, if non-nil, is invoked when a CER is received, before the
 	// state machine processes it. Useful for logging, metrics, or access
 	// control. The default handshake logic runs after OnCER returns.
-	// Closing the connection from the hook is honored and aborts the
-	// handshake.
+	// Calling c.Close() from the hook aborts the handshake without publishing
+	// peer metadata, admitting the peer, building a CEA, or calling OnCEA or
+	// OnHandshake. A connection wrapper's Close must call the wrapped Close.
+	// Closing c.Connection() directly is not detected by this hook contract.
 	OnCER diam.HandlerFunc
 
 	// OnCEA, if non-nil, is invoked immediately before a CEA is sent (both
@@ -120,7 +122,10 @@ type Settings struct {
 
 	// OnDWR, if non-nil, is invoked when a DWR is received (after the
 	// peer has passed the handshake) before the state machine responds
-	// with DWA. Same semantics as OnCER.
+	// with DWA (RFC 6733 §5.5, RFC 3539 §3.4.1). Calling c.Close() from the
+	// hook aborts processing without building a DWA or calling OnDWA. A connection
+	// wrapper's Close must call the wrapped Close. Closing c.Connection() directly
+	// is not detected by this hook contract.
 	OnDWR diam.HandlerFunc
 
 	// OnDWA, if non-nil, is invoked immediately before a DWA is sent in
@@ -257,11 +262,15 @@ func New(settings *Settings) (*StateMachine, error) {
 // next. Used to install the Settings.OnCER / Settings.OnDWR hooks without
 // changing the default handler.
 func chainPreHook(pre diam.HandlerFunc, next diam.HandlerFunc) diam.HandlerFunc {
-	if pre == nil {
-		return next
-	}
 	return func(c diam.Conn, m *diam.Message) {
-		pre(c, m)
+		if pre != nil {
+			pre(c, m)
+		}
+		// RFC 6733 §§5.3, 5.5, 5.6.1: a closed transport cannot
+		// complete capabilities exchange or answer a watchdog request.
+		if c.Closed() {
+			return
+		}
 		next(c, m)
 	}
 }

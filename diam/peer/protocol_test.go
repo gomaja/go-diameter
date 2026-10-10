@@ -44,6 +44,14 @@ func (c *fakeConn) WriteStream(b []byte, _ uint) (int, error) { return c.Write(b
 func (c *fakeConn) Close() {
 	c.once.Do(func() { close(c.done); _ = c.underlying.Close(); _ = c.other.Close() })
 }
+func (c *fakeConn) Closed() bool {
+	select {
+	case <-c.done:
+		return true
+	default:
+		return false
+	}
+}
 func (c *fakeConn) CloseNotify() <-chan struct{}   { return c.done }
 func (c *fakeConn) LocalAddr() net.Addr            { return &net.TCPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 3868} }
 func (c *fakeConn) RemoteAddr() net.Addr           { return &net.TCPAddr{IP: net.IPv4(127, 0, 0, 2), Port: 3868} }

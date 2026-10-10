@@ -154,6 +154,7 @@ func (c *errWriteConn) WriteStream([]byte, uint) (int, error) {
 	return 0, c.writeErr
 }
 
+func (c *errWriteConn) Closed() bool { c.mu.Lock(); defer c.mu.Unlock(); return c.closed }
 func (c *errWriteConn) Close() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
