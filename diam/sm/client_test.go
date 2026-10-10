@@ -267,7 +267,9 @@ func TestClient_Handshake_RetransmitTimeout(t *testing.T) {
 			diam.NewAVP(avp.AcctApplicationID, avp.Mbit, 0, datatype.Unsigned32(3)),
 		},
 	}
-	_, err := cli.Dial(srv.Addr)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	_, err := cli.DialContext(ctx, "tcp", srv.Addr, nil)
 	if err == nil {
 		t.Fatal("Unexpected CER worked")
 	}

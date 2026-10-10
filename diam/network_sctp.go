@@ -415,27 +415,12 @@ func (msc *SCTPConn) Write(b []byte) (int, error) {
 
 // Dial connects to the address on the named SCTP network.
 func (d sctpDialer) Dial(network, address string) (net.Conn, error) {
-	sctpAddr, err := sctp.ResolveAddr(network, address)
-	if err != nil {
-		return nil, err
-	}
-
-	ctx := context.Background()
-	if d.Timeout > 0 {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, d.Timeout)
-		defer cancel()
-	}
-	conn, err := diameterSCTPConfig().Dial(ctx, network, d.LocalAddr, sctpAddr)
-	if err != nil {
-		return nil, err
-	}
-	return newSCTPConn(conn), nil
+	return d.DialContext(context.Background(), network, address)
 }
 
 // Dial - SCTP dial for stream unaware apps.
 func (d sctpSingleStreamDialer) Dial(network, address string) (net.Conn, error) {
-	return sctpDialer(d).Dial(network, address)
+	return d.DialContext(context.Background(), network, address)
 }
 
 // Accept implements the Accept method in the listener interface for sctpListener (see: MultistreamListen).

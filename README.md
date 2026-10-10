@@ -245,6 +245,70 @@ sudo sed -i 's/^blacklist sctp$/#blacklist sctp/' /etc/modprobe.d/sctp-blacklist
 No reboot is needed: the module loads the first time an SCTP socket is
 opened. `/proc/net/sctp/snmp` exists once it is loaded.
 
+## Dial cancellation
+
+`sm.Client.DialContext(ctx, network, addr, laddr)` and
+`DialTLSContext(ctx, network, addr, certFile, keyFile, laddr)` bound transport
+connection establishment, TLS negotiation where applicable, and the CER/CEA
+exchange, including retransmissions. Cancellation aborts an unfinished SCTP
+association, including TLS over SCTP (RFC 9260 §9.1), or closes a TCP connection,
+and returns an error matching `ctx.Err()` with `errors.Is`.
+After a successful return, cancelling the dial context does not affect the
+connection or its watchdog. A non-nil `laddr` binds the outgoing socket,
+including with `DialNetworkTLS` and `DialTLSExt`.
+
+For SCTP, the context covers every hostname lookup in a multi-homed address,
+association setup, and CER/CEA. Literal IP addresses need no DNS lookup.
+
+```go
+ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+defer cancel()
+conn, err := client.DialContext(ctx, "tcp", "127.0.0.1:3868", nil)
+if err != nil {
+    return err
+}
+defer conn.Close()
+```
+
+The existing `DialTimeout`, `DialExt`, `DialTLSTimeout`, and `DialTLSExt`
+timeouts bound DNS resolution and connection establishment for TCP, including
+TCP used by TLS. For SCTP, those timeouts start after name resolution and bound
+only association setup. Neither transport applies the legacy timeout to TLS
+negotiation or CER/CEA. `NewConn` retains its existing handshake behavior for
+connections the caller has already opened. Applications needing to cancel establishment
+should use the context dial methods. Handshake callbacks must return when their
+connection closes; cancellation cannot forcibly stop application code. If the
+CEA handler claims the handshake state before the cancellation path marks it
+cancelled, peer metadata can be stored and `OnHandshake` can run even though
+the dial returns `ctx.Err()`. A CEA that loses that state transition cannot
+publish metadata or invoke the callback.
+
+At the transport layer, `diam.Server.DialContext(ctx)` and
+`DialTLSContext(ctx, certFile, keyFile)` use the server's network, local address,
+handler, dictionary and I/O settings. The context TLS method completes TLS
+negotiation before returning; legacy transport TLS dials negotiate on first I/O.
+
+### SCTP cancellation with an unreachable peer
+
+The optional `sctpblackhole` test removes a peer's address after it reads CER
+or a TLS ClientHello, then checks that cancellation and deadline expiry return
+within 200 ms. It requires Linux, SCTP, `iproute2`, and an isolated privileged
+network namespace;
+it must not run on the host network. For example, using an existing image that
+contains `ip`:
+
+```sh
+go test -c -tags sctpblackhole -o /tmp/diam-sm.test ./diam/sm
+docker run --rm --privileged --network none \
+  -v /tmp/diam-sm.test:/work/sm.test:ro \
+  --entrypoint /work/sm.test YOUR_IPROUTE2_IMAGE \
+  -test.run '^TestClientSCTPCancellationBlackhole$' -test.v -test.timeout 25s
+rm /tmp/diam-sm.test
+```
+
+The test creates and removes its veth pair and peer namespace, and waits for
+its peer process. It is excluded from the normal test suite.
+
 ## Validation
 
 The public CI pipeline validates the repository with:
