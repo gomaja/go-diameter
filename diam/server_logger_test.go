@@ -329,6 +329,9 @@ func TestMultistreamConnLogsCloseFailureAfterReadError(t *testing.T) {
 		t.Fatal("closeNotify installed no multistream error handler")
 	}
 	onError(msc, io.ErrUnexpectedEOF)
+	if !c.writer.Closed() {
+		t.Error("multistream read error closed transport without publishing Closed")
+	}
 	select {
 	case <-gone:
 	default:

@@ -51,6 +51,7 @@ func (c *handshakeConn) Write(b []byte) (int, error) {
 	return len(b), nil
 }
 func (c *handshakeConn) WriteStream(b []byte, _ uint) (int, error) { return c.Write(b) }
+func (c *handshakeConn) Closed() bool                              { return c.closed.Load() }
 func (c *handshakeConn) Close() {
 	first := c.closed.CompareAndSwap(false, true)
 	if first && c.afterClose != nil {

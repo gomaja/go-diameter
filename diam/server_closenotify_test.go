@@ -177,3 +177,70 @@ func TestCloseNotifyConcurrentWithServeExit(t *testing.T) {
 		}
 	}
 }
+
+func TestClosedWithoutReadLoop(t *testing.T) {
+	c, remote := newTestConn(t)
+	defer closeRemote(t, remote)
+	if c.writer.Closed() {
+		t.Fatal("new connection is closed")
+	}
+	c.writer.Close()
+	if !c.writer.Closed() {
+		t.Fatal("Close did not publish closed state without a read loop")
+	}
+	c.writer.Close()
+	if !c.writer.Closed() {
+		t.Fatal("repeated Close lost closed state")
+	}
+	select {
+	case <-c.writer.DispatchDone():
+		t.Fatal("Close claimed dispatch had finished")
+	default:
+	}
+}
+
+func TestClosedConcurrentWithClose(t *testing.T) {
+	c, remote := newTestConn(t)
+	defer closeRemote(t, remote)
+	var wg sync.WaitGroup
+	for range 32 {
+		wg.Go(func() {
+			_ = c.writer.Closed()
+			c.writer.Close()
+			if !c.writer.Closed() {
+				t.Error("Close did not publish closed state")
+			}
+		})
+	}
+	wg.Wait()
+}
+
+func TestClosedAfterReadLoopExit(t *testing.T) {
+	c, remote := newTestConn(t)
+	closeRemote(t, remote)
+	c.serve()
+	if !c.writer.Closed() {
+		t.Fatal("read loop exit did not publish closed state")
+	}
+}
+
+type closeStateProbe struct {
+	net.Conn
+	beforeClose func()
+}
+
+func (c closeStateProbe) Close() error {
+	c.beforeClose()
+	return c.Conn.Close()
+}
+
+func TestClosedPublishedBeforeTransportClose(t *testing.T) {
+	c, remote := newTestConn(t)
+	defer closeRemote(t, remote)
+	c.rwc = closeStateProbe{c.rwc, func() {
+		if !c.writer.Closed() {
+			t.Error("transport closed before publishing closed state")
+		}
+	}}
+	c.writer.Close()
+}

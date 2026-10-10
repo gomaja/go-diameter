@@ -476,22 +476,24 @@ func (a testLocalAddr) String() string  { return a.value }
 
 // Type matching interface: diam.Conn
 type testLocalAddrDiamConn struct {
+	closed    atomic.Bool
 	localAddr net.Addr
 }
 
-func (d testLocalAddrDiamConn) Write(b []byte) (int, error)                    { return 0, nil }
-func (d testLocalAddrDiamConn) WriteStream(b []byte, stream uint) (int, error) { return 0, nil }
-func (d testLocalAddrDiamConn) Close()                                         {}
-func (d testLocalAddrDiamConn) LocalAddr() net.Addr                            { return d.localAddr }
-func (d testLocalAddrDiamConn) RemoteAddr() net.Addr                           { return nil }
-func (d testLocalAddrDiamConn) TLS() *tls.ConnectionState                      { return nil }
-func (d testLocalAddrDiamConn) Dictionary() *dict.Parser                       { return nil }
-func (d testLocalAddrDiamConn) Context() context.Context                       { return context.Background() }
-func (d testLocalAddrDiamConn) SetContext(c context.Context)                   {}
-func (d testLocalAddrDiamConn) Connection() net.Conn                           { return nil }
+func (d *testLocalAddrDiamConn) Write(b []byte) (int, error)                    { return 0, nil }
+func (d *testLocalAddrDiamConn) WriteStream(b []byte, stream uint) (int, error) { return 0, nil }
+func (d *testLocalAddrDiamConn) Close()                                         { d.closed.Store(true) }
+func (d *testLocalAddrDiamConn) Closed() bool                                   { return d.closed.Load() }
+func (d *testLocalAddrDiamConn) LocalAddr() net.Addr                            { return d.localAddr }
+func (d *testLocalAddrDiamConn) RemoteAddr() net.Addr                           { return nil }
+func (d *testLocalAddrDiamConn) TLS() *tls.ConnectionState                      { return nil }
+func (d *testLocalAddrDiamConn) Dictionary() *dict.Parser                       { return nil }
+func (d *testLocalAddrDiamConn) Context() context.Context                       { return context.Background() }
+func (d *testLocalAddrDiamConn) SetContext(c context.Context)                   {}
+func (d *testLocalAddrDiamConn) Connection() net.Conn                           { return nil }
 
 func newTestLocalAddrDiamConn(localAddrValue string) diam.Conn {
-	return testLocalAddrDiamConn{
+	return &testLocalAddrDiamConn{
 		localAddr: &testLocalAddr{
 			value: localAddrValue,
 		},
@@ -548,7 +550,7 @@ func TestClient_Conn_LocalAddresses_IPv6(t *testing.T) {
 		{"string fallback", testLocalAddr{value: "[2001:db8::1]:3868"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := getLocalAddresses(testLocalAddrDiamConn{localAddr: tc.addr})
+			got, err := getLocalAddresses(&testLocalAddrDiamConn{localAddr: tc.addr})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -566,7 +568,7 @@ func TestClient_Conn_LocalAddresses_SCTPMultihomed(t *testing.T) {
 		netip.MustParseAddr("10.0.0.3"),
 		netip.MustParseAddr("2001:db8::1"),
 	}, Port: 3868}
-	got, err := getLocalAddresses(testLocalAddrDiamConn{localAddr: addr})
+	got, err := getLocalAddresses(&testLocalAddrDiamConn{localAddr: addr})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -576,7 +578,7 @@ func TestClient_Conn_LocalAddresses_SCTPMultihomed(t *testing.T) {
 	requireLocalAddress(t, got[0], netip.MustParseAddr("10.0.0.3"))
 	requireLocalAddress(t, got[1], netip.MustParseAddr("2001:db8::1"))
 	addr.IPs = []netip.Addr{netip.MustParseAddr("::1")}
-	got, err = getLocalAddresses(testLocalAddrDiamConn{localAddr: addr})
+	got, err = getLocalAddresses(&testLocalAddrDiamConn{localAddr: addr})
 	if err != nil || len(got) != 1 {
 		t.Fatalf("loopback-only addresses = %v, %v", got, err)
 	}
@@ -677,4 +679,4 @@ func TestClient_InbandSecurityID_TLS(t *testing.T) {
 	}
 }
 
-func (d testLocalAddrDiamConn) Logger() *slog.Logger { return slog.Default() }
+func (d *testLocalAddrDiamConn) Logger() *slog.Logger { return slog.Default() }
