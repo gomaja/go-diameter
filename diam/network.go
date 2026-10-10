@@ -131,12 +131,20 @@ func getMultistreamDialer(network string, timeout time.Duration, laddr net.Addr)
 func resolveAddress(network, addr string) (net.Addr, error) {
 	switch network {
 	case "sctp", "sctp4", "sctp6":
-		return sctp.ResolveAddr(network, addr)
+		a, err := sctp.ResolveAddr(network, addr)
+		if err != nil {
+			return nil, err
+		}
+		return a, nil
 	case "":
 		network = "tcp"
 		fallthrough
 	case "tcp", "tcp4", "tcp6":
-		return net.ResolveTCPAddr(network, addr)
+		a, err := net.ResolveTCPAddr(network, addr)
+		if err != nil {
+			return nil, err
+		}
+		return a, nil
 	default:
 		return nil, net.UnknownNetworkError(network)
 	}
@@ -154,7 +162,11 @@ func listenSCTP(network, address string) (*sctp.Listener, error) {
 func Listen(network, address string) (net.Listener, error) {
 	switch network {
 	case "sctp", "sctp4", "sctp6":
-		return listenSCTP(network, address)
+		lis, err := listenSCTP(network, address)
+		if err != nil {
+			return nil, err
+		}
+		return lis, nil
 	default:
 		return net.Listen(network, address)
 	}
@@ -165,7 +177,10 @@ func MultistreamListen(network, address string) (net.Listener, error) {
 	switch network {
 	case "sctp", "sctp4", "sctp6":
 		lis, err := listenSCTP(network, address)
-		return sctpListener{lis}, err
+		if err != nil {
+			return nil, err
+		}
+		return sctpListener{lis}, nil
 	default:
 		return net.Listen(network, address)
 	}
