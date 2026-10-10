@@ -5,6 +5,7 @@
 package sm
 
 import (
+	"context"
 	"crypto/tls"
 	"errors"
 	"fmt"
@@ -231,13 +232,13 @@ func (cli *Client) emitWatchdog(c diam.Conn, event WatchdogEvent) {
 // Dial calls the address set as ip:port, performs a handshake and optionally
 // start a watchdog goroutine in background.
 func (cli *Client) Dial(addr string) (diam.Conn, error) {
-	return cli.DialExt("tcp", addr, 0, nil)
+	return cli.DialContext(context.Background(), "tcp", addr, nil)
 }
 
 // DialNetwork calls the network address set as ip:port, performs a handshake and optionally
 // start a watchdog goroutine in background.
 func (cli *Client) DialNetwork(network, addr string) (diam.Conn, error) {
-	return cli.DialExt(network, addr, 0, nil)
+	return cli.DialContext(context.Background(), network, addr, nil)
 }
 
 // DialNetworkBind calls the network address set as ip:port, performs a handshake and optionally
@@ -266,7 +267,7 @@ func (cli *Client) DialTLSTimeout(addr, certFile, keyFile string, timeout time.D
 // DialNetworkTLS calls the network address set as ip:port, performs a handshake and optionally
 // start a watchdog goroutine in background.
 func (cli *Client) DialNetworkTLS(network, addr, certFile, keyFile string, laddr net.Addr) (diam.Conn, error) {
-	return cli.DialTLSExt(network, addr, certFile, keyFile, 0, nil)
+	return cli.DialTLSExt(network, addr, certFile, keyFile, 0, laddr)
 }
 
 // DialExt - Optionally binds client to laddr, calls the network address set as ip:port,
@@ -284,6 +285,26 @@ func (cli *Client) DialTLSExt(
 
 	return cli.dial(func(activity *watchdogActivity) (diam.Conn, error) {
 		return cli.server(network, addr, laddr, activity).DialTLS(certFile, keyFile, timeout)
+	})
+}
+
+// DialContext connects and completes CER/CEA capability exchange (RFC 6733
+// §5.3). The context bounds transport establishment and all CER retransmissions.
+// Cancellation closes an unfinished connection. After a successful return,
+// cancelling ctx has no effect on the connection or its watchdog. If CEA
+// acceptance wins the race with cancellation, OnHandshake may run even when
+// DialContext returns ctx.Err(); cancellation cannot stop application callbacks.
+func (cli *Client) DialContext(ctx context.Context, network, addr string, laddr net.Addr) (diam.Conn, error) {
+	return cli.dialContext(ctx, func(activity *watchdogActivity) (diam.Conn, error) {
+		return cli.server(network, addr, laddr, activity).DialContext(ctx)
+	})
+}
+
+// DialTLSContext is DialContext with TLS. The context also bounds the TLS
+// handshake. Cancellation after a successful return has no effect.
+func (cli *Client) DialTLSContext(ctx context.Context, network, addr, certFile, keyFile string, laddr net.Addr) (diam.Conn, error) {
+	return cli.dialContext(ctx, func(activity *watchdogActivity) (diam.Conn, error) {
+		return cli.server(network, addr, laddr, activity).DialTLSContext(ctx, certFile, keyFile)
 	})
 }
 
@@ -322,6 +343,13 @@ func (cli *Client) server(network, addr string, laddr net.Addr, activity *watchd
 type dialFunc func(*watchdogActivity) (diam.Conn, error)
 
 func (cli *Client) dial(f dialFunc) (diam.Conn, error) {
+	return cli.dialContext(context.Background(), f)
+}
+
+func (cli *Client) dialContext(ctx context.Context, f dialFunc) (diam.Conn, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if err := cli.validate(); err != nil {
 		return nil, err
 	}
@@ -330,9 +358,12 @@ func (cli *Client) dial(f dialFunc) (diam.Conn, error) {
 	activity.advertised = base.AdvertisedApplicationIDs(activity.capabilities)
 	c, err := f(activity)
 	if err != nil {
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
 		return c, err
 	}
-	c, err = cli.handshake(c, activity)
+	c, err = cli.handshakeContext(ctx, c, activity)
 	return c, err
 }
 
@@ -367,29 +398,63 @@ func (cli *Client) validate() error {
 }
 
 func (cli *Client) handshake(c diam.Conn, activity *watchdogActivity) (diam.Conn, error) {
+	return cli.handshakeContext(context.Background(), c, activity)
+}
+
+func (cli *Client) handshakeContext(ctx context.Context, c diam.Conn, activity *watchdogActivity) (conn diam.Conn, err error) {
+	// Closing the transport also interrupts a blocked CER write. Join the callback
+	// before returning so cancellation cannot close a successfully returned Conn.
+	closed := make(chan struct{})
+	cancelDial := func() {
+		// Arbitrate cancellation against CEA acceptance before touching transport
+		// state, just as the CER timeout does (RFC 6733 §5.3).
+		activity.handshakePhase.CompareAndSwap(0, 2)
+		abortDial(c)
+	}
+	closeConn := func() {
+		if ctx.Err() != nil {
+			cancelDial()
+		} else {
+			c.Close()
+		}
+	}
+	stop := context.AfterFunc(ctx, func() { cancelDial(); close(closed) })
+	defer func() {
+		if !stop() {
+			<-closed
+		}
+		if ctx.Err() != nil {
+			cancelDial()
+			conn, err = nil, ctx.Err()
+		}
+		if err == nil && cli.EnableWatchdog {
+			go cli.watchdog(c, activity.dwac, activity)
+		}
+	}()
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
 	// RFC 6733 §§5.3 and 6.10: this client cannot upgrade plaintext
 	// to in-band TLS after CER/CEA, so it must not offer TLS on that path.
 	if cli.InbandSecurityID == 1 {
 		tlsConn, ok := c.Connection().(*tls.Conn)
 		if !ok {
-			c.Close()
+			closeConn()
 			return nil, fmt.Errorf("Inband-Security-Id=1 requires an already established TLS connection")
 		}
-		if err := tlsConn.Handshake(); err != nil {
-			c.Close()
+		if err := tlsConn.HandshakeContext(ctx); err != nil {
+			closeConn()
 			return nil, fmt.Errorf("TLS handshake before CER: %w", err)
 		}
 	}
-	var (
-		hostAddresses []datatype.Address
-		err           error
-	)
+	var hostAddresses []datatype.Address
 	if len(cli.Handler.cfg.HostIPAddresses) > 0 {
 		hostAddresses = cli.Handler.cfg.HostIPAddresses
 	} else {
 		hostAddresses, err = getLocalAddresses(c)
 		if err != nil {
-			c.Close()
+			closeConn()
 			return nil, fmt.Errorf("diameter handshake failure: %w", err)
 		}
 	}
@@ -398,7 +463,7 @@ func (cli *Client) handshake(c diam.Conn, activity *watchdogActivity) (diam.Conn
 	cfg.HostIPAddresses = hostAddresses
 	m, err := base.BuildCER(cli.Dict, cfg)
 	if err != nil {
-		c.Close()
+		closeConn()
 		return nil, err
 	}
 	// CEA validation ends the protocol timeout. OnHandshake completion is a
@@ -406,39 +471,76 @@ func (cli *Client) handshake(c diam.Conn, activity *watchdogActivity) (diam.Conn
 	// retransmit budget, and Dial must still wait for it (RFC 6733 §5.3).
 	finish := func(err error) (diam.Conn, error) {
 		if err != nil {
-			c.Close()
+			closeConn()
 			return nil, err
-		}
-		if cli.EnableWatchdog {
-			go cli.watchdog(c, activity.dwac, activity)
 		}
 		return c, nil
 	}
-	for i := 0; i < int(cli.MaxRetransmits)+1; i++ {
+	waitCEA := func() (diam.Conn, error) {
+		select {
+		case <-ctx.Done():
+			return finish(ctx.Err())
+		case err := <-activity.ceac:
+			return finish(err)
+		}
+	}
+	timer := time.NewTimer(0)
+	if !timer.Stop() {
+		<-timer.C
+	}
+	defer timer.Stop()
+	for i := uint(0); ; i++ {
+		if err := ctx.Err(); err != nil {
+			return finish(err)
+		}
 		if activity.handshakePhase.Load() == 1 {
-			return finish(<-activity.ceac)
+			return waitCEA()
 		}
 		if _, err := m.WriteTo(c); err != nil {
-			c.Close()
+			closeConn()
 			return nil, err
 		}
+		timer.Reset(cli.RetransmitInterval)
 		select {
+		case <-ctx.Done():
+			return finish(ctx.Err())
 		case err := <-activity.ceac:
 			return finish(err)
 		case <-activity.ceaValidated:
-			return finish(<-activity.ceac)
-		case <-time.After(cli.RetransmitInterval):
+			return waitCEA()
+		case <-timer.C:
+		}
+		if i == cli.MaxRetransmits {
+			break
 		}
 	}
 	// Arbitrate a CEA arriving at the deadline. Once validation wins, a slow
 	// callback cannot be mistaken for an unanswered CER.
 	if !activity.handshakePhase.CompareAndSwap(0, 2) {
-		return finish(<-activity.ceac)
+		return waitCEA()
 	}
 
 	logMessage(c, nil, slog.LevelWarn, "sm: CEA timeout; closing connection", ErrHandshakeTimeout)
-	c.Close()
+	closeConn()
 	return nil, ErrHandshakeTimeout
+}
+
+// abortDial terminates a cancelled dial without SCTP's graceful shutdown wait
+// (RFC 9260 §9.1). Unwrap TLS before checking for the transport's Abort method.
+// Close still publishes Diameter's Closed state after the transport is aborted.
+func abortDial(c diam.Conn) {
+	for rw := c.Connection(); rw != nil; {
+		if conn, ok := rw.(interface{ Abort() error }); ok {
+			_ = conn.Abort()
+			break
+		}
+		conn, ok := rw.(interface{ NetConn() net.Conn })
+		if !ok {
+			break
+		}
+		rw = conn.NetConn()
+	}
+	c.Close()
 }
 
 func (cli *Client) makeCER(hostIPAddresses []datatype.Address) (*diam.Message, error) {

@@ -7,6 +7,7 @@
 package diam
 
 import (
+	"context"
 	"crypto/tls"
 	"errors"
 	"net"
@@ -76,6 +77,19 @@ func dial(srv *Server, timeout time.Duration) (Conn, error) {
 // srv.LocalAddr for one call without mutating or copying srv (which holds a
 // mutex and listener state and must not be copied).
 func dialBind(srv *Server, laddr net.Addr, timeout time.Duration) (Conn, error) {
+	return srv.dialContext(context.Background(), laddr, timeout)
+}
+
+// DialContext opens a connection. The context bounds connection establishment;
+// cancelling it after a successful return does not affect the connection.
+func (srv *Server) DialContext(ctx context.Context) (Conn, error) {
+	return srv.dialContext(ctx, srv.LocalAddr, 0)
+}
+
+func (srv *Server) dialContext(ctx context.Context, laddr net.Addr, timeout time.Duration) (Conn, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	network := srv.Network
 	if len(network) == 0 {
 		network = "tcp"
@@ -84,9 +98,9 @@ func dialBind(srv *Server, laddr net.Addr, timeout time.Duration) (Conn, error) 
 	var rw net.Conn
 	var err error
 	dialer := getMultistreamDialer(network, timeout, laddr)
-	rw, err = dialer.Dial(network, addr)
+	rw, err = dialer.DialContext(ctx, network, addr)
 	if err != nil {
-		return nil, err
+		return nil, dialContextError(ctx, err)
 	}
 	return srv.serveConn(rw), nil
 }
@@ -139,6 +153,19 @@ func DialTLSConfig(addr, certFile, keyFile string, handler Handler, dp *dict.Par
 
 // dialTLS net TCP wrapper
 func dialTLS(srv *Server, certFile, keyFile string, timeout time.Duration) (Conn, error) {
+	return srv.dialTLSContext(context.Background(), certFile, keyFile, timeout, false)
+}
+
+// DialTLSContext is DialContext with TLS. The context also bounds the TLS
+// handshake and has no effect on the connection after a successful return.
+func (srv *Server) DialTLSContext(ctx context.Context, certFile, keyFile string) (Conn, error) {
+	return srv.dialTLSContext(ctx, certFile, keyFile, 0, true)
+}
+
+func (srv *Server) dialTLSContext(ctx context.Context, certFile, keyFile string, timeout time.Duration, handshake bool) (Conn, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	var err error
 	network := srv.Network
 	if len(network) == 0 {
@@ -156,11 +183,53 @@ func dialTLS(srv *Server, certFile, keyFile string, timeout time.Duration) (Conn
 
 	var rw net.Conn
 	dialer := getDialer(network, timeout, srv.LocalAddr)
-	rw, err = dialer.Dial(network, addr)
+	rw, err = dialer.DialContext(ctx, network, addr)
 	if err != nil {
-		return nil, err
+		return nil, dialContextError(ctx, err)
 	}
-	return srv.serveConn(tls.Client(rw, config)), nil
+	conn := tls.Client(rw, config)
+	// Legacy dials perform TLS on first I/O. Context dials complete it here,
+	// while ctx still owns the transport (RFC 6733 §2.1).
+	if handshake {
+		if err := handshakeTLSContext(ctx, conn); err != nil {
+			_ = rw.Close()
+			return nil, dialContextError(ctx, err)
+		}
+	}
+	return srv.serveConn(conn), nil
+}
+
+// TLS closes its underlying connection when ctx expires. SCTP Close waits for
+// graceful shutdown, so abort it concurrently instead (RFC 9260 §9.1).
+func handshakeTLSContext(ctx context.Context, conn *tls.Conn) error {
+	aborter, ok := conn.NetConn().(interface{ Abort() error })
+	if !ok {
+		return conn.HandshakeContext(ctx)
+	}
+	done := make(chan struct{})
+	stop := context.AfterFunc(ctx, func() { _ = aborter.Abort(); close(done) })
+	err := conn.HandshakeContext(ctx)
+	if !stop() {
+		<-done
+	}
+	if ctx.Err() != nil {
+		_ = aborter.Abort()
+		return ctx.Err()
+	}
+	return err
+}
+
+// A socket deadline can expire before the context timer publishes ctx.Err().
+// Preserve the context error contract even when net returns a poll timeout.
+func dialContextError(ctx context.Context, err error) error {
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+	var timeout net.Error
+	if deadline, ok := ctx.Deadline(); ok && !time.Now().Before(deadline) && errors.As(err, &timeout) && timeout.Timeout() {
+		return context.DeadlineExceeded
+	}
+	return err
 }
 
 // defaultTransportAddress applies RFC 6733 §2.1 and Verified Erratum 3997.

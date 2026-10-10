@@ -5,6 +5,7 @@
 package diam
 
 import (
+	"context"
 	"io"
 	"net"
 	"strings"
@@ -99,6 +100,9 @@ type MultistreamConn interface {
 type Dialer interface {
 	// Dial connects to the address on the named network
 	Dial(network, address string) (net.Conn, error)
+	// DialContext bounds connection establishment. Cancellation after a successful
+	// return does not affect the connection.
+	DialContext(ctx context.Context, network, address string) (net.Conn, error)
 }
 
 func getDialer(network string, timeout time.Duration, laddr net.Addr) Dialer {
@@ -126,6 +130,32 @@ func getMultistreamDialer(network string, timeout time.Duration, laddr net.Addr)
 		}
 		return dialer
 	}
+}
+
+func (d sctpDialer) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	// Use the same context for name resolution and association setup.
+	addr, err := sctp.ResolveAddrContext(ctx, network, address)
+	if err != nil {
+		return nil, err
+	}
+	// The legacy timeout bounds association setup, after name resolution.
+	if d.Timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, d.Timeout)
+		defer cancel()
+	}
+	conn, err := diameterSCTPConfig().Dial(ctx, network, d.LocalAddr, addr)
+	if err != nil {
+		return nil, err
+	}
+	return newSCTPConn(conn), nil
+}
+
+func (d sctpSingleStreamDialer) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
+	return sctpDialer(d).DialContext(ctx, network, address)
 }
 
 func resolveAddress(network, addr string) (net.Addr, error) {

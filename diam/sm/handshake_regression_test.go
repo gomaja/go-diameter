@@ -2,6 +2,7 @@ package sm
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"net"
@@ -184,7 +185,9 @@ func TestLateNonCEAAfterHandshakeTimeout(t *testing.T) {
 	activity := newWatchdogActivity()
 	activity.capabilities = cli.capabilitySettings(nil)
 	c := newHandshakeConn()
-	if _, err := cli.handshake(c, activity); err != ErrHandshakeTimeout {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if _, err := cli.handshakeContext(ctx, c, activity); err != ErrHandshakeTimeout {
 		t.Fatalf("handshake: %v", err)
 	}
 	done := make(chan struct{})
