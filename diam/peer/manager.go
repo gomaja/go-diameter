@@ -50,7 +50,8 @@ type PeerConfig struct {
 type Config struct {
 	// Settings supplies local capabilities and decoding policy. Manager owns the
 	// base protocol; New rejects OnCER, OnCEA, OnDWR, OnDWA, OnDPR and
-	// OnHandshake hooks. Use OnPeerEvent to observe managed peers.
+	// OnHandshake hooks, and EnableWatchdog, WatchdogInterval, WatchdogStream,
+	// OnWatchdogConnEvent. Use Timers.TwInit and OnPeerEvent for managed peers.
 	Settings sm.Settings
 	Clock    Clock
 	Timers   Timers
@@ -114,14 +115,22 @@ type Manager struct {
 
 func New(cfg Config) (*Manager, error) {
 	for _, hook := range []struct {
-		name string
-		set  bool
+		name     string
+		set      bool
+		watchdog bool
 	}{
-		{"OnCER", cfg.Settings.OnCER != nil}, {"OnCEA", cfg.Settings.OnCEA != nil},
-		{"OnDWR", cfg.Settings.OnDWR != nil}, {"OnDWA", cfg.Settings.OnDWA != nil},
-		{"OnDPR", cfg.Settings.OnDPR != nil}, {"OnHandshake", cfg.Settings.OnHandshake != nil},
+		{"OnCER", cfg.Settings.OnCER != nil, false}, {"OnCEA", cfg.Settings.OnCEA != nil, false},
+		{"OnDWR", cfg.Settings.OnDWR != nil, false}, {"OnDWA", cfg.Settings.OnDWA != nil, false},
+		{"OnDPR", cfg.Settings.OnDPR != nil, false}, {"OnHandshake", cfg.Settings.OnHandshake != nil, false},
+		{"EnableWatchdog", cfg.Settings.EnableWatchdog, true},
+		{"WatchdogInterval", cfg.Settings.WatchdogInterval != 0, true},
+		{"WatchdogStream", cfg.Settings.WatchdogStream != 0, true},
+		{"OnWatchdogConnEvent", cfg.Settings.OnWatchdogConnEvent != nil, true},
 	} {
 		if hook.set {
+			if hook.watchdog {
+				return nil, fmt.Errorf("peer: Settings.%s is not supported; Manager supervises every peer (use Timers.TwInit and OnPeerEvent)", hook.name)
+			}
 			return nil, fmt.Errorf("peer: Settings.%s is not supported; use OnPeerEvent", hook.name)
 		}
 	}

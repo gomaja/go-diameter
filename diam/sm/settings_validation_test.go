@@ -4,6 +4,7 @@ import (
 	"net/netip"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
@@ -82,6 +83,63 @@ func TestSettingsValidateCapabilities(t *testing.T) {
 			machine, newErr := New(settings)
 			if (newErr == nil) != (tc.wantErr == "") || (machine != nil) != (tc.wantErr == "") {
 				t.Fatalf("New() = (%v, %v), want error %q", machine, newErr, tc.wantErr)
+			}
+		})
+	}
+}
+
+// RFC 3539 §3.4.1 [1]: the default and minimum apply only to enabled watchdogs.
+func TestSettingsWatchdogValidation(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		enabled  bool
+		interval time.Duration
+		timing   *watchdogTiming
+		want     time.Duration
+		wantErr  string
+	}{
+		{name: "disabled"},
+		{name: "disabled negative", interval: -time.Second},
+		{name: "disabled short", interval: time.Nanosecond},
+		{name: "default", enabled: true, want: 30 * time.Second},
+		{name: "minimum", enabled: true, interval: 6 * time.Second, want: 6 * time.Second},
+		{name: "below minimum", enabled: true, interval: 6*time.Second - time.Nanosecond, wantErr: "watchdog interval 5.999999999s is below RFC 3539 §3.4.1 minimum 6s"},
+		{name: "negative", enabled: true, interval: -time.Second, wantErr: "watchdog interval -1s is below RFC 3539 §3.4.1 minimum 6s"},
+		{name: "override", enabled: true, interval: time.Millisecond, timing: &watchdogTiming{floor: time.Millisecond}, want: time.Millisecond},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := &Settings{EnableWatchdog: tc.enabled, WatchdogInterval: tc.interval, watchdogTiming: tc.timing, WatchdogStream: 3}
+			called := false
+			cfg.OnWatchdogConnEvent = func(diam.Conn, WatchdogEvent) { called = true }
+			sm, err := New(cfg)
+			if tc.wantErr != "" {
+				if err == nil || err.Error() != tc.wantErr {
+					t.Fatalf("New error = %v, want %q", err, tc.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if sm.Settings() != cfg || cfg.WatchdogInterval != tc.interval {
+				t.Fatal("New mutated or replaced caller settings")
+			}
+			if !tc.enabled {
+				if sm.watchdog != nil {
+					t.Fatal("disabled watchdog has policy")
+				}
+				return
+			}
+			if sm.watchdog == nil || sm.watchdog.twinit != tc.want || sm.watchdog.stream != 3 {
+				t.Fatalf("policy = %+v, want Twinit %s, stream 3", sm.watchdog, tc.want)
+			}
+			_, jitter := tc.timing.parameters()
+			if sm.watchdog.jitter != jitter {
+				t.Fatalf("jitter = %s, want %s", sm.watchdog.jitter, jitter)
+			}
+			sm.watchdog.onEvent(nil, WatchdogRequestSent)
+			if !called {
+				t.Fatal("policy lost event callback")
 			}
 		})
 	}

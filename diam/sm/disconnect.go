@@ -68,11 +68,14 @@ func (sm *StateMachine) Disconnect(c diam.Conn, cause DisconnectCause, timeout t
 	}
 	sm.disconnects.pending[c] = p
 	sm.disconnects.mu.Unlock()
+	sm.stopWatchdog(c) // RFC 6733 §5.6: Stop -> Snd-DPR -> Closing.
 	defer func() {
+		// RFC 6733 §5.6: retain Closing until the transport is closed, so
+		// deferred handshake supervision cannot start during this cleanup.
+		c.Close()
 		sm.disconnects.mu.Lock()
 		delete(sm.disconnects.pending, c)
 		sm.disconnects.mu.Unlock()
-		c.Close()
 	}()
 	expired := make(chan struct{})
 	timer := time.AfterFunc(timeout, func() {

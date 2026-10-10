@@ -49,7 +49,8 @@ func PrepareSupportedApps(d *dict.Parser) []*SupportedApp {
 // Settings used to configure the state machine with AVPs to be added
 // to CER on clients or CEA on servers.
 // StateMachine supports Server.MaxConcurrentHandlers by ordering protocol
-// admission internally. See StateMachine for the middleware contract.
+// admission internally. EnableWatchdog opts accepted connections into RFC 3539
+// supervision. See StateMachine for the middleware contract.
 type Settings struct {
 	OriginHost  datatype.DiameterIdentity
 	OriginRealm datatype.DiameterIdentity
@@ -150,6 +151,39 @@ type Settings struct {
 	// Zero uses 5 seconds.
 	DPRCloseTimeout time.Duration
 
+	// EnableWatchdog supervises connections accepted by this StateMachine after
+	// a success CEA and OnHandshake return. It defaults to false. Conforming
+	// deployments should enable it (RFC 6733 §5.5.3; RFC 3539 §3.4).
+	// Client.EnableWatchdog independently supervises dialed connections.
+	// Supervised DWAs are consumed here and do not reach a user "DWA" route.
+	// After supervision ends, late DWAs follow normal dispatch; without a
+	// matching route they are logged as unhandled answers.
+	// After peer FIN, DispatchDone waits for in-flight concurrent handlers;
+	// supervision and its events may continue for that departing peer meanwhile.
+	EnableWatchdog bool
+
+	// WatchdogInterval is RFC 3539 §3.4.1 [1] Twinit: zero uses 30 seconds,
+	// the minimum is 6 seconds, and each timer reset adds ±2 seconds of jitter.
+	// New validates it only when EnableWatchdog is set, without changing it.
+	WatchdogInterval time.Duration
+
+	// WatchdogStream selects the outgoing SCTP DWR stream; zero is the default.
+	// It is ignored on TCP (RFC 6733 §2.1.1).
+	WatchdogStream uint
+
+	// OnWatchdogConnEvent observes watchdog outcomes for each accepted connection.
+	// SUSPECT reports failover; StateMachine has no pending-request queue or
+	// routing policy (RFC 3539 §3.4.1 [3]; RFC 6733 §5.5.4). DOWN closes the
+	// connection on the next expiry (RFC 3539 Appendix A).
+	// Calls for one connection are serialized; different connections may call
+	// concurrently. Return promptly. Do not call Disconnect synchronously or wait
+	// for any inbound message on this connection from the hook; both can deadlock.
+	// Stopping for DPR prevents further callbacks (RFC 6733 §5.6 Closing).
+	// A panic is logged and closes only the affected connection.
+	OnWatchdogConnEvent func(diam.Conn, WatchdogEvent)
+
+	watchdogTiming *watchdogTiming // test-only short Tw and deterministic jitter
+
 	// HandshakeTimeout bounds the CER/CEA exchange on accepted connections
 	// (RFC 6733 §5.6.1). Zero uses DefaultHandshakeTimeout; a negative
 	// value disables the limit. It starts after the transport handshake.
@@ -205,6 +239,19 @@ var (
 // timeout. A mux route or opaque wrapper cannot start that timer; the state
 // machine still rejects non-CER traffic until peer metadata is established.
 //
+// Settings.EnableWatchdog supervises each successful accepted connection using
+// RFC 3539 §3.4.1 and Appendix A. Conforming deployments should enable it
+// (RFC 6733 §5.5.3). Dialed connections use Client.EnableWatchdog instead.
+// Choose Twinit to tolerate handler latency: saturating MaxConcurrentHandlers
+// stops the reader and can delay DWA processing (RFC 3539 §3.4).
+// Server.WriteTimeout bounds socket writes, including DWR; it does not bound
+// callbacks or custom Conn wrappers. A blocked DWR write delays watchdog
+// progress, DWA crediting, and Disconnect/DPR stop, but does not block ordinary
+// inbound dispatch. OnWatchdogConnEvent must not call Disconnect synchronously
+// or wait for any inbound message on the same connection; both can deadlock.
+// Connection wrappers must retain the same Conn value across messages;
+// supervision and Disconnect track connections by that identity.
+//
 // Wrappers must synchronously forward ServeDIAM (or consume the message) before
 // returning. HandlerAs calls the inner HandleMessageError directly through plain
 // Unwrap wrappers, which need not forward optional methods. A wrapper that itself
@@ -219,6 +266,8 @@ type StateMachine struct {
 	dictionary    *dict.Parser
 	disconnects   disconnectState
 	accepted      sync.Map // diam.Conn -> *acceptedHandshake
+	watchdog      *watchdogPolicy
+	watchdogs     sync.Map // diam.Conn -> *acceptedWatchdog
 }
 
 type acceptedHandshake struct {
@@ -234,12 +283,17 @@ func New(settings *Settings) (*StateMachine, error) {
 	if err := settings.Validate(); err != nil {
 		return nil, err
 	}
+	policy, err := acceptedWatchdogPolicy(settings)
+	if err != nil {
+		return nil, err
+	}
 	dp := settings.Dict
 	if dp == nil {
 		dp = dict.Default
 	}
 	sm := &StateMachine{
 		cfg:           settings,
+		watchdog:      policy,
 		mux:           diam.NewServeMux(),
 		supportedApps: PrepareSupportedApps(dp),
 		dictionary:    settings.Dict,
@@ -294,6 +348,12 @@ func (sm *StateMachine) ServeDIAM(c diam.Conn, m *diam.Message) {
 		c.Close()
 		return
 	}
+	w := sm.supervised(c)
+	if w != nil {
+		// RFC 3539 §3.4.1 [2]: received traffic resets Tw even when
+		// subsequent request or AVP validation rejects the message.
+		w.received()
+	}
 	if sm.cfg.ValidateRequests && m.Header.CommandFlags&diam.RequestFlag != 0 &&
 		!sm.supportsApplicationOn(c, m.Header.ApplicationID) {
 		// RFC 6733 §7.1.3: the applications this node advertises decide
@@ -330,6 +390,11 @@ func (sm *StateMachine) ServeDIAM(c diam.Conn, m *diam.Message) {
 	// Other admitted messages may execute application handlers concurrently.
 	if m.Header.CommandCode != diam.CapabilitiesExchange {
 		release()
+	}
+	if w != nil && isBaseDWA(m) {
+		// RFC 6733 §5.6: R-Open / R-Rcv-DWA -> Process-DWA.
+		w.dwa.ServeDIAM(c, m)
+		return
 	}
 	if h, ok := sm.mux.Handler(m); ok {
 		h.ServeDIAM(c, m)
