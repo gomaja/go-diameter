@@ -353,6 +353,36 @@ failures and close failures are Debug; bare EOF and errors wrapping
 `net.ErrClosed` are quiet. A wrapped EOF still records a truncated read at Debug.
 Peer event-queue overflow produces a Warn record.
 
+Accepted connections opt into RFC 3539 §3.4.1 and Appendix A watchdog supervision
+with `sm.Settings.EnableWatchdog`; dialed connections use `sm.Client.EnableWatchdog`.
+Both default to off; conforming deployments should enable the watchdog, as
+[RFC 6733 §5.5.3](https://www.rfc-editor.org/rfc/rfc6733.html#section-5.5.3) requires
+support for the algorithm. `WatchdogInterval` is Twinit: default 30 seconds,
+minimum 6 seconds, with ±2 seconds of jitter on each reset. Received traffic
+resets Tw. For a silent peer, successive expiries send one DWR, report SUSPECT,
+then close at DOWN (about 84–96 seconds with the defaults). `OnWatchdogConnEvent`
+identifies each accepted connection; SUSPECT reports failover for the application
+to handle (RFC 6733 §5.5.4). Supervision starts after successful CEA and
+`OnHandshake`, and stops on DPR/Disconnect when entering Closing (RFC 6733 §5.6).
+Supervised DWAs are consumed by the state machine, so a user `"DWA"` route does
+not see them. After supervision ends, late DWAs follow normal dispatch and,
+without a matching route, are logged as unhandled answers.
+After peer FIN, `DispatchDone` waits for in-flight concurrent handlers; until
+they finish, the watchdog may run and report events for that departing peer.
+The state machine does not reconnect; `peer.Manager` manages peer reconnection
+and has its own watchdog configuration (`Timers.TwInit`, `OnPeerEvent`). Choose
+Twinit to tolerate handler latency: saturated concurrent dispatch delays reads.
+`Server.WriteTimeout` bounds socket writes, including DWR; it does not bound
+callbacks or custom `Conn` wrappers. A blocked DWR write delays the watchdog's
+own progress, DWA crediting, and Disconnect/DPR stop. Ordinary inbound dispatch
+can continue. `OnWatchdogConnEvent` must return promptly and must not call
+`Disconnect` synchronously or wait for any inbound message on the same connection;
+both can deadlock. Connection wrappers must retain the same `diam.Conn` identity
+across messages. For SCTP, the default
+watchdog stream 0 preserves CEA ordering. Choosing a different stream before a
+post-CEA message confirms the initiator reached I-Open can let DWR overtake CEA
+(RFC 6733 §2.1.1); select streams with that establishment constraint in mind.
+
 Use `CloseNotify` for disconnects, watchdog hooks for liveness, `OnPeerEvent` for
 managed peers, and an `ALL` handler for unmatched messages. `Settings.OnHandshake`
 runs once after successful CER/CEA exchange while admission is held. It must not

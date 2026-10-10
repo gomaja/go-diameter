@@ -64,6 +64,9 @@ func handleCER(sm *StateMachine) diam.HandlerFunc {
 			c.Close()
 			return
 		}
+		// RFC 6733 §5.6 and RFC 3539 Appendix A: supervise only an admitted
+		// connection, after OnHandshake returns (including panic unwinding).
+		defer sm.startWatchdog(c)
 		if sm.cfg.OnHandshake != nil {
 			metadata, _ := smpeer.FromContext(c.Context())
 			sm.cfg.OnHandshake(c, metadata)
