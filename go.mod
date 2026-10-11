@@ -3,7 +3,7 @@ module github.com/gomaja/go-diameter
 go 1.26.0
 
 require (
-	github.com/gomaja/go-sctp v1.1.1-0.20261010090839-614ae6465de4
+	github.com/gomaja/go-sctp v0.0.0-20261011145106-fb1185169ee7
 	golang.org/x/sys v0.48.0
 	google.golang.org/grpc v1.84.0
 	google.golang.org/protobuf v1.36.12
@@ -20,5 +20,5 @@ require (
 retract (
 	v3.0.2+incompatible // superseded: go get github.com/gomaja/go-diameter@main
 	v2.0.3+incompatible // superseded: go get github.com/gomaja/go-diameter@main
-	v1.0.0 // superseded: go get github.com/gomaja/go-diameter@main
+	[v1.0.0, v1.1.1] // superseded: go get github.com/gomaja/go-diameter@main
 )
