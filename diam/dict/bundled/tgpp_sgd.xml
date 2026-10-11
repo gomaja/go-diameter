@@ -2,6 +2,10 @@
 <diameter>
     <!-- 3GPP TS 29.338 V19.3.0 §4.1, §6.3.2.2, Table 6.3.2.2/1. -->
     <!-- TS 29.338 V19.3.0 §6.3.3.1, Table 6.3.3.1/2 reuses the S6c/SMS AVP definitions. -->
+    <!-- TS 29.338 V19.3.0 §6.3.2.2: Table 6.3.2.2/1 also lists Alert-Service-Centre (ALR/ALA, 8388648) for
+         SGd/Gdd, but those commands carry Application-ID 16777312: "the Alert Service Centre procedure used over
+         the SGd and Gdd interfaces also uses commands of the S6c interface application". They are defined once,
+         in tgpp_s6c.xml, and not in this application. -->
     <application id="16777313" type="auth" name="TGPP SGd" inherits="16777312">
         <!-- proxiable: each request CCF is "REQ, PXY", each answer "PXY" (3GPP TS 29.338 V19.3.0 §§6.3.2.3-6.3.2.6). -->
         <vendor id="10415" name="TGPP"/>
