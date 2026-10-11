@@ -9,23 +9,33 @@ servers, and agents.
 
 ## Installing
 
-This module is followed on its `main` branch. It has no releases. Go 1.26 or
-later is required, and its go-sctp dependency is followed on `main` too.
-
 ```sh
 go get github.com/gomaja/go-diameter@main
 ```
 
-Use `@main`, not `@latest`, to get the module and to update it. The Go
-module proxy still serves versions published before this repository was
-maintained here (`v1.0.0`, `v2.0.3+incompatible` and `v3.0.2+incompatible`).
-One tag, `v1.1.0`, placed on `main` when go-diameter moved to go-sctp's
-current API, holds their retraction in its `go.mod` (Go reads retractions
-only from the newest version) and keeps `main`'s pseudo-versions sorting
-above them; no other tag follows it. `@latest`, and any tool that follows
-releases, resolves to that tag. Later commits are reached only with `@main`
-or a commit hash, and `go get -u` does not move a module from one `main`
-commit to a newer one.
+Go 1.26 or later is required.
+
+There are no releases and no tags: the module is followed on its `main`
+branch, and Go records each commit you get as a `v0.0.0-…` pseudo-version.
+Its go-sctp dependency is followed on `main` too.
+
+Every version published so far is retracted: `v1.0.0`, `v2.0.3+incompatible`
+and `v3.0.2+incompatible`, published before this repository was maintained
+here, and `v1.1.0` and `v1.1.1`. `v1.1.1` was published only to carry the
+retraction in its `go.mod`, because Go reads retractions from the newest
+version. With no version left to choose, `go get
+github.com/gomaja/go-diameter`, `@latest` and `go get -u` resolve to the
+newest commit on `main`, as `@main` does.
+
+A module that still requires a retracted version, or a pseudo-version
+recorded for a `main` commit before the retraction (`v1.1.1-0.…`), gets a
+retraction warning from `go get` and `go list -m -u`. Those versions sort
+above every `v0.0.0-…` pseudo-version, so `go get -u` leaves such a module
+where it is, and `go get github.com/gomaja/go-diameter@main` moves it to
+`main`. The same holds for go-sctp: a build in which another module still
+requires a `v1.…` version of go-sctp keeps that older go-sctp until every
+such module moves to go-sctp's `main` with `go get
+github.com/gomaja/go-sctp@main`.
 
 ## Why This Library
 
