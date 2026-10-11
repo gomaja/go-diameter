@@ -1,10 +1,14 @@
-.PHONY: docker_stop docker_start check_docker check_docker_compose run_docker_test docker_test gen_diam test
+.PHONY: docker_stop docker_start check_docker check_docker_compose run_docker_test docker_test gen_diam test check
 
 gen_diam:
 	cd diam; ./autogen.sh
 
 test: gen_diam
 	go test ./...
+
+# Every check that gates a change; CI runs only the tests on macOS.
+check:
+	scripts/check.sh
 
 ##################
 # docker endpoints

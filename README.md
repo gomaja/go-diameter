@@ -1,7 +1,5 @@
 # go-diameter
 
-[![CI Status](https://github.com/gomaja/go-diameter/actions/workflows/ci.yml/badge.svg)](https://github.com/gomaja/go-diameter/actions/workflows/ci.yml)
-[![Security](https://github.com/gomaja/go-diameter/actions/workflows/security.yml/badge.svg)](https://github.com/gomaja/go-diameter/actions/workflows/security.yml)
 [![Go Reference](https://pkg.go.dev/badge/github.com/gomaja/go-diameter.svg)](https://pkg.go.dev/github.com/gomaja/go-diameter)
 
 `go-diameter` is a standards-first Diameter stack for Go. It provides message
@@ -41,9 +39,10 @@ commit to a newer one.
 - Ships with practical examples for clients, servers, SCTP, snooping, grouped
   AVPs, S6a, OpenTelemetry tracing middleware, Wireshark dictionary
   conversion, and benchmarking.
-- Maintains public CI and security gates covering formatting, Linux tests,
-  race tests, vet, cross-architecture vet, static analysis, vulnerability
-  scanning, CodeQL, and secret detection.
+- Gates every change on formatting, tests on both supported Go releases with
+  SCTP, race tests, vet across architectures, static analysis, vulnerability
+  scanning, Windows tests, secret detection and CodeQL, run locally with
+  `make check`; CI runs the tests on macOS.
 
 ## Quick Start
 
@@ -311,24 +310,35 @@ its peer process. It is excluded from the normal test suite.
 
 ## Validation
 
-The public CI pipeline validates the repository with:
+Every check that can run on a developer machine runs locally before a change
+is merged:
+
+```sh
+make check
+```
+
+`scripts/check.sh` runs, in order:
 
 - `gofmt` and whitespace checks.
-- Linux tests on Go 1.26.x and stable Go.
-- Linux race tests.
-- `go vet`.
-- Cross-architecture vet for selected Linux targets.
-- `staticcheck`.
-- `golangci-lint`.
-- `govulncheck`.
-- macOS and Windows portability tests for unsupported SCTP platforms.
+- Tests on the two supported Go releases, with SCTP, for both modules.
+- Race tests.
+- `go vet`, also for Linux 386, ARM, s390x and MIPS, macOS and Windows.
+- `staticcheck` and `golangci-lint`.
+- `govulncheck`, for vulnerabilities the code can reach and for every
+  vulnerable module version required.
+- The tests on Windows, through WSL interop.
+- Secret detection with gitleaks, over the whole history.
+- CodeQL with the security-extended and security-and-quality Go queries.
 
-The security pipeline adds:
+The tests open SCTP sockets, so they run in Docker containers of the official
+`golang` images, each in its own network namespace; the host only needs the
+`sctp` kernel module loaded. The script also needs network access, the tools
+listed at its top and, for the Windows tests, WSL. `SKIP=` skips named checks
+and reports them. CI runs only what cannot run there: the tests on macOS, for
+pull requests that change more than documentation.
 
-- Dependency review for pull requests.
-- Scheduled dependency scanning.
-- CodeQL SAST with extended Go queries.
-- Secret detection with gitleaks.
+Between changes, Dependabot alerts and security updates cover new advisories,
+and secret scanning with push protection covers pushed secrets.
 
 ## Logging and Tracing
 
