@@ -1,6 +1,7 @@
 package dict
 
 import (
+	"errors"
 	"reflect"
 	"slices"
 	"strings"
@@ -132,5 +133,29 @@ func TestSMSFlagRuleFormat(t *testing.T) {
 	// eNodeB-ID retains TS 29.217 V19.0.0 Table 5.3.1.1 M,V.
 	if normalized != 34 {
 		t.Errorf("normalized dual-flag definitions = %d, want 34", normalized)
+	}
+}
+
+// TS 29.338 V19.3.0 §6.3.2.2: Alert-Service-Centre is used over SGd/Gdd too,
+// but "the Application-ID field shall be set to 16777312" for ALR/ALA, the S6c
+// application. The SGd application must not define the command, so a request
+// built for it cannot borrow a definition under the wrong Application-ID.
+func TestSMSAlertServiceCentreUsesS6cApplication(t *testing.T) {
+	cmd, err := Default.FindCommand(16777312, 8388648)
+	if err != nil {
+		t.Fatalf("S6c ALR/ALA: %v", err)
+	}
+	// §§5.3.2.5-5.3.2.6: "< Diameter Header: 8388648, REQ, PXY, 16777312 >"
+	// and "< Diameter Header: 8388648, PXY, 16777312 >".
+	for _, side := range []struct {
+		name string
+		rule CommandRule
+	}{{"request", cmd.Request}, {"answer", cmd.Answer}} {
+		if side.rule.Proxiable == nil || !*side.rule.Proxiable {
+			t.Errorf("S6c ALR/ALA %s proxiable = %v, want true", side.name, side.rule.Proxiable)
+		}
+	}
+	if got, err := Default.FindCommand(16777313, 8388648); !errors.Is(err, ErrNotFound) {
+		t.Errorf("SGd application defines ALR/ALA: %v, %v; want ErrNotFound", got, err)
 	}
 }
