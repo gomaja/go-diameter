@@ -44,7 +44,7 @@ func (c *conn) log(level slog.Level, msg string, attrs ...slog.Attr) {
 	if !l.Enabled(ctx, level) {
 		return
 	}
-	l.LogAttrs(ctx, level, msg, append(addrAttrs(c.rwc.LocalAddr(), c.rwc.RemoteAddr()), attrs...)...)
+	l.LogAttrs(ctx, level, msg, append(append(addrAttrs(c.rwc.LocalAddr(), c.rwc.RemoteAddr()), slog.Uint64("generation", c.generation)), attrs...)...)
 }
 
 // logPanic records a panic recovered from a handler or from the read loop,
@@ -77,7 +77,7 @@ func addrAttrs(local, remote net.Addr) []slog.Attr {
 
 // Logger implements Conn.
 func (w *response) Logger() *slog.Logger {
-	attrs := addrAttrs(w.conn.rwc.LocalAddr(), w.conn.rwc.RemoteAddr())
+	attrs := append(addrAttrs(w.conn.rwc.LocalAddr(), w.conn.rwc.RemoteAddr()), slog.Uint64("generation", w.conn.generation))
 	args := make([]any, len(attrs))
 	for i, a := range attrs {
 		args[i] = a

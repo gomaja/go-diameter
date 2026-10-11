@@ -30,6 +30,10 @@ func handleDPR(sm *StateMachine) diam.HandlerFunc {
 			logMessage(c, m, slog.LevelWarn, "sm: invalid DPR", err)
 			return
 		}
+		sm.markAcceptedClosing(c)
+		// Publish Closing in arrival order before the reader evaluates a later
+		// CER for renewal. The DPA write and observer need not hold admission.
+		m.BeginDispatch()()
 		sm.stopWatchdog(c) // RFC 6733 §5.6: R-Rcv-DPR enters Closing.
 		// RFC 6733 §§5.4.2, 5.6: send DPA, then wait in Closing for
 		// the initiating peer to close the transport.

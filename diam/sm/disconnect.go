@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"sync"
 	"time"
 
@@ -40,12 +41,18 @@ func (sm *StateMachine) Disconnect(c diam.Conn, cause DisconnectCause, timeout t
 	if cause > DisconnectDoNotWantToTalkToYou {
 		return fmt.Errorf("invalid Disconnect-Cause %d", cause)
 	}
+	if lifecycle, ok := diam.ConnAs[diam.ConnLifecycle](c); ok && lifecycle.RetirementReason() != 0 {
+		return ErrDisconnectClosed
+	}
 	if _, ok := smpeer.FromContext(c.Context()); !ok {
 		return fmt.Errorf("disconnect before CER/CEA handshake")
 	}
 	notifier, ok := diam.ConnAs[diam.CloseNotifier](c)
 	if !ok {
 		return fmt.Errorf("disconnect requires CloseNotifier")
+	}
+	if c.Closed() {
+		return ErrDisconnectClosed
 	}
 	closed := notifier.CloseNotify()
 	select {
@@ -68,7 +75,7 @@ func (sm *StateMachine) Disconnect(c diam.Conn, cause DisconnectCause, timeout t
 	}
 	sm.disconnects.pending[c] = p
 	sm.disconnects.mu.Unlock()
-	sm.stopWatchdog(c) // RFC 6733 §5.6: Stop -> Snd-DPR -> Closing.
+	sm.markAcceptedClosing(c)
 	defer func() {
 		// RFC 6733 §5.6: retain Closing until the transport is closed, so
 		// deferred handshake supervision cannot start during this cleanup.
@@ -77,6 +84,20 @@ func (sm *StateMachine) Disconnect(c diam.Conn, cause DisconnectCause, timeout t
 		delete(sm.disconnects.pending, c)
 		sm.disconnects.mu.Unlock()
 	}()
+	// RFC 6733 §5.6: Stop -> Snd-DPR -> Closing. Retirement must also
+	// release Disconnect through CloseNotify while an old observer is blocked.
+	if w := sm.supervised(c); w != nil {
+		stopped := make(chan struct{})
+		go func() { w.stop(); close(stopped) }()
+		select {
+		case <-stopped:
+		case <-closed:
+			return ErrDisconnectClosed
+		}
+	}
+	if c.Closed() {
+		return ErrDisconnectClosed
+	}
 	expired := make(chan struct{})
 	timer := time.AfterFunc(timeout, func() {
 		logMessage(c, m, slog.LevelWarn, "sm: disconnect timeout; closing connection", ErrDisconnectTimeout)
@@ -90,6 +111,9 @@ func (sm *StateMachine) Disconnect(c diam.Conn, cause DisconnectCause, timeout t
 			return ErrDisconnectTimeout
 		default:
 		}
+		if c.Closed() || errors.Is(err, diam.ErrConnectionRetired) || errors.Is(err, net.ErrClosed) {
+			return ErrDisconnectClosed
+		}
 		return err
 	}
 	select {
@@ -98,6 +122,9 @@ func (sm *StateMachine) Disconnect(c diam.Conn, cause DisconnectCause, timeout t
 		case <-expired:
 			return ErrDisconnectTimeout
 		default:
+		}
+		if c.Closed() {
+			return ErrDisconnectClosed
 		}
 		if result != diam.Success {
 			return fmt.Errorf("DPA Result-Code %d", result)
@@ -122,6 +149,9 @@ func validateDPA(m *diam.Message) (uint32, error) {
 
 func handleDPA(sm *StateMachine) diam.HandlerFunc {
 	return func(c diam.Conn, m *diam.Message) {
+		if c.Closed() {
+			return
+		}
 		sm.disconnects.mu.Lock()
 		p := sm.disconnects.pending[c]
 		if p == nil || p.hopID != m.Header.HopByHopID {

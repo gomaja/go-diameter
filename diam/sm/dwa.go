@@ -26,6 +26,9 @@ func handleDWA(
 		}
 	}
 	return func(c diam.Conn, m *diam.Message) {
+		if c.Closed() {
+			return
+		}
 		dwa := new(smparser.DWA)
 		if err := dwa.Parse(m); err != nil {
 			observe(c, WatchdogInvalidAnswer)
@@ -35,6 +38,9 @@ func handleDWA(
 		if dwa.ResultCode != diam.Success {
 			logMessage(c, m, slog.LevelWarn, "sm: rejected DWA", fmt.Errorf("DWA Result-Code %d", dwa.ResultCode))
 			observe(c, WatchdogInvalidAnswer)
+			return
+		}
+		if c.Closed() {
 			return
 		}
 		select {

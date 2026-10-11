@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/gomaja/go-diameter/diam/dict"
+	"github.com/gomaja/go-sctp"
 )
 
 // The Handler interface allow arbitrary objects to be
@@ -30,7 +31,7 @@ import (
 // to order admission, and must release admission before waiting for later traffic.
 // Wrappers around an ordered handler must forward ServeDIAM synchronously, before
 // returning. A wrapper should expose Unwrap() Handler so HandlerAs can discover optional
-// AcceptHandler and MessageErrorHandler methods. These calls bypass an Unwrap-only
+// AcceptHandler, RetireHandler, AcceptedCERHandler and MessageErrorHandler methods. These calls bypass an Unwrap-only
 // wrapper. A wrapper intercepting MessageErrorHandler must delegate synchronously
 // or take responsibility itself; consuming a callback leaves no dispatch gap.
 // Successive Unwrap calls must terminate.
@@ -49,7 +50,7 @@ type Handler interface {
 // Conn interface is used by a handler to send diameter messages.
 //
 // A wrapper should expose Unwrap() Conn so ConnAs can discover optional
-// interfaces such as CloseNotifier and DispatchDone() <-chan struct{}.
+// interfaces such as ConnLifecycle, CloseNotifier and DispatchDone() <-chan struct{}.
 // These calls bypass an Unwrap-only wrapper. A wrapper implementing an optional
 // interface intercepts it and can delegate with ConnAs on its wrapped connection.
 // A wrapper without Unwrap hides its wrapped connection's optional interfaces.
@@ -66,7 +67,8 @@ type Conn interface {
 	// with the connection. It is safe to call concurrently and requires no read.
 	// On read-loop exit the server waits for pending handlers before setting it.
 	// Close publishes it before closing the transport, without waiting for handlers;
-	// use DispatchDone to wait for them. Closing Connection() directly bypasses it.
+	// use DispatchDone to wait for them. Retirement publishes Closed immediately
+	// while old callbacks finish. Closing Connection() directly bypasses it.
 	Closed() bool
 	LocalAddr() net.Addr            // Returns the local IP
 	RemoteAddr() net.Addr           // Returns the remote IP
@@ -74,7 +76,10 @@ type Conn interface {
 	Dictionary() *dict.Parser       // Dictionary parser of the connection
 	Context() context.Context       // Returns the internal context
 	SetContext(ctx context.Context) // Stores a new context
-	Connection() net.Conn           // Returns network connection
+	// Connection returns the originally supplied transport. Renewal users must
+	// use Conn for writes/Close and keep one Server reader: raw operations can
+	// bypass generation fences and affect a replacement.
+	Connection() net.Conn
 }
 
 // The CloseNotifier interface is implemented by Conns which
@@ -89,8 +94,8 @@ type CloseNotifier interface {
 
 // AcceptHandler observes connections accepted by Server.Serve before any
 // Diameter message is read (RFC 6733 §5.6.1). HandleAccept runs after the
-// transport handshake, once on the accepted connection's goroutine, and must
-// not block. Its returned function is called once when the connection closes.
+// transport handshake, once per accepted generation on its reader goroutine, and must
+// not block. Its returned function runs once on closure or retirement.
 // The hook runs after TLS because Server.TLSHandshakeTimeout separately bounds
 // the TLS handshake. Server uses HandlerAs on Server.Handler, so Unwrap wrappers need not forward
 // this method. An intercepting wrapper must delegate to retain inner admission.
@@ -103,7 +108,7 @@ type AcceptHandler interface {
 type liveSwitchReader struct {
 	sync.Mutex
 	r         io.Reader
-	pr        *io.PipeReader
+	pr        io.Reader
 	pipeCopyF func()
 }
 
@@ -123,12 +128,19 @@ func (sr *liveSwitchReader) Read(p []byte) (n int, err error) {
 
 // conn represents the server side of a diameter connection.
 type conn struct {
-	server   *Server              // the Server on which the connection arrived
-	rwc      net.Conn             // i/o connection
-	sr       liveSwitchReader     // reads from rwc
-	buf      *bufio.ReadWriter    // buffered(sr, rwc)
-	tlsState *tls.ConnectionState // or nil when not using TLS
-	writer   *response            // the diam.Conn exposed to handlers
+	owner       *physicalConn
+	generation  uint64
+	retirement  atomic.Uint32
+	onClose     func()
+	cleanupOnce sync.Once
+	cleanupErr  error
+	doneOnce    sync.Once
+	server      *Server              // the Server on which the connection arrived
+	rwc         net.Conn             // i/o connection
+	sr          liveSwitchReader     // reads from rwc
+	buf         *bufio.ReadWriter    // buffered(sr, rwc)
+	tlsState    *tls.ConnectionState // or nil when not using TLS
+	writer      *response            // the diam.Conn exposed to handlers
 
 	// handshakeDone is closed after the TLS handshake and its deadline reset.
 	// It is nil for non-TLS connections and is set before trackConn.
@@ -142,13 +154,12 @@ type conn struct {
 	sem           chan struct{}  // bounds concurrent handlers; nil = unbounded/sequential
 	dispatchOrder dispatchQueue  // pending reader callbacks
 
-	drainMu      sync.Mutex
-	draining     bool
-	active       int
-	idle         chan struct{}
-	done         chan struct{}
-	shutdownDone chan struct{}
-	shutdownOnce sync.Once
+	drainMu       sync.Mutex
+	draining      bool
+	active        int
+	dispatchEnded bool
+	idle          chan struct{}
+	done          chan struct{}
 
 	mu           sync.Mutex // guards the following
 	closeNotifyc chan struct{}
@@ -157,49 +168,19 @@ type conn struct {
 
 func (c *conn) closeNotify() <-chan struct{} {
 	c.mu.Lock()
-	defer c.mu.Unlock()
 	if c.closeNotifyc == nil {
 		c.closeNotifyc = make(chan struct{})
-
 		if c.clientGone {
-			// The connection is already gone: there is no read loop left
-			// to start the pipe copy routine, so hand back a channel that
-			// is closed right away instead of one nothing can ever close.
 			close(c.closeNotifyc)
-			return c.closeNotifyc
-		}
-
-		if msc, isMulti := c.rwc.(MultistreamConn); isMulti {
-			// MultistreamConn provides it's own error handler
-			msc.SetErrorHandler(func(_ MultistreamConn, err error) {
-				if closeErr := c.close(); closeErr != nil && !errors.Is(closeErr, net.ErrClosed) {
-					c.log(slog.LevelDebug, "diam: close connection after read error",
-						slog.Any(logKeyError, closeErr), slog.Any(logKeyReadError, err))
-				}
-				c.notifyClientGone()
-			})
-		} else {
-			pr, pw := io.Pipe()
-			c.sr.Lock()
-			readSource := c.sr.r
-			c.sr.pr = pr
-			// Create closeNotifier pipe copy routine, but do not start it here
-			// If we start it immediately, pipe Write can block indefinitely if we are already in
-			// liveSwitchReader.Read() with original sr.r since Pipe.Write blocks in absence of corresponding
-			// pipe reader
-			// We should only swap the reader outside of r.Read call
-			c.sr.pipeCopyF = func() {
-				_, err := io.Copy(pw, readSource)
-				if err == nil {
-					err = io.EOF
-				}
-				pw.CloseWithError(err)
-				c.notifyClientGone()
-			}
-			c.sr.Unlock()
 		}
 	}
-	return c.closeNotifyc
+	result := c.closeNotifyc
+	gone := c.clientGone
+	c.mu.Unlock()
+	if !gone {
+		c.owner.monitor(c)
+	}
+	return result
 }
 
 func (c *conn) notifyClientGone() {
@@ -214,30 +195,13 @@ func (c *conn) notifyClientGone() {
 }
 
 // newConn wraps rwc in a connection served by srv.
-func (srv *Server) newConn(rwc net.Conn) (c *conn) {
-	msc, isMulti := rwc.(MultistreamConn)
-	if isMulti {
-		c = &conn{
-			server: srv,
-			rwc:    msc,
-		}
-	} else {
-		c = &conn{
-			server: srv,
-			rwc:    rwc,
-			sr:     liveSwitchReader{r: rwc},
-		}
-		c.buf = bufio.NewReadWriter(bufio.NewReader(&c.sr), bufio.NewWriter(rwc))
-	}
-	c.writer = &response{conn: c}
+func (srv *Server) newConn(rwc net.Conn) *conn {
+	p := &physicalConn{server: srv, rwc: rwc, original: rwc, writeGate: make(chan struct{}, 1), done: make(chan struct{}), shutdownDone: make(chan struct{})}
+	p.writeGate <- struct{}{}
+	c := p.newGeneration(nil)
+	p.current = c
 	if _, ok := rwc.(*tls.Conn); ok {
 		c.handshakeDone = make(chan struct{})
-	}
-	c.idle = make(chan struct{}, 1)
-	c.done = make(chan struct{})
-	c.shutdownDone = make(chan struct{})
-	if n := srv.MaxConcurrentHandlers; n > 0 {
-		c.sem = make(chan struct{}, n)
 	}
 	return c
 }
@@ -261,25 +225,33 @@ func (c *conn) readMessage() (m *Message, err error) {
 
 // Serve a new connection.
 func (c *conn) serve() {
-	var onClose func()
+	p := c.owner
 	defer func() {
 		if v := recover(); v != nil {
 			c.logPanic(v)
+			_ = p.close()
+			p.mu.Lock()
+			c = p.current
+			p.mu.Unlock()
 		}
-		// RFC 6733 §5.6: finish already-received messages before publishing
-		// closure or closing the transport after a read-loop exit.
+		// RFC 6733 §5.6: finish already received messages before normal EOF closure.
 		c.hwg.Wait()
-		// A connection that an earlier Close, Disconnect or Shutdown already
-		// closed is not an error worth logging.
-		if err := c.close(); err != nil && !errors.Is(err, net.ErrClosed) {
+		if err := p.close(); err != nil && !errors.Is(err, net.ErrClosed) {
 			c.log(slog.LevelDebug, "diam: close connection", slog.Any(logKeyError, err))
 		}
-		if onClose != nil {
-			onClose()
+		if err := c.cleanup(); err != nil {
+			_ = p.close()
 		}
 		c.notifyClientGone()
+		c.finishGeneration()
+		p.mu.Lock()
+		retired := p.retired
+		p.mu.Unlock()
+		if retired != nil {
+			<-retired.done
+		}
 		c.server.untrackConn(c)
-		close(c.done)
+		close(p.done)
 	}()
 	if tlsConn, ok := c.rwc.(*tls.Conn); ok {
 		err := c.handshakeTLS(tlsConn)
@@ -287,30 +259,45 @@ func (c *conn) serve() {
 		if err != nil {
 			return
 		}
-		c.tlsState = &tls.ConnectionState{}
+		c.tlsState = new(tls.ConnectionState)
 		*c.tlsState = tlsConn.ConnectionState()
 	}
-	if c.accepted {
-		h := c.server.Handler
-		if h == nil {
-			h = DefaultServeMux
-		}
-		// TLS is already bounded by Server.TLSHandshakeTimeout; admission
-		// starts after that handshake so its timer covers CER/CEA only.
-		if ah, ok := HandlerAs[AcceptHandler](h); ok {
-			onClose = ah.HandleAccept(c.writer)
-		}
-	}
+	c.accept()
 	if cb := c.server.OnNewConnection; cb != nil {
 		cb(c.writer)
 	}
 	for {
 		m, err := c.readMessage()
 		if err != nil {
+			var restart *TransportRestartError
+			if c.accepted && errors.As(err, &restart) {
+				next := c.renew(SCTPAssociationRestart, restart)
+				if next == nil {
+					break
+				}
+				c = next
+				continue
+			}
 			if c.handleReadError(m, err) {
 				continue
 			}
 			break
+		}
+		if c.accepted && c.server.RenewAcceptedCER && isAcceptedCER(m) {
+			if h, ok := HandlerAs[AcceptedCERHandler](c.server.handler()); ok {
+				if !c.waitAdmission(time.Now().Add(retirementTimeout)) {
+					c.log(slog.LevelWarn, "diam: CER renewal admission timeout; closing connection")
+					_ = p.close()
+					break
+				}
+				if h.CanRenewAcceptedCER(c.writer) {
+					next := c.renew(AcceptedCERRenewal, nil)
+					if next == nil {
+						break
+					}
+					c = next
+				}
+			}
 		}
 		c.dispatch(m)
 	}
@@ -412,6 +399,9 @@ func (c *conn) handleReadError(m *Message, err error) bool {
 // on Server.MaxConcurrentHandlers. A positive value bounds concurrency
 // via a per-connection semaphore; a negative value is unbounded.
 func (c *conn) dispatch(m *Message) {
+	if c.retirement.Load() != 0 {
+		return
+	}
 	c.drainMu.Lock()
 	isDPA := m.Header.ApplicationID == 0 && m.Header.CommandCode == DisconnectPeer && m.Header.CommandFlags&RequestFlag == 0
 	if c.draining && !isDPA {
@@ -473,11 +463,25 @@ func (c *conn) prepareDispatch(m *Message) {
 func (c *conn) finishDispatch() {
 	c.drainMu.Lock()
 	c.active--
+	if c.active == 0 && c.dispatchEnded {
+		c.finishGeneration()
+	}
 	if c.active == 0 && c.draining {
 		select {
 		case c.idle <- struct{}{}:
 		default:
 		}
+	}
+	c.drainMu.Unlock()
+}
+
+// endDispatch publishes completion from the exact callback count. No more
+// callbacks can be admitted once the reader has retired this generation.
+func (c *conn) endDispatch() {
+	c.drainMu.Lock()
+	c.dispatchEnded = true
+	if c.active == 0 {
+		c.finishGeneration()
 	}
 	c.drainMu.Unlock()
 }
@@ -494,7 +498,6 @@ func (c *conn) dictionary() *dict.Parser {
 // A response represents the server side of a diameter response.
 // It implements the Conn and CloseNotifier interfaces.
 type response struct {
-	mu   sync.Mutex      // guards conn and Write
 	conn *conn           // socket, reader and writer
 	xmu  sync.Mutex      // guards ctx
 	ctx  context.Context // context for this Conn
@@ -502,12 +505,14 @@ type response struct {
 
 // Write writes the message m to the connection.
 func (w *response) Write(b []byte) (int, error) {
-	w.mu.Lock()
-	defer w.mu.Unlock()
+	if err := w.lockWrite(); err != nil {
+		return 0, err
+	}
+	defer w.unlockWrite()
 	return w.writeLocked(b)
 }
 
-// writeLocked performs the write, assuming w.mu is already held.
+// writeLocked performs the write with the physical writer lock held.
 // Serializes access to the underlying (TCP or SCTP) connection so
 // concurrently-dispatched handlers do not interleave bytes.
 func (w *response) writeLocked(b []byte) (int, error) {
@@ -516,15 +521,21 @@ func (w *response) writeLocked(b []byte) (int, error) {
 			return 0, err
 		}
 	}
+	// Deadline setup can race with retirement's interrupt deadline.
+	if err := w.writeError(); err != nil {
+		return 0, err
+	}
 	msc, isMulti := w.conn.rwc.(MultistreamConn)
 	if isMulti { // don't use buffered writer for multistream writes; it mixes streams
 		return msc.Write(b)
 	}
 	n, err := w.conn.buf.Write(b)
 	if err != nil {
+		w.conn.owner.writeFailed.Store(true)
 		return 0, err
 	}
 	if err = w.conn.buf.Flush(); err != nil {
+		w.conn.owner.writeFailed.Store(true)
 		return 0, err
 	}
 	return n, nil
@@ -532,12 +543,17 @@ func (w *response) writeLocked(b []byte) (int, error) {
 
 // WriteStream of MultistreamWriter interface
 func (w *response) WriteStream(b []byte, stream uint) (int, error) {
-	w.mu.Lock()
-	defer w.mu.Unlock()
+	if err := w.lockWrite(); err != nil {
+		return 0, err
+	}
+	defer w.unlockWrite()
 	if w.conn.server.WriteTimeout > 0 {
 		if err := w.conn.rwc.SetWriteDeadline(time.Now().Add(w.conn.server.WriteTimeout)); err != nil {
 			return 0, err
 		}
+	}
+	if err := w.writeError(); err != nil {
+		return 0, err
 	}
 	if msc, isMulti := w.conn.rwc.(MultistreamConn); isMulti {
 		// Buffered writes would mix bytes from different streams.
@@ -548,22 +564,32 @@ func (w *response) WriteStream(b []byte, stream uint) (int, error) {
 
 // CurrentWriterStream of MultistreamWriter interface
 func (w *response) CurrentWriterStream() uint {
-	if msc, isMulti := w.conn.rwc.(MultistreamConn); isMulti {
+	if err := w.lockWrite(); err != nil {
+		return 0
+	}
+	defer w.unlockWrite()
+	if msc, ok := w.conn.rwc.(MultistreamConn); ok {
 		return msc.CurrentWriterStream()
 	}
 	return 0
 }
 
-// ResetWriterStream of MultistreamWriter interface
 func (w *response) ResetWriterStream() {
-	if msc, isMulti := w.conn.rwc.(MultistreamConn); isMulti {
+	if err := w.lockWrite(); err != nil {
+		return
+	}
+	defer w.unlockWrite()
+	if msc, ok := w.conn.rwc.(MultistreamConn); ok {
 		msc.ResetWriterStream()
 	}
 }
 
-// SetWriterStream of MultistreamWriter interface
 func (w *response) SetWriterStream(stream uint) uint {
-	if msc, isMulti := w.conn.rwc.(MultistreamConn); isMulti {
+	if err := w.lockWrite(); err != nil {
+		return 0
+	}
+	defer w.unlockWrite()
+	if msc, ok := w.conn.rwc.(MultistreamConn); ok {
 		return msc.SetWriterStream(stream)
 	}
 	return 0
@@ -579,8 +605,20 @@ func (w *response) Close() {
 
 // close publishes the local close decision before touching the transport.
 func (c *conn) close() error {
+	c.owner.mu.Lock()
+	if c.owner.current != c || c.retirement.Load() != 0 {
+		c.owner.mu.Unlock()
+		return nil
+	}
 	c.closed.Store(true)
-	return c.rwc.Close()
+	if c.owner.closed {
+		c.owner.mu.Unlock()
+		return net.ErrClosed
+	}
+	c.owner.closed = true
+	c.owner.mu.Unlock()
+	c.notifyClientGone()
+	return c.owner.closeTransport()
 }
 
 // Closed implements Conn.Closed.
@@ -613,7 +651,8 @@ func (w *response) CloseNotify() <-chan struct{} {
 }
 
 // DispatchDone closes after the read loop and all handlers for this
-// connection have finished. It can be used to order connection teardown
+// generation have finished, including after retirement. It excludes goroutines
+// the application or a watchdog observer starts. It can order connection teardown
 // after messages already read from the transport.
 func (w *response) DispatchDone() <-chan struct{} {
 	return w.conn.done
@@ -637,7 +676,7 @@ func (w *response) SetContext(ctx context.Context) {
 }
 
 func (w *response) Connection() net.Conn {
-	return w.conn.rwc
+	return w.conn.owner.original
 }
 
 // The HandlerFunc type is an adapter to allow the use of
@@ -834,6 +873,8 @@ func Serve(l net.Listener, handler Handler) error {
 }
 
 // A Server defines parameters for running a diameter server.
+// Shutdown takes precedence over accepted connection renewal: a renewal in
+// progress is abandoned and its physical connection closes.
 type Server struct {
 	Network      string        // network of the address - empty string defaults to tcp
 	Addr         string        // address to listen on; blank uses :3868, or :5868 with TLS
@@ -903,10 +944,23 @@ type Server struct {
 	//	}
 	OnNewConnection func(Conn)
 
+	// RenewAcceptedCER interprets a subsequent admitted base CER as a fresh
+	// accepted generation when the handler implements AcceptedCERHandler and
+	// RetireHandler. Default false preserves the handler's Open-state CER policy.
+	// Prefer SCTP restart notifications; this policy cannot distinguish a retry
+	// from a peer restart (RFC 6733 §§1.1.3, 5.6).
+	RenewAcceptedCER bool
+
+	// OnConnectionRestart runs after HandleAccept on the fresh generation, before
+	// its CER. Context starts from Background; applications may rebuild values
+	// here. The hook must return promptly and is invoked once per renewal.
+	OnConnectionRestart func(oldConn, newConn Conn, reason RetirementReason)
+
 	// OnShutdownConnection runs once per open connection after its active
 	// handlers finish and before the transport closes. The read loop remains
 	// available for a DPR/DPA exchange. The callback must honor ctx and
-	// return promptly when it is canceled.
+	// return promptly when it is canceled. A generation already retired when
+	// Shutdown begins does not receive this callback.
 	OnShutdownConnection func(ctx context.Context, c Conn)
 
 	// Logger receives synchronous records about accepted and dialed connections
@@ -929,7 +983,7 @@ type Server struct {
 
 	mu        sync.Mutex
 	listeners map[net.Listener]struct{}
-	conns     map[*conn]struct{}
+	conns     map[*physicalConn]struct{}
 	closed    bool
 }
 
@@ -986,11 +1040,14 @@ func (srv *Server) Close() error {
 		}
 	}
 	for c := range srv.conns {
-		if c.handshakeDone != nil {
+		c.mu.Lock()
+		handshakeDone := c.current.handshakeDone
+		c.mu.Unlock()
+		if handshakeDone != nil {
 			select {
-			case <-c.handshakeDone:
+			case <-handshakeDone:
 			default:
-				if err := c.rwc.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
+				if err := c.close(); err != nil && !errors.Is(err, net.ErrClosed) {
 					errs = append(errs, err)
 				}
 			}
@@ -1001,56 +1058,66 @@ func (srv *Server) Close() error {
 }
 
 // Shutdown stops accepting connections, waits for active handlers, runs
-// OnShutdownConnection for each connection, and closes their transports.
+// OnShutdownConnection for each live generation, and closes their transports.
 // When ctx expires, remaining transports are closed and ctx.Err is returned.
 // A caller can use the hook to send a DPR before each transport closes.
+// Shutdown abandons any renewal in progress and closes its physical connection.
+// A retired generation does not receive the hook: after an association restart
+// it cannot send a DPR to the old peer (RFC 9260 §5.2.4; RFC 6733 §5.4).
 func (srv *Server) Shutdown(ctx context.Context) error {
 	if ctx == nil {
 		return fmt.Errorf("diam: nil shutdown context")
 	}
-	closeErr := srv.Close()
 	srv.mu.Lock()
-	conns := make([]*conn, 0, len(srv.conns))
-	for c := range srv.conns {
-		conns = append(conns, c)
-	}
-	srv.mu.Unlock()
-	for _, c := range conns {
+	srv.closed = true
+	conns := make([]*physicalConn, 0, len(srv.conns))
+	for p := range srv.conns {
+		conns = append(conns, p)
+		p.mu.Lock()
+		p.draining = true
+		c := p.current
 		c.drainMu.Lock()
 		c.draining = true
 		c.drainMu.Unlock()
-		c.shutdownOnce.Do(func() { go srv.shutdownConn(ctx, c) })
+		p.mu.Unlock()
 	}
-	ticker := time.NewTicker(10 * time.Millisecond)
-	defer ticker.Stop()
-	for {
-		srv.mu.Lock()
-		remaining := len(srv.conns)
-		srv.mu.Unlock()
-		allActionsDone := true
-		for _, c := range conns {
+	srv.mu.Unlock()
+	closeErr := srv.Close()
+	for _, p := range conns {
+		p.shutdownOnce.Do(func() { go srv.shutdownConn(ctx, p) })
+	}
+	for _, p := range conns {
+		for _, done := range []<-chan struct{}{p.shutdownDone, p.done} {
 			select {
-			case <-c.shutdownDone:
-			default:
-				allActionsDone = false
+			case <-done:
+			case <-ctx.Done():
+				for _, pending := range conns {
+					_ = pending.close()
+				}
+				return ctx.Err()
 			}
-		}
-		if remaining == 0 && allActionsDone {
-			return closeErr
-		}
-		select {
-		case <-ctx.Done():
-			for _, c := range conns {
-				c.writer.Close()
-			}
-			return ctx.Err()
-		case <-ticker.C:
 		}
 	}
+	return closeErr
 }
 
-func (srv *Server) shutdownConn(ctx context.Context, c *conn) {
-	defer close(c.shutdownDone)
+func (srv *Server) shutdownConn(ctx context.Context, p *physicalConn) {
+	defer close(p.shutdownDone)
+	defer func() { _ = p.close() }()
+	p.mu.Lock()
+	c, retired := p.current, p.retired
+	if p.closed || c.retirement.Load() != 0 {
+		p.mu.Unlock()
+		return
+	}
+	p.mu.Unlock()
+	if retired != nil {
+		select {
+		case <-retired.done:
+		case <-ctx.Done():
+			return
+		}
+	}
 	for {
 		c.drainMu.Lock()
 		active := c.active
@@ -1076,7 +1143,6 @@ func (srv *Server) shutdownConn(ctx context.Context, c *conn) {
 	if srv.OnShutdownConnection != nil {
 		srv.OnShutdownConnection(ctx, c.writer)
 	}
-	c.writer.Close()
 }
 
 func (srv *Server) trackConn(c *conn) bool {
@@ -1086,15 +1152,15 @@ func (srv *Server) trackConn(c *conn) bool {
 		return false
 	}
 	if srv.conns == nil {
-		srv.conns = make(map[*conn]struct{})
+		srv.conns = make(map[*physicalConn]struct{})
 	}
-	srv.conns[c] = struct{}{}
+	srv.conns[c.owner] = struct{}{}
 	return true
 }
 
 func (srv *Server) untrackConn(c *conn) {
 	srv.mu.Lock()
-	delete(srv.conns, c)
+	delete(srv.conns, c.owner)
 	srv.mu.Unlock()
 }
 
@@ -1226,7 +1292,18 @@ func (srv *Server) Serve(l net.Listener) error {
 			return e
 		}
 		tempDelay = 0
+		original := rw
+		if raw, ok := rw.(*sctp.Conn); ok {
+			adapter, err := NewSCTPConn(raw)
+			if err != nil {
+				srv.logger().Warn("diam: subscribe accepted SCTP connection; closing connection", "error", err)
+				_ = rw.Close()
+				continue
+			}
+			rw = adapter
+		}
 		c := srv.newConn(rw)
+		c.owner.original = original
 		c.accepted = true
 		if !srv.trackConn(c) {
 			_ = rw.Close()
@@ -1293,7 +1370,7 @@ func (srv *Server) ListenAndServeTLS(certFile, keyFile string) (err error) {
 			return err
 		}
 	}
-	conn, err := Listen(network, addr)
+	conn, err := MultistreamListen(network, addr)
 	if err != nil {
 		return err
 	}

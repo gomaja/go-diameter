@@ -230,7 +230,8 @@ func classify(v any) (errorType string) {
 }
 
 // Unwrap returns the traced handler, so Server and ServeMux can discover its
-// optional interfaces through diam.HandlerAs.
+// optional interfaces, including accepted-generation retirement and CER renewal.
+// Discover them through diam.HandlerAs.
 func (t *Tracer) Unwrap() diam.Handler { return t.h }
 
 // start starts the span of m, received on c.

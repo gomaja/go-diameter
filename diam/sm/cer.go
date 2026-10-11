@@ -25,9 +25,12 @@ import (
 // See RFC 6733 section 5.3 for details.
 func handleCER(sm *StateMachine) diam.HandlerFunc {
 	return func(c diam.Conn, m *diam.Message) {
+		if c.Closed() {
+			return
+		}
 		ctx := c.Context()
 		if _, ok := smpeer.FromContext(ctx); ok {
-			// Ignore retransmission.
+			logMessage(c, m, slog.LevelWarn, "sm: ignoring CER on admitted connection; accepted CER renewal is disabled or ineligible", nil)
 			return
 		}
 		local := base.AdvertisedApplicationIDs(sm.capabilities(c, m))
@@ -44,6 +47,9 @@ func handleCER(sm *StateMachine) diam.HandlerFunc {
 		}
 		a, err := buildSuccessCEA(sm, c, m)
 		if err == nil {
+			if c.Closed() {
+				return
+			}
 			meta := smpeer.FromCER(cer)
 			c.SetContext(smpeer.NewContext(context.WithValue(ctx, advertisedAppsKey{}, local), meta))
 			// Publish admission before the peer can respond to the CEA (RFC 6733 §5.6.1).

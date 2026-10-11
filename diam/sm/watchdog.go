@@ -77,11 +77,15 @@ func publishDWR(c diam.Conn, m *diam.Message, stream uint, mu *sync.Mutex, stopp
 	// RFC 6733 §5.6: entering Closing excludes further DWRs. Serialize the
 	// check with the write and request event so a fast answer cannot overtake it.
 	mu.Lock()
-	if stopped != nil && stopped.Load() {
+	if c.Closed() || stopped != nil && stopped.Load() {
 		mu.Unlock()
 		return false
 	}
 	if _, err := m.WriteToStream(c, stream); err != nil {
+		if c.Closed() || stopped != nil && stopped.Load() {
+			mu.Unlock()
+			return false
+		}
 		emit(WatchdogWriteFailed)
 		mu.Unlock()
 		if failed != nil {
@@ -90,6 +94,10 @@ func publishDWR(c diam.Conn, m *diam.Message, stream uint, mu *sync.Mutex, stopp
 			logMessage(c, m, slog.LevelError, "sm: watchdog request failed; closing connection", err)
 			c.Close()
 		}
+		return false
+	}
+	if c.Closed() || stopped != nil && stopped.Load() {
+		mu.Unlock()
 		return false
 	}
 	emit(WatchdogRequestSent)

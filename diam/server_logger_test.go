@@ -239,7 +239,7 @@ func TestConnLogsCloseFailureAtDebug(t *testing.T) {
 		closeErr error
 		want     int
 	}{
-		{"failure", slog.LevelDebug, errors.New("close failed"), 2},
+		{"failure", slog.LevelDebug, errors.New("close failed"), 1},
 		{"below logger level", slog.LevelInfo, errors.New("close failed"), 0},
 		{"already closed", slog.LevelDebug, fmt.Errorf("close pipe: %w", net.ErrClosed), 0},
 	} {
@@ -252,7 +252,7 @@ func TestConnLogsCloseFailureAtDebug(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			// Both the caller's Close and the read loop's final Close fail.
+			// The physical owner closes once; final read-loop cleanup is idempotent.
 			c.Close()
 			select {
 			case <-mustConnAs[interface{ DispatchDone() <-chan struct{} }](t, c).DispatchDone():
@@ -329,8 +329,8 @@ func TestMultistreamConnLogsCloseFailureAfterReadError(t *testing.T) {
 		t.Fatal("closeNotify installed no multistream error handler")
 	}
 	onError(msc, io.ErrUnexpectedEOF)
-	if !c.writer.Closed() {
-		t.Error("multistream read error closed transport without publishing Closed")
+	if c.writer.Closed() {
+		t.Error("multistream read error published Closed before reader cleanup")
 	}
 	select {
 	case <-gone:
@@ -348,6 +348,10 @@ func TestMultistreamConnLogsCloseFailureAfterReadError(t *testing.T) {
 		logKeyReadError: "unexpected EOF",
 		logKeyNetwork:   "pipe",
 	})
+	c.serve()
+	if !c.writer.Closed() {
+		t.Error("reader cleanup did not publish Closed")
+	}
 }
 
 // setDefaultLogger makes l the slog default until the test ends.
