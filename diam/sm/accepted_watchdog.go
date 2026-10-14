@@ -9,6 +9,7 @@ import (
 
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/internal/base"
+	"github.com/gomaja/go-diameter/diam/internal/watchdog"
 )
 
 type watchdogPolicy struct {
@@ -24,7 +25,7 @@ func acceptedWatchdogPolicy(cfg *Settings) (*watchdogPolicy, error) {
 	}
 	twinit := cfg.WatchdogInterval
 	if twinit == 0 {
-		twinit = 30 * time.Second
+		twinit = watchdog.DefaultTw
 	}
 	floor, jitter := cfg.watchdogTiming.parameters()
 	// RFC 3539 §3.4.1 [1]: Twinit defaults to 30s and MUST NOT be below 6s.

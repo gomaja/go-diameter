@@ -10,17 +10,18 @@ import (
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/internal/base"
+	"github.com/gomaja/go-diameter/diam/internal/watchdog"
 )
 
 // WatchdogState is the coupled connection health state from RFC 3539 Appendix A.
 type WatchdogState string
 
 const (
-	WatchdogInitial WatchdogState = "INITIAL"
-	WatchdogOkay    WatchdogState = "OKAY"
-	WatchdogSuspect WatchdogState = "SUSPECT"
-	WatchdogDown    WatchdogState = "DOWN"
-	WatchdogReopen  WatchdogState = "REOPEN"
+	WatchdogInitial WatchdogState = WatchdogState(watchdog.Initial)
+	WatchdogOkay    WatchdogState = WatchdogState(watchdog.Okay)
+	WatchdogSuspect WatchdogState = WatchdogState(watchdog.Suspect)
+	WatchdogDown    WatchdogState = WatchdogState(watchdog.Down)
+	WatchdogReopen  WatchdogState = WatchdogState(watchdog.Reopen)
 )
 
 type watchdogTiming struct{ floor, jitter time.Duration }
@@ -36,14 +37,11 @@ func (e *dwaResultCodeError) Unwrap() error { return errDWAResultCode }
 
 func (a *actor) watchdogInterval() time.Duration {
 	// RFC 3539 §3.4.1, Appendix A SetWatchdog: Twinit plus uniform ±2s.
-	jitter := 2 * time.Second
+	jitter := watchdog.DefaultJitter
 	if a.m.cfg.watchdogTiming != nil {
 		jitter = a.m.cfg.watchdogTiming.jitter
 	}
-	if jitter == 0 {
-		return a.m.cfg.Timers.TwInit
-	}
-	return a.m.cfg.Timers.TwInit - jitter + time.Duration(rand.Int63n(int64(2*jitter)+1))
+	return watchdog.Tw(a.m.cfg.Timers.TwInit, jitter, rand.Int63n)
 }
 
 func (a *actor) stopWatchdog() {
@@ -130,15 +128,28 @@ func (a *actor) changeWatchdog(next WatchdogState, reason error) {
 		a.m.failoverSession(a.active)
 	}
 }
+
+// watchdogCore is caller-owned storage; only the shared Step defines transitions.
+func (a *actor) watchdogCore() watchdog.Machine {
+	return watchdog.Machine{State: watchdog.State(a.watchdog), Pending: a.pendingWatchdog, NumDWA: a.numDWA}
+}
+
 func (a *actor) onOpen() {
 	// RFC 3539 Appendix A INITIAL/DOWN Connection up rows.
 	a.stopReconnect()
-	if a.watchdog == WatchdogDown {
-		a.numDWA = 0
-		a.changeWatchdog(WatchdogReopen, errors.New("peer: recovered connection awaiting three DWA"))
+	current := a.watchdogCore()
+	// A new admitted transport with no DOWN history is initial admission.
+	if current.State != watchdog.Down {
+		current.State = watchdog.Initial
+	}
+	next, actions := current.Step(watchdog.ConnectionUp)
+	a.numDWA = next.NumDWA
+	if actions.Send {
+		a.changeWatchdog(WatchdogState(next.State), errors.New("peer: recovered connection awaiting three DWA"))
 		a.sendWatchdog()
 	} else {
-		a.changeWatchdog(WatchdogOkay, errors.New("peer: initial connection established"))
+		a.pendingWatchdog = next.Pending
+		a.changeWatchdog(WatchdogState(next.State), errors.New("peer: initial connection established"))
 		a.failures = 0
 	}
 	a.everOpen = true
@@ -148,10 +159,11 @@ func (a *actor) onOpen() {
 }
 func (a *actor) lostConnection(reason error) {
 	a.stopWatchdog()
-	a.pendingWatchdog = false
+	a.pendingWatchdog = false // release the dead transport's outstanding probe
 	if a.everOpen {
-		// RFC 3539 Appendix A OKAY/SUSPECT/REOPEN Connection down.
-		a.changeWatchdog(WatchdogDown, reason)
+		// Transport closure and session failover are already owned by the caller.
+		next, _ := a.watchdogCore().Step(watchdog.ConnectionDown)
+		a.changeWatchdog(WatchdogState(next.State), reason)
 	}
 	a.scheduleReconnect()
 }
@@ -174,55 +186,55 @@ func (a *actor) sendWatchdog() {
 	a.watchdogGen = a.active.gen
 }
 func (a *actor) watchdogTick() {
-	// RFC 3539 Appendix A timer rows. No DWR is retransmitted while pending.
-	switch a.watchdog {
-	case WatchdogInitial, WatchdogDown:
+	next, actions := a.watchdogCore().Step(watchdog.Expired)
+	a.numDWA = next.NumDWA
+	if actions.Open {
+		// Disconnected peers use the caller's Tc/backoff policy, not a live Tw.
 		a.reconnectTick()
-	case WatchdogOkay:
-		if !a.pendingWatchdog {
-			a.sendWatchdog()
-		} else {
-			a.changeWatchdog(WatchdogSuspect, errors.New("peer: unanswered DWR"))
+		return
+	}
+	if actions.Close {
+		reason := errors.New("peer: watchdog suspect timeout")
+		if a.watchdog == WatchdogReopen {
+			reason = errors.New("peer: recovery DWR unanswered")
 		}
-		if a.watchdog == WatchdogOkay || a.watchdog == WatchdogSuspect {
-			a.armWatchdog()
-		}
-	case WatchdogSuspect:
 		connection := a.active
-		a.fail(errors.New("peer: watchdog suspect timeout"))
+		// fail owns close, Pending cleanup and DOWN publication. Do not publish
+		// the candidate before its transport lifecycle actions have completed.
+		a.fail(reason)
 		if connection != nil {
 			a.protocolError(connection.c, nil, diam.ProtocolWatchdogTimeout, 0, true, diam.ProtocolReplyNone, 0)
 		}
-	case WatchdogReopen:
-		if !a.pendingWatchdog {
-			a.sendWatchdog()
-			if a.watchdog == WatchdogReopen {
-				a.armWatchdog()
-			}
-			return
-		}
-		if a.numDWA < 0 {
-			connection := a.active
-			a.fail(errors.New("peer: recovery DWR unanswered"))
-			if connection != nil {
-				a.protocolError(connection.c, nil, diam.ProtocolWatchdogTimeout, 0, true, diam.ProtocolReplyNone, 0)
-			}
-			return
-		}
-		a.numDWA = -1
+		return
+	}
+	if actions.Failover {
+		a.changeWatchdog(WatchdogState(next.State), errors.New("peer: unanswered DWR"))
+	}
+	if actions.Send {
+		a.sendWatchdog()
+	}
+	// A synchronous build/queue failure can move the actor to DOWN. Never
+	// overwrite it with the candidate or rearm a timer for the dead transport.
+	if actions.Reset && a.watchdog == WatchdogState(next.State) {
 		a.armWatchdog()
 	}
 }
 func (a *actor) watchdogReceive(msg *diam.Message) bool {
-	// RFC 3539 Appendix A OnReceive resets Tw in OKAY/SUSPECT. REOPEN
-	// discards non-DWA traffic and keeps its probe timer running, otherwise
-	// an active remote watchdog can prevent the three recovery probes.
-	if a.watchdog == WatchdogOkay || a.watchdog == WatchdogSuspect {
+	event := watchdog.Receive
+	isDWA := msg.Header.CommandCode == diam.DeviceWatchdog && msg.Header.CommandFlags&diam.RequestFlag == 0
+	if isDWA {
+		event = watchdog.ReceiveDWA
+	}
+	next, actions := a.watchdogCore().Step(event)
+	// Preserve receive ordering: OKAY/SUSPECT activity resets Tw even if a DWA
+	// is subsequently rejected. Commit its state changes only after validation.
+	// RFC 3539 Appendix A REOPEN receives do not postpone recovery probes.
+	if actions.Reset {
 		a.armWatchdog()
 	}
-	if msg.Header.CommandCode != diam.DeviceWatchdog || msg.Header.CommandFlags&diam.RequestFlag != 0 {
-		if a.watchdog == WatchdogSuspect {
-			a.changeWatchdog(WatchdogOkay, errors.New("peer: traffic restored watchdog health"))
+	if !isDWA {
+		if actions.Failback {
+			a.changeWatchdog(WatchdogState(next.State), errors.New("peer: traffic restored watchdog health"))
 			a.failures = 0
 		}
 		return true
@@ -250,18 +262,16 @@ func (a *actor) watchdogReceive(msg *diam.Message) bool {
 		}
 		return false
 	}
-	a.pendingWatchdog = false
+	a.pendingWatchdog = next.Pending
 	a.active.releaseControl(a.watchdogHop)
-	switch a.watchdog {
-	case WatchdogSuspect:
-		a.changeWatchdog(WatchdogOkay, errors.New("peer: valid DWA restored watchdog health"))
-		a.failures = 0
-	case WatchdogReopen:
-		a.numDWA++
-		if a.numDWA == 3 {
-			a.changeWatchdog(WatchdogOkay, errors.New("peer: three valid recovery DWA"))
-			a.failures = 0
+	a.numDWA = next.NumDWA
+	if actions.Failback {
+		reason := errors.New("peer: valid DWA restored watchdog health")
+		if a.watchdog == WatchdogReopen {
+			reason = errors.New("peer: three valid recovery DWA")
 		}
+		a.changeWatchdog(WatchdogState(next.State), reason)
+		a.failures = 0
 	}
 	return true
 }

@@ -21,6 +21,7 @@ import (
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/dict"
 	"github.com/gomaja/go-diameter/diam/internal/base"
+	"github.com/gomaja/go-diameter/diam/internal/watchdog"
 	"github.com/gomaja/go-sctp"
 )
 
@@ -382,7 +383,7 @@ func (cli *Client) validate() error {
 		}
 		if cli.WatchdogInterval == 0 {
 			// RFC 3539 §3.4.1 [1] default Twinit.
-			cli.WatchdogInterval = 30 * time.Second
+			cli.WatchdogInterval = watchdog.DefaultTw
 		}
 	})
 	if cli.EnableWatchdog {

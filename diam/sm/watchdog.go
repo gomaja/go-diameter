@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/gomaja/go-diameter/diam"
+	"github.com/gomaja/go-diameter/diam/internal/watchdog"
 )
 
 type watchdogTiming struct {
@@ -19,15 +20,11 @@ func (t *watchdogTiming) parameters() (floor, jitter time.Duration) {
 	if t != nil {
 		return t.floor, t.jitter
 	}
-	return 6 * time.Second, 2 * time.Second
+	return watchdog.MinimumTw, watchdog.DefaultJitter
 }
 
 func jitteredTw(twinit, jitter time.Duration) time.Duration {
-	if jitter == 0 {
-		return twinit
-	}
-	// RFC 3539 §3.4.1 [1] and Appendix A SetWatchdog: redraw on every reset.
-	return twinit - jitter + time.Duration(rand.Int63n(int64(2*jitter)+1))
+	return watchdog.Tw(twinit, jitter, rand.Int63n)
 }
 
 type watchdogSignals struct {
@@ -123,13 +120,36 @@ type watchdogState struct {
 	suspect bool
 }
 
+// The connection adapter retains its compact storage and owns no transitions.
+// Managed peers retain DOWN/REOPEN across connections in their own control block.
+func (s watchdogState) core() watchdog.Machine {
+	state := watchdog.Okay
+	if s.suspect {
+		state = watchdog.Suspect
+	}
+	return watchdog.Machine{State: state, Pending: s.pending}
+}
+
+func (s *watchdogState) commit(next watchdog.Machine) {
+	s.pending = next.Pending
+	s.suspect = next.State == watchdog.Suspect
+}
+
+func (w *connWatchdog) receive(state *watchdogState, event watchdog.Event) {
+	next, actions := state.core().Step(event)
+	state.commit(next)
+	if actions.Failback {
+		w.observe(WatchdogRecovered)
+	}
+}
+
 func (w *connWatchdog) run() {
 	// RFC 3539 §3.4.1 and Appendix A: established peers start in OKAY.
 	// Pending remains set after non-DWA traffic until the answer arrives.
 	state := watchdogState{}
 	for {
-		armedAt := time.Now()
-		timer := time.NewTimer(w.interval())
+		window := watchdog.Reset(time.Now, w.interval)
+		timer := time.NewTimer(window.After)
 		select {
 		case <-w.done:
 			timer.Stop()
@@ -139,19 +159,12 @@ func (w *connWatchdog) run() {
 			return
 		case <-w.signals.signal:
 			timer.Stop()
-			if state.suspect {
-				state.suspect = false
-				w.observe(WatchdogRecovered)
-			}
+			w.receive(&state, watchdog.Receive)
 		case <-w.dwac:
 			timer.Stop()
-			state.pending = false
-			if state.suspect {
-				state.suspect = false
-				w.observe(WatchdogRecovered)
-			}
+			w.receive(&state, watchdog.ReceiveDWA)
 		case <-timer.C:
-			if !w.expire(armedAt, &state) {
+			if !w.expire(window.ArmedAt, &state) {
 				return
 			}
 		}
@@ -171,23 +184,17 @@ func (w *connWatchdog) expire(armedAt time.Time, state *watchdogState) bool {
 	// Prefer traffic delivered at the timer boundary to a false
 	// expiration, including an answer already queued by its handler.
 	if w.signals.last.Load() > armedAt.UnixNano() {
-		if state.suspect {
-			state.suspect = false
-			w.observe(WatchdogRecovered)
-		}
+		w.receive(state, watchdog.Receive)
 		return true
 	}
 	select {
 	case <-w.dwac:
-		state.pending = false
-		if state.suspect {
-			state.suspect = false
-			w.observe(WatchdogRecovered)
-		}
+		w.receive(state, watchdog.ReceiveDWA)
 		return true
 	default:
 	}
-	if state.suspect {
+	next, actions := state.core().Step(watchdog.Expired)
+	if actions.Close {
 		// RFC 3539 Appendix A: a second Tw expiry in SUSPECT
 		// transitions to DOWN and closes this connection.
 		w.observe(WatchdogTimedOut)
@@ -202,16 +209,14 @@ func (w *connWatchdog) expire(armedAt time.Time, state *watchdogState) bool {
 		}
 		return false
 	}
-	if state.pending {
-		// RFC 3539 Appendix A: failover belongs to the caller's
-		// supervisor; StateMachine and Client have no peer queue.
-		state.suspect = true
-		w.observe(WatchdogSuspect)
-		return true
-	}
-	if !w.send() {
+	if actions.Send && !w.send() {
 		return false
 	}
-	state.pending = true
+	state.commit(next)
+	if actions.Failover {
+		// StateMachine and Client have no peer queue; their supervisor observes
+		// SUSPECT and owns any failover (RFC 3539 §3.4.1 [3]).
+		w.observe(WatchdogSuspect)
+	}
 	return true
 }

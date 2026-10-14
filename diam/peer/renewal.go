@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/gomaja/go-diameter/diam"
+	"github.com/gomaja/go-diameter/diam/internal/watchdog"
 )
 
 // protocolDelivery reserves completion storage with the admitted work. The
@@ -160,7 +161,8 @@ func (a *actor) retireResponder(cmd retirementCommand) {
 		a.numDWA = 0
 		a.pendingDPR, a.pendingDPREnd = 0, 0
 		if a.everOpen {
-			a.watchdog = WatchdogDown
+			next, _ := a.watchdogCore().Step(watchdog.ConnectionDown)
+			a.watchdog = WatchdogState(next.State)
 		}
 		a.scheduleReconnect()
 	}
