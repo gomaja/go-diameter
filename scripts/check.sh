@@ -72,7 +72,7 @@ export GOTOOLCHAIN=$GO_STABLE
 work=$(mktemp -d "${TMPDIR:-/tmp}/go-diameter-check.XXXXXX") || exit 1
 trap 'rm -rf "$work/codeql-db"' EXIT
 
-modules=(. examples/middleware)
+modules=(. oteldiam)
 
 need() {
 	command -v "$1" >/dev/null && return 0
@@ -114,24 +114,30 @@ in_modules() {
 }
 
 check_format() {
-	local unformatted base index
+	local unformatted base file status
 	# Tracked files and new ones not yet added, so the check holds before a
 	# commit too.
 	unformatted=$(git ls-files -z --cached --others --exclude-standard '*.go' |
-		xargs -0 -r "$(go env GOROOT)/bin/gofmt" -l) || return 1
+		while IFS= read -r -d '' file; do
+			if [ -f "$file" ]; then
+				printf '%s\0' "$file"
+			fi
+		done | xargs -0 -r "$(go env GOROOT)/bin/gofmt" -l) || return 1
 	if [ -n "$unformatted" ]; then
 		printf 'not gofmt-formatted:\n%s\n' "$unformatted"
 		return 1
 	fi
-	# Committed and uncommitted changes since the branch left BASE. New files
-	# are marked intent-to-add in a copy of the index, leaving the real one
-	# untouched, so that git diff sees them.
+	# Check tracked changes since BASE, then each untracked file. Read-only
+	# diffs cover new files without writing an index or repository objects.
 	base=$(git merge-base "${BASE:-origin/main}" HEAD) || return 1
-	index=$work/index
-	cp "$(git rev-parse --git-path index)" "$index" || return 1
+	git diff --check "$base" || return 1
 	git ls-files -z --others --exclude-standard |
-		GIT_INDEX_FILE=$index xargs -0 -r git add --intent-to-add -- || return 1
-	GIT_INDEX_FILE=$index git diff --check "$base"
+		while IFS= read -r -d '' file; do
+			git diff --no-index --check -- /dev/null "$file"
+			status=$?
+			# A no-index diff returns 1 for different content even when clean.
+			[ "$status" -le 1 ] || return 1
+		done
 }
 
 check_test() {
@@ -167,7 +173,7 @@ check_vuln() {
 	# Go files, so it starts from one.
 	in_modules go run "$govulncheck" ./... || return 1
 	go run "$govulncheck" -C diam -scan module &&
-		go run "$govulncheck" -C examples/middleware -scan module
+		go run "$govulncheck" -C oteldiam -scan module
 }
 
 check_windows() {

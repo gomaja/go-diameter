@@ -1,6 +1,6 @@
-// Package middleware traces Diameter handlers with OpenTelemetry: a span
+// Package oteldiam traces Diameter handlers with OpenTelemetry: a span
 // per message, and an exception log record when a handler panics.
-package middleware
+package oteldiam
 
 import (
 	"context"
@@ -25,7 +25,7 @@ import (
 
 // ScopeName is the instrumentation scope of the tracer that starts the spans
 // and of the logger that records a panic in the wrapped handler.
-const ScopeName = "github.com/gomaja/go-diameter/examples/middleware"
+const ScopeName = "github.com/gomaja/go-diameter/oteldiam"
 
 // Attribute keys of the Diameter header fields and result. OpenTelemetry's
 // semantic conventions define no Diameter attributes (none up to release

@@ -1,4 +1,4 @@
-package middleware
+package oteldiam
 
 import (
 	"bytes"
@@ -307,7 +307,7 @@ type panickyMessage struct{}
 func (panickyMessage) Error() string { panic("message failure") }
 
 func TestTracerMarksHandlerPanic(t *testing.T) {
-	const pkg = "github.com/gomaja/go-diameter/examples/middleware."
+	const pkg = "github.com/gomaja/go-diameter/oteldiam."
 	pathErr := &fs.PathError{Op: "open", Path: "/nonexistent", Err: fs.ErrNotExist}
 	wrapped := fmt.Errorf("load dictionary: %w", pathErr)
 	for _, tc := range []struct {
