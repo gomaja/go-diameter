@@ -521,6 +521,7 @@ func (m *Manager) acceptConnection(c diam.Conn) {
 		if waiting {
 			m.report(s, nil, errors.New("peer: pre-CER timeout"))
 			s.close()
+			m.protocolError(s.c, nil, diam.ProtocolHandshakeTimeout, 0, true, diam.ProtocolReplyNone, 0)
 		}
 	})
 	select {
@@ -553,6 +554,7 @@ func (m *Manager) ServeDIAM(c diam.Conn, msg *diam.Message) {
 	if s == nil {
 		m.report(nil, msg, errors.New("peer: message on unmanaged connection; closing connection"))
 		c.Close()
+		m.protocolError(c, msg, diam.ProtocolHandshakeState, 0, true, diam.ProtocolReplyNone, 0)
 		return
 	}
 	if err := s.enqueue(msg); err != nil {
@@ -581,6 +583,7 @@ func (m *Manager) processDIAM(s *session, msg *diam.Message) {
 			if msg.Header.CommandCode != diam.CapabilitiesExchange || msg.Header.CommandFlags&diam.RequestFlag == 0 {
 				m.report(s, msg, errors.New("peer: first inbound message is not CER"))
 				s.close()
+				m.protocolError(c, msg, diam.ProtocolHandshakeState, 0, true, diam.ProtocolReplyNone, 0)
 				return
 			}
 			if err := base.ValidateHeader(msg); err != nil {
@@ -617,16 +620,26 @@ func (m *Manager) processDIAM(s *session, msg *diam.Message) {
 	if a == nil {
 		m.report(s, msg, errors.New("peer: unbound connection message"))
 		s.close()
+		m.protocolError(c, msg, diam.ProtocolHandshakeState, 0, true, diam.ProtocolReplyNone, 0)
 		return
 	}
 	a.post(event{kind: wireEvent, s: s, msg: msg})
 }
 func (m *Manager) rejectCER(s *session, msg *diam.Message, code uint32, reason error) {
+	reply := diam.ProtocolReplyFailed
+	kind := diam.ProtocolCERRejected
+	if base.ValidateHeader(msg) != nil {
+		kind = diam.ProtocolInvalidHeader
+	}
+	defer func() {
+		m.protocolError(s.c, msg, kind, code, true, reply, code)
+	}()
 	cfg := m.baseSettings(s.c)
 	var answer *diam.Message
 	var err error
 	var messageErr *diam.MessageError
 	if errors.As(reason, &messageErr) {
+		code = messageErr.ResultCode
 		// RFC 6733 §7.1.5, Verified Erratum 4615: one Failed-AVP.
 		var failed []*diam.AVP
 		if messageErr.FailedAVP != nil {
@@ -645,6 +658,8 @@ func (m *Manager) rejectCER(s *session, msg *diam.Message, code uint32, reason e
 	if err := s.send(answer, true); err != nil {
 		m.reportLocal(s, msg, "peer: send rejected CER answer failed; closing connection", err)
 		s.close()
+	} else {
+		reply = diam.ProtocolReplyQueued
 	}
 }
 func (m *Manager) baseSettings(c diam.Conn) base.Settings {
@@ -695,17 +710,26 @@ func (m *Manager) unsupported(s *session, msg *diam.Message) {
 	// an application this node does not support, otherwise 3001; answers are
 	// reported and discarded.
 	m.report(s, msg, fmt.Errorf("peer: unhandled message %d/%d", msg.Header.ApplicationID, msg.Header.CommandCode))
-	if msg.Header.CommandFlags&diam.RequestFlag != 0 {
-		resultCode := uint32(diam.CommandUnsupported)
-		if !m.supportsApplication(msg.Header.ApplicationID) {
-			resultCode = diam.ApplicationUnsupported
-		}
-		answer, err := base.BuildErrorAnswer(msg, m.baseSettings(s.c), resultCode, nil, true)
-		if err == nil {
-			err = s.send(answer, false)
-		}
-		m.reportLocal(s, msg, "peer: unsupported request answer failed", err)
+	if msg.Header.CommandFlags&diam.RequestFlag == 0 {
+		m.protocolError(s.c, msg, diam.ProtocolUnexpectedMessage, 0, false, diam.ProtocolReplyNone, 0)
+		return
 	}
+	resultCode := uint32(diam.CommandUnsupported)
+	kind := diam.ProtocolUnsupportedCommand
+	if !m.supportsApplication(msg.Header.ApplicationID) {
+		resultCode = diam.ApplicationUnsupported
+		kind = diam.ProtocolUnsupportedApplication
+	}
+	answer, err := base.BuildErrorAnswer(msg, m.baseSettings(s.c), resultCode, nil, true)
+	if err == nil {
+		err = s.send(answer, false)
+	}
+	m.reportLocal(s, msg, "peer: unsupported request answer failed", err)
+	reply := diam.ProtocolReplyQueued
+	if err != nil {
+		reply = diam.ProtocolReplyFailed
+	}
+	m.protocolError(s.c, msg, kind, resultCode, false, reply, resultCode)
 }
 
 // HandleMessageError takes responsibility for a malformed message by admitting
@@ -727,15 +751,35 @@ func (m *Manager) HandleMessageError(c diam.Conn, msg *diam.Message, me *diam.Me
 	if err := s.enqueueIncoming(incoming{msg: msg, err: me}); err != nil {
 		m.reportLocal(s, msg, "peer: ingress failed; closing connection", fmt.Errorf("peer: ingress: %w", err))
 		s.close()
+		kind, result := diam.ProtocolMalformedMessage, me.ResultCode
+		if headerErr := base.ValidateHeader(msg); headerErr != nil {
+			kind, result = diam.ProtocolInvalidHeader, headerErr.ResultCode
+		}
+		m.protocolError(c, msg, kind, result, true, diam.ProtocolReplyNone, 0)
 		return nil // Closing the managed connection takes responsibility for m.
 	}
 	return nil
 }
 
-func (m *Manager) answerMessageError(s *session, msg *diam.Message, me *diam.MessageError) error {
+func (m *Manager) answerMessageError(s *session, msg *diam.Message, me *diam.MessageError) (handlingErr error) {
 	c := s.c
+	if me == nil {
+		return nil
+	}
+	kind := diam.ProtocolMalformedMessage
+	closing := me.Fatal
+	reply, replyCode := diam.ProtocolReplyNone, uint32(0)
+	defer func() {
+		if handlingErr != nil {
+			m.reportLocal(s, msg, "peer: error answer failed; closing connection", handlingErr)
+			s.close()
+			closing, reply = true, diam.ProtocolReplyFailed
+		}
+		m.protocolError(c, msg, kind, me.ResultCode, closing, reply, replyCode)
+	}()
 	if headerErr := base.ValidateHeader(msg); headerErr != nil {
 		me = headerErr
+		kind = diam.ProtocolInvalidHeader
 	}
 	// RFC 6733 §7.1.5 and Verified Erratum 4615: carry the offending
 	// AVP in one Failed-AVP container for payload and framing failures.
@@ -757,11 +801,14 @@ func (m *Manager) answerMessageError(s *session, msg *diam.Message, me *diam.Mes
 	}
 	s.firstMu.Unlock()
 	if preCER { // RFC 6733 §5.6.1: discard malformed pre-CER traffic and close the connection.
+		closing = true
 		if msg == nil || msg.Header == nil || me == nil || msg.Header.CommandCode != diam.CapabilitiesExchange || msg.Header.CommandFlags&diam.RequestFlag == 0 {
+			kind = diam.ProtocolHandshakeState
 			m.report(s, msg, fmt.Errorf("peer: malformed pre-CER message; closing connection: %w", me))
 			s.close()
 			return nil
 		}
+		replyCode = me.ResultCode
 		answer, err := base.BuildErrorAnswer(msg, m.baseSettings(c), me.ResultCode, failed, me.ResultCode >= 3000 && me.ResultCode < 4000)
 		if err != nil {
 			return err
@@ -770,6 +817,7 @@ func (m *Manager) answerMessageError(s *session, msg *diam.Message, me *diam.Mes
 		if err := s.send(answer, true); err != nil {
 			return fmt.Errorf("peer: write: %w", err)
 		}
+		reply = diam.ProtocolReplyQueued
 		return nil
 	}
 	if msg == nil || me == nil || msg.Header == nil {
@@ -778,18 +826,21 @@ func (m *Manager) answerMessageError(s *session, msg *diam.Message, me *diam.Mes
 	if msg.Header.CommandFlags&diam.RequestFlag == 0 {
 		return nil
 	}
+	replyCode = me.ResultCode
 	answer, err := base.BuildErrorAnswer(msg, m.baseSettings(c), me.ResultCode, failed, me.ResultCode >= 3000 && me.ResultCode < 4000)
 	if err != nil {
 		return err
 	}
 	// RFC 6733 §§2.5, 5.3 and 7.1.3: an invalid CER establishes no capabilities.
 	closeAfter := msg.Header.CommandCode == diam.CapabilitiesExchange && me.ResultCode == diam.InvalidHDRBits
+	closing = closing || closeAfter
 	if closeAfter {
 		m.report(s, msg, fmt.Errorf("peer: invalid CER rejected; closing connection: %w", me))
 	}
 	if err := s.send(answer, closeAfter); err != nil {
 		return fmt.Errorf("peer: write: %w", err)
 	}
+	reply = diam.ProtocolReplyQueued
 	return nil
 }
 

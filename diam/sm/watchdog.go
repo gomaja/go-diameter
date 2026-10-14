@@ -106,15 +106,16 @@ func publishDWR(c diam.Conn, m *diam.Message, stream uint, mu *sync.Mutex, stopp
 }
 
 type connWatchdog struct {
-	conn     diam.Conn
-	done     <-chan struct{}
-	stop     <-chan struct{}
-	signals  *watchdogSignals
-	dwac     <-chan struct{}
-	interval func() time.Duration
-	send     func() bool
-	observe  func(WatchdogEvent)
-	timeout  func() // accepted supervisors serialize terminal work with stop
+	conn            diam.Conn
+	done            <-chan struct{}
+	stop            <-chan struct{}
+	signals         *watchdogSignals
+	dwac            <-chan struct{}
+	interval        func() time.Duration
+	send            func() bool
+	observe         func(WatchdogEvent)
+	timeout         func() // accepted supervisors serialize terminal work with stop
+	protocolTimeout func() // observes the committed timeout after existing close
 }
 
 type watchdogState struct {
@@ -195,6 +196,9 @@ func (w *connWatchdog) expire(armedAt time.Time, state *watchdogState) bool {
 		} else {
 			logMessage(w.conn, nil, slog.LevelWarn, "sm: watchdog timeout; closing connection", nil)
 			w.conn.Close()
+			if w.protocolTimeout != nil {
+				w.protocolTimeout()
+			}
 		}
 		return false
 	}

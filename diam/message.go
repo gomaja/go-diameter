@@ -54,6 +54,7 @@ type dispatchQueue struct {
 	mu         sync.Mutex
 	head, tail *dispatchBarrier
 	sequence   uint64
+	handler    Handler // dispatch handler, captured once for lazy protocol observer discovery
 }
 type dispatchBarrier struct {
 	queue          *dispatchQueue

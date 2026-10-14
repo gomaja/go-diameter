@@ -73,18 +73,30 @@ func (sm *StateMachine) startWatchdog(c diam.Conn) {
 			})
 		},
 		observe: func(event WatchdogEvent) { w.observe(c, event) },
-		timeout: func() { w.terminate(nil, slog.LevelWarn, "sm: watchdog timeout; closing connection", nil) },
+		timeout: func() {
+			if w.terminate(nil, slog.LevelWarn, "sm: watchdog timeout; closing connection", nil) {
+				sm.protocolError(c, nil, diam.ProtocolWatchdogTimeout, 0, true, diam.ProtocolReplyNone, 0)
+			}
+		},
 	}
-	dwa := handleDWA(sm, w.signals.dwac, func(_ diam.Conn, event WatchdogEvent) { w.emit(event) })
 	w.dwa = diam.HandlerFunc(func(c diam.Conn, m *diam.Message) {
-		w.mu.Lock()
-		defer w.mu.Unlock()
-		// RFC 6733 §5.6: Closing has no DWA event, even through a stale
-		// supervisor pointer. Ignore it before parsing or crediting Pending.
-		if w.stopped.Load() || c.Closed() {
-			return
+		var kind diam.ProtocolErrorKind
+		var code uint32
+		func() {
+			w.mu.Lock()
+			defer w.mu.Unlock()
+			// RFC 6733 §5.6: Closing has no DWA event, even through a stale
+			// supervisor pointer. Ignore it before parsing or crediting Pending.
+			if w.stopped.Load() || c.Closed() {
+				return
+			}
+			kind, code = processDWA(c, m, w.signals.dwac, func(_ diam.Conn, event WatchdogEvent) { w.emit(event) })
+		}()
+		// The watchdog event retains its existing serialization; the new hook
+		// runs outside the publication mutex (RFC 6733 §§5.5–5.6).
+		if kind != "" {
+			sm.protocolError(c, m, kind, code, false, diam.ProtocolReplyNone, 0)
 		}
-		dwa.ServeDIAM(c, m)
 	})
 	if _, loaded := sm.watchdogs.LoadOrStore(c, w); loaded {
 		return
@@ -159,13 +171,13 @@ func (w *acceptedWatchdog) received() {
 	w.signals.received()
 }
 
-func (w *acceptedWatchdog) terminate(m *diam.Message, level slog.Level, text string, err error) {
+func (w *acceptedWatchdog) terminate(m *diam.Message, level slog.Level, text string, err error) bool {
 	// RFC 6733 §5.6: terminal watchdog work either completes before stop
 	// returns or is suppressed. Leave the event mutex free during Close.
 	w.mu.Lock()
 	if w.stopped.Load() || w.conn.Closed() {
 		w.mu.Unlock()
-		return
+		return false
 	}
 	// Add and stop's stopped.Store share mu: no terminal work can be
 	// admitted after stop begins waiting, even when the count was zero.
@@ -174,6 +186,7 @@ func (w *acceptedWatchdog) terminate(m *diam.Message, level slog.Level, text str
 	defer w.closing.Done()
 	logMessage(w.conn, m, level, text, err)
 	w.conn.Close()
+	return true
 }
 
 func (w *acceptedWatchdog) observe(_ diam.Conn, event WatchdogEvent) {

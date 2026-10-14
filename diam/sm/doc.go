@@ -37,4 +37,27 @@
 // call Disconnect synchronously or wait for any inbound message on that
 // connection; both can deadlock. Conn wrappers must keep the same identity
 // across messages.
+//
+// Settings.OnProtocolError reports handled protocol conditions without changing
+// their answers, connection policy or logs (RFC 6733 §§5.6, 7). The callback runs
+// synchronously after its owner's handling attempt and logs, on that handler,
+// reader or timer goroutine. peer.Manager honours the same hook, independently
+// of OnPeerEvent, after enqueueing any answer. ProtocolReplyWritten and
+// ProtocolReplyQueued describe local progress, not receipt by the peer.
+// Callbacks may overlap on one connection and must return promptly: blocking
+// delays their worker. Panics are recovered and logged through Conn.Logger.
+// No queue, worker or retained backlog is created for the hook.
+//
+// Events retain copied header and stream metadata and a normalized typed error,
+// with no message, AVPs or parser error graph. These values are safe to keep;
+// retaining Conn keeps that connection object alive. Closing records the
+// handling decision, not a live state query. Timer events have no header.
+// A callback may call Conn.Close, but must not synchronously call Disconnect,
+// Manager.Close, shutdown/wait operations or wait for later inbound messages.
+//
+// Accepted renewal through Server.OnConnectionRestart creates a fresh Conn.
+// An in-flight protocol notification keeps the generation's original Conn and
+// may run after its CloseNotify or retirement; CloseNotify is not a callback
+// drain barrier. A successful CER renewal emits no protocol error. Configure
+// OnProtocolError before use; concurrent Settings mutation is unsupported.
 package sm

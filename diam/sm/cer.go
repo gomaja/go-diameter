@@ -31,6 +31,7 @@ func handleCER(sm *StateMachine) diam.HandlerFunc {
 		ctx := c.Context()
 		if _, ok := smpeer.FromContext(ctx); ok {
 			logMessage(c, m, slog.LevelWarn, "sm: ignoring CER on admitted connection; accepted CER renewal is disabled or ineligible", nil)
+			sm.protocolError(c, m, diam.ProtocolUnexpectedMessage, 0, false, diam.ProtocolReplyNone, 0)
 			return
 		}
 		local := base.AdvertisedApplicationIDs(sm.capabilities(c, m))
@@ -38,11 +39,14 @@ func handleCER(sm *StateMachine) diam.HandlerFunc {
 		_, err := cer.Parse(m, smparser.ParseOptions{Role: smparser.Server, TLS: c.TLS() != nil, Dictionary: sm.capabilityDictionary(c, m), LocalApplications: local})
 		if err != nil {
 			logMessage(c, m, slog.LevelWarn, "sm: rejected CER; closing connection", err)
-			err = errorCEA(sm, c, m, err)
+			code := rejectedCERCode(err)
+			replyCode, answerErr := errorCEAResult(sm, c, m, err)
+			err = answerErr
 			if err != nil {
 				logMessage(c, m, slog.LevelError, "sm: CEA failed; closing connection", err)
 			}
 			c.Close()
+			sm.protocolError(c, m, diam.ProtocolCERRejected, code, true, protocolReply(err), replyCode)
 			return
 		}
 		a, err := buildSuccessCEA(sm, c, m)
@@ -58,6 +62,7 @@ func handleCER(sm *StateMachine) diam.HandlerFunc {
 				c.SetContext(ctx)
 				logMessage(c, m, slog.LevelWarn, "sm: CER after handshake timeout; closing connection", nil)
 				c.Close()
+				sm.protocolError(c, m, diam.ProtocolHandshakeState, 0, true, diam.ProtocolReplyNone, 0)
 				return
 			}
 			if sm.cfg.OnCEA != nil {
@@ -82,12 +87,31 @@ func handleCER(sm *StateMachine) diam.HandlerFunc {
 
 // errorCEA sends the capability failure answer (RFC 6733 §5.3.2).
 func errorCEA(sm *StateMachine, c diam.Conn, m *diam.Message, errMessage error) error {
+	_, err := errorCEAResult(sm, c, m, errMessage)
+	return err
+}
+
+func rejectedCERCode(err error) uint32 {
+	if code := protocolResultCode(err); code != 0 {
+		return code
+	}
+	if errors.Is(err, smparser.ErrNoCommonSecurity) {
+		return diam.NoCommonSecurity
+	}
+	if errors.Is(err, smparser.ErrNoCommonApplication) {
+		return diam.NoCommonApplication
+	}
+	return diam.UnableToComply
+}
+
+func errorCEAResult(sm *StateMachine, c diam.Conn, m *diam.Message, errMessage error) (replyCode uint32, resultErr error) {
+	replyCode = rejectedCERCode(errMessage)
 	hostAddresses := sm.cfg.HostIPAddresses
 	if len(hostAddresses) == 0 {
 		var err error
 		hostAddresses, err = getLocalAddresses(c)
 		if err != nil {
-			return fmt.Errorf("error CEA '%w' create failure: %w", errMessage, err)
+			return replyCode, fmt.Errorf("error CEA '%w' create failure: %w", errMessage, err)
 		}
 	}
 	var resultCode uint32
@@ -112,22 +136,25 @@ func errorCEA(sm *StateMachine, c diam.Conn, m *diam.Message, errMessage error) 
 		}
 		a, err = base.BuildErrorAnswer(m, cfg, messageErr.ResultCode, failed, messageErr.ResultCode >= 3000 && messageErr.ResultCode < 4000)
 		if err != nil {
-			return err
+			return replyCode, err
 		}
 	} else {
 		a, err = base.BuildCEA(m, cfg, resultCode)
 		if err != nil {
-			return fmt.Errorf("error CEA '%w' create failure: %w", errMessage, err)
+			return replyCode, fmt.Errorf("error CEA '%w' create failure: %w", errMessage, err)
 		}
 	}
 	if sm.cfg.OnCEA != nil {
 		sm.cfg.OnCEA(c, a)
 	}
+	if sm.cfg.OnProtocolError != nil {
+		replyCode = protocolAnswerCode(a)
+	}
 	_, err = a.WriteTo(c)
 	if err != nil {
 		err = fmt.Errorf("error CEA '%w' send failure: %w", errMessage, err)
 	}
-	return err
+	return replyCode, err
 }
 
 func buildSuccessCEA(sm *StateMachine, c diam.Conn, m *diam.Message) (*diam.Message, error) {

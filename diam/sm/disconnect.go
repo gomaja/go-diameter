@@ -103,6 +103,7 @@ func (sm *StateMachine) Disconnect(c diam.Conn, cause DisconnectCause, timeout t
 		logMessage(c, m, slog.LevelWarn, "sm: disconnect timeout; closing connection", ErrDisconnectTimeout)
 		close(expired)
 		c.Close()
+		sm.protocolError(c, nil, diam.ProtocolDisconnectTimeout, 0, true, diam.ProtocolReplyNone, 0)
 	})
 	defer timer.Stop()
 	if _, err := m.WriteTo(c); err != nil {
@@ -156,17 +157,23 @@ func handleDPA(sm *StateMachine) diam.HandlerFunc {
 		p := sm.disconnects.pending[c]
 		if p == nil || p.hopID != m.Header.HopByHopID {
 			sm.disconnects.mu.Unlock()
+			sm.protocolError(c, m, diam.ProtocolUnexpectedMessage, 0, false, diam.ProtocolReplyNone, 0)
 			return
 		}
 		sm.disconnects.mu.Unlock()
 		result, err := validateDPA(m)
 		if err != nil {
 			logMessage(c, m, slog.LevelWarn, "sm: invalid DPA", err)
+			sm.protocolError(c, m, diam.ProtocolInvalidDPA, 0, false, diam.ProtocolReplyNone, 0)
 			return
 		}
 		select {
 		case p.result <- result:
+			if result != diam.Success {
+				sm.protocolError(c, m, diam.ProtocolPeerRejected, result, true, diam.ProtocolReplyNone, 0)
+			}
 		default:
+			sm.protocolError(c, m, diam.ProtocolUnexpectedMessage, 0, false, diam.ProtocolReplyNone, 0)
 		}
 	}
 }
