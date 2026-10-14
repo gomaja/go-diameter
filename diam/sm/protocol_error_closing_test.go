@@ -221,10 +221,16 @@ func TestProtocolErrorDisconnectWire(t *testing.T) {
 			}
 			logs := p.logs.Records()
 			want := 0
+			wantLog := ""
 			if kind == "A12_invalid_DPA" {
 				want = 1
+				wantLog = "sm: invalid DPA"
 			}
-			if len(logs) != want || want == 1 && logs[0].Message != "sm: invalid DPA" {
+			if kind == "A13_wrong_DPA_ID" {
+				want = 1
+				wantLog = "sm: DPA identifiers mismatch; answer discarded"
+			}
+			if len(logs) != want || want == 1 && (logs[0].Message != wantLog || logs[0].Level != slog.LevelWarn) {
 				t.Fatalf("logs=%v", logs)
 			}
 		})

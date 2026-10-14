@@ -162,14 +162,14 @@ func (w *acceptedWatchdog) latchStop() {
 	w.stopOnce.Do(func() { close(w.stopc) })
 }
 
-func (w *acceptedWatchdog) received() {
+func (w *acceptedWatchdog) received(m *diam.Message) {
 	// RFC 6733 §5.6: received traffic cannot restart a Closing watchdog.
 	// Do not wait for a DWR write or callback before releasing admission.
 	// A racing activity store is inert: the loop stops and events are gated.
 	if w.stopped.Load() || w.conn.Closed() {
 		return
 	}
-	w.signals.received()
+	w.signals.receivedMessage(m)
 }
 
 func (w *acceptedWatchdog) terminate(m *diam.Message, level slog.Level, text string, err error) bool {

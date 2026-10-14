@@ -5,6 +5,7 @@
 package sm
 
 import (
+	"fmt"
 	"log/slog"
 
 	"github.com/gomaja/go-diameter/diam"
@@ -22,6 +23,9 @@ func handleDWR(sm *StateMachine) diam.HandlerFunc {
 	return func(c diam.Conn, m *diam.Message) {
 		dwr := new(smparser.DWR)
 		err := dwr.Parse(m)
+		if err == nil && !boundHost(c, dwr.OriginHost) {
+			err = fmt.Errorf("DWR Origin-Host does not match the admitted peer (RFC 6733 §6.3)")
+		}
 		if err != nil {
 			logMessage(c, m, slog.LevelWarn, "sm: invalid DWR", err)
 			sm.protocolError(c, m, diam.ProtocolInvalidDWR, 0, false, diam.ProtocolReplyNone, 0)

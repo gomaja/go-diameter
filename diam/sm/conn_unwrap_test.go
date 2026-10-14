@@ -1,6 +1,7 @@
 package sm
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"strings"
@@ -13,13 +14,19 @@ import (
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/dict"
 	"github.com/gomaja/go-diameter/diam/internal/base"
+	"github.com/gomaja/go-diameter/diam/sm/smpeer"
 )
 
 type unwrapTestConn struct{ diam.Conn }
 
 func (c unwrapTestConn) Unwrap() diam.Conn { return c.Conn }
 
-type writableNotifyConn struct{ *blockingDisconnectConn }
+type writableNotifyConn struct {
+	*blockingDisconnectConn
+	ctx context.Context
+}
+
+func (c *writableNotifyConn) Context() context.Context { return c.ctx }
 
 func (*writableNotifyConn) Write(b []byte) (int, error)                 { return len(b), nil }
 func (c *writableNotifyConn) WriteStream(b []byte, _ uint) (int, error) { return c.Write(b) }
@@ -60,7 +67,7 @@ func TestOptionalConnThroughWrappers(t *testing.T) {
 				cfg := *serverSettings
 				cfg.DPRCloseTimeout = time.Second
 				sm := mustNewStateMachine(t, &cfg, testDict)
-				inner := &writableNotifyConn{&blockingDisconnectConn{dictionary: testDict, closed: make(chan struct{})}}
+				inner := &writableNotifyConn{blockingDisconnectConn: &blockingDisconnectConn{dictionary: testDict, closed: make(chan struct{})}, ctx: smpeer.NewContext(context.Background(), &smpeer.Metadata{OriginHost: serverSettings.OriginHost, OriginRealm: serverSettings.OriginRealm})}
 				defer inner.Close()
 				msg, err := base.BuildDPR(inner.Dictionary(), baseSettings(sm.cfg), uint32(DisconnectBusy))
 				if err != nil {

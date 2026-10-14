@@ -160,6 +160,7 @@ func (a *actor) retireResponder(cmd retirementCommand) {
 		a.watchdogHop, a.watchdogEnd, a.watchdogGen = 0, 0, 0
 		a.numDWA = 0
 		a.pendingDPR, a.pendingDPREnd = 0, 0
+		a.pendingDPRGen, a.pendingDPRCommand = 0, 0
 		if a.everOpen {
 			next, _ := a.watchdogCore().Step(watchdog.ConnectionDown)
 			a.watchdog = WatchdogState(next.State)

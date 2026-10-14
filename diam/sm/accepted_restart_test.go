@@ -64,7 +64,7 @@ func TestAcceptedRetiredWatchdogSuppressesStaleWork(t *testing.T) {
 		w := acceptedWatchdogState(t, sm, c)
 		defer w.stop()
 		c.closed.Store(true)
-		w.received()
+		w.received(regressionDWR(t))
 		if w.signals.last.Load() != 0 {
 			t.Error("retired activity reset Tw")
 		}
@@ -362,7 +362,9 @@ func TestAcceptedRestartFreshHandshake(t *testing.T) {
 			if next.Closed() {
 				t.Fatal("old Close closed replacement")
 			}
-			transport.message(t, regressionDWR(t))
+			dwr := regressionDWR(t)
+			setWireIdentity(t, dwr, avp.OriginHost, "second.example")
+			transport.message(t, dwr)
 			m, err := diam.ReadMessage(peer, testDict)
 			if err != nil || m.Header.CommandCode != diam.DeviceWatchdog || !testResultCode(m, diam.Success) {
 				t.Fatalf("replacement DWA=%v,%v", m, err)
@@ -479,7 +481,13 @@ func testAcceptedCERRenewalPolicyOnWire(t *testing.T, network string) {
 					t.Fatal("default duplicate CER replaced metadata")
 				}
 			}
-			write(regressionDWR(t))
+			dwr := regressionDWR(t)
+			host := "first.example"
+			if enabled {
+				host = "second.example"
+			}
+			setWireIdentity(t, dwr, avp.OriginHost, host)
+			write(dwr)
 			answer(diam.DeviceWatchdog, diam.Success)
 			select {
 			case extra := <-handshakes:
@@ -696,7 +704,9 @@ func TestAcceptedRetirementReleasesDisconnectWithBlockedObserver(t *testing.T) {
 	old := <-handshakes
 	// Finish the first CER's admission before the synthetic observer can
 	// hold the watchdog mutex during its deferred startup.
-	transport.message(t, regressionDWR(t))
+	dwr := regressionDWR(t)
+	setWireIdentity(t, dwr, avp.OriginHost, "first.example")
+	transport.message(t, dwr)
 	dwa, err := diam.ReadMessage(peer, testDict)
 	if err != nil || dwa.Header.CommandCode != diam.DeviceWatchdog || !testResultCode(dwa, diam.Success) {
 		t.Fatalf("initial admission DWA=%v,%v", dwa, err)
@@ -815,7 +825,7 @@ func TestAcceptedDPRAdmissionPrecedesCERRenewal(t *testing.T) {
 	acceptedRestartCEA(t, peer, diam.Success)
 	old = (<-handshakes).(*acceptedDPRGateConn)
 	dpr := diam.NewRequest(diam.DisconnectPeer, 0, testDict)
-	mustSMClientAVP(t, dpr, avp.OriginHost, avp.Mbit, 0, clientSettings.OriginHost)
+	mustSMClientAVP(t, dpr, avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("first.example"))
 	mustSMClientAVP(t, dpr, avp.OriginRealm, avp.Mbit, 0, clientSettings.OriginRealm)
 	mustSMClientAVP(t, dpr, avp.DisconnectCause, avp.Mbit, 0, datatype.Enumerated(0))
 	transport.message(t, dpr)
@@ -832,7 +842,9 @@ func TestAcceptedDPRAdmissionPrecedesCERRenewal(t *testing.T) {
 	if err != nil || answer.Header.CommandCode != diam.DisconnectPeer || !testResultCode(answer, diam.Success) {
 		t.Fatalf("DPA=%v,%v", answer, err)
 	}
-	transport.message(t, regressionDWR(t))
+	dwr := regressionDWR(t)
+	setWireIdentity(t, dwr, avp.OriginHost, "first.example")
+	transport.message(t, dwr)
 	answer, err = diam.ReadMessage(peer, testDict)
 	if err != nil || answer.Header.CommandCode != diam.DeviceWatchdog {
 		t.Fatalf("Closing CER produced unexpected answer %v,%v", answer, err)
@@ -950,8 +962,12 @@ func TestAcceptedRestartOldDPAIsNotNewDisconnectAnswer(t *testing.T) {
 	if oldDPR.Header.HopByHopID == nextDPR.Header.HopByHopID {
 		t.Fatal("test disconnect request IDs collided")
 	}
-	transport.message(t, acceptedDWA(t, oldDPR, diam.Success))
-	transport.message(t, regressionDWR(t))
+	oldDPA := acceptedDWA(t, oldDPR, diam.Success)
+	setWireIdentity(t, oldDPA, avp.OriginHost, "first.example")
+	transport.message(t, oldDPA)
+	dwr := regressionDWR(t)
+	setWireIdentity(t, dwr, avp.OriginHost, "second.example")
+	transport.message(t, dwr)
 	answer, err := diam.ReadMessage(peer, testDict)
 	if err != nil || answer.Header.CommandCode != diam.DeviceWatchdog {
 		t.Fatalf("post-oldDPA answer=%v,%v", answer, err)
@@ -961,7 +977,9 @@ func TestAcceptedRestartOldDPAIsNotNewDisconnectAnswer(t *testing.T) {
 		t.Fatalf("old DPA completed new Disconnect: %v", err)
 	default:
 	}
-	transport.message(t, acceptedDWA(t, nextDPR, diam.Success))
+	nextDPA := acceptedDWA(t, nextDPR, diam.Success)
+	setWireIdentity(t, nextDPA, avp.OriginHost, "second.example")
+	transport.message(t, nextDPA)
 	select {
 	case err := <-nextResult:
 		if err != nil {

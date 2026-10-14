@@ -9,7 +9,10 @@ import (
 	"log/slog"
 
 	"github.com/gomaja/go-diameter/diam"
+	"github.com/gomaja/go-diameter/diam/avp"
+	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/sm/smparser"
+	"github.com/gomaja/go-diameter/diam/sm/smpeer"
 )
 
 var dwaACK = struct{}{}
@@ -44,9 +47,19 @@ func processDWA(c diam.Conn, m *diam.Message, signals *watchdogSignals, observer
 		return diam.ProtocolInvalidDWA, 0
 	}
 	if dwa.ResultCode != diam.Success {
+		if _, err := m.FindAVP(avp.ResultCode, 0); err != nil {
+			observe(c, WatchdogInvalidAnswer)
+			logMessage(c, m, slog.LevelWarn, "sm: invalid DWA", err)
+			return diam.ProtocolInvalidDWA, 0
+		}
 		logMessage(c, m, slog.LevelWarn, "sm: rejected DWA", fmt.Errorf("DWA Result-Code %d", dwa.ResultCode))
 		observe(c, WatchdogInvalidAnswer)
 		return diam.ProtocolRejectedDWA, dwa.ResultCode
+	}
+	if err := validateSuccessfulDWA(c, m); err != nil {
+		observe(c, WatchdogInvalidAnswer)
+		logMessage(c, m, slog.LevelWarn, "sm: invalid DWA", err)
+		return diam.ProtocolInvalidDWA, 0
 	}
 	if c.Closed() {
 		return "", 0
@@ -66,4 +79,49 @@ func processDWA(c diam.Conn, m *diam.Message, signals *watchdogSignals, observer
 	}
 	observe(c, WatchdogAnswerReceived)
 	return "", 0
+}
+
+func validateSuccessfulDWA(c diam.Conn, m *diam.Message) error {
+	// RFC 6733 §§3, 5.5.2, 6.3: singleton result and identities, with
+	// defined flags clear. Receivers ignore reserved command-header bits.
+	if m.Header.CommandFlags&(diam.RequestFlag|diam.ProxiableFlag|diam.ErrorFlag|diam.RetransmittedFlag) != 0 {
+		return fmt.Errorf("invalid DWA flags")
+	}
+	ctx := c.Context()
+	if ctx == nil {
+		return fmt.Errorf("DWA before peer admission")
+	}
+	meta, ok := smpeer.FromContext(ctx)
+	if !ok || meta == nil {
+		return fmt.Errorf("DWA before peer admission")
+	}
+	var hosts, realms, results int
+	for _, a := range m.AVP {
+		if a.VendorID != 0 {
+			continue
+		}
+		switch a.Code {
+		case avp.OriginHost:
+			hosts++
+			host, ok := a.Data.(datatype.DiameterIdentity)
+			if !ok || !boundHost(c, host) {
+				return fmt.Errorf("DWA Origin-Host mismatch")
+			}
+		case avp.OriginRealm:
+			realms++
+			realm, ok := a.Data.(datatype.DiameterIdentity)
+			if !ok || len(realm) == 0 || !equalIdentity(realm, meta.OriginRealm) {
+				return fmt.Errorf("DWA Origin-Realm mismatch")
+			}
+		case avp.ResultCode:
+			results++
+			if value, ok := a.Data.(datatype.Unsigned32); !ok || uint32(value) != diam.Success {
+				return fmt.Errorf("invalid successful DWA Result-Code")
+			}
+		}
+	}
+	if hosts != 1 || realms != 1 || results != 1 {
+		return fmt.Errorf("DWA requires one Result-Code, Origin-Host and Origin-Realm")
+	}
+	return nil
 }

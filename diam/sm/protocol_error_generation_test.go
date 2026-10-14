@@ -109,11 +109,16 @@ func assertProtocolGenerationDWR(t *testing.T, event diam.ProtocolErrorEvent, c 
 	}
 }
 
-func (w *protocolGenerationWire) validDWR(t *testing.T) {
+func (w *protocolGenerationWire) validDWR(t *testing.T, c diam.Conn) {
 	testDict := newSMTestDictionary(creditcontrol.Dictionary())
 
 	t.Helper()
 	request := regressionDWR(t)
+	metadata, ok := smpeer.FromContext(c.Context())
+	if !ok {
+		t.Fatal("missing admitted peer metadata")
+	}
+	setWireIdentity(t, request, avp.OriginHost, string(metadata.OriginHost))
 	protocolGenerationWrite(t, w.peer, request)
 	_ = w.peer.SetReadDeadline(time.Now().Add(3 * time.Second))
 	answer, err := diam.ReadMessage(w.peer, testDict)
@@ -129,7 +134,7 @@ func TestProtocolErrorGenerationRenewal(t *testing.T) {
 	firstHeader := protocolGenerationWrite(t, w.peer, protocolGenerationInvalidDWR(t, 0x8601))
 	first := protocolGenerationAwait(t, events)
 	assertProtocolGenerationDWR(t, first, old, firstHeader, 0)
-	w.validDWR(t)
+	w.validDWR(t, old)
 	next := w.handshake(t, "second.example", 1002, 222)
 	pair := protocolGenerationAwait(t, w.restarts)
 	if pair.old != old || pair.next != next || next == old || pair.reason != diam.AcceptedCERRenewal || !old.Closed() || next.Closed() {
@@ -139,7 +144,7 @@ func TestProtocolErrorGenerationRenewal(t *testing.T) {
 	second := protocolGenerationAwait(t, events)
 	assertProtocolGenerationDWR(t, second, next, secondHeader, 0)
 	assertProtocolGenerationDWR(t, first, old, firstHeader, 0)
-	w.validDWR(t)
+	w.validDWR(t, next)
 	select {
 	case event := <-events:
 		t.Fatalf("successful exchange emitted %+v", event)
@@ -190,7 +195,7 @@ func TestProtocolErrorGenerationRetirementWhileCallbackBlocks(t *testing.T) {
 	assertProtocolGenerationDWR(t, completed, old, header, 0)
 	protocolGenerationAwait(t, lifecycle.DispatchDone())
 	old.Close()
-	w.validDWR(t)
+	w.validDWR(t, next)
 	if next.Closed() {
 		t.Fatal("callback completion/old Close closed replacement generation")
 	}
@@ -219,7 +224,7 @@ func TestProtocolErrorGenerationMetadataRetention(t *testing.T) {
 	if next == c || !c.Closed() || next.Closed() {
 		t.Fatal("retained notification changed connection generation")
 	}
-	w.validDWR(t)
+	w.validDWR(t, next)
 }
 
 func TestProtocolErrorGenerationRejectedRenewal(t *testing.T) {

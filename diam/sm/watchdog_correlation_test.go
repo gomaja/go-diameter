@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/gomaja/go-diameter/diam"
+	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/dict"
 	"github.com/gomaja/go-diameter/diam/internal/logtest"
 )
@@ -20,12 +21,17 @@ func newWatchdogCorrelationWire(t *testing.T, mode string, events chan acceptedW
 		events <- acceptedWatchdogEvent{conn: c, event: event}
 	}
 	if mode == "accepted" {
-		return newProtocolWire(t, func(cfg *Settings) {
+		p := newProtocolWire(t, func(cfg *Settings) {
 			cfg.EnableWatchdog = true
 			cfg.WatchdogInterval = correlationTw
 			cfg.watchdogTiming = &watchdogTiming{floor: time.Millisecond}
 			cfg.OnWatchdogConnEvent = onEvent
-		}, true)
+		}, false)
+		p.send(t, regressionCER(t, p.conn.Dictionary(), 1001))
+		if cea, err := diam.ReadMessage(p.peer, p.conn.Dictionary()); err != nil || !testResultCode(cea, diam.Success) {
+			t.Fatalf("CEA = %v, %v", cea, err)
+		}
+		return p
 	}
 	p := newProtocolClientWire(t, func(cli *Client) {
 		cli.EnableWatchdog = true
@@ -33,7 +39,10 @@ func newWatchdogCorrelationWire(t *testing.T, mode string, events chan acceptedW
 		cli.watchdogTiming = &watchdogTiming{floor: time.Millisecond}
 		cli.OnWatchdogConnEvent = onEvent
 	})
-	p.send(t, protocolClientCEA(p.cer, diam.Success))
+	cea := protocolClientCEA(p.cer, diam.Success)
+	setWireIdentity(t, cea, avp.OriginHost, string(clientSettings.OriginHost))
+	setWireIdentity(t, cea, avp.OriginRealm, string(clientSettings.OriginRealm))
+	p.send(t, cea)
 	if result := p.dialResult(t); result.err != nil {
 		t.Fatal(result.err)
 	}

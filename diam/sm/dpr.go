@@ -1,6 +1,7 @@
 package sm
 
 import (
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -26,6 +27,9 @@ func validateDPR(m *diam.Message) (DisconnectCause, error) {
 func handleDPR(sm *StateMachine) diam.HandlerFunc {
 	return func(c diam.Conn, m *diam.Message) {
 		cause, err := validateDPR(m)
+		if err == nil && !messageBoundHost(c, m) {
+			err = fmt.Errorf("DPR Origin-Host does not match the admitted peer (RFC 6733 §6.3)")
+		}
 		if err != nil {
 			logMessage(c, m, slog.LevelWarn, "sm: invalid DPR", err)
 			sm.protocolError(c, m, diam.ProtocolInvalidDPR, 0, false, diam.ProtocolReplyNone, 0)
