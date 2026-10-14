@@ -88,9 +88,8 @@ func (s *session) dispatch() {
 		if in.err != nil {
 			if a, _ := s.binding(); a != nil {
 				a.post(event{kind: wireEvent, s: s, msg: in.msg, messageErr: in.err})
-			} else if err := s.m.answerMessageError(s, in.msg, in.err); err != nil {
-				s.m.reportLocal(s, in.msg, "peer: error answer failed; closing connection", err)
-				s.close()
+			} else {
+				_ = s.m.answerMessageError(s, in.msg, in.err)
 			}
 		} else {
 			s.m.processDIAM(s, in.msg)

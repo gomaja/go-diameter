@@ -28,6 +28,7 @@ func handleDPR(sm *StateMachine) diam.HandlerFunc {
 		cause, err := validateDPR(m)
 		if err != nil {
 			logMessage(c, m, slog.LevelWarn, "sm: invalid DPR", err)
+			sm.protocolError(c, m, diam.ProtocolInvalidDPR, 0, false, diam.ProtocolReplyNone, 0)
 			return
 		}
 		sm.markAcceptedClosing(c)
@@ -59,6 +60,7 @@ func handleDPR(sm *StateMachine) diam.HandlerFunc {
 				case <-timer.C:
 					logMessage(c, m, slog.LevelWarn, "sm: Wait-Returns timeout; closing connection", nil)
 					c.Close()
+					sm.protocolError(c, nil, diam.ProtocolDisconnectTimeout, 0, true, diam.ProtocolReplyNone, 0)
 				}
 			}()
 		}

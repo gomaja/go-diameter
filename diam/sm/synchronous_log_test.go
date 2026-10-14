@@ -74,7 +74,7 @@ func TestWaitICEARecordsBeforePublishingFailure(t *testing.T) {
 	closed := make(chan struct{})
 	go func() { <-activity.ceac; c.Close(); close(closed) }()
 	done := make(chan struct{})
-	go func() { h.rejectHandshake(c, errors.New("non-CEA")); close(done) }()
+	go func() { h.rejectHandshake(c, nil, errors.New("non-CEA")); close(done) }()
 	select {
 	case <-entered:
 	case <-time.After(time.Second):

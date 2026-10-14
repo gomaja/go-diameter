@@ -24,6 +24,7 @@ func handleDWR(sm *StateMachine) diam.HandlerFunc {
 		err := dwr.Parse(m)
 		if err != nil {
 			logMessage(c, m, slog.LevelWarn, "sm: invalid DWR", err)
+			sm.protocolError(c, m, diam.ProtocolInvalidDWR, 0, false, diam.ProtocolReplyNone, 0)
 			return
 		}
 		a, err := base.BuildDWA(m, baseSettings(sm.cfg))

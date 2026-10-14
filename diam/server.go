@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/gomaja/go-diameter/diam/dict"
+	"github.com/gomaja/go-diameter/diam/internal/observe"
 	"github.com/gomaja/go-sctp"
 )
 
@@ -31,7 +32,8 @@ import (
 // to order admission, and must release admission before waiting for later traffic.
 // Wrappers around an ordered handler must forward ServeDIAM synchronously, before
 // returning. A wrapper should expose Unwrap() Handler so HandlerAs can discover optional
-// AcceptHandler, RetireHandler, AcceptedCERHandler and MessageErrorHandler methods. These calls bypass an Unwrap-only
+// AcceptHandler, RetireHandler, AcceptedCERHandler, MessageErrorHandler and
+// ProtocolErrorObserver methods. These calls bypass an Unwrap-only
 // wrapper. A wrapper intercepting MessageErrorHandler must delegate synchronously
 // or take responsibility itself; consuming a callback leaves no dispatch gap.
 // Successive Unwrap calls must terminate.
@@ -350,10 +352,17 @@ func (srv *Server) tlsHandshakeTimeout() time.Duration {
 func (c *conn) handleReadError(m *Message, err error) bool {
 	var me *MessageError
 	if !errors.As(err, &me) {
+		var decodeErr *avpDecodeError
+		isDecodeFailure := errors.As(err, &decodeErr)
 		// Local closes include net.OpError wrappers. MessageError takes
 		// precedence above: a decoder can wrap either close sentinel. Only
 		// bare EOF is quiet; wrapped EOF can identify a truncated body.
 		if err == io.EOF || errors.Is(err, net.ErrClosed) {
+			if isDecodeFailure {
+				if observer := c.readProtocolObserver(m); observer != nil {
+					c.notifyReadProtocolError(observer, protocolMessageMetadata(m), decodeErr.resultCode, ProtocolReplyNone)
+				}
+			}
 			return false
 		}
 		level := slog.LevelWarn
@@ -362,18 +371,28 @@ func (c *conn) handleReadError(m *Message, err error) bool {
 			level = slog.LevelDebug
 		}
 		c.log(level, "diam: read failed; closing connection", slog.Any("error", err), slog.Any("message", m))
+		// RFC 6733 §§4 and 7: a known AVP payload decoder failure is a
+		// protocol condition; transport and local dictionary failures are not.
+		if isDecodeFailure {
+			if observer := c.readProtocolObserver(m); observer != nil {
+				c.notifyReadProtocolError(observer, protocolMessageMetadata(m), decodeErr.resultCode, ProtocolReplyNone)
+			}
+		}
 		return false
 	}
 	// RFC 6733 §7: record the decoding failure before the handler can answer
 	// or close. A handler may take responsibility asynchronously.
 	attrs := []slog.Attr{slog.Any("error", err), slog.Any("message", m), slog.Uint64("result_code", uint64(me.ResultCode)), slog.Bool("fatal", me.Fatal)}
 	c.log(slog.LevelWarn, "diam: malformed message", attrs...)
-	h := c.server.Handler
-	if h == nil {
-		h = DefaultServeMux
-	}
+	h := c.dispatchHandler()
 	c.prepareDispatch(m)
 	defer m.releaseDispatch()
+	observer := c.readProtocolObserver(m)
+	var metadata ProtocolMessageMetadata
+	if observer != nil {
+		metadata = protocolMessageMetadata(m)
+	}
+	resultCode := me.ResultCode
 	handleErr := fmt.Errorf("no handler supports Diameter message errors: %w", errors.ErrUnsupported)
 	if mh, ok := HandlerAs[MessageErrorHandler](h); ok {
 		handleErr = mh.HandleMessageError(c.writer, m, me)
@@ -391,6 +410,13 @@ func (c *conn) handleReadError(m *Message, err error) bool {
 		}
 	}
 	c.log(level, msg, attrs...)
+	if handleErr != nil {
+		reply := ProtocolReplyNone
+		if !errors.Is(handleErr, errors.ErrUnsupported) {
+			reply = ProtocolReplyUnknown
+		}
+		c.notifyReadProtocolError(observer, metadata, resultCode, reply)
+	}
 	return false
 }
 
@@ -449,6 +475,9 @@ func (c *conn) prepareDispatch(m *Message) {
 	queue := &c.dispatchOrder
 	queue.mu.Lock()
 	defer queue.mu.Unlock()
+	if queue.handler == nil && c.server != nil {
+		queue.handler = c.server.handler()
+	}
 	queue.sequence++
 	barrier := &dispatchBarrier{queue: queue, sequence: queue.sequence, previous: queue.tail, done: make(chan struct{})}
 	if queue.tail == nil {
@@ -458,6 +487,18 @@ func (c *conn) prepareDispatch(m *Message) {
 	}
 	queue.tail = barrier
 	m.dispatch = barrier
+}
+
+// dispatchHandler captures one root for message handling and observations.
+// The queue's handler is immutable after capture, including across callbacks.
+func (c *conn) dispatchHandler() Handler {
+	queue := &c.dispatchOrder
+	queue.mu.Lock()
+	defer queue.mu.Unlock()
+	if queue.handler == nil {
+		queue.handler = c.server.handler()
+	}
+	return queue.handler
 }
 
 func (c *conn) finishDispatch() {
@@ -774,6 +815,18 @@ func (mux *ServeMux) ServeDIAM(c Conn, m *Message) {
 		return
 	}
 	c.Logger().LogAttrs(m.Context(), slog.LevelWarn, "diam: unhandled message", slog.Any("message", m))
+	// RFC 6733 §§6.2.1 and 7.1.3: preserve a wrapper's observer for a bare
+	// mux discard. Calling this mux again would find no route or ALL.
+	if m.dispatch != nil {
+		queue := m.dispatch.queue
+		queue.mu.Lock()
+		handler := queue.handler
+		queue.mu.Unlock()
+		if observer, _ := protocolObserverFor(c, handler, m); observer != nil {
+			event := ProtocolErrorEvent{Conn: c, Message: protocolMessageMetadata(m), Err: NewProtocolError(ProtocolUnexpectedMessage, 0)}
+			observe.Call(c.Logger(), func() { observer.HandleProtocolError(event) })
+		}
+	}
 }
 
 // HandleMessageError delegates to the MessageErrorHandler found through
@@ -793,6 +846,39 @@ func (mux *ServeMux) HandleMessageError(c Conn, m *Message, messageErr *MessageE
 		return mh.HandleMessageError(c, m, messageErr)
 	}
 	return fmt.Errorf("no registered handler supports Diameter message errors: %w", errors.ErrUnsupported)
+}
+
+// HandleProtocolError delegates to the first ProtocolErrorObserver found by
+// HandlerAs on the matching route, then ALL. Header metadata is resolved using
+// the original connection's dictionary. An unknown header uses ALL only.
+// It never invokes a route's ServeDIAM and contains third-party observer panics.
+func (mux *ServeMux) HandleProtocolError(event ProtocolErrorEvent) {
+	defer func() {
+		if value := recover(); value != nil {
+			observe.LogPanic(event.Conn.Logger(), value)
+		}
+	}()
+	var message *Message
+	if event.Message.HasHeader {
+		header := event.Message.Header
+		message = &Message{Header: &header, dictionary: event.Conn.Dictionary()}
+	}
+	if observer, _ := protocolObserverFor(event.Conn, mux, message); observer != nil {
+		observe.Call(event.Conn.Logger(), func() { observer.HandleProtocolError(event) })
+	}
+}
+
+func (mux *ServeMux) protocolObserver(c Conn, message *Message) ProtocolErrorObserver {
+	if handler, ok := mux.Handler(message); ok {
+		if observer, found := protocolObserverFor(c, handler, message); found {
+			return observer
+		}
+	}
+	mux.mu.RLock()
+	fallback := mux.idxMap[ALL_CMD_INDEX].h
+	mux.mu.RUnlock()
+	observer, _ := protocolObserverFor(c, fallback, message)
+	return observer
 }
 
 // Handle registers a command short name, such as CER, or ALL as a fallback.
@@ -876,9 +962,12 @@ func Serve(l net.Listener, handler Handler) error {
 // Shutdown takes precedence over accepted connection renewal: a renewal in
 // progress is abandoned and its physical connection closes.
 type Server struct {
-	Network      string        // network of the address - empty string defaults to tcp
-	Addr         string        // address to listen on; blank uses :3868, or :5868 with TLS
-	Handler      Handler       // handler to invoke, DefaultServeMux if nil
+	Network string // network of the address - empty string defaults to tcp
+	Addr    string // address to listen on; blank uses :3868, or :5868 with TLS
+	// Handler invokes message handlers; nil uses DefaultServeMux. Set it before
+	// serving or dialing starts and do not replace it while Server is in use.
+	// Each connection captures one root for dispatch and protocol notification.
+	Handler      Handler
 	Dict         *dict.Parser  // diameter dictionaries for this server
 	ReadTimeout  time.Duration // maximum duration before timing out read of the request
 	WriteTimeout time.Duration // maximum duration before timing out write of the response
@@ -1215,15 +1304,19 @@ func closeOwnedListener(l net.Listener, err *error) {
 	}
 }
 
-// serverHandler delegates to either the server's Handler or DefaultServeMux.
+// serverHandler uses the root captured at dispatch admission. Calls outside
+// Server admission use the configured Handler or DefaultServeMux.
 type serverHandler struct {
 	srv *Server
 }
 
 func (sh serverHandler) ServeDIAM(w Conn, m *Message) {
-	handler := sh.srv.Handler
+	var handler Handler
+	if m != nil && m.dispatch != nil {
+		handler = m.dispatch.queue.handler
+	}
 	if handler == nil {
-		handler = DefaultServeMux
+		handler = sh.srv.handler()
 	}
 	handler.ServeDIAM(w, m)
 }

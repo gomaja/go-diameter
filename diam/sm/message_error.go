@@ -20,16 +20,24 @@ func (sm *StateMachine) handleUnsupportedCommand(c diam.Conn, request *diam.Mess
 	// answers never receive another answer.
 	if request.Header.CommandFlags&diam.RequestFlag == 0 {
 		logMessage(c, request, slog.LevelWarn, "sm: unhandled answer discarded", nil)
+		sm.protocolError(c, request, diam.ProtocolUnexpectedMessage, 0, false, diam.ProtocolReplyNone, 0)
 		return
 	}
 	resultCode := uint32(diam.CommandUnsupported)
 	if !sm.supportsApplicationOn(c, request.Header.ApplicationID) {
 		resultCode = diam.ApplicationUnsupported
 	}
-	if answered, _ := sm.handleMessageError(c, request, &diam.MessageError{ResultCode: resultCode}); !answered {
-		return // No answer was written; its owner logged any failure.
+	kind := diam.ProtocolUnsupportedCommand
+	if resultCode == diam.ApplicationUnsupported {
+		kind = diam.ProtocolUnsupportedApplication
 	}
-	c.Logger().LogAttrs(request.Context(), slog.LevelInfo, "sm: unsupported command answered", slog.Any("message", request), slog.Uint64("result_code", uint64(resultCode)))
+	outcome, err := sm.handleMessageError(c, request, &diam.MessageError{ResultCode: resultCode}, kind)
+	if outcome.reply == diam.ProtocolReplyWritten {
+		c.Logger().LogAttrs(request.Context(), slog.LevelInfo, "sm: unsupported command answered", slog.Any("message", request), slog.Uint64("result_code", uint64(resultCode)))
+	}
+	if err == nil {
+		sm.reportMessageError(c, request, outcome)
+	}
 }
 
 type advertisedAppsKey struct{}
@@ -63,33 +71,61 @@ const relayApplicationID = 0xffffffff
 // failure is logged here and closes the connection; returning nil means the
 // state machine took responsibility. Invalid error descriptions are returned.
 func (sm *StateMachine) HandleMessageError(c diam.Conn, request *diam.Message, messageErr *diam.MessageError) error {
-	_, err := sm.handleMessageError(c, request, messageErr)
+	outcome, err := sm.handleMessageError(c, request, messageErr, diam.ProtocolMalformedMessage)
+	if err == nil {
+		sm.reportMessageError(c, request, outcome)
+	}
 	return err
 }
 
-// handleMessageError reports whether an answer was actually written.
-func (sm *StateMachine) handleMessageError(c diam.Conn, request *diam.Message, messageErr *diam.MessageError) (bool, error) {
+type messageErrorOutcome struct {
+	kind    diam.ProtocolErrorKind
+	code    uint32
+	closing bool
+	reply   diam.ProtocolReplyStatus
+}
+
+func (sm *StateMachine) reportMessageError(c diam.Conn, m *diam.Message, outcome messageErrorOutcome) {
+	if outcome.kind != "" {
+		replyCode := uint32(0)
+		if outcome.reply != diam.ProtocolReplyNone {
+			replyCode = outcome.code
+		}
+		sm.protocolError(c, m, outcome.kind, outcome.code, outcome.closing, outcome.reply, replyCode)
+	}
+}
+
+// handleMessageError returns the owned decision without notifying, so the
+// unsupported-command path can finish its existing post-write log first.
+func (sm *StateMachine) handleMessageError(c diam.Conn, request *diam.Message, messageErr *diam.MessageError, kind diam.ProtocolErrorKind) (outcome messageErrorOutcome, err error) {
 	release := request.BeginDispatch()
 	defer release()
 	if c.Closed() {
-		return false, nil
+		return outcome, nil
 	}
+	outcome = messageErrorOutcome{kind: kind, closing: messageErr != nil && messageErr.Fatal}
 	if headerErr := base.ValidateHeader(request); headerErr != nil {
 		messageErr = headerErr
+		outcome.kind = diam.ProtocolInvalidHeader
+	}
+	if messageErr != nil {
+		outcome.code = messageErr.ResultCode
 	}
 	if !sm.preCERMessageAllowed(c, request) {
 		logMessage(c, request, slog.LevelWarn, "sm: message before CER; closing connection", messageErr)
 		c.Close()
-		return false, nil
+		outcome.kind = diam.ProtocolHandshakeState
+		outcome.closing = true
+		return outcome, nil
 	}
 	if request == nil || request.Header == nil || request.Header.CommandFlags&diam.RequestFlag == 0 {
-		return false, nil
+		return outcome, nil
 	}
 	if messageErr == nil {
-		return false, fmt.Errorf("cannot answer a nil Diameter message error")
+		return outcome, fmt.Errorf("cannot answer a nil Diameter message error")
 	}
 	if messageErr.ResultCode == diam.InvalidAVPLength && messageErr.FailedAVP == nil {
-		return false, fmt.Errorf("diameter result code %d requires Failed-AVP", messageErr.ResultCode)
+		return outcome, fmt.Errorf("diameter result code %d requires Failed-AVP", messageErr.ResultCode)
 	}
 	protocolError := messageErr.ResultCode >= 3000 && messageErr.ResultCode < 4000
 	var failedAVPs []*diam.AVP
@@ -100,15 +136,19 @@ func (sm *StateMachine) handleMessageError(c diam.Conn, request *diam.Message, m
 		// writeErrorAnswer records the failure before this close. Do not return
 		// it to Server, which would mistake it for a failure to take ownership.
 		c.Close()
-		return false, nil
+		outcome.closing = true
+		outcome.reply = diam.ProtocolReplyFailed
+		return outcome, nil
 	}
+	outcome.reply = diam.ProtocolReplyWritten
 	if request.Header.CommandCode == diam.CapabilitiesExchange && (base.ValidateHeader(request) != nil || !admittedPeer(c)) {
 		// RFC 6733 §§5.3 and 5.6.1: a rejected CER admits no peer, and the
 		// transport connection is closed, as handleCER does.
 		logMessage(c, request, slog.LevelWarn, "sm: rejected CER; closing connection", messageErr)
 		c.Close()
+		outcome.closing = true
 	}
-	return true, nil
+	return outcome, nil
 }
 
 func (sm *StateMachine) writeErrorAnswer(c diam.Conn, request *diam.Message, resultCode uint32, failedAVPs []*diam.AVP, protocolError bool) (err error) {

@@ -25,6 +25,15 @@ const (
 
 type watchdogTiming struct{ floor, jitter time.Duration }
 
+var errDWAResultCode = errors.New("peer: DWA Result-Code is not success")
+
+// Preserve the failing top-level Result-Code (RFC 6733 §§5.5.2 and 7.1)
+// without changing the watchdog decision or its diagnostic text.
+type dwaResultCodeError struct{ result uint32 }
+
+func (e *dwaResultCodeError) Error() string { return errDWAResultCode.Error() }
+func (e *dwaResultCodeError) Unwrap() error { return errDWAResultCode }
+
 func (a *actor) watchdogInterval() time.Duration {
 	// RFC 3539 §3.4.1, Appendix A SetWatchdog: Twinit plus uniform ±2s.
 	jitter := 2 * time.Second
@@ -179,7 +188,11 @@ func (a *actor) watchdogTick() {
 			a.armWatchdog()
 		}
 	case WatchdogSuspect:
+		connection := a.active
 		a.fail(errors.New("peer: watchdog suspect timeout"))
+		if connection != nil {
+			a.m.protocolError(connection.c, nil, diam.ProtocolWatchdogTimeout, 0, true, diam.ProtocolReplyNone, 0)
+		}
 	case WatchdogReopen:
 		if !a.pendingWatchdog {
 			a.sendWatchdog()
@@ -189,7 +202,11 @@ func (a *actor) watchdogTick() {
 			return
 		}
 		if a.numDWA < 0 {
+			connection := a.active
 			a.fail(errors.New("peer: recovery DWR unanswered"))
+			if connection != nil {
+				a.m.protocolError(connection.c, nil, diam.ProtocolWatchdogTimeout, 0, true, diam.ProtocolReplyNone, 0)
+			}
 			return
 		}
 		a.numDWA = -1
@@ -212,14 +229,25 @@ func (a *actor) watchdogReceive(msg *diam.Message) bool {
 	}
 	if msg.Header.ApplicationID != 0 {
 		a.m.report(a.active, msg, errors.New("peer: DWA application ID is not zero"))
+		a.m.protocolError(a.active.c, msg, diam.ProtocolInvalidDWA, 0, false, diam.ProtocolReplyNone, 0)
 		return false
 	}
 	if !a.pendingWatchdog || a.active == nil || a.watchdogGen != a.active.gen || msg.Header.HopByHopID != a.watchdogHop || msg.Header.EndToEndID != a.watchdogEnd {
 		a.m.report(a.active, msg, errors.New("peer: unsolicited or mismatched DWA"))
+		if a.active != nil {
+			a.m.protocolError(a.active.c, msg, diam.ProtocolInvalidDWA, 0, false, diam.ProtocolReplyNone, 0)
+		}
 		return false
 	}
 	if err := a.validateDWA(msg); err != nil {
 		a.m.report(a.active, msg, err)
+		if a.m.cfg.Settings.OnProtocolError != nil {
+			kind, result := diam.ProtocolInvalidDWA, uint32(0)
+			if code := protocolResultCode(err); errors.Is(err, errDWAResultCode) && code != 0 && code != diam.Success {
+				kind, result = diam.ProtocolRejectedDWA, code
+			}
+			a.m.protocolError(a.active.c, msg, kind, result, false, diam.ProtocolReplyNone, 0)
+		}
 		return false
 	}
 	a.pendingWatchdog = false
@@ -267,7 +295,10 @@ func (a *actor) validateDWA(msg *diam.Message) error {
 			results++
 			value, ok := field.Data.(datatype.Unsigned32)
 			if !ok || uint32(value) != diam.Success {
-				return errors.New("peer: DWA Result-Code is not success")
+				if a.m.cfg.Settings.OnProtocolError == nil {
+					return errDWAResultCode
+				}
+				return &dwaResultCodeError{result: uint32(value)}
 			}
 		}
 	}

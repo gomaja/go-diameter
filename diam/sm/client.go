@@ -133,7 +133,7 @@ func newWatchdogActivity() *watchdogActivity {
 type activityHandler struct {
 	*StateMachine
 	activity *watchdogActivity
-	cea      diam.Handler
+	cea      func(diam.Conn, *diam.Message) (diam.ProtocolErrorKind, uint32)
 	dwa      diam.Handler
 }
 
@@ -143,7 +143,7 @@ func (h activityHandler) ServeDIAM(c diam.Conn, m *diam.Message) {
 	// RFC 6733 §5.6: Wait-I-CEA / I-Rcv-Non-CEA -> Error -> Closed.
 	isCEA := m.Header.ApplicationID == 0 && m.Header.CommandCode == diam.CapabilitiesExchange && m.Header.CommandFlags&diam.RequestFlag == 0
 	if !h.activity.ceaReceived.Load() && !isCEA {
-		h.rejectHandshake(c, errors.New("non-CEA received while waiting for CEA"))
+		h.rejectHandshake(c, m, errors.New("non-CEA received while waiting for CEA"))
 		return
 	}
 	// RFC 6733 §§2.5 and 5.5.2: invalid base headers cannot confirm liveness.
@@ -157,7 +157,16 @@ func (h activityHandler) ServeDIAM(c diam.Conn, m *diam.Message) {
 	// RFC 6733 §5.3: CEA completes the CER exchange on this connection.
 	// Do not publish its result through the shared state-machine mux.
 	if isCEA {
-		h.activity.ceaOnce.Do(func() { h.cea.ServeDIAM(c, m) })
+		processed := false
+		var kind diam.ProtocolErrorKind
+		var code uint32
+		h.activity.ceaOnce.Do(func() { processed = true; kind, code = h.cea(c, m) })
+		// Once's admission mutex is released before the observational callback.
+		if !processed {
+			h.protocolError(c, m, diam.ProtocolUnexpectedMessage, 0, false, diam.ProtocolReplyNone, 0)
+		} else if kind != "" {
+			h.protocolError(c, m, kind, code, true, diam.ProtocolReplyNone, 0)
+		}
 		return
 	}
 	// RFC 6733 §5.5.2: DWA belongs to the connection that received it.
@@ -176,16 +185,17 @@ func (h activityHandler) HandleMessageError(c diam.Conn, m *diam.Message, err *d
 	release := m.BeginDispatch()
 	defer release()
 	if !h.activity.ceaReceived.Load() {
-		h.rejectHandshake(c, err)
+		h.rejectHandshake(c, m, err)
 		return nil
 	}
 	return h.StateMachine.HandleMessageError(c, m, err)
 }
 
-func (h activityHandler) rejectHandshake(c diam.Conn, err error) {
+func (h activityHandler) rejectHandshake(c diam.Conn, m *diam.Message, err error) {
 	logMessage(c, nil, slog.LevelWarn, "sm: Wait-I-CEA rejected message; closing connection", err)
 	h.activity.ceaOnce.Do(func() { h.activity.ceac <- err })
 	c.Close()
+	h.protocolError(c, m, diam.ProtocolHandshakeState, protocolResultCode(err), true, diam.ProtocolReplyNone, 0)
 }
 
 // WatchdogEvent identifies a bounded watchdog outcome from the
@@ -309,7 +319,9 @@ func (cli *Client) server(network, addr string, laddr net.Addr, activity *watchd
 	var handler diam.Handler = cli.Handler
 	if activity != nil {
 		h := activityHandler{StateMachine: cli.Handler, activity: activity,
-			cea: handleCEA(cli.Handler, activity)}
+			cea: func(c diam.Conn, m *diam.Message) (diam.ProtocolErrorKind, uint32) {
+				return processCEA(cli.Handler, activity, c, m)
+			}}
 		if cli.EnableWatchdog {
 			h.dwa = handshakeOK(handleDWA(cli.Handler, activity.dwac, cli.observeWatchdog))
 		}
@@ -510,6 +522,7 @@ func (cli *Client) handshakeContext(ctx context.Context, c diam.Conn, activity *
 
 	logMessage(c, nil, slog.LevelWarn, "sm: CEA timeout; closing connection", ErrHandshakeTimeout)
 	closeConn()
+	cli.Handler.protocolError(c, nil, diam.ProtocolHandshakeTimeout, 0, true, diam.ProtocolReplyNone, 0)
 	return nil, ErrHandshakeTimeout
 }
 
@@ -587,6 +600,9 @@ func (cli *Client) watchdog(c diam.Conn, dwac chan struct{}, activity *watchdogA
 		interval: cli.nextWatchdogInterval,
 		send:     func() bool { return cli.dwr(c, osid) },
 		observe:  func(event WatchdogEvent) { cli.observeWatchdog(c, event) },
+		protocolTimeout: func() {
+			cli.Handler.protocolError(c, nil, diam.ProtocolWatchdogTimeout, 0, true, diam.ProtocolReplyNone, 0)
+		},
 	}
 	w.run()
 }

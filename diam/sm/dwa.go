@@ -20,33 +20,41 @@ func handleDWA(
 	dwac chan struct{},
 	observer func(diam.Conn, WatchdogEvent),
 ) diam.HandlerFunc {
+	return func(c diam.Conn, m *diam.Message) {
+		kind, code := processDWA(c, m, dwac, observer)
+		if kind != "" {
+			sm.protocolError(c, m, kind, code, false, diam.ProtocolReplyNone, 0)
+		}
+	}
+}
+
+func processDWA(c diam.Conn, m *diam.Message, dwac chan struct{}, observer func(diam.Conn, WatchdogEvent)) (diam.ProtocolErrorKind, uint32) {
 	observe := func(c diam.Conn, event WatchdogEvent) {
 		if observer != nil {
 			observer(c, event)
 		}
 	}
-	return func(c diam.Conn, m *diam.Message) {
-		if c.Closed() {
-			return
-		}
-		dwa := new(smparser.DWA)
-		if err := dwa.Parse(m); err != nil {
-			observe(c, WatchdogInvalidAnswer)
-			logMessage(c, m, slog.LevelWarn, "sm: invalid DWA", err)
-			return
-		}
-		if dwa.ResultCode != diam.Success {
-			logMessage(c, m, slog.LevelWarn, "sm: rejected DWA", fmt.Errorf("DWA Result-Code %d", dwa.ResultCode))
-			observe(c, WatchdogInvalidAnswer)
-			return
-		}
-		if c.Closed() {
-			return
-		}
-		select {
-		case dwac <- dwaACK:
-		default:
-		}
-		observe(c, WatchdogAnswerReceived)
+	if c.Closed() {
+		return "", 0
 	}
+	dwa := new(smparser.DWA)
+	if err := dwa.Parse(m); err != nil {
+		observe(c, WatchdogInvalidAnswer)
+		logMessage(c, m, slog.LevelWarn, "sm: invalid DWA", err)
+		return diam.ProtocolInvalidDWA, 0
+	}
+	if dwa.ResultCode != diam.Success {
+		logMessage(c, m, slog.LevelWarn, "sm: rejected DWA", fmt.Errorf("DWA Result-Code %d", dwa.ResultCode))
+		observe(c, WatchdogInvalidAnswer)
+		return diam.ProtocolRejectedDWA, dwa.ResultCode
+	}
+	if c.Closed() {
+		return "", 0
+	}
+	select {
+	case dwac <- dwaACK:
+	default:
+	}
+	observe(c, WatchdogAnswerReceived)
+	return "", 0
 }

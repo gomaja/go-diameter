@@ -352,6 +352,7 @@ func (m *Manager) receiveAnswer(s *session, answer *diam.Message) {
 	if p == nil || p.done {
 		m.pendingMu.Unlock()
 		m.report(s, answer, errors.New("peer: unmatched answer (RFC 6733 §6.2.1)"))
+		m.protocolError(s.c, answer, diam.ProtocolUnexpectedMessage, 0, false, diam.ProtocolReplyNone, 0)
 		return
 	}
 	_, generation := s.binding()
@@ -359,6 +360,7 @@ func (m *Manager) receiveAnswer(s *session, answer *diam.Message) {
 	if !present || attempt.generation != generation || !answerMatches(p, answer) {
 		m.pendingMu.Unlock()
 		m.report(s, answer, errors.New("peer: unmatched or mismatched answer (RFC 6733 §6.2.1)"))
+		m.protocolError(s.c, answer, diam.ProtocolUnexpectedMessage, 0, false, diam.ProtocolReplyNone, 0)
 		return
 	}
 	p.done = true

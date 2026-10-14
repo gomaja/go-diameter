@@ -108,6 +108,19 @@ type Settings struct {
 	// wait for later messages on this connection or call Disconnect for it.
 	OnHandshake func(c diam.Conn, peer *smpeer.Metadata)
 
+	// OnProtocolError observes handled protocol conditions (RFC 6733 §§5–7),
+	// including discards and closing decisions, independently of logging. Calls
+	// run synchronously after existing handling and logs, without a queue. Return
+	// promptly: blocking delays that worker, admission and possibly closure.
+	// Concurrent dispatch and timers may call concurrently for the same Conn.
+	// c.Close is safe; do not wait for later input, call Disconnect, or wait for
+	// Manager.Close or shutdown from this callback. A panic is logged and recovered
+	// without changing the selected protocol action. Configure before use.
+	// Metadata and errors are detached; the Conn identifies the deciding generation.
+	// Already admitted work can notify after closure or retirement with that Conn.
+	// Nil performs no notification work. peer.Manager honours this setting too.
+	OnProtocolError func(diam.ProtocolErrorEvent)
+
 	// OnCER, if non-nil, is invoked when a CER is received, before the
 	// state machine processes it. Useful for logging, metrics, or access
 	// control. The default handshake logic runs after OnCER returns.
@@ -353,6 +366,7 @@ func (sm *StateMachine) ServeDIAM(c diam.Conn, m *diam.Message) {
 	if !sm.preCERMessageAllowed(c, m) {
 		logMessage(c, m, slog.LevelWarn, "sm: message before CER; closing connection", nil)
 		c.Close()
+		sm.protocolError(c, m, diam.ProtocolHandshakeState, 0, true, diam.ProtocolReplyNone, 0)
 		return
 	}
 	w := sm.supervised(c)
@@ -375,7 +389,8 @@ func (sm *StateMachine) ServeDIAM(c diam.Conn, m *diam.Message) {
 			logMessage(c, m, slog.LevelWarn, "sm: unsupported mandatory AVP", &diam.MessageError{ResultCode: diam.AVPUnsupported})
 			// RFC 6733 §7.1.5, Verified Erratum 4615: one Failed-AVP
 			// contains the unsupported AVP(s), including Grouped hierarchy.
-			_ = sm.writeErrorAnswer(c, m, diam.AVPUnsupported, failed, false)
+			err := sm.writeErrorAnswer(c, m, diam.AVPUnsupported, failed, false)
+			sm.protocolError(c, m, diam.ProtocolUnsupportedAVP, diam.AVPUnsupported, false, protocolReply(err), diam.AVPUnsupported)
 			return
 		}
 	}
@@ -389,7 +404,8 @@ func (sm *StateMachine) ServeDIAM(c diam.Conn, m *diam.Message) {
 				failed = []*diam.AVP{validationErr.FailedAVP}
 			}
 			protocolError := validationErr.ResultCode >= 3000 && validationErr.ResultCode < 4000
-			_ = sm.writeErrorAnswer(c, m, validationErr.ResultCode, failed, protocolError)
+			err := sm.writeErrorAnswer(c, m, validationErr.ResultCode, failed, protocolError)
+			sm.protocolError(c, m, diam.ProtocolInvalidRequest, validationErr.ResultCode, false, protocolReply(err), validationErr.ResultCode)
 			return
 		}
 	}
@@ -450,6 +466,7 @@ func (sm *StateMachine) HandleAccept(c diam.Conn) func() {
 			if !complete {
 				logMessage(c, nil, slog.LevelWarn, "sm: handshake timeout; closing connection", nil)
 				c.Close()
+				sm.protocolError(c, nil, diam.ProtocolHandshakeTimeout, 0, true, diam.ProtocolReplyNone, 0)
 			}
 		})
 	}

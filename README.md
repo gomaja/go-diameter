@@ -150,6 +150,42 @@ privileged containers, verifies restart notification ordering on the shared host
 kernel and checks CER/CEA recovery from source port 43868. It includes commands
 for comparison with an unchanged checkout.
 
+## Protocol error notifications
+
+`sm.Settings.OnProtocolError` observes protocol conditions the state machine
+answers, discards or handles by closing the connection. `peer.Manager` honours
+the same setting independently of its `OnPeerEvent` queue. Each
+`diam.ProtocolErrorEvent` carries the exact handler-visible `Conn`, a copied
+header and receive stream, a classified `*diam.ProtocolError`, the closing
+decision and the reply status. Use `errors.Is(event.Err, diam.ProtocolInvalidDWR)`
+or `errors.As` to classify errors without parsing logs. Existing protocol
+responses, connection policy and logging remain unchanged.
+
+Callbacks run synchronously on the deciding handler, reader, timer or Manager
+session goroutine, after its handling attempt and existing logs. A successful
+state-machine reply has been written before delivery; Manager replies may only
+be queued. Neither status confirms receipt by the peer. Callbacks may overlap,
+including for one connection, and must return promptly: blocking delays the owning worker.
+No notification queue or worker is created. A callback panic is recovered and
+logged at Error as `diam: protocol error callback panicked`; the selected
+protocol action continues. Configure the hook before use.
+
+Metadata and normalized errors are safe to retain: they contain no message,
+AVPs or parser error graph. Retaining the event also retains its `Conn`.
+`Closing` records the library's decision, rather than a live connection-state
+query; false does not prevent another worker from closing the connection.
+Timer events have no header. Work admitted before retirement keeps its original
+generation's `Conn` and may notify after `CloseNotify`; that channel does not
+drain callbacks. A successful accepted CER renewal emits no protocol error.
+
+A callback may call `Conn.Close()` to apply application policy. It must not
+synchronously call `Disconnect`, `Manager.Close`, shutdown/wait operations, or
+wait for later inbound traffic. Closing from a Manager callback can discard an
+answer whose status is `ProtocolReplyQueued`. Applications that need asynchronous
+delivery own their buffering and overflow policy. Custom handlers can implement
+`diam.ProtocolErrorObserver`; Server and ServeMux discover observers through
+`HandlerAs` and `Unwrap`, including matching routes and `ALL` fallbacks.
+
 ## Standards Posture
 
 The library is maintained against the current published Diameter specifications,
