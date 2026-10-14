@@ -45,13 +45,15 @@ func TestQueuedCERPrecedesMalformedRequest(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	m.ServeDIAM(c, cer)
+	if err := s.enqueue(cer); err != nil {
+		t.Fatal(err)
+	}
 	req, err := base.BuildDWR(dict.Default, testBase("known.example.net"), 0)
 	if err != nil {
 		t.Fatal(err)
 	}
 	failed := diam.NewAVP(avp.InbandSecurityID, avp.Mbit, 0, datatype.Unknown{1, 2})
-	if err = m.HandleMessageError(c, req, &diam.MessageError{ResultCode: diam.InvalidAVPLength, FailedAVP: failed}); err != nil {
+	if err = s.enqueueIncoming(incoming{msg: req, err: &diam.MessageError{ResultCode: diam.InvalidAVPLength, FailedAVP: failed}}); err != nil {
 		t.Fatal(err)
 	}
 	// No timing assumptions: the pre-fix error callback has already closed c.

@@ -40,7 +40,9 @@ func TestReadAnswerPrecedesConnectionGone(t *testing.T) {
 	result := sendAsync(m, context.Background(), outboundRequest("", "example.net"))
 	request := nextWrite(t, s)
 	answer := request.Answer(diam.Success)
-	m.ServeDIAM(c, answer)
+	if err := s.enqueue(answer); err != nil {
+		t.Fatal(err)
+	}
 	if len(s.ingress) != 1 {
 		t.Fatal("answer was not queued before close")
 	}

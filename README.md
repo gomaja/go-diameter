@@ -101,10 +101,11 @@ See the full API documentation at
 Accepted SCTP associations subscribe to restart notifications. A restart retires
 one `diam.Conn` and creates a fresh generation on the same socket before admitting
 its next CER (RFC 9260 §5.2.4; RFC 6458 §6.1.1; RFC 6733 §§5.6–5.6.1).
-`sm.StateMachine` implements `diam.RetireHandler` to stop the old admission timer
-and watchdog. A handler without that interface, including `peer.Manager`, causes
-the physical connection to close when it restarts. Dialed connections retain their
-existing behavior.
+Both `sm.StateMachine` and `peer.Manager` implement `diam.RetireHandler`.
+Manager retires only the accepted responder session; an outbound election
+candidate remains available (RFC 6733 §§5.6, 5.6.4). A handler without this
+interface causes the physical connection to close. Dialed connections retain
+their existing behavior.
 
 If a restart notification reaches the Server through TLS, the physical connection
 closes without sending records from the old TLS session. Go's TLS reader retains
@@ -115,11 +116,17 @@ connection remains supported by the opt-in policy below.
 The old Conn becomes Closed and closes CloseNotify immediately. Its Context keeps
 its old values; its DispatchDone closes after its Server callbacks return. Old
 writes match both `net.ErrClosed` and `diam.ErrConnectionRetired`, and old Close
-and stream setters cannot affect the new generation. Applications own business
-request failure/failover: listen to CloseNotify for loss and DispatchDone for
-callback cleanup. Old `StateMachine.Disconnect` waiters return
-`sm.ErrDisconnectClosed`; no pending ownership transfers automatically
-(RFC 6733 §5.5.4).
+and stream setters cannot affect the new generation. Applications using
+StateMachine own business request failure/failover: listen to CloseNotify for
+loss and DispatchDone for callback cleanup. Old `StateMachine.Disconnect`
+waiters return `sm.ErrDisconnectClosed`. Manager claims its pending requests
+once and fails them over to another eligible peer, preserving End-to-End ID,
+payload and deadline while assigning a fresh Hop-by-Hop ID and setting T
+(RFC 6733 §5.5.4). It does not replay them to the same actor after renewal.
+A previously Open managed peer goes DOWN, then REOPEN after the new exchange;
+three matching new-generation DWAs restore eligibility (RFC 3539 §3.4.1,
+Appendix A). OnPeerEvent reports retirement with a Reason wrapping
+`diam.ErrConnectionRetired`; an unbound session has no peer event.
 
 `Server.OnNewConnection` runs once per physical connection. `HandleAccept` and its
 cleanup run once per accepted generation. `Server.OnConnectionRestart` runs after
@@ -134,8 +141,8 @@ Conn does not receive `OnShutdownConnection`: after an SCTP association restart
 it cannot send a DPR to the old peer (RFC 9260 §5.2.4; RFC 6733 §5.4). Shutdown
 still waits for Server callbacks to return, subject to its context deadline.
 
-Both `sm.StateMachine` and `peer.Manager` ignore a base CER received on a
-connection whose capabilities exchange has completed: they log it at Warn, send
+By default, both `sm.StateMachine` and `peer.Manager` ignore a base CER received
+on a connection whose capabilities exchange has completed: they log it at Warn, send
 no answer and keep the connection open. Manager preserves its session, watchdog
 and pending requests. This is library policy: [RFC 6733 §5.6](https://www.rfc-editor.org/rfc/rfc6733.html#section-5.6)
 has no row for a CER on the open connection itself; `R-Conn-CER -> R-Reject`
@@ -145,11 +152,11 @@ through `sm.Settings.OnProtocolError` as `ProtocolUnexpectedMessage`, with
 
 For transports that cannot signal restart, `Server.RenewAcceptedCER` optionally
 interprets a subsequent admitted base CER as fresh admission. It defaults to
-false and applies only to `sm.StateMachine` for now, with its
-`AcceptedCERHandler` eligibility check permitting an admitted, live, non-Closing
-accepted generation. Manager ignores the CER even when the Server flag is set;
-Manager renewal is deferred to #93. Renewal cannot distinguish a retry from a
-restart. RFC 6733 §1.1.3 deprecates Open-state capability exchange; RFC 6737 §§3–4
+false and applies to both handlers through `AcceptedCERHandler`: the accepted
+generation must be admitted, live and non-Closing. Manager additionally requires
+its current active responder. Its ordered admission commits a preceding DPR
+before eligibility is checked. With renewal disabled or ineligible, the ignored
+CER policy above applies. Renewal cannot distinguish a retry from a restart. RFC 6733 §1.1.3 deprecates Open-state capability exchange; RFC 6737 §§3–4
 defines capability updates separately.
 
 Use the handler-visible Conn for transport operations. `Connection()` preserves
@@ -163,7 +170,9 @@ closes it. Slow callbacks and full dispatch capacity can delay detection.
 The [SCTP restart wire test](diam/sm/testdata/sctprestart/README.md) runs two
 privileged containers, verifies restart notification ordering on the shared host
 kernel and checks CER/CEA recovery from source port 43868. It includes commands
-for comparison with an unchanged checkout.
+for comparison with an unchanged checkout. The [Manager wire harness](diam/peer/testdata/sctprestart/README.md)
+also checks alternate-peer failover, three-probe watchdog recovery and the
+original request deadline in two privileged containers.
 
 ## Protocol error notifications
 
@@ -176,12 +185,16 @@ decision and the reply status. Use `errors.Is(event.Err, diam.ProtocolInvalidDWR
 or `errors.As` to classify errors without parsing logs. Existing protocol
 responses, connection policy and logging remain unchanged.
 
-Callbacks run synchronously on the deciding handler, reader, timer or Manager
-session goroutine, after its handling attempt and existing logs. A successful
+Callbacks run synchronously on the reporting worker after its handling attempt
+and existing logs. Manager commits protocol state in its actor, then releases
+Server admission and delivers message notifications on the originating handler
+or reader. Timer-originated Manager decisions use a completion worker, so an
+observer cannot hold the actor's retirement acknowledgement. A successful
 state-machine reply has been written before delivery; Manager replies may only
 be queued. Neither status confirms receipt by the peer. Callbacks may overlap,
 including for one connection, and must return promptly: blocking delays the owning worker.
-No notification queue or worker is created. A callback panic is recovered and
+Manager reserves notification storage with admitted work; notifications are not
+dropped through its OnPeerEvent queue. A callback panic is recovered and
 logged at Error as `diam: protocol error callback panicked`; the selected
 protocol action continues. Configure the hook before use.
 

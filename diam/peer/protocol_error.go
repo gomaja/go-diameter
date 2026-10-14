@@ -27,7 +27,7 @@ func (m *Manager) HandleProtocolError(event diam.ProtocolErrorEvent) {
 	}
 }
 
-func (m *Manager) protocolError(c diam.Conn, message *diam.Message, kind diam.ProtocolErrorKind, result uint32, closing bool, reply diam.ProtocolReplyStatus, replyCode uint32) {
+func (m *Manager) protocolError(c diam.Conn, message *diam.Message, kind diam.ProtocolErrorKind, result uint32, closing bool, reply diam.ProtocolReplyStatus, replyCode uint32, delivery ...*protocolDelivery) {
 	if m.cfg.Settings.OnProtocolError == nil {
 		return
 	}
@@ -39,7 +39,15 @@ func (m *Manager) protocolError(c diam.Conn, message *diam.Message, kind diam.Pr
 			event.Message.HasHeader = true
 		}
 	}
+	if len(delivery) > 0 && delivery[0] != nil {
+		delivery[0].notifications = append(delivery[0].notifications, event)
+		return
+	}
 	m.HandleProtocolError(event)
+}
+
+func (a *actor) protocolError(c diam.Conn, msg *diam.Message, kind diam.ProtocolErrorKind, result uint32, closing bool, reply diam.ProtocolReplyStatus, replyCode uint32) {
+	a.m.protocolError(c, msg, kind, result, closing, reply, replyCode, a.delivery)
 }
 
 func protocolResultCode(err error) uint32 {

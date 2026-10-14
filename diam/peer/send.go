@@ -84,7 +84,7 @@ func (m *Manager) usable(a *actor, app uint32) *session {
 		return nil
 	}
 	s := a.activeSession.Load()
-	if s == nil || s.gen != p.Generation {
+	if s == nil || s.gen != p.Generation || s.isRetired() {
 		return nil
 	}
 	select {
@@ -343,16 +343,20 @@ func (m *Manager) complete(p *pendingRequest, answer *diam.Message, err error) {
 	p.result <- sendResult{answer: answer, err: err}
 }
 
-func (m *Manager) receiveAnswer(s *session, answer *diam.Message) {
+func (m *Manager) receiveAnswer(s *session, answer *diam.Message, delivery ...*protocolDelivery) {
 	if answer == nil || answer.Header == nil {
 		return
 	}
 	m.pendingMu.Lock()
+	if s.isRetired() {
+		m.pendingMu.Unlock()
+		return
+	}
 	p := m.pending[s][answer.Header.HopByHopID]
 	if p == nil || p.done {
 		m.pendingMu.Unlock()
 		m.report(s, answer, errors.New("peer: unmatched answer (RFC 6733 §6.2.1)"))
-		m.protocolError(s.c, answer, diam.ProtocolUnexpectedMessage, 0, false, diam.ProtocolReplyNone, 0)
+		m.protocolError(s.c, answer, diam.ProtocolUnexpectedMessage, 0, false, diam.ProtocolReplyNone, 0, delivery...)
 		return
 	}
 	_, generation := s.binding()
@@ -360,7 +364,7 @@ func (m *Manager) receiveAnswer(s *session, answer *diam.Message) {
 	if !present || attempt.generation != generation || !answerMatches(p, answer) {
 		m.pendingMu.Unlock()
 		m.report(s, answer, errors.New("peer: unmatched or mismatched answer (RFC 6733 §6.2.1)"))
-		m.protocolError(s.c, answer, diam.ProtocolUnexpectedMessage, 0, false, diam.ProtocolReplyNone, 0)
+		m.protocolError(s.c, answer, diam.ProtocolUnexpectedMessage, 0, false, diam.ProtocolReplyNone, 0, delivery...)
 		return
 	}
 	p.done = true
@@ -426,7 +430,17 @@ func (m *Manager) retry(p *pendingRequest) {
 		}
 		m.pendingMu.Lock()
 		p.failovering = false
+		// Retirement may have removed this reservation while admission was
+		// in flight. The current retry retains ownership of its next attempt.
+		retryRetired := !p.done && p.current == s && s.isRetired()
+		if retryRetired {
+			p.failovering = true
+		}
 		m.pendingMu.Unlock()
+		if retryRetired {
+			m.retry(p)
+			return
+		}
 		// A writer can close the newly queued leg before failovering clears.
 		// Recheck after clearing it so that close cannot be lost.
 		select {

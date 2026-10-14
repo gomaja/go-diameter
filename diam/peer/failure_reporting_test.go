@@ -154,7 +154,7 @@ func TestActorFailureAttributionAndLevels(t *testing.T) {
 }
 
 func TestManagerLocalFailureLevels(t *testing.T) {
-	for _, operation := range []string{"DPA answer", "rejected CER answer", "build rejected CER answer", "unsupported answer", "error answer", "ingress", "message-error ingress", "write deadline", "write"} {
+	for _, operation := range []string{"DPA answer", "rejected CER answer", "build rejected CER answer", "unsupported answer", "error answer", "ingress", "message-error ingress", "write"} {
 		t.Run(operation, func(t *testing.T) {
 			a, s, records := failureReportingActor(t)
 			a.state, a.i, a.active = IOpen, s, s
@@ -186,15 +186,11 @@ func TestManagerLocalFailureLevels(t *testing.T) {
 				if err := a.m.HandleMessageError(s.c, req, &diam.MessageError{ResultCode: diam.InvalidAVPValue}); err != nil {
 					t.Fatal(err)
 				}
-			case "write deadline", "write":
+			case "write":
 				for len(s.writes) > 0 {
 					<-s.writes
 				}
-				if operation == "write deadline" {
-					s.c.Close()
-				} else {
-					s.c = &failingWriteConn{s.c.(*fakeConn)}
-				}
+				s.c = &failingWriteConn{s.c.(*fakeConn)}
 				s.writes <- writeRequest{msg: req}
 				a.m.wg.Add(1)
 				s.writer()

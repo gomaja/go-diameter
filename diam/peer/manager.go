@@ -1,5 +1,9 @@
 // Package peer provides opt-in, statically configured Diameter peer management.
 // It owns the RFC 6733 §5.6 base-message state machine on bound connections.
+// Accepted SCTP restart renews a session on the same socket (RFC 9260 §5.2.4;
+// RFC 6458 §6.1.1), preserving outbound election legs (RFC 6733 §5.6.4).
+// Pending requests fail over under RFC 6733 §5.5.4. Server.RenewAcceptedCER
+// optionally applies the same renewal to an admitted active responder's CER.
 //
 // Manager and sm.StateMachine ignore a base CER on a connection whose
 // capabilities exchange has completed: one Warn log, no answer, and the
@@ -107,6 +111,7 @@ type Manager struct {
 	mu               sync.RWMutex
 	peers            map[string]*actor
 	sessions         map[diam.Conn]*session
+	retiredSessions  map[diam.Conn]*session
 	server           *diam.Server
 	started, closing bool
 	runCtx           context.Context
@@ -188,7 +193,7 @@ func New(cfg Config) (*Manager, error) {
 	if cfg.Limits.PendingPerPeer <= 0 {
 		cfg.Limits.PendingPerPeer = 1024
 	}
-	m := &Manager{cfg: cfg, peers: make(map[string]*actor), sessions: make(map[diam.Conn]*session), done: make(chan struct{}), closed: make(chan struct{}), callbackQ: make(chan PeerEvent, cfg.Limits.Events), pending: make(map[*session]map[uint32]*pendingRequest), controls: make(map[*session]map[uint32]struct{}), localApps: make(map[uint32]struct{})}
+	m := &Manager{cfg: cfg, peers: make(map[string]*actor), sessions: make(map[diam.Conn]*session), retiredSessions: make(map[diam.Conn]*session), done: make(chan struct{}), closed: make(chan struct{}), callbackQ: make(chan PeerEvent, cfg.Limits.Events), pending: make(map[*session]map[uint32]*pendingRequest), controls: make(map[*session]map[uint32]struct{}), localApps: make(map[uint32]struct{})}
 	localCapabilities := m.baseSettings(nil)
 	for _, id := range base.AdvertisedApplicationIDs(localCapabilities) {
 		m.localApps[id] = struct{}{}
@@ -263,7 +268,8 @@ func (m *Manager) AddPeer(cfg PeerConfig) error {
 // ServeDIAM synchronously or consume the message itself. A wrapper intercepting
 // HandleMessageError must likewise forward it synchronously or take responsibility
 // itself. Deferring a forward until after return loses its arrival position.
-// Preserve the connection hooks installed here; they establish session admission.
+// Preserve the shutdown hook installed here and expose Manager through Unwrap
+// so Server discovers the per-generation AcceptHandler and RetireHandler hooks.
 func (m *Manager) BindServer(s *diam.Server) error {
 	if s == nil {
 		return errors.New("peer: nil Server")
@@ -283,8 +289,11 @@ func (m *Manager) BindServer(s *diam.Server) error {
 	if managerDict != serverDict { // RFC 6733 §5.3: validate CER and advertise CEA applications from one dictionary.
 		return errors.New("peer: Server dictionary differs from manager dictionary")
 	}
-	if err := s.ConfigureHandlerBeforeServe(m, m.acceptConnection, m.shutdownConnection); err != nil {
+	if err := s.ConfigureHandlerBeforeServe(m, nil, m.shutdownConnection); err != nil {
 		return err
+	}
+	if s.WriteTimeout <= 0 || s.WriteTimeout > m.cfg.Timers.Closing {
+		s.WriteTimeout = m.cfg.Timers.Closing
 	}
 	m.server = s
 	return nil
@@ -511,22 +520,31 @@ func (m *Manager) notify(e PeerEvent) {
 	}
 }
 
-func (m *Manager) unregister(s *session) { m.mu.Lock(); delete(m.sessions, s.c); m.mu.Unlock() }
+func (m *Manager) unregister(s *session) {
+	m.mu.Lock()
+	if m.sessions[s.c] == s {
+		delete(m.sessions, s.c)
+	}
+	m.mu.Unlock()
+}
 func (m *Manager) getSession(c diam.Conn) *session {
 	m.mu.RLock()
 	s := m.sessions[c]
 	m.mu.RUnlock()
 	return s
 }
-func (m *Manager) acceptConnection(c diam.Conn) {
+func (m *Manager) acceptConnection(c diam.Conn) *session {
 	s := m.newSession(c, nil, 0, true)
 	if s == nil {
-		return
+		return nil
 	}
 	s.firstMu.Lock()
 	s.preTimer = m.cfg.Clock.AfterFunc(m.cfg.Timers.CER, func() {
 		s.firstMu.Lock()
-		waiting := !s.first
+		waiting := !s.first && !s.isRetired() && !s.c.Closed()
+		if waiting {
+			s.terminal.Store(true)
+		}
 		s.firstMu.Unlock()
 		if waiting {
 			m.report(s, nil, errors.New("peer: pre-CER timeout"))
@@ -540,6 +558,7 @@ func (m *Manager) acceptConnection(c diam.Conn) {
 	default:
 	}
 	s.firstMu.Unlock()
+	return s
 }
 func (m *Manager) shutdownConnection(ctx context.Context, c diam.Conn) {
 	s := m.getSession(c)
@@ -560,19 +579,31 @@ func (m *Manager) shutdownConnection(ctx context.Context, c diam.Conn) {
 func (m *Manager) ServeDIAM(c diam.Conn, msg *diam.Message) {
 	release := msg.BeginDispatch()
 	defer release()
+	if retiredConnection(c) {
+		return
+	}
 	s := m.getSession(c)
 	if s == nil {
 		m.report(nil, msg, errors.New("peer: message on unmanaged connection; closing connection"))
 		c.Close()
+		release()
 		m.protocolError(c, msg, diam.ProtocolHandshakeState, 0, true, diam.ProtocolReplyNone, 0)
 		return
 	}
-	if err := s.enqueue(msg); err != nil {
+	d := newProtocolDelivery()
+	if err := s.enqueueIncoming(incoming{msg: msg, delivery: d}); err != nil {
 		m.reportLocal(s, msg, "peer: ingress failed; closing connection", fmt.Errorf("peer: ingress: %w", err))
 		s.close()
+		return
 	}
+	<-d.done
+	release()
+	d.deliver(m)
 }
-func (m *Manager) processDIAM(s *session, msg *diam.Message) {
+func (m *Manager) processDIAM(s *session, msg *diam.Message, delivery ...*protocolDelivery) {
+	if s.isRetired() {
+		return
+	}
 	c := s.c
 	if s.inbound {
 		s.firstMu.Lock()
@@ -593,11 +624,11 @@ func (m *Manager) processDIAM(s *session, msg *diam.Message) {
 			if msg.Header.CommandCode != diam.CapabilitiesExchange || msg.Header.CommandFlags&diam.RequestFlag == 0 {
 				m.report(s, msg, errors.New("peer: first inbound message is not CER"))
 				s.close()
-				m.protocolError(c, msg, diam.ProtocolHandshakeState, 0, true, diam.ProtocolReplyNone, 0)
+				m.protocolError(c, msg, diam.ProtocolHandshakeState, 0, true, diam.ProtocolReplyNone, 0, delivery...)
 				return
 			}
 			if err := base.ValidateHeader(msg); err != nil {
-				m.rejectCER(s, msg, err.ResultCode, err)
+				m.rejectCER(s, msg, err.ResultCode, err, delivery...)
 				return
 			}
 			cer := new(smparser.CER)
@@ -611,18 +642,25 @@ func (m *Manager) processDIAM(s *session, msg *diam.Message) {
 				if errors.Is(err, base.ErrNoCommonSecurity) {
 					code = diam.NoCommonSecurity
 				}
-				m.rejectCER(s, msg, code, err)
+				m.rejectCER(s, msg, code, err, delivery...)
 				return
 			}
 			m.mu.RLock()
 			a := m.peers[identity(cer.OriginHost)]
 			m.mu.RUnlock()
 			if a == nil { // RFC 6733 §5.3: reject an unknown peer after validating its CER.
-				m.rejectCER(s, msg, diam.UnknownPeer, fmt.Errorf("peer: unknown Origin-Host %s", cer.OriginHost))
+				m.rejectCER(s, msg, diam.UnknownPeer, fmt.Errorf("peer: unknown Origin-Host %s", cer.OriginHost), delivery...)
 				return
 			}
-			s.bind(a, 0)
-			a.post(event{kind: rConnCER, s: s, msg: msg, meta: smpeer.FromCER(cer).Clone()})
+			if !s.bind(a, 0) {
+				return
+			}
+			e := event{kind: rConnCER, s: s, msg: msg, meta: smpeer.FromCER(cer).Clone()}
+			if len(delivery) > 0 {
+				a.commit(e, delivery[0])
+			} else {
+				a.post(e)
+			}
 			return
 		}
 	}
@@ -630,19 +668,25 @@ func (m *Manager) processDIAM(s *session, msg *diam.Message) {
 	if a == nil {
 		m.report(s, msg, errors.New("peer: unbound connection message"))
 		s.close()
-		m.protocolError(c, msg, diam.ProtocolHandshakeState, 0, true, diam.ProtocolReplyNone, 0)
+		m.protocolError(c, msg, diam.ProtocolHandshakeState, 0, true, diam.ProtocolReplyNone, 0, delivery...)
 		return
 	}
-	a.post(event{kind: wireEvent, s: s, msg: msg})
+	e := event{kind: wireEvent, s: s, msg: msg}
+	if len(delivery) > 0 {
+		a.commit(e, delivery[0])
+	} else {
+		a.post(e)
+	}
 }
-func (m *Manager) rejectCER(s *session, msg *diam.Message, code uint32, reason error) {
+func (m *Manager) rejectCER(s *session, msg *diam.Message, code uint32, reason error, delivery ...*protocolDelivery) {
+	s.terminal.Store(true)
 	reply := diam.ProtocolReplyFailed
 	kind := diam.ProtocolCERRejected
 	if base.ValidateHeader(msg) != nil {
 		kind = diam.ProtocolInvalidHeader
 	}
 	defer func() {
-		m.protocolError(s.c, msg, kind, code, true, reply, code)
+		m.protocolError(s.c, msg, kind, code, true, reply, code, delivery...)
 	}()
 	cfg := m.baseSettings(s.c)
 	var answer *diam.Message
@@ -715,13 +759,13 @@ func (m *Manager) supportsApplication(appID uint32) bool {
 	return ok
 }
 
-func (m *Manager) unsupported(s *session, msg *diam.Message) {
+func (m *Manager) unsupported(s *session, msg *diam.Message, delivery ...*protocolDelivery) {
 	// RFC 6733 §§7.1.3, 7.2: unsupported requests receive an E-bit 3007 for
 	// an application this node does not support, otherwise 3001; answers are
 	// reported and discarded.
 	m.report(s, msg, fmt.Errorf("peer: unhandled message %d/%d", msg.Header.ApplicationID, msg.Header.CommandCode))
 	if msg.Header.CommandFlags&diam.RequestFlag == 0 {
-		m.protocolError(s.c, msg, diam.ProtocolUnexpectedMessage, 0, false, diam.ProtocolReplyNone, 0)
+		m.protocolError(s.c, msg, diam.ProtocolUnexpectedMessage, 0, false, diam.ProtocolReplyNone, 0, delivery...)
 		return
 	}
 	resultCode := uint32(diam.CommandUnsupported)
@@ -739,7 +783,7 @@ func (m *Manager) unsupported(s *session, msg *diam.Message) {
 	if err != nil {
 		reply = diam.ProtocolReplyFailed
 	}
-	m.protocolError(s.c, msg, kind, resultCode, false, reply, resultCode)
+	m.protocolError(s.c, msg, kind, resultCode, false, reply, resultCode, delivery...)
 }
 
 // HandleMessageError takes responsibility for a malformed message by admitting
@@ -749,7 +793,7 @@ func (m *Manager) unsupported(s *session, msg *diam.Message) {
 func (m *Manager) HandleMessageError(c diam.Conn, msg *diam.Message, me *diam.MessageError) error {
 	release := msg.BeginDispatch()
 	defer release()
-	if me == nil {
+	if me == nil || retiredConnection(c) {
 		return nil
 	}
 	s := m.getSession(c)
@@ -758,20 +802,25 @@ func (m *Manager) HandleMessageError(c diam.Conn, msg *diam.Message, me *diam.Me
 	}
 	// RFC 6733 §§5.6.1 and 7: decoding failures share arrival order with
 	// valid messages; a queued CER must be processed before a later error.
-	if err := s.enqueueIncoming(incoming{msg: msg, err: me}); err != nil {
+	d := newProtocolDelivery()
+	if err := s.enqueueIncoming(incoming{msg: msg, err: me, delivery: d}); err != nil {
 		m.reportLocal(s, msg, "peer: ingress failed; closing connection", fmt.Errorf("peer: ingress: %w", err))
 		s.close()
 		kind, result := diam.ProtocolMalformedMessage, me.ResultCode
 		if headerErr := base.ValidateHeader(msg); headerErr != nil {
 			kind, result = diam.ProtocolInvalidHeader, headerErr.ResultCode
 		}
+		release()
 		m.protocolError(c, msg, kind, result, true, diam.ProtocolReplyNone, 0)
 		return nil // Closing the managed connection takes responsibility for m.
 	}
+	<-d.done
+	release()
+	d.deliver(m)
 	return nil
 }
 
-func (m *Manager) answerMessageError(s *session, msg *diam.Message, me *diam.MessageError) (handlingErr error) {
+func (m *Manager) answerMessageError(s *session, msg *diam.Message, me *diam.MessageError, delivery ...*protocolDelivery) (handlingErr error) {
 	c := s.c
 	if me == nil {
 		return nil
@@ -785,7 +834,7 @@ func (m *Manager) answerMessageError(s *session, msg *diam.Message, me *diam.Mes
 			s.close()
 			closing, reply = true, diam.ProtocolReplyFailed
 		}
-		m.protocolError(c, msg, kind, me.ResultCode, closing, reply, replyCode)
+		m.protocolError(c, msg, kind, me.ResultCode, closing, reply, replyCode, delivery...)
 	}()
 	if headerErr := base.ValidateHeader(msg); headerErr != nil {
 		me = headerErr
@@ -812,6 +861,7 @@ func (m *Manager) answerMessageError(s *session, msg *diam.Message, me *diam.Mes
 	s.firstMu.Unlock()
 	if preCER { // RFC 6733 §5.6.1: discard malformed pre-CER traffic and close the connection.
 		closing = true
+		s.terminal.Store(true)
 		if msg == nil || msg.Header == nil || me == nil || msg.Header.CommandCode != diam.CapabilitiesExchange || msg.Header.CommandFlags&diam.RequestFlag == 0 {
 			kind = diam.ProtocolHandshakeState
 			m.report(s, msg, fmt.Errorf("peer: malformed pre-CER message; closing connection: %w", me))

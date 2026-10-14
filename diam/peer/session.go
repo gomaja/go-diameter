@@ -4,9 +4,10 @@ import (
 	"errors"
 	"net"
 	"sync"
-	"time"
+	"sync/atomic"
 
 	"github.com/gomaja/go-diameter/diam"
+	"github.com/gomaja/go-diameter/diam/sm/smpeer"
 )
 
 var errQueueFull = errors.New("peer: queue full")
@@ -17,10 +18,18 @@ type writeRequest struct {
 	pending    *pendingRequest
 }
 type incoming struct {
-	msg *diam.Message
-	err *diam.MessageError
+	msg      *diam.Message
+	err      *diam.MessageError
+	delivery *protocolDelivery
 }
 type session struct {
+	retired         atomic.Bool
+	terminal        atomic.Bool // committed rejection or local close, before transport completion
+	retireErr       error
+	acceptCleaned   bool // guarded by Manager.mu
+	admitted        atomic.Bool
+	retireOnce      sync.Once
+	meta            *smpeer.Metadata
 	m               *Manager
 	c               diam.Conn
 	actor           *actor
@@ -45,7 +54,7 @@ func (m *Manager) newSession(c diam.Conn, a *actor, gen uint64, inbound bool) *s
 	s := &session{m: m, c: c, actor: a, gen: gen, inbound: inbound, writes: make(chan writeRequest, m.cfg.Limits.Events), ingress: make(chan incoming, m.cfg.Limits.Events), closed: make(chan struct{})}
 	// Close sets closing under this lock before it waits for session workers.
 	m.mu.Lock()
-	if m.closing {
+	if m.closing || c.Closed() {
 		m.mu.Unlock()
 		c.Close()
 		return nil
@@ -64,7 +73,7 @@ func (s *session) enqueue(msg *diam.Message) error {
 func (s *session) enqueueIncoming(in incoming) error {
 	s.ingressMu.Lock()
 	defer s.ingressMu.Unlock()
-	if s.ingressClosed {
+	if s.ingressClosed || s.isRetired() {
 		return net.ErrClosed
 	}
 	select {
@@ -78,22 +87,42 @@ func (s *session) dispatch() {
 	defer s.m.wg.Done()
 	defer func() {
 		a, gen := s.binding()
-		if a != nil {
+		if a != nil && !s.isRetired() {
 			// RFC 6733 §5.5.4: answers read on this connection reach the
 			// actor before its disconnect can fail their pending requests over.
 			a.post(event{kind: connGone, s: s, gen: gen})
 		}
 	}()
 	dispatch := func(in incoming) {
+		if s.isRetired() {
+			if in.delivery != nil {
+				in.delivery.finish()
+			}
+			return
+		}
+		if in.delivery == nil {
+			if in.err != nil {
+				if a, _ := s.binding(); a != nil {
+					a.post(event{kind: wireEvent, s: s, msg: in.msg, messageErr: in.err})
+				} else {
+					_ = s.m.answerMessageError(s, in.msg, in.err)
+				}
+			} else {
+				s.m.processDIAM(s, in.msg)
+			}
+			return
+		}
+		d := in.delivery
 		if in.err != nil {
 			if a, _ := s.binding(); a != nil {
-				a.post(event{kind: wireEvent, s: s, msg: in.msg, messageErr: in.err})
+				a.commit(event{kind: wireEvent, s: s, msg: in.msg, messageErr: in.err}, d)
 			} else {
-				_ = s.m.answerMessageError(s, in.msg, in.err)
+				_ = s.m.answerMessageError(s, in.msg, in.err, d)
 			}
 		} else {
-			s.m.processDIAM(s, in.msg)
+			s.m.processDIAM(s, in.msg, d)
 		}
+		d.finish()
 	}
 
 	for {
@@ -119,11 +148,16 @@ func (s *session) binding() (*actor, uint64) {
 	defer s.firstMu.Unlock()
 	return s.actor, s.gen
 }
-func (s *session) bind(a *actor, gen uint64) {
+func (s *session) bind(a *actor, gen uint64) bool {
 	s.firstMu.Lock()
+	if s.isRetired() {
+		s.firstMu.Unlock()
+		return false
+	}
 	s.actor = a
 	s.gen = gen
 	s.firstMu.Unlock()
+	return true
 }
 func (s *session) send(msg *diam.Message, closeAfter bool) error {
 	return s.sendWrite(writeRequest{msg: msg, closeAfter: closeAfter})
@@ -137,10 +171,18 @@ func (s *session) sendWrite(w writeRequest) error {
 	}
 	s.ingressMu.Lock()
 	defer s.ingressMu.Unlock()
+	if s.isRetired() {
+		return errors.Join(net.ErrClosed, diam.ErrConnectionRetired)
+	}
 	select {
 	case <-s.closed:
 		return net.ErrClosed
 	default:
+	}
+	if w.closeAfter {
+		// A queued terminal answer must veto renewal even while its writer
+		// is stalled (RFC 6733 §§2.5, 5.3, 7.1.3).
+		s.terminal.Store(true)
 	}
 	select {
 	case s.writes <- w:
@@ -190,6 +232,9 @@ func (s *session) closeWithFailover(immediate bool) {
 		}
 		s.firstMu.Unlock()
 		s.ingressMu.Lock()
+		if immediate && !s.isRetired() {
+			s.terminal.Store(true)
+		}
 		s.ingressClosed = true
 		close(s.closed)
 		s.ingressMu.Unlock()
@@ -209,19 +254,12 @@ func (s *session) writer() {
 		case <-s.closed:
 			return
 		case w := <-s.writes:
-			// RFC 6733 §§5.3–5.6: a stalled transport cannot hold a managed control write forever.
-			deadline := s.m.cfg.Timers.Closing
-			if deadline <= 0 {
-				deadline = 5 * time.Second
-			}
-			if err := s.c.Connection().SetWriteDeadline(time.Now().Add(deadline)); err != nil {
-				s.m.reportLocal(s, w.msg, "peer: write deadline failed; closing connection", err)
-				s.close()
+			if s.isRetired() {
 				return
 			}
 			if w.pending != nil {
 				s.m.pendingMu.Lock()
-				if w.pending.done || w.pending.current != s {
+				if w.pending.done || w.pending.current != s || s.isRetired() {
 					s.m.pendingMu.Unlock()
 					continue
 				}
@@ -251,8 +289,22 @@ func (s *session) watch() {
 	case <-connectionDone(s.c):
 	case <-s.closed:
 	}
-	s.closeObserved()
-	s.m.unregister(s)
+	if !s.isRetired() {
+		s.closeObserved()
+	}
+	// A local close seals s.closed before Conn.Close finishes. That Close
+	// can be fenced by Server retirement while this watcher joins closeOnce.
+	// Recheck afterward so unregister cannot bypass the actor acknowledgement.
+	if s.isRetired() {
+		_ = s.m.HandleRetire(s.c, func() diam.RetirementReason {
+			if l, ok := diam.ConnAs[diam.ConnLifecycle](s.c); ok {
+				return l.RetirementReason()
+			}
+			return diam.SCTPAssociationRestart
+		}())
+	} else {
+		s.m.unregister(s)
+	}
 }
 
 // connectionDone honors the first wrapper exposing either lifecycle interface.
