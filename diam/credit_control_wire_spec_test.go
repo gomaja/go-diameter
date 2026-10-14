@@ -6,6 +6,8 @@ import (
 	"os"
 	"testing"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/dict"
@@ -47,17 +49,24 @@ func loadCreditControlWireSpec(t *testing.T) creditControlWireSpec {
 	return spec
 }
 
-func creditControlWireData(t *testing.T, a creditControlWireAVP, lookup map[string]creditControlWireAVP, depth int) datatype.Type {
+func creditControlWireData(t *testing.T, a creditControlWireAVP, lookup map[string]creditControlWireAVP, depth int, parsers ...*dict.Parser) datatype.Type {
+	var testDict *dict.Parser
+	if len(parsers) > 0 {
+		testDict = parsers[0]
+	} else {
+		testDict = newTestDictionary(creditcontrol.Dictionary())
+	}
+
 	t.Helper()
 	if depth > 12 {
 		t.Fatalf("grouped recursion at %s", a.Name)
 	}
 	if a.Type != "Grouped" {
-		def, err := dict.Default.FindAVP(4, a.Code, 0)
+		def, err := testDict.FindAVP(4, a.Code, 0)
 		if err != nil {
 			t.Fatal(err)
 		}
-		return gxSampleData(t, def, depth)
+		return gxSampleData(t, def, depth, testDict)
 	}
 	g := &GroupedAVP{}
 	for _, rule := range a.Rules {
@@ -69,7 +78,7 @@ func creditControlWireData(t *testing.T, a creditControlWireAVP, lookup map[stri
 			t.Fatalf("fixture lacks required child %s of %s", rule.Name, a.Name)
 		}
 		for i := 0; i < rule.Min; i++ {
-			g.AVP = append(g.AVP, NewAVP(child.Code, gxWireFlags(child.Must), 0, creditControlWireData(t, child, lookup, depth+1)))
+			g.AVP = append(g.AVP, NewAVP(child.Code, gxWireFlags(child.Must), 0, creditControlWireData(t, child, lookup, depth+1, testDict)))
 		}
 	}
 	return g
@@ -78,6 +87,8 @@ func creditControlWireData(t *testing.T, a creditControlWireAVP, lookup map[stri
 // RFC 8506 §8: each application-4 AVP is serialized and decoded with
 // flags and payload independently specified by the RFC/IANA fixture.
 func TestCreditControlAVPWireRoundTrip(t *testing.T) {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
 	spec := loadCreditControlWireSpec(t)
 	lookup := make(map[string]creditControlWireAVP, len(spec.AVPs))
 	for _, a := range spec.AVPs {
@@ -85,32 +96,39 @@ func TestCreditControlAVPWireRoundTrip(t *testing.T) {
 	}
 	for _, want := range spec.AVPs {
 		t.Run(want.Name, func(t *testing.T) {
-			def, err := dict.Default.FindAVP(4, want.Code, 0)
+			def, err := testDict.FindAVP(4, want.Code, 0)
 			if err != nil {
 				t.Fatal(err)
 			}
-			data := creditControlWireData(t, want, lookup, 0)
-			m := NewRequest(272, 4, dict.Default)
+			data := creditControlWireData(t, want, lookup, 0, testDict)
+			m := NewRequest(272, 4, testDict)
 			if _, err := m.NewAVPByName(def.Name, gxWireFlags(def.Must), data); err != nil {
 				t.Fatal(err)
 			}
-			assertRefreshWire(t, m, want.Code, gxWireFlags(want.Must), 0, data)
+			assertRefreshWire(t, m, want.Code, gxWireFlags(want.Must), 0, data, testDict)
 		})
 	}
 }
 
-func creditControlCommandMessage(t *testing.T, spec creditControlWireCommand) *Message {
+func creditControlCommandMessage(t *testing.T, spec creditControlWireCommand, parsers ...*dict.Parser) *Message {
+	var testDict *dict.Parser
+	if len(parsers) > 0 {
+		testDict = parsers[0]
+	} else {
+		testDict = newTestDictionary(creditcontrol.Dictionary())
+	}
+
 	t.Helper()
 	flags := uint8(ProxiableFlag)
 	if spec.Request {
 		flags |= RequestFlag
 	}
-	m := NewMessage(272, flags, 4, 0x12345678, 0x87654321, dict.Default)
+	m := NewMessage(272, flags, 4, 0x12345678, 0x87654321, testDict)
 	for _, r := range spec.Rules {
 		if r.Min == 0 {
 			continue
 		}
-		def, err := dict.Default.FindAVPByName(4, r.Name)
+		def, err := testDict.FindAVPByName(4, r.Name)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -127,7 +145,7 @@ func creditControlCommandMessage(t *testing.T, spec creditControlWireCommand) *M
 		case "CC-Request-Number":
 			data = datatype.Unsigned32(0)
 		default:
-			data = gxSampleData(t, def, 0)
+			data = gxSampleData(t, def, 0, testDict)
 		}
 		m.AddAVP(NewAVP(def.Code, gxWireFlags(def.Must), def.VendorID, data))
 	}
@@ -137,9 +155,11 @@ func creditControlCommandMessage(t *testing.T, spec creditControlWireCommand) *M
 // RFC 8506 §§3.1–3.2: CCR/CCA command flags, fixed Session-Id, required
 // members and extension cardinality survive a message wire round trip.
 func TestCreditControlCommandWireRoundTrip(t *testing.T) {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
 	for _, spec := range loadCreditControlWireSpec(t).Commands {
 		t.Run(spec.Section, func(t *testing.T) {
-			m := creditControlCommandMessage(t, spec)
+			m := creditControlCommandMessage(t, spec, testDict)
 			if err := m.Validate(); err != nil {
 				t.Fatalf("minimal command: %v", err)
 			}
@@ -152,7 +172,7 @@ func TestCreditControlCommandWireRoundTrip(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			got, err := ReadMessage(bytes.NewReader(wire), dict.Default)
+			got, err := ReadMessage(bytes.NewReader(wire), testDict)
 			if err != nil || got.DecodeErr != nil {
 				t.Fatalf("read: %v, decode: %v", err, got.DecodeErr)
 			}
@@ -179,6 +199,8 @@ func TestCreditControlCommandWireRoundTrip(t *testing.T) {
 // RFC 8506 §§8.17–8.19, 8.16, 8.58, 8.64, 8.68. The latter two
 // explicitly permit only one extension, unlike the five repeatable groups.
 func TestCreditControlGroupedExtensions(t *testing.T) {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
 	spec := loadCreditControlWireSpec(t)
 	lookup := make(map[string]creditControlWireAVP, len(spec.AVPs))
 	for _, a := range spec.AVPs {
@@ -187,14 +209,14 @@ func TestCreditControlGroupedExtensions(t *testing.T) {
 	for _, name := range []string{"Granted-Service-Unit", "Requested-Service-Unit", "Used-Service-Unit", "Multiple-Services-Credit-Control", "QoS-Final-Unit-Indication", "Subscription-Id-Extension", "Redirect-Server-Extension"} {
 		t.Run(name, func(t *testing.T) {
 			a := lookup[name]
-			data := creditControlWireData(t, a, lookup, 0).(*GroupedAVP)
+			data := creditControlWireData(t, a, lookup, 0, testDict).(*GroupedAVP)
 			for i := 0; i < 2; i++ {
 				if i == 0 {
 					data.AVP = append(data.AVP, NewAVP(411, 0, 0, datatype.OctetString("extension")))
 				} else {
 					data.AVP = append(data.AVP, NewAVP(424, avp.Mbit, 0, datatype.UTF8String("extension-2")))
 				}
-				m := creditControlCommandMessage(t, spec.Commands[0])
+				m := creditControlCommandMessage(t, spec.Commands[0], testDict)
 				m.AddAVP(NewAVP(a.Code, gxWireFlags(a.Must), 0, data))
 				err := m.Validate()
 				if name == "Subscription-Id-Extension" || name == "Redirect-Server-Extension" {

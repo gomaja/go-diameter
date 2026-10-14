@@ -37,7 +37,7 @@ func TestLoadNameReuseUsesFinalState(t *testing.T) {
 						t.Fatal(err)
 					}
 				} else {
-					p = New()
+					p = newTestParser(t)
 					if err := p.Load(strings.NewReader("<diameter>" + initial + "</diameter>")); err != nil {
 						t.Fatal(err)
 					}
@@ -73,7 +73,7 @@ func TestLoadGroupedRuleResolution(t *testing.T) {
 	group := groupedDefinition(4, 70002, "Group", "Member")
 	for _, scenario := range []string{"missing member", "renamed member", "child group loses inherited member"} {
 		t.Run(scenario, func(t *testing.T) {
-			p := New()
+			p := newTestParser(t)
 			input := group
 			switch scenario {
 			case "renamed member":
@@ -100,7 +100,7 @@ func TestLoadGroupedRuleResolution(t *testing.T) {
 		})
 	}
 	for _, input := range []string{group + member, member + group, groupedDefinition(16777238, 70002, "Group", "Member") + member, groupedDefinition(4, 70002, "Group", "Group")} {
-		p := New()
+		p := newTestParser(t)
 		if err := p.Load(strings.NewReader("<diameter>" + input + "</diameter>")); err != nil {
 			t.Fatalf("forward, inherited, recursive and wildcard members must resolve: %v", err)
 		}
@@ -117,7 +117,7 @@ func TestInheritedNameTracksCodeReplacement(t *testing.T) {
 			if reverse {
 				defs = replacement + parent
 			}
-			p := New()
+			p := newTestParser(t)
 			if err := p.Load(strings.NewReader("<diameter>" + defs + "</diameter>")); err != nil {
 				t.Fatal(err)
 			}
@@ -139,7 +139,7 @@ func TestInheritedNameTracksCodeReplacement(t *testing.T) {
 	}
 	for _, groupApp := range []uint32{4, child} {
 		t.Run(fmt.Sprintf("group-app=%d", groupApp), func(t *testing.T) {
-			p := New()
+			p := newTestParser(t)
 			if err := p.Load(strings.NewReader("<diameter>" + parent + groupedDefinition(groupApp, 70002, "Group", "X") + "</diameter>")); err != nil {
 				t.Fatal(err)
 			}

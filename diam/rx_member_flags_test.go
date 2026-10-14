@@ -6,6 +6,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gomaja/go-diameter/diam/dict/gx"
+	"github.com/gomaja/go-diameter/diam/dict/rx"
+
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/dict"
@@ -17,7 +20,7 @@ func TestRxUserEquipmentInfoExtensionWire(t *testing.T) {
 	for _, app := range []uint32{4, 16777236, 16777238} {
 		for _, count := range []int{1, 2} {
 			t.Run(fmt.Sprintf("%d/extensions-%d", app, count), func(t *testing.T) {
-				p := dict.New(dict.Rx, dict.Gx)
+				p := newTestDictionary(rx.Dictionary(), gx.Dictionary())
 				xml := fmt.Sprintf(`<diameter><application id="%d" name="Extension-Test">
 <command code="70000" name="Extension-Test" short="EXT"><request>
 <rule avp="User-Equipment-Info-Extension" required="true" max="1"/>
@@ -73,6 +76,7 @@ func TestRxUserEquipmentInfoExtensionWire(t *testing.T) {
 // TS 29.214 V20.0.0 Table 5.4.0.1 clears M in Rx Load. The same SourceID
 // remains legal with M inside overload groups, where that restriction is absent.
 func TestRxSourceIDMemberScope(t *testing.T) {
+	testDict := newTestDictionary(rx.Dictionary())
 	_, commands := rxWireSpec(t)
 	var answer rxWireCommandSpec
 	for _, c := range commands {
@@ -86,7 +90,7 @@ func TestRxSourceIDMemberScope(t *testing.T) {
 	}
 	for _, parent := range []uint32{621, 623, 650} {
 		for _, mBit := range []uint8{0, avp.Mbit} {
-			m := rxCommandMessage(t, answer)
+			m := rxCommandMessage(t, answer, testDict)
 			g := &GroupedAVP{}
 			if parent == 623 {
 				g.AVP = append(g.AVP,
@@ -111,6 +115,7 @@ func TestRxSourceIDMemberScope(t *testing.T) {
 // retaining RFC 8506 §§8.17/8.19 extensions. Section 5.4.1 allows new
 // optional AVPs with M cleared; the defined counters retain their source flags.
 func TestRxUsageUnitSubset(t *testing.T) {
+	testDict := newTestDictionary(rx.Dictionary())
 	_, commands := rxWireSpec(t)
 	var request rxWireCommandSpec
 	for _, c := range commands {
@@ -122,7 +127,7 @@ func TestRxUsageUnitSubset(t *testing.T) {
 	if request.Code == 0 {
 		t.Fatal("missing AAR fixture")
 	}
-	p := dict.New(dict.Rx)
+	p := newTestDictionary(rx.Dictionary())
 	if err := p.RegisterAVP(rxWireAppID, &dict.AVP{Name: "Usage-Extension", Code: 70000, VendorID: 10415, Must: "V", Data: dict.Data{TypeName: "Unsigned32"}}); err != nil {
 		t.Fatal(err)
 	}
@@ -150,7 +155,7 @@ func TestRxUsageUnitSubset(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				m := rxCommandMessage(t, request)
+				m := rxCommandMessage(t, request, testDict)
 				m.dictionary = p
 				child := NewAVP(item.code, item.flags, item.vendor, rxSampleData(t, definition, 0))
 				usage := NewAVP(unit.code, 0, 0, &GroupedAVP{AVP: []*AVP{child}})
@@ -208,7 +213,7 @@ func TestRxLoadAllMemberFlags(t *testing.T) {
 		{70000, datatype.Unsigned32(17)},
 	} {
 		for _, mBit := range []uint8{0, avp.Mbit} {
-			p := dict.New(dict.Rx)
+			p := newTestDictionary(rx.Dictionary())
 			if err := p.RegisterAVP(rxWireAppID, &dict.AVP{Name: "Load-Extension", Code: 70000, Data: dict.Data{TypeName: "Unsigned32"}}); err != nil {
 				t.Fatal(err)
 			}

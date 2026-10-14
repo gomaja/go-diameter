@@ -11,8 +11,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam/datatype"
-	"github.com/gomaja/go-diameter/diam/dict"
 )
 
 func TestParseAvpTag(t *testing.T) {
@@ -37,7 +38,9 @@ func TestParseAvpTag(t *testing.T) {
 }
 
 func TestUnmarshalAVP(t *testing.T) {
-	m, _ := ReadMessage(bytes.NewReader(testMessage), dict.Default)
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
+	m, _ := ReadMessage(bytes.NewReader(testMessage), testDict)
 	type Data struct {
 		OriginHost1 AVP  `avp:"Origin-Host"`
 		OriginHost2 *AVP `avp:"Origin-Host"`
@@ -59,7 +62,9 @@ func TestUnmarshalAVP(t *testing.T) {
 }
 
 func TestUnmarshalString(t *testing.T) {
-	m, _ := ReadMessage(bytes.NewReader(testMessage), dict.Default)
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
+	m, _ := ReadMessage(bytes.NewReader(testMessage), testDict)
 	type Data struct {
 		OriginHost string `avp:"Origin-Host"`
 	}
@@ -73,8 +78,10 @@ func TestUnmarshalString(t *testing.T) {
 }
 
 func TestUnmarshalTimeDatatype(t *testing.T) {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
 	expectedTime := "2015-12-09 15:40:53 +0000 UTC"
-	m, _ := ReadMessage(bytes.NewReader(testMessageWithVendorID), dict.Default)
+	m, _ := ReadMessage(bytes.NewReader(testMessageWithVendorID), testDict)
 	type Data struct {
 		EventTimestamp datatype.Time `avp:"Event-Timestamp"`
 	}
@@ -89,8 +96,10 @@ func TestUnmarshalTimeDatatype(t *testing.T) {
 }
 
 func TestUnmarshalTimeType(t *testing.T) {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
 	expectedTime := "2015-12-09 15:40:53 +0000 UTC"
-	m, _ := ReadMessage(bytes.NewReader(testMessageWithVendorID), dict.Default)
+	m, _ := ReadMessage(bytes.NewReader(testMessageWithVendorID), testDict)
 	type Data struct {
 		EventTimestamp time.Time `avp:"Event-Timestamp"`
 	}
@@ -104,7 +113,9 @@ func TestUnmarshalTimeType(t *testing.T) {
 }
 
 func TestUnmarshalNetIP(t *testing.T) {
-	m, _ := ReadMessage(bytes.NewReader(testMessage), dict.Default)
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
+	m, _ := ReadMessage(bytes.NewReader(testMessage), testDict)
 	type Data struct {
 		HostIP1 *AVP   `avp:"Host-IP-Address"`
 		HostIP2 net.IP `avp:"Host-IP-Address"`
@@ -122,7 +133,9 @@ func TestUnmarshalNetIP(t *testing.T) {
 }
 
 func TestUnmarshalInt(t *testing.T) {
-	m, _ := ReadMessage(bytes.NewReader(testMessage), dict.Default)
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
+	m, _ := ReadMessage(bytes.NewReader(testMessage), testDict)
 	type Data struct {
 		VendorID1 *AVP `avp:"Vendor-Id"`
 		VendorID2 int  `avp:"Vendor-Id"`
@@ -140,7 +153,9 @@ func TestUnmarshalInt(t *testing.T) {
 }
 
 func TestUnmarshalSlice(t *testing.T) {
-	m, _ := ReadMessage(bytes.NewReader(testMessage), dict.Default)
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
+	m, _ := ReadMessage(bytes.NewReader(testMessage), testDict)
 	type Data struct {
 		Vendors1 []*AVP `avp:"Supported-Vendor-Id"`
 		Vendors2 []int  `avp:"Supported-Vendor-Id"`
@@ -170,7 +185,9 @@ func TestUnmarshalSlice(t *testing.T) {
 }
 
 func TestUnmarshalGrouped(t *testing.T) {
-	m, _ := ReadMessage(bytes.NewReader(testMessage), dict.Default)
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
+	m, _ := ReadMessage(bytes.NewReader(testMessage), testDict)
 	type VSA struct {
 		AuthAppID1 AVP  `avp:"Auth-Application-Id"`
 		AuthAppID2 *AVP `avp:"Auth-Application-Id"`
@@ -264,7 +281,9 @@ func TestUnmarshalGrouped(t *testing.T) {
 }
 
 func TestUnmarshalGroupedSlice(t *testing.T) {
-	m, _ := ReadMessage(bytes.NewReader(testMessage), dict.Default)
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
+	m, _ := ReadMessage(bytes.NewReader(testMessage), testDict)
 	type VSA struct {
 		AuthAppID int `avp:"Auth-Application-Id"`
 		VendorID  int `avp:"Vendor-Id"`
@@ -291,7 +310,9 @@ func TestUnmarshalGroupedSlice(t *testing.T) {
 }
 
 func TestUnmarshalCER(t *testing.T) {
-	msg, err := ReadMessage(bytes.NewReader(testMessage), dict.Default)
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
+	msg, err := ReadMessage(bytes.NewReader(testMessage), testDict)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -346,7 +367,9 @@ func TestUnmarshalCER(t *testing.T) {
 }
 
 func TestEmbeddedStruct(t *testing.T) {
-	msg, err := ReadMessage(bytes.NewReader(testMessage), dict.Default)
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
+	msg, err := ReadMessage(bytes.NewReader(testMessage), testDict)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -370,7 +393,7 @@ func TestEmbeddedStruct(t *testing.T) {
 		Header: &Header{
 			ApplicationID: 0,
 		},
-		dictionary: dict.Default,
+		dictionary: testDict,
 	}
 	err = newMsg.Marshal(&d)
 	if err != nil {
@@ -405,7 +428,7 @@ func TestEmbeddedStruct(t *testing.T) {
 		Header: &Header{
 			ApplicationID: 0,
 		},
-		dictionary: dict.Default,
+		dictionary: testDict,
 	}
 	err = newMsg.Marshal(&e)
 	if err != nil {
@@ -425,7 +448,9 @@ func TestEmbeddedStruct(t *testing.T) {
 }
 
 func BenchmarkUnmarshal(b *testing.B) {
-	msg, err := ReadMessage(bytes.NewReader(testMessage), dict.Default)
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
+	msg, err := ReadMessage(bytes.NewReader(testMessage), testDict)
 	if err != nil {
 		b.Fatal(err)
 	}

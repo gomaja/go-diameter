@@ -103,7 +103,7 @@ func IsVendorSpecificApplication(id uint32) bool {
 // vendor-specific applications, capabilities exchange uses the first vendor of
 // the first-loaded declaration of that application, even if absent. All other
 // declared vendors are AVP suppliers; later declarations cannot change the author.
-// Bundled dictionaries load in filename order, followed by subsequent Load calls.
+// Selected dictionaries load in filename order, followed by subsequent Load calls.
 // Standard applications and relay have no vendor author (RFC 6733 §§2.4, 6.11).
 func (app *App) ApplicationVendor() uint32 {
 	if IsVendorSpecificApplication(app.ID) && len(app.Vendor) != 0 {

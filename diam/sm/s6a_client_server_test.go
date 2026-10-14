@@ -14,10 +14,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/s6a"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
-	"github.com/gomaja/go-diameter/diam/dict"
 	"github.com/gomaja/go-diameter/diam/internal/logtest"
 	"github.com/gomaja/go-diameter/diam/internal/testutil"
 	"github.com/gomaja/go-diameter/diam/sm/smpeer"
@@ -52,6 +53,7 @@ func mustS6aAVP(m *diam.Message, code uint32, flags uint8, vendor uint32, data d
 }
 
 func testS6aClientServer(network string, t *testing.T) {
+	testDict := newSMTestDictionary(s6a.Dictionary())
 
 	resetTestStats()
 	records := logtest.New()
@@ -60,13 +62,13 @@ func testS6aClientServer(network string, t *testing.T) {
 		OriginRealm:      datatype.DiameterIdentity("test.realm"),
 		VendorID:         VENDOR_3GPP,
 		ProductName:      "go-diameter-s6a",
-		FirmwareRevision: 1,
+		FirmwareRevision: 1, Dict: testDict,
 	}
 
 	results := make(chan error, CONCURENT_CLIENTS*2)
 
 	// Create the state machine (mux) and set its message handlers.
-	mux := mustNewStateMachine(t, settings)
+	mux := mustNewStateMachine(t, settings, testDict)
 
 	mux.HandleIdx(
 		diam.CommandIndex{AppID: diam.TGPP_S6A_APP_ID, Code: diam.AuthenticationInformation, Request: true},
@@ -90,7 +92,7 @@ func testS6aClientServer(network string, t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _ = ln.Close() }()
-	server := &diam.Server{Handler: mux, Dict: dict.Default, Logger: records.Logger()}
+	server := &diam.Server{Handler: mux, Dict: testDict, Logger: records.Logger()}
 	defer func() { _ = server.Close() }()
 	go func() { _ = server.Serve(ln) }()
 
@@ -102,15 +104,15 @@ func testS6aClientServer(network string, t *testing.T) {
 		ProductName:      "go-diameter-s6a",
 		OriginStateID:    datatype.Unsigned32(time.Now().Unix()),
 		FirmwareRevision: 1,
-		HostIPAddresses:  []datatype.Address{datatype.AddressFromIP(netip.MustParseAddr("127.0.0.1"))},
+		HostIPAddresses:  []datatype.Address{datatype.AddressFromIP(netip.MustParseAddr("127.0.0.1"))}, Dict: testDict,
 	}
 
 	// Create the state machine (it's a diam.ServeMux) and client.
-	cmux := mustNewStateMachine(t, cfg)
+	cmux := mustNewStateMachine(t, cfg, testDict)
 
 	cli := &Client{
 		Logger:             records.Logger(),
-		Dict:               dict.Default,
+		Dict:               testDict,
 		Handler:            cmux,
 		MaxRetransmits:     3,
 		RetransmitInterval: testutil.NetworkTimeout(network, time.Second),
@@ -352,12 +354,14 @@ func testSendCLA(settings *Settings, w io.Writer, m *diam.Message) (n int64, err
 }
 
 func testSendCLR(c diam.Conn, cfg *Settings) error {
+	testDict := newSMTestDictionary(s6a.Dictionary())
+
 	meta, ok := smpeer.FromContext(c.Context())
 	if !ok {
 		return errors.New("peer metadata unavailable")
 	}
 	sid := "session;" + strconv.Itoa(int(rand.Uint32()))
-	m := diam.NewRequest(diam.CancelLocation, diam.TGPP_S6A_APP_ID, dict.Default)
+	m := diam.NewRequest(diam.CancelLocation, diam.TGPP_S6A_APP_ID, testDict)
 	mustS6aAVP(m, avp.SessionID, avp.Mbit, 0, datatype.UTF8String(sid))
 	mustS6aAVP(m, avp.OriginHost, avp.Mbit, 0, cfg.OriginHost)
 	mustS6aAVP(m, avp.OriginRealm, avp.Mbit, 0, cfg.OriginRealm)
@@ -426,12 +430,14 @@ func testSendULA(settings *Settings, w io.Writer, m *diam.Message) (n int64, err
 
 // Create & send Authentication-Information Request
 func testSendAIR(c diam.Conn, cfg *Settings) error {
+	testDict := newSMTestDictionary(s6a.Dictionary())
+
 	meta, ok := smpeer.FromContext(c.Context())
 	if !ok {
 		return errors.New("peer metadata unavailable")
 	}
 	sid := "session;" + strconv.Itoa(int(rand.Uint32()))
-	m := diam.NewRequest(diam.AuthenticationInformation, diam.TGPP_S6A_APP_ID, dict.Default)
+	m := diam.NewRequest(diam.AuthenticationInformation, diam.TGPP_S6A_APP_ID, testDict)
 	mustS6aAVP(m, avp.SessionID, avp.Mbit, 0, datatype.UTF8String(sid))
 	mustS6aAVP(m, avp.OriginHost, avp.Mbit, 0, cfg.OriginHost)
 	mustS6aAVP(m, avp.OriginRealm, avp.Mbit, 0, cfg.OriginRealm)
@@ -454,12 +460,14 @@ func testSendAIR(c diam.Conn, cfg *Settings) error {
 
 // Create & send Update-Location Request
 func testSendULR(c diam.Conn, cfg *Settings) error {
+	testDict := newSMTestDictionary(s6a.Dictionary())
+
 	meta, ok := smpeer.FromContext(c.Context())
 	if !ok {
 		return errors.New("peer metadata unavailable")
 	}
 	sid := "session;" + strconv.Itoa(int(rand.Uint32()))
-	m := diam.NewRequest(diam.UpdateLocation, diam.TGPP_S6A_APP_ID, dict.Default)
+	m := diam.NewRequest(diam.UpdateLocation, diam.TGPP_S6A_APP_ID, testDict)
 	mustS6aAVP(m, avp.SessionID, avp.Mbit, 0, datatype.UTF8String(sid))
 	mustS6aAVP(m, avp.OriginHost, avp.Mbit, 0, cfg.OriginHost)
 	mustS6aAVP(m, avp.OriginRealm, avp.Mbit, 0, cfg.OriginRealm)

@@ -1,14 +1,20 @@
-package dict
+package dict_test
 
 import (
 	"fmt"
 	"strings"
 	"sync"
 	"testing"
+
+	"github.com/gomaja/go-diameter/diam/dict"
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+	"github.com/gomaja/go-diameter/diam/dict/gx"
+	"github.com/gomaja/go-diameter/diam/dict/nasreq"
+	"github.com/gomaja/go-diameter/diam/dict/rorf"
 )
 
 func TestLoadAppliesAllOrNothing(t *testing.T) {
-	p := New(Base)
+	p := newTestParser(t, dict.Base())
 	for name, xml := range map[string]string{
 		"unsupported type": `<diameter><application id="4" type="auth" name="Test">
 			<avp name="Test-Good" code="70000" vendor-id="99999"><data type="UTF8String"/></avp>
@@ -31,13 +37,13 @@ func TestLoadAppliesAllOrNothing(t *testing.T) {
 			}
 		})
 	}
-	if _, err := NewParser("bundled/base.xml", "no-such-file.xml"); err == nil {
+	if _, err := dict.NewParser("base.xml", "no-such-file.xml"); err == nil {
 		t.Error("NewParser succeeded with a missing file")
 	}
 }
 
 func TestSnapshotIsUnchangedByLaterChanges(t *testing.T) {
-	p := New(Base)
+	p := newTestParser(t, dict.Base())
 	old := p.Snapshot()
 	oldDump := dumpSnapshot(old)
 	if err := p.Load(strings.NewReader(`<diameter><application id="4" type="auth" name="Test">
@@ -58,7 +64,7 @@ func TestSnapshotIsUnchangedByLaterChanges(t *testing.T) {
 			t.Errorf("current snapshot: %v", err)
 		}
 	}
-	if !old.Strict() || old.MaxGroupedDepth() != DefaultMaxGroupedDepth {
+	if !old.Strict() || old.MaxGroupedDepth() != dict.DefaultMaxGroupedDepth {
 		t.Errorf("old policy: strict %t, depth %d", old.Strict(), old.MaxGroupedDepth())
 	}
 	if p.Strict() || p.MaxGroupedDepth() != 3 {
@@ -67,12 +73,12 @@ func TestSnapshotIsUnchangedByLaterChanges(t *testing.T) {
 }
 
 func TestPolicySetters(t *testing.T) {
-	p := New(Base)
+	p := newTestParser(t, dict.Base())
 	before := p.Snapshot()
 	p.SetStrict(true)
 	p.SetMaxGroupedDepth(0)
 	requireUnchanged(t, p, before) // the values in effect publish nothing
-	for _, tc := range []struct{ set, want int }{{40, 40}, {1, 1}, {0, DefaultMaxGroupedDepth}, {-5, DefaultMaxGroupedDepth}} {
+	for _, tc := range []struct{ set, want int }{{40, 40}, {1, 1}, {0, dict.DefaultMaxGroupedDepth}, {-5, dict.DefaultMaxGroupedDepth}} {
 		p.SetMaxGroupedDepth(tc.set)
 		if have := p.MaxGroupedDepth(); have != tc.want {
 			t.Errorf("SetMaxGroupedDepth(%d): MaxGroupedDepth() = %d, want %d", tc.set, have, tc.want)
@@ -89,12 +95,12 @@ func TestPolicySetters(t *testing.T) {
 // TestStringLeavesRulesUnchanged guards the shared rules: String printed
 // the effective minimum of required rules by writing it into them.
 func TestStringLeavesRulesUnchanged(t *testing.T) {
-	p := New(Base)
+	p := newTestParser(t, dict.Base())
 	cmd, err := p.FindCommand(0, 257)
 	if err != nil {
 		t.Fatal(err)
 	}
-	var rule *Rule
+	var rule *dict.Rule
 	for _, r := range cmd.Request.Rule {
 		if r.Required && r.Min == 0 {
 			rule = r
@@ -115,7 +121,7 @@ func TestStringLeavesRulesUnchanged(t *testing.T) {
 // TestLookupsWhileChanging runs every lookup against a Parser that loads
 // and registers definitions meanwhile. Run with -race.
 func TestLookupsWhileChanging(t *testing.T) {
-	p := New(Base, CreditControl, RoRf, NASREQ, Gx)
+	p := newTestParser(t, dict.Base(), creditcontrol.Dictionary(), rorf.Dictionary(), nasreq.Dictionary(), gx.Dictionary())
 	const changes = 20
 	var wg sync.WaitGroup
 	done := make(chan struct{})

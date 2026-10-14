@@ -4,14 +4,19 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/diamtest"
-	"github.com/gomaja/go-diameter/diam/dict"
 )
 
 func TestCEAOriginStateIDBelongsToServer(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings := cloneTestSettings(serverSettings, testDict)
+	clientSettings := cloneTestSettings(clientSettings, testDict)
+
 	for _, tc := range []struct {
 		name  string
 		state datatype.Unsigned32
@@ -25,18 +30,18 @@ func TestCEAOriginStateIDBelongsToServer(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			settings := *serverSettings
 			settings.OriginStateID = tc.state
-			sm := mustNewStateMachine(t, &settings)
-			srv := diamtest.NewServer(sm, dict.Default)
+			sm := mustNewStateMachine(t, &settings, testDict)
+			srv := diamtest.NewServer(sm, testDict)
 			defer srv.Close()
 			answers := make(chan *diam.Message, 1)
 			mux := diam.NewServeMux()
 			mux.HandleFunc("CEA", func(_ diam.Conn, m *diam.Message) { answers <- m })
-			cli, err := diam.Dial(srv.Addr, mux, dict.Default)
+			cli, err := diam.Dial(srv.Addr, mux, testDict)
 			if err != nil {
 				t.Fatal(err)
 			}
 			defer cli.Close()
-			m := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
+			m := diam.NewRequest(diam.CapabilitiesExchange, 0, testDict)
 			mustSMClientAVP(t, m, avp.OriginHost, avp.Mbit, 0, clientSettings.OriginHost)
 			mustSMClientAVP(t, m, avp.OriginRealm, avp.Mbit, 0, clientSettings.OriginRealm)
 			mustSMClientAVP(t, m, avp.HostIPAddress, avp.Mbit, 0, localhostAddress)

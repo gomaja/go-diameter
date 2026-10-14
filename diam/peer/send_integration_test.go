@@ -7,10 +7,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
-	"github.com/gomaja/go-diameter/diam/dict"
 	"github.com/gomaja/go-diameter/diam/sm"
 )
 
@@ -24,13 +25,15 @@ func mustSMNew(t *testing.T, settings *sm.Settings) *sm.StateMachine {
 }
 
 func TestManagedSendPeerClosesAfterRequestTCP(t *testing.T) {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
 	for _, answerFirst := range []bool{true, false} {
 		name := "without-answer"
 		if answerFirst {
 			name = "after-answer"
 		}
 		t.Run(name, func(t *testing.T) {
-			settings := testSettings("server.example.net")
+			settings := testSettings("server.example.net", testDict)
 			serverSM := mustSMNew(t, &settings)
 			serverSM.HandleIdx(diam.CommandIndex{AppID: 4, Code: 272, Request: true}, diam.HandlerFunc(func(c diam.Conn, request *diam.Message) {
 				if answerFirst {
@@ -45,10 +48,10 @@ func TestManagedSendPeerClosesAfterRequestTCP(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			server := &diam.Server{Handler: serverSM, Dict: dict.Default}
+			server := &diam.Server{Handler: serverSM, Dict: testDict}
 			go func() { _ = server.Serve(listener) }()
 			defer func() { _ = server.Close() }()
-			m, err := New(Config{Settings: testSettings("local.example.net")})
+			m, err := New(Config{Settings: testSettings("local.example.net", testDict)})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -84,7 +87,9 @@ func TestManagedSendPeerClosesAfterRequestTCP(t *testing.T) {
 }
 
 func TestManagedSendTCPToSMServer(t *testing.T) {
-	settings := testSettings("server.example.net")
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
+	settings := testSettings("server.example.net", testDict)
 	serverSM := mustSMNew(t, &settings)
 	serverSM.HandleIdx(diam.CommandIndex{AppID: 4, Code: 272, Request: true}, diam.HandlerFunc(func(c diam.Conn, request *diam.Message) {
 		answer := request.Answer(diam.Success)
@@ -96,10 +101,10 @@ func TestManagedSendTCPToSMServer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	server := &diam.Server{Handler: serverSM, Dict: dict.Default}
+	server := &diam.Server{Handler: serverSM, Dict: testDict}
 	go func() { _ = server.Serve(listener) }()
 	defer func() { _ = server.Close() }()
-	m, err := New(Config{Settings: testSettings("local.example.net")})
+	m, err := New(Config{Settings: testSettings("local.example.net", testDict)})
 	if err != nil {
 		t.Fatal(err)
 	}

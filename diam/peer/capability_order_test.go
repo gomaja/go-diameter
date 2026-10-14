@@ -10,10 +10,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/all"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
-	"github.com/gomaja/go-diameter/diam/dict"
 	"github.com/gomaja/go-diameter/diam/internal/base"
 )
 
@@ -29,26 +30,28 @@ func (c *capabilityWireConn) Write(b []byte) (int, error) {
 func (c *capabilityWireConn) WriteStream(b []byte, _ uint) (int, error) { return c.Write(b) }
 
 func TestQueuedCERPrecedesMalformedRequest(t *testing.T) {
-	m, err := New(Config{Settings: testSettings("local.example.net")})
+	testDict := newTestDictionary(all.Dictionary())
+
+	m, err := New(Config{Settings: testSettings("local.example.net", testDict)})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if err = m.AddPeer(PeerConfig{Host: "known.example.net"}); err != nil {
 		t.Fatal(err)
 	}
-	c := &capabilityWireConn{fakeConn: newFakeConn(), wire: make(chan []byte, 8)}
+	c := &capabilityWireConn{fakeConn: newFakeConn(testDict), wire: make(chan []byte, 8)}
 	// Deliberately hold the dispatcher until both reader callbacks have run.
 	s := &session{m: m, c: c, inbound: true, writes: make(chan writeRequest, 8), ingress: make(chan incoming, 8), closed: make(chan struct{})}
 	m.sessions[c] = s
 	defer func() { s.close(); m.unregister(s); closeManager(t, m, nil) }()
-	cer, err := base.BuildCER(dict.Default, testBase("known.example.net"))
+	cer, err := base.BuildCER(testDict, testBase("known.example.net"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if err := s.enqueue(cer); err != nil {
 		t.Fatal(err)
 	}
-	req, err := base.BuildDWR(dict.Default, testBase("known.example.net"), 0)
+	req, err := base.BuildDWR(testDict, testBase("known.example.net"), 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -68,7 +71,7 @@ func TestQueuedCERPrecedesMalformedRequest(t *testing.T) {
 	for i, want := range []uint32{diam.Success, diam.InvalidAVPLength} {
 		select {
 		case wire := <-c.wire:
-			answer, err := diam.ReadMessage(bytes.NewReader(wire), dict.Default)
+			answer, err := diam.ReadMessage(bytes.NewReader(wire), testDict)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -129,7 +132,9 @@ func (h *delayedCapabilityHandler) HandleMessageError(c diam.Conn, m *diam.Messa
 }
 
 func TestCERAndMalformedRequestArrivalOrderOnWire(t *testing.T) {
-	m, err := New(Config{Settings: testSettings("local.example.net")})
+	testDict := newTestDictionary(all.Dictionary())
+
+	m, err := New(Config{Settings: testSettings("local.example.net", testDict)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -140,7 +145,8 @@ func TestCERAndMalformedRequestArrivalOrderOnWire(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	srv := &diam.Server{Dict: dict.Default}
+	srv := &diam.Server{Dict: testDict}
+	srv.Dict = m.cfg.Settings.Dict
 	if err = m.BindServer(srv); err != nil {
 		t.Fatal(err)
 	}
@@ -153,11 +159,11 @@ func TestCERAndMalformedRequestArrivalOrderOnWire(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _ = c.Close() }()
-	cer, err := base.BuildCER(dict.Default, testBase("known.example.net"))
+	cer, err := base.BuildCER(testDict, testBase("known.example.net"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	req, err := base.BuildDWR(dict.Default, testBase("known.example.net"), 0)
+	req, err := base.BuildDWR(testDict, testBase("known.example.net"), 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -177,7 +183,7 @@ func TestCERAndMalformedRequestArrivalOrderOnWire(t *testing.T) {
 			}
 		}
 	}
-	next, err := base.BuildDWR(dict.Default, testBase("known.example.net"), 0)
+	next, err := base.BuildDWR(testDict, testBase("known.example.net"), 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -189,11 +195,13 @@ func TestCERAndMalformedRequestArrivalOrderOnWire(t *testing.T) {
 }
 
 func TestManagerRejectsNonCEAOnWire(t *testing.T) {
+	testDict := newTestDictionary(all.Dictionary())
+
 	for _, kind := range []string{"CER", "DWR", "DWA", "application", "malformed-DWR", "malformed-CEA", "wrong-app-CEA"} {
 		t.Run(kind, func(t *testing.T) {
 			local, remote := net.Pipe()
 			defer func() { _ = remote.Close() }()
-			m, err := New(Config{Settings: testSettings("local.example.net"), Timers: Timers{CER: time.Minute}, Dial: func(context.Context, Endpoint) (net.Conn, error) { return local, nil }})
+			m, err := New(Config{Settings: testSettings("local.example.net", testDict), Timers: Timers{CER: time.Minute}, Dial: func(context.Context, Endpoint) (net.Conn, error) { return local, nil }})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -207,20 +215,20 @@ func TestManagerRejectsNonCEAOnWire(t *testing.T) {
 			if err = remote.SetDeadline(time.Now().Add(time.Second)); err != nil {
 				t.Fatal(err)
 			}
-			cer, err := diam.ReadMessage(remote, dict.Default)
+			cer, err := diam.ReadMessage(remote, testDict)
 			if err != nil {
 				t.Fatal(err)
 			}
 			var msg *diam.Message
 			switch kind {
 			case "CER":
-				msg, err = base.BuildCER(dict.Default, testBase("known.example.net"))
+				msg, err = base.BuildCER(testDict, testBase("known.example.net"))
 			case "DWR", "malformed-DWR":
-				msg, err = base.BuildDWR(dict.Default, testBase("known.example.net"), 0)
+				msg, err = base.BuildDWR(testDict, testBase("known.example.net"), 0)
 			case "DWA":
-				msg = diam.NewRequest(diam.DeviceWatchdog, 0, dict.Default).Answer(diam.Success)
+				msg = diam.NewRequest(diam.DeviceWatchdog, 0, testDict).Answer(diam.Success)
 			case "application":
-				msg = diam.NewRequest(999999, 4, dict.Default)
+				msg = diam.NewRequest(999999, 4, testDict)
 			default:
 				msg = cer.Answer(diam.Success)
 			}

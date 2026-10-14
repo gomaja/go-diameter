@@ -14,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
@@ -27,9 +29,13 @@ import (
 // newLivenessClient returns a watchdog-enabled client for the acct
 // application the shared test dictionary declares.
 func newLivenessClient(t *testing.T) *Client {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	clientSettings := cloneTestSettings(clientSettings,
+		testDict)
+
 	return &Client{
-		Dict:               dict.Default,
-		Handler:            mustNewStateMachine(t, clientSettings),
+		Dict:               testDict,
+		Handler:            mustNewStateMachine(t, clientSettings, testDict),
 		MaxRetransmits:     0,
 		RetransmitInterval: 50 * time.Millisecond,
 		EnableWatchdog:     true,
@@ -46,12 +52,16 @@ func newLivenessClient(t *testing.T) *Client {
 // sending anything else must wake one of them. EOF is deliberately not
 // reported as an error, so the wake-up has to come from CloseNotify.
 func TestCleanEOFWakesSupervisor(t *testing.T) {
-	ssm := mustNewStateMachine(t, serverSettings)
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings := cloneTestSettings(serverSettings,
+		testDict)
+
+	ssm := mustNewStateMachine(t, serverSettings, testDict)
 	ssmHandshakes := testHandshakeNotifications(ssm)
 	ssm.mux.HandleFunc("ALL", func(diam.Conn, *diam.Message) {})
 	handshake := ssmHandshakes
 
-	srv := diamtest.NewServer(ssm, dict.Default)
+	srv := diamtest.NewServer(ssm, testDict)
 	defer srv.Close()
 
 	cli := newLivenessClient(t)
@@ -89,12 +99,16 @@ func TestCleanEOFWakesSupervisor(t *testing.T) {
 // the first registration, which is what the watchdog goroutine risks doing
 // when it is scheduled late.
 func TestCloseNotifyAfterPeerGone(t *testing.T) {
-	ssm := mustNewStateMachine(t, serverSettings)
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings := cloneTestSettings(serverSettings,
+		testDict)
+
+	ssm := mustNewStateMachine(t, serverSettings, testDict)
 	ssmHandshakes := testHandshakeNotifications(ssm)
 	ssm.mux.HandleFunc("ALL", func(diam.Conn, *diam.Message) {})
 	handshake := ssmHandshakes
 
-	srv := diamtest.NewServer(ssm, dict.Default)
+	srv := diamtest.NewServer(ssm, testDict)
 	defer srv.Close()
 
 	// Watchdog disabled so nothing registers CloseNotify before we do.
@@ -131,16 +145,21 @@ func TestCloseNotifyAfterPeerGone(t *testing.T) {
 // breaking its socket also trips the read loop, which reports and notifies on
 // its own and would mask what dwr did.
 type errWriteConn struct {
-	mu       sync.Mutex
-	writes   int
-	closed   bool
-	closec   chan struct{}
-	writeErr error
-	logger   *slog.Logger
+	dictionary *dict.Parser
+	mu         sync.Mutex
+	writes     int
+	closed     bool
+	closec     chan struct{}
+	writeErr   error
+	logger     *slog.Logger
 }
 
-func newErrWriteConn() *errWriteConn {
-	return &errWriteConn{closec: make(chan struct{}), writeErr: errors.New("broken pipe")}
+func newErrWriteConn(dictionaries ...*dict.Parser) *errWriteConn {
+	parser := newTestDictionary(dict.Base())
+	if len(dictionaries) != 0 {
+		parser = dictionaries[0]
+	}
+	return &errWriteConn{dictionary: parser, closec: make(chan struct{}), writeErr: errors.New("broken pipe")}
 }
 
 func (c *errWriteConn) Write(b []byte) (int, error) {
@@ -174,7 +193,7 @@ func (c *errWriteConn) CloseNotify() <-chan struct{} { return c.closec }
 func (c *errWriteConn) LocalAddr() net.Addr          { return nil }
 func (c *errWriteConn) RemoteAddr() net.Addr         { return nil }
 func (c *errWriteConn) TLS() *tls.ConnectionState    { return nil }
-func (c *errWriteConn) Dictionary() *dict.Parser     { return dict.Default }
+func (c *errWriteConn) Dictionary() *dict.Parser     { return c.dictionary }
 func (c *errWriteConn) Context() context.Context     { return context.Background() }
 func (c *errWriteConn) SetContext(context.Context)   {}
 func (c *errWriteConn) Connection() net.Conn         { return nil }
@@ -260,10 +279,14 @@ func TestWatchdogWriteErrorStopsRetrying(t *testing.T) {
 // WriteTimeout reach the connection, so a client can bound its I/O the way a
 // raw diam.Server dialer already can.
 func TestClientTimeoutsArePlumbed(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings := cloneTestSettings(serverSettings,
+		testDict)
+
 	records := logtest.New()
-	ssm := mustNewStateMachine(t, serverSettings)
+	ssm := mustNewStateMachine(t, serverSettings, testDict)
 	ssm.mux.HandleFunc("ALL", func(diam.Conn, *diam.Message) {})
-	srv := diamtest.NewServer(ssm, dict.Default)
+	srv := diamtest.NewServer(ssm, testDict)
 	defer srv.Close()
 
 	cli := newLivenessClient(t)
@@ -293,10 +316,16 @@ func TestClientTimeoutsArePlumbed(t *testing.T) {
 // with no timeouts configured an idle connection must stay open, so the
 // timeout test above cannot pass for some unrelated reason.
 func TestClientWithoutTimeoutsIsUnbounded(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings := cloneTestSettings(serverSettings,
+		testDict)
+	clientSettings := cloneTestSettings(clientSettings,
+		testDict)
+
 	records := logtest.New()
-	ssm := mustNewStateMachine(t, serverSettings)
+	ssm := mustNewStateMachine(t, serverSettings, testDict)
 	ssm.mux.HandleFunc("ALL", func(diam.Conn, *diam.Message) {})
-	srv := diamtest.NewServer(ssm, dict.Default)
+	srv := diamtest.NewServer(ssm, testDict)
 	defer srv.Close()
 
 	cli := newLivenessClient(t)
@@ -314,7 +343,7 @@ func TestClientWithoutTimeoutsIsUnbounded(t *testing.T) {
 		t.Fatalf("idle conn logged %v", got)
 	}
 
-	m := diam.NewRequest(diam.DeviceWatchdog, 0, dict.Default)
+	m := diam.NewRequest(diam.DeviceWatchdog, 0, testDict)
 	mustSMClientAVP(t, m, avp.OriginHost, avp.Mbit, 0, clientSettings.OriginHost)
 	mustSMClientAVP(t, m, avp.OriginRealm, avp.Mbit, 0, clientSettings.OriginRealm)
 	if _, err := m.WriteTo(conn); err != nil {

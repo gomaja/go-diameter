@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/rorf"
+
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/dict"
@@ -55,9 +57,16 @@ func roRfWireFlags(t *testing.T, must string) uint8 {
 	return flags
 }
 
-func roRfFindAVP(t *testing.T, name string) *dict.AVP {
+func roRfFindAVP(t *testing.T, name string, parsers ...*dict.Parser) *dict.AVP {
+	var testDict *dict.Parser
+	if len(parsers) > 0 {
+		testDict = parsers[0]
+	} else {
+		testDict = newTestDictionary(rorf.Dictionary())
+	}
+
 	t.Helper()
-	a, err := dict.Default.FindAVPByName(roRfWireAppID, name)
+	a, err := testDict.FindAVPByName(roRfWireAppID, name)
 	if err == nil {
 		return a
 	}
@@ -65,10 +74,10 @@ func roRfFindAVP(t *testing.T, name string) *dict.AVP {
 		s = strings.ToUpper(strings.ReplaceAll(s, "3GPP", "TGPP"))
 		return strings.NewReplacer("-", "", "_", "", " ", "").Replace(s)
 	}
-	for _, app := range dict.Default.Apps() {
+	for _, app := range testDict.Apps() {
 		for _, candidate := range app.AVP {
 			if normalize(candidate.Name) == normalize(name) {
-				if a, err = dict.Default.FindAVPByName(roRfWireAppID, candidate.Name); err == nil {
+				if a, err = testDict.FindAVPByName(roRfWireAppID, candidate.Name); err == nil {
 					return a
 				}
 			}
@@ -152,10 +161,12 @@ func roRfSampleData(t *testing.T, a *dict.AVP, depth int) datatype.Type {
 // TS 32.299 V19.0.0 Table 7.2.0.1: all RoRf-local AVPs and
 // recursively copied registry definitions have independent wire identities.
 func TestRoRfAVPWireRoundTrip(t *testing.T) {
+	testDict := newTestDictionary(rorf.Dictionary())
+
 	definitions := roRfWireSpec(t)
 	for _, want := range definitions {
 		t.Run(want.Name, func(t *testing.T) {
-			a, err := dict.Default.FindAVP(roRfWireAppID, want.Code, want.Vendor)
+			a, err := testDict.FindAVP(roRfWireAppID, want.Code, want.Vendor)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -163,11 +174,11 @@ func TestRoRfAVPWireRoundTrip(t *testing.T) {
 				t.Fatalf("type %s, want %s", a.Data.TypeName, want.Type)
 			}
 			data := roRfSampleData(t, a, 0)
-			m := NewRequest(272, roRfWireAppID, dict.Default)
+			m := NewRequest(272, roRfWireAppID, testDict)
 			if _, err := m.NewAVPByName(a.Name, roRfWireFlags(t, a.Must), data); err != nil {
 				t.Fatal(err)
 			}
-			assertRefreshWire(t, m, want.Code, roRfWireFlags(t, want.Must), want.Vendor, data)
+			assertRefreshWire(t, m, want.Code, roRfWireFlags(t, want.Must), want.Vendor, data, testDict)
 		})
 	}
 }
@@ -178,6 +189,8 @@ func TestRoRfAVPWireRoundTrip(t *testing.T) {
 // Each optional RFC and charging member is exercised separately, including
 // cardinality boundaries and a known non-member through the RFC wildcard.
 func TestRoRfCommandWire(t *testing.T) {
+	testDict := newTestDictionary(rorf.Dictionary())
+
 	b, err := os.ReadFile("dict/testdata/rorf_commands_spec.json")
 	if err != nil {
 		t.Fatal(err)
@@ -207,13 +220,13 @@ func TestRoRfCommandWire(t *testing.T) {
 			if c.Proxiable {
 				flags |= ProxiableFlag
 			}
-			m := NewMessage(c.Code, flags, c.Application, 0x12345678, 0x87654321, dict.Default)
+			m := NewMessage(c.Code, flags, c.Application, 0x12345678, 0x87654321, testDict)
 			for _, r := range c.Rules {
 				if r.Name == "AVP" {
 					continue
 				}
 				for i := 0; i < r.Min; i++ {
-					a := roRfFindAVP(t, r.Name)
+					a := roRfFindAVP(t, r.Name, testDict)
 					m.AddAVP(NewAVP(a.Code, roRfWireFlags(t, a.Must), a.VendorID, roRfSampleData(t, a, 0)))
 				}
 			}
@@ -224,7 +237,7 @@ func TestRoRfCommandWire(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			got, err := ReadMessage(bytes.NewReader(wire), dict.Default)
+			got, err := ReadMessage(bytes.NewReader(wire), testDict)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -255,7 +268,7 @@ func TestRoRfCommandWire(t *testing.T) {
 				if name == "AVP" {
 					name = "Host-IP-Address"
 				}
-				a, err := dict.Default.FindAVPByName(c.Application, name)
+				a, err := testDict.FindAVPByName(c.Application, name)
 				if err != nil {
 					t.Fatalf("application %d cannot resolve %s: %v", c.Application, name, err)
 				}
@@ -268,7 +281,7 @@ func TestRoRfCommandWire(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				decoded, err := ReadMessage(bytes.NewReader(wire), dict.Default)
+				decoded, err := ReadMessage(bytes.NewReader(wire), testDict)
 				if err != nil {
 					t.Fatal(err)
 				}

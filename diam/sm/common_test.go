@@ -5,7 +5,6 @@
 package sm
 
 import (
-	"bytes"
 	"net/netip"
 	"testing"
 	"time"
@@ -14,22 +13,16 @@ import (
 	"github.com/gomaja/go-diameter/diam/dict"
 )
 
-func mustNewStateMachine(t testing.TB, settings *Settings) *StateMachine {
+func mustNewStateMachine(t testing.TB, settings *Settings, dictionaries ...*dict.Parser) *StateMachine {
 	t.Helper()
+	if len(dictionaries) != 0 && settings.Dict == nil {
+		settings.Dict = dictionaries[0]
+	}
 	machine, err := New(settings)
 	if err != nil {
 		t.Fatal(err)
 	}
 	return machine
-}
-
-func init() {
-	if err := dict.Default.Load(bytes.NewReader([]byte(acctDictionary))); err != nil {
-		panic(err)
-	}
-	if err := dict.Default.Load(bytes.NewReader([]byte(authDictionary))); err != nil {
-		panic(err)
-	}
 }
 
 var acctDictionary = `<?xml version="1.0" encoding="UTF-8"?>
@@ -87,3 +80,9 @@ var (
 		HostIPAddresses:  []datatype.Address{localhostAddress},
 	}
 )
+
+func cloneTestSettings(settings *Settings, parser *dict.Parser) *Settings {
+	copy := *settings
+	copy.Dict = parser
+	return &copy
+}

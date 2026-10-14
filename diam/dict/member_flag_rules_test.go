@@ -19,7 +19,7 @@ func TestMemberProhibitionsRejectContradictions(t *testing.T) {
 	} {
 		for _, register := range []bool{false, true} {
 			t.Run(fmt.Sprintf("%s/register=%t", tc.name, register), func(t *testing.T) {
-				p := New(Base)
+				p := newTestParser(t, Base())
 				before := p.Snapshot()
 				rules := []*Rule{{AVP: "Leaf", MustNot: tc.forbid}}
 				if tc.wildcard {
@@ -59,7 +59,7 @@ func TestCommandMemberProhibitionsRejectContradictions(t *testing.T) {
 	for _, side := range []string{"request", "answer"} {
 		for _, wildcard := range []bool{false, true} {
 			t.Run(fmt.Sprintf("%s/wildcard=%t", side, wildcard), func(t *testing.T) {
-				p := New(Base)
+				p := newTestParser(t, Base())
 				before := p.Snapshot()
 				rule := `<rule avp="Origin-Host" must-not="M"/>`
 				if wildcard {
@@ -82,7 +82,7 @@ func TestCommandMemberProhibitionsRejectContradictions(t *testing.T) {
 func TestMemberProhibitionsRecheckReplacements(t *testing.T) {
 	for _, command := range []bool{false, true} {
 		t.Run(fmt.Sprintf("command=%t", command), func(t *testing.T) {
-			p := New(Base)
+			p := newTestParser(t, Base())
 			owner := `<avp name="Group" code="70001"><data type="Grouped"><rule avp="Leaf" must-not="M"/></data></avp>`
 			if command {
 				owner = `<command code="70000" name="Example"><request><rule avp="Leaf" must-not="M"/></request></command>`
@@ -124,7 +124,7 @@ func TestRuleUnmarshalRejectsInvalidProhibitions(t *testing.T) {
 }
 
 func TestSnapshotStringPrintsMemberProhibitions(t *testing.T) {
-	p := New()
+	p := newTestParser(t)
 	src := `<diameter><application id="42"><avp name="Leaf" code="70000"><data type="Unsigned32"/></avp><avp name="Group" code="70001"><data type="Grouped"><rule avp="Leaf" must-not="M"/></data></avp><command code="70000" name="Example"><request><rule avp="Leaf" must-not="P"/></request><answer><rule avp="Leaf" must-not="M,P"/></answer></command></application></diameter>`
 	if err := p.Load(strings.NewReader(src)); err != nil {
 		t.Fatal(err)
@@ -178,7 +178,7 @@ func FuzzMemberProhibitions(f *testing.F) {
 		mask, flagErr := parseFlags(flags)
 		wantOK := flagErr == nil && mask&flagV == 0 && mask&int(required&3) == 0
 		for _, register := range []bool{false, true} {
-			p := New()
+			p := newTestParser(t)
 			before := p.Snapshot()
 			if register {
 				err = p.RegisterAVP(42, group, leaf)

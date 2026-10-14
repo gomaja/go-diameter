@@ -9,6 +9,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+	"github.com/gomaja/go-diameter/diam/dict/nasreq"
+	"github.com/gomaja/go-diameter/diam/dict/rorf"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
@@ -16,8 +20,11 @@ import (
 )
 
 func TestClientRejectsNonStrictMalformedCEAHostIPAddress(t *testing.T) {
+	testDict := newSMTestDictionary(dict.Base())
+	clientSettings := cloneTestSettings(clientSettings, testDict)
+
 	// RFC 6733 §§5.3.2 and 7.1.5: report the offending CEA AVP locally.
-	p := dict.New(dict.Base, dict.NASREQ, dict.CreditControl, dict.RoRf)
+	p := newTestDictionary(dict.Base(), nasreq.Dictionary(), creditcontrol.Dictionary(), rorf.Dictionary())
 	p.SetStrict(false)
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -59,7 +66,7 @@ func TestClientRejectsNonStrictMalformedCEAHostIPAddress(t *testing.T) {
 		}
 		serverErr <- nil
 	}()
-	client := &Client{Dict: p, Handler: mustNewStateMachine(t, clientSettings), AuthApplicationID: []*diam.AVP{diam.NewAVP(avp.AuthApplicationID, avp.Mbit, 0, datatype.Unsigned32(4))}}
+	client := &Client{Dict: p, Handler: mustNewStateMachine(t, clientSettings, testDict), AuthApplicationID: []*diam.AVP{diam.NewAVP(avp.AuthApplicationID, avp.Mbit, 0, datatype.Unsigned32(4))}}
 	conn, err := client.Dial(listener.Addr().String())
 	if conn != nil {
 		conn.Close()

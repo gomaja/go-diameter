@@ -23,7 +23,7 @@ func TestCERNonStrictMalformedHostIPAddress(t *testing.T) {
 		{"reserved family", []byte{255, 255, 1}, diam.InvalidAVPValue},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			p := dict.New(dict.Base)
+			p := newTestDictionary(dict.Base())
 			p.SetStrict(false)
 			request := diam.NewRequest(diam.CapabilitiesExchange, 0, p)
 			request.AddAVP(diam.NewAVP(avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("peer.example")))

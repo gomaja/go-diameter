@@ -1,4 +1,4 @@
-package dict
+package dict_test
 
 import (
 	"encoding/json"
@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/gomaja/go-diameter/diam/dict"
 )
 
 type gxAVPSpec struct {
@@ -51,12 +53,12 @@ func loadGxSpec(t *testing.T) gxSpec {
 func gxNormalized(s string) string {
 	return normalizeS6aABNFName(strings.ReplaceAll(s, "3GPP", "TGPP"))
 }
-func gxLookup(t *testing.T, name string) *AVP {
+func gxLookup(t *testing.T, reference *dict.Parser, name string) *dict.AVP {
 	t.Helper()
-	for _, app := range Default.Apps() {
+	for _, app := range reference.Apps() {
 		for _, a := range app.AVP {
 			if gxNormalized(a.Name) == gxNormalized(name) {
-				if found, err := Default.FindAVPByName(16777238, a.Name); err == nil {
+				if found, err := reference.FindAVPByName(16777238, a.Name); err == nil {
 					return found
 				}
 			}
@@ -66,7 +68,7 @@ func gxLookup(t *testing.T, name string) *AVP {
 	return nil
 }
 func gxFlags(s string) string {
-	flags, err := parseFlags(s)
+	flags, err := dict.ParseFlagsForTesting(s)
 	if err != nil {
 		return "invalid:" + s
 	}
@@ -75,10 +77,12 @@ func gxFlags(s string) string {
 
 // TS 29.212 V20.0.0 Table 5.3.0.1 and §§5.3.1–5.3.141.
 func TestGxAVPSpec(t *testing.T) {
+	reference := newAllTestParser(t)
+
 	s := loadGxSpec(t)
 	for _, want := range s.AVPs {
 		t.Run(want.Section+"/"+want.Name, func(t *testing.T) {
-			got, err := Default.FindAVP(16777238, want.Code, want.Vendor)
+			got, err := reference.FindAVP(16777238, want.Code, want.Vendor)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -101,7 +105,7 @@ func TestGxAVPSpec(t *testing.T) {
 		})
 	}
 }
-func gxCheckRules(t *testing.T, got []*Rule, want []s6aGroupedRuleSpec) {
+func gxCheckRules(t *testing.T, got []*dict.Rule, want []s6aGroupedRuleSpec) {
 	t.Helper()
 	if len(got) != len(want) {
 		t.Errorf("member count %d, want %d", len(got), len(want))
@@ -120,9 +124,11 @@ func gxCheckRules(t *testing.T, got []*Rule, want []s6aGroupedRuleSpec) {
 
 // TS 29.212 V20.0.0 §§5.6.2–5.6.5; RFC 6733 §3.2 CCF.
 func TestGxCommandSpec(t *testing.T) {
+	reference := newAllTestParser(t)
+
 	for _, want := range loadGxSpec(t).Commands {
 		t.Run(want.Section, func(t *testing.T) {
-			c, err := Default.FindCommand(16777238, want.Code)
+			c, err := reference.FindCommand(16777238, want.Code)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -141,9 +147,11 @@ func TestGxCommandSpec(t *testing.T) {
 // TS 29.212 V20.0.0 Table 5.4.0.1 and Note 5: overrides are Gx-local,
 // including members nested in usage units and Trace-Data. Load already clears M.
 func TestGxReusedAVPSpec(t *testing.T) {
+	reference := newAllTestParser(t)
+
 	for _, want := range loadGxSpec(t).Reused {
 		t.Run(want.Name, func(t *testing.T) {
-			a := gxLookup(t, want.Name)
+			a := gxLookup(t, reference, want.Name)
 			if r := want.Registry; r != nil && (a.Code != r.Code || a.VendorID != r.Vendor) {
 				t.Errorf("registry identity %d/%d, want %d/%d", a.Code, a.VendorID, r.Code, r.Vendor)
 			}
@@ -167,8 +175,8 @@ func TestGxReusedAVPSpec(t *testing.T) {
 			}
 			if want.NestedClearM {
 				visited := map[string]bool{}
-				var walk func(*AVP)
-				walk = func(group *AVP) {
+				var walk func(*dict.AVP)
+				walk = func(group *dict.AVP) {
 					if visited[group.Name] {
 						return
 					}
@@ -186,7 +194,7 @@ func TestGxReusedAVPSpec(t *testing.T) {
 						if r.AVP == "AVP" {
 							continue
 						}
-						member := gxLookup(t, r.AVP)
+						member := gxLookup(t, reference, r.AVP)
 						if group.Name != "Load" {
 							gxCheckClearM(t, member)
 						}
@@ -198,7 +206,7 @@ func TestGxReusedAVPSpec(t *testing.T) {
 		})
 	}
 }
-func gxCheckClearM(t *testing.T, a *AVP) {
+func gxCheckClearM(t *testing.T, a *dict.AVP) {
 	t.Helper()
 	if strings.Contains(a.Must, "M") || !strings.Contains(a.MustNot, "M") {
 		t.Errorf("%s: M must be cleared, flags %+v", a.Name, a)

@@ -1,4 +1,4 @@
-package dict
+package dict_test
 
 import (
 	"encoding/json"
@@ -7,12 +7,16 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/gomaja/go-diameter/diam/dict"
 )
 
 // TS 29.272 V19.6.0 §7.3.1 and TS 29.273 V19.2.0 §8.2.3.0
 // distinguish application requirements from incidental inherited extensions.
 // The fixture records the defining clauses and each application's applicability.
 func TestSMSInheritedApplicationSpec(t *testing.T) {
+	reference := newAllTestParser(t)
+
 	b, err := os.ReadFile("testdata/sms_inheritance_spec.json")
 	if err != nil {
 		t.Fatal(err)
@@ -34,7 +38,7 @@ func TestSMSInheritedApplicationSpec(t *testing.T) {
 				w.Must, w.May, w.MustNot = flags.Must, flags.May, flags.MustNot
 			}
 			t.Run(fmt.Sprintf("%d/%s", app, w.Name), func(t *testing.T) {
-				smsCheckInheritedDefinition(t, app, w)
+				smsCheckInheritedDefinition(t, reference, app, w)
 			})
 		}
 	}
@@ -47,20 +51,20 @@ func TestSMSInheritedApplicationSpec(t *testing.T) {
 			t.Fatalf("SWx definition %d: got %s, want %s", i, w.Name, want[i])
 		}
 		t.Run("SWx-local/"+w.Name, func(t *testing.T) {
-			smsCheckInheritedDefinition(t, 16777265, w)
+			smsCheckInheritedDefinition(t, reference, 16777265, w)
 		})
 	}
 }
 
 // The fixture cites each defining table and clause. A reused AVP's complete
 // definition is checked even when it is only an optional inherited extension.
-func smsCheckInheritedDefinition(t *testing.T, app uint32, w smsDefinitionSpec) {
+func smsCheckInheritedDefinition(t *testing.T, reference *dict.Parser, app uint32, w smsDefinitionSpec) {
 	t.Helper()
-	a, err := Default.FindAVP(app, w.Code, w.Vendor)
+	a, err := reference.FindAVP(app, w.Code, w.Vendor)
 	if err != nil {
 		t.Fatal(err)
 	}
-	byName, err := Default.FindAVPByName(app, w.Name)
+	byName, err := reference.FindAVPByName(app, w.Name)
 	if err != nil || a != byName || a.Name != w.Name || a.Data.TypeName != w.Type {
 		t.Fatalf("identity/type mismatch: %+v, %v", a, err)
 	}

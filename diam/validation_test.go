@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/dict"
@@ -118,6 +120,8 @@ func TestValidateExplicitZeroMaximum(t *testing.T) {
 }
 
 func TestValidateVendorApplicationChoice(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	for _, tc := range []struct {
 		name     string
 		children []*AVP
@@ -127,7 +131,7 @@ func TestValidateVendorApplicationChoice(t *testing.T) {
 		{"both", []*AVP{NewAVP(266, avp.Mbit, 0, datatype.Unsigned32(10415)), NewAVP(258, avp.Mbit, 0, datatype.Unsigned32(1)), NewAVP(259, avp.Mbit, 0, datatype.Unsigned32(1))}, AVPOccursTooManyTimes},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			m := NewMessage(CapabilitiesExchange, RequestFlag, 0, 1, 2, dict.Default)
+			m := NewMessage(CapabilitiesExchange, RequestFlag, 0, 1, 2, testDict)
 			for _, a := range []*AVP{
 				NewAVP(264, avp.Mbit, 0, datatype.DiameterIdentity("peer.example")),
 				NewAVP(296, avp.Mbit, 0, datatype.DiameterIdentity("example")),
@@ -147,7 +151,9 @@ func TestValidateVendorApplicationChoice(t *testing.T) {
 }
 
 func TestValidateGenericProtocolError(t *testing.T) {
-	m := NewMessage(0xfedc, ErrorFlag|ProxiableFlag, 0, 1, 2, dict.Default)
+	testDict := newTestDictionary(dict.Base())
+
+	m := NewMessage(0xfedc, ErrorFlag|ProxiableFlag, 0, 1, 2, testDict)
 	m.AddAVP(NewAVP(avp.ResultCode, avp.Mbit, 0, datatype.Unsigned32(InvalidHDRBits)))
 	if got := m.Validate(); got == nil || got.ResultCode != MissingAVP || got.FailedAVP.Code != avp.OriginHost {
 		t.Fatalf("incomplete generic error answer: %v", got)
@@ -160,7 +166,9 @@ func TestValidateGenericProtocolError(t *testing.T) {
 }
 
 func TestValidateBaseDPRRequiresCause(t *testing.T) {
-	m := NewRequest(DisconnectPeer, 0, dict.Default)
+	testDict := newTestDictionary(dict.Base())
+
+	m := NewRequest(DisconnectPeer, 0, testDict)
 	m.AddAVP(NewAVP(avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("host.example")))
 	m.AddAVP(NewAVP(avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("example")))
 	if got := m.Validate(); got == nil || got.ResultCode != MissingAVP || got.FailedAVP.Code != avp.DisconnectCause {
@@ -231,7 +239,9 @@ func TestValidateProgrammaticMaximum(t *testing.T) {
 }
 
 func TestValidateCreditControlFixedSessionID(t *testing.T) {
-	request := NewMessage(CreditControl, RequestFlag|ProxiableFlag, 4, 1, 2, dict.Default)
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
+	request := NewMessage(CreditControl, RequestFlag|ProxiableFlag, 4, 1, 2, testDict)
 	request.AddAVP(NewAVP(avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("peer.example")))
 	request.AddAVP(NewAVP(avp.SessionID, avp.Mbit, 0, datatype.UTF8String("session")))
 	request.AddAVP(NewAVP(avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("example")))
@@ -243,7 +253,7 @@ func TestValidateCreditControlFixedSessionID(t *testing.T) {
 	if got := request.Validate(); got == nil || got.ResultCode != AVPNotAllowed || got.FailedAVP.Code != avp.SessionID {
 		t.Fatalf("CCR fixed Session-Id: %v", got)
 	}
-	answer := NewMessage(CreditControl, ProxiableFlag, 4, 1, 2, dict.Default)
+	answer := NewMessage(CreditControl, ProxiableFlag, 4, 1, 2, testDict)
 	answer.AddAVP(NewAVP(avp.ResultCode, avp.Mbit, 0, datatype.Unsigned32(Success)))
 	answer.AddAVP(NewAVP(avp.SessionID, avp.Mbit, 0, datatype.UTF8String("session")))
 	answer.AddAVP(NewAVP(avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("server.example")))
@@ -257,7 +267,9 @@ func TestValidateCreditControlFixedSessionID(t *testing.T) {
 }
 
 func TestValidateCreditControlExtensionAVP(t *testing.T) {
-	request := NewMessage(CreditControl, RequestFlag|ProxiableFlag, 4, 1, 2, dict.Default)
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
+	request := NewMessage(CreditControl, RequestFlag|ProxiableFlag, 4, 1, 2, testDict)
 	for _, field := range []struct {
 		code  uint32
 		value datatype.Type

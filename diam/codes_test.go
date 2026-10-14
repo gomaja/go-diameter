@@ -10,6 +10,8 @@ import (
 )
 
 func TestResultCodeValuesOnWire(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	// RFC 6733 §7.1, RFC 8506 §9.2, and IANA Result-Code AVP Values.
 	for _, tc := range []struct {
 		name        string
@@ -52,12 +54,12 @@ func TestResultCodeValuesOnWire(t *testing.T) {
 		{"NoCommonSecurity", NoCommonSecurity, 5017},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			answer := NewRequest(CapabilitiesExchange, 0, dict.Default).Answer(tc.value)
+			answer := NewRequest(CapabilitiesExchange, 0, testDict).Answer(tc.value)
 			var wire bytes.Buffer
 			if _, err := answer.WriteTo(&wire); err != nil {
 				t.Fatal(err)
 			}
-			decoded, err := ReadMessage(&wire, dict.Default)
+			decoded, err := ReadMessage(&wire, testDict)
 			if err != nil {
 				t.Fatal(err)
 			}

@@ -1,4 +1,4 @@
-package dict
+package dict_test
 
 import (
 	"encoding/json"
@@ -6,6 +6,8 @@ import (
 	"os"
 	"strconv"
 	"testing"
+
+	"github.com/gomaja/go-diameter/diam/dict"
 )
 
 func loadRFC5777Spec(t *testing.T) creditControlSpec {
@@ -35,16 +37,18 @@ func loadRFC5777Spec(t *testing.T) creditControlSpec {
 // RFC 5777 §§3–6, 10.1; Verified Errata 2333–2336. RFC 6733 §4.1
 // governs vendor-zero flags; §3.2 and Erratum 4803 govern CCF notation.
 func TestRFC5777EffectiveDefinitions(t *testing.T) {
+	reference := newAllTestParser(t)
+
 	spec := loadRFC5777Spec(t)
 	for _, app := range []uint32{3, 4, 16777236, 16777238, 16777251, 16777265, 16777302, 16777312, 16777313} {
 		t.Run(strconv.FormatUint(uint64(app), 10), func(t *testing.T) {
 			for _, want := range spec.AVPs {
 				t.Run(want.Name, func(t *testing.T) {
-					got, err := Default.FindAVP(app, want.Code, 0)
+					got, err := reference.FindAVP(app, want.Code, 0)
 					if err != nil {
 						t.Fatal(err)
 					}
-					byName, err := Default.FindAVPByName(app, want.Name)
+					byName, err := reference.FindAVPByName(app, want.Name)
 					if err != nil || byName != got {
 						t.Fatalf("name/code disagree: %v", err)
 					}
@@ -69,7 +73,7 @@ func TestRFC5777EffectiveDefinitions(t *testing.T) {
 					checkCreditControlRules(t, got.Data.Rule, want.Rules)
 					for _, r := range want.Rules {
 						if r.Name != "AVP" {
-							if _, err := Default.FindAVPByName(app, r.Name); err != nil {
+							if _, err := reference.FindAVPByName(app, r.Name); err != nil {
 								t.Errorf("unresolved %s: %v", r.Name, err)
 							}
 						}
@@ -82,7 +86,7 @@ func TestRFC5777EffectiveDefinitions(t *testing.T) {
 	// inherit application 4. QoS support must not leak into their dictionaries.
 	for _, app := range []uint32{0, 1, 16777216, 16777217, 16777252} {
 		for _, a := range spec.AVPs {
-			if _, err := Default.FindAVP(app, a.Code, 0); !errors.Is(err, ErrNotFound) {
+			if _, err := reference.FindAVP(app, a.Code, 0); !errors.Is(err, dict.ErrNotFound) {
 				t.Errorf("app %d unexpectedly resolves %s: %v", app, a.Name, err)
 			}
 		}

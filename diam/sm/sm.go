@@ -95,7 +95,10 @@ type Settings struct {
 
 	// Dict supplies application metadata for derived advertisement and
 	// validation. If nil, each connection's dictionary is used, falling back
-	// to the message dictionary when needed (RFC 6733 §5.3).
+	// to the message dictionary when needed (RFC 6733 §5.3). Nil transport
+	// dictionaries use the shared, initially base-only dict.Default. Supply
+	// the same selected parser here and on the client or server for application
+	// decoding, validation, and capability inference.
 	Dict *dict.Parser
 
 	// OnHandshake runs once after a successful CER/CEA exchange (RFC 6733 §5.3):

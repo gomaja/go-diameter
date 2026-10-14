@@ -72,8 +72,9 @@ For S6a clients and servers, see `examples/s6a_client` and
 `examples/s6a_server`. For the S6a proxy service, see Magma's upstream
 [`feg/gateway/services/s6a_proxy`](https://github.com/magma/magma/tree/master/feg/gateway/services/s6a_proxy).
 
-The examples load a small custom dictionary on top of the default Diameter
-dictionaries, perform CER/CEA capability exchange, send a request, and handle
+The hello examples construct a selected parser, load a small custom
+dictionary, and pass that same parser to the client or server and state
+machine. They perform CER/CEA capability exchange, send a request, and handle
 the answer.
 
 ## Package Map
@@ -82,10 +83,12 @@ the answer.
 - `diam/avp`: Diameter AVP codes and flags.
 - `diam/datatype`: Diameter AVP data types such as `UTF8String`,
   `Unsigned32`, `DiameterIdentity`, `Address`, and grouped values.
-- `diam/dict`: XML dictionary parser, embedded dictionaries that can be
-  selected with automatic dependency inclusion (for Gx, `dict.New(dict.Gx)`),
-  and AVP registration at runtime. Dictionaries can change while messages
-  are decoded.
+- `diam/dict`: XML dictionary parser and base definitions. Application
+  packages such as `diam/dict/gx` expose immutable descriptors with automatic
+  prerequisite inclusion (`dict.New(gx.Dictionary())`). Parsers support
+  runtime XML loading and AVP registration while messages are decoded.
+- `diam/dict/all`: explicit selection of every shipped dictionary for
+  diagnostic programs such as `examples/snoop`.
 - `diam/sm`: peer state machines for CER/CEA and DWR/DWA handling.
 - `diam/sm/smparser`: helpers for parsing state-machine messages.
 - `diam/sm/smpeer`: peer metadata attached to accepted connections.
@@ -239,24 +242,55 @@ Core IETF references:
 - [RFC 5516](https://www.rfc-editor.org/rfc/rfc5516): 3GPP EPS Diameter
   command-code registration.
 
-The bundled dictionaries (`dict.Bundled`) and the documents they follow:
+The dictionary descriptors and the documents they follow:
 
-| Bundle | Applications | Specification |
+| Descriptor | Applications | Specification |
 | --- | --- | --- |
-| `Base` | 0 Common Messages, 3 Base Accounting | RFC 6733, RFC 7075, RFC 7683, RFC 8581, RFC 8583, RFC 7944 |
-| `CreditControl` | 4 Credit-Control | RFC 8506, RFC 5777 |
-| `NASREQ` | 1 Network Access Server | RFC 7155 |
-| `RoRf` | 4 Ro, 3 Rf | 3GPP TS 32.299 V19.0.0, oneM2M TS-0004 V5.2.0 Annex A |
-| `Gx` | 16777238 | 3GPP TS 29.212 V20.0.0 |
-| `Rx` | 16777236 | 3GPP TS 29.214 V20.0.0 |
-| `Sy` | 16777302 | 3GPP TS 29.219 V19.0.0 |
-| `Cx` | 16777216 Cx/Dx | 3GPP TS 29.229 V19.1.0 |
-| `Sh` | 16777217 | 3GPP TS 29.329 V19.1.0 |
-| `S6a` | 16777251 S6a/S6d | 3GPP TS 29.272 V19.6.0 |
-| `S13` | 16777252 S13/S13' | 3GPP TS 29.272 V19.6.0 |
-| `S6c` | 16777312 | 3GPP TS 29.338 V19.3.0 |
-| `SGd` | 16777313 SGd/Gdd | 3GPP TS 29.338 V19.3.0 |
-| `SWx` | 16777265 | 3GPP TS 29.273 V19.2.0 |
+| `dict.Base()` | 0 Common Messages, 3 Base Accounting | RFC 6733, RFC 7075, RFC 7683, RFC 8581, RFC 8583, RFC 7944 |
+| `creditcontrol.Dictionary()` | 4 Credit-Control | RFC 8506, RFC 5777 |
+| `nasreq.Dictionary()` | 1 Network Access Server | RFC 7155 |
+| `rorf.Dictionary()` | 4 Ro, 3 Rf | 3GPP TS 32.299 V19.0.0, oneM2M TS-0004 V5.2.0 Annex A |
+| `gx.Dictionary()` | 16777238 | 3GPP TS 29.212 V20.0.0 |
+| `rx.Dictionary()` | 16777236 | 3GPP TS 29.214 V20.0.0 |
+| `sy.Dictionary()` | 16777302 | 3GPP TS 29.219 V19.0.0 |
+| `cx.Dictionary()` | 16777216 Cx/Dx | 3GPP TS 29.229 V19.1.0 |
+| `sh.Dictionary()` | 16777217 | 3GPP TS 29.329 V19.1.0 |
+| `s6a.Dictionary()` | 16777251 S6a/S6d | 3GPP TS 29.272 V19.6.0 |
+| `s13.Dictionary()` | 16777252 S13/S13' | 3GPP TS 29.272 V19.6.0 |
+| `s6c.Dictionary()` | 16777312 | 3GPP TS 29.338 V19.3.0 |
+| `sgd.Dictionary()` | 16777313 SGd/Gdd | 3GPP TS 29.338 V19.3.0 |
+| `swx.Dictionary()` | 16777265 | 3GPP TS 29.273 V19.2.0 |
+
+Import only the application packages you need and construct a parser explicitly:
+
+```go
+import (
+    "github.com/gomaja/go-diameter/diam/dict"
+    "github.com/gomaja/go-diameter/diam/dict/gx"
+)
+
+dictionary, err := dict.New(gx.Dictionary())
+if err != nil {
+    return err
+}
+// Use dictionary for sm.Settings.Dict, sm.Client.Dict, and diam.Server.Dict.
+```
+
+Every application descriptor includes base and its prerequisites. Credit-Control
+and Ro/Rf select both charging sources and NASREQ; Sy, Gx, Rx, and S6c include
+that charging selection. Cx includes NASREQ, Sh includes Cx, S6a and SGd include
+S6c, and SWx includes S6a. NASREQ and S13 require only base. Selecting a
+descriptor can therefore advertise prerequisite applications during capability
+inference. Configure explicit capability lists when the peer should offer a
+narrower set.
+
+`dict.New(dict.Base())` creates a base-only parser; `dict.New()` and the zero
+`dict.Parser` are empty. `dict.Default` is a shared parser that initially
+contains base only. Imports never register application definitions globally.
+Construct a local parser and pass the same instance throughout the stack when
+using application XML or custom definitions. Each parser has independent
+registrations, policy, and updates; selected sources load in canonical filename
+order. `dict.New(all.Dictionary())` explicitly selects the full corpus.
 
 Each was the latest published version when its dictionary was last audited.
 AVPs a specification reuses from another document follow that document's
@@ -606,9 +640,11 @@ Keep changes small, standards-linked, and testable.
 
 When adding or changing AVPs:
 
-1. Update the XML dictionaries under `diam/dict/bundled`. Package `dict`
-   embeds them as they are. A new dictionary file also needs its named
-   `dict.Bundled` constant and dependency entry in `diam/dict/bundled.go`.
+1. Update the XML source in its owning package under `diam/dict`. Base
+   remains in `dict`; Credit-Control and Ro/Rf sources live in their `data`
+   leaf packages and compose through `internal/charging`. A new application
+   package must expose `Dictionary()` with explicit prerequisites, join the
+   `all` selection, and add its source to the generator's explicit manifest.
 2. Regenerate the command, application and AVP code constants:
 
    ```sh

@@ -22,7 +22,7 @@ func TestInheritanceParentsMustBeDeclared(t *testing.T) {
 		{"relay declared", `<application id="40" inherits="4294967295"/><application id="4294967295"/>`, "40", "4294967295", false, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			p := New(Base)
+			p := newTestParser(t, Base())
 			if tc.register {
 				mustRegister(t, p, 999, &AVP{Name: "Registered", Code: 70001, Data: Data{TypeName: "Unsigned32"}})
 			}
@@ -110,7 +110,7 @@ func TestInheritanceCrossBranchNameConflicts(t *testing.T) {
 	for _, second := range []struct{ code, vendor uint32 }{{70002, 10415}, {70001, 99999}} {
 		for _, mode := range []string{"siblings", "transitive", "same precedence"} {
 			t.Run(fmt.Sprintf("load/%v/%s", second, mode), func(t *testing.T) {
-				p := New(Base)
+				p := newTestParser(t, Base())
 				before := p.Snapshot()
 				dump := dumpSnapshot(before)
 				graph := `<application id="40" inherits="41 42"/>`
@@ -130,7 +130,7 @@ func TestInheritanceCrossBranchNameConflicts(t *testing.T) {
 			})
 		}
 		t.Run(fmt.Sprintf("register/%v", second), func(t *testing.T) {
-			p := New(Base)
+			p := newTestParser(t, Base())
 			graph := `<application id="40" inherits="41 42"/><application id="42"/>` + nameDefinition(41, 70001, 10415, "Foo", "Unsigned32")
 			if err := p.Load(strings.NewReader("<diameter>" + graph + "</diameter>")); err != nil {
 				t.Fatal(err)
@@ -185,29 +185,6 @@ func assertInheritanceNameConflict(t *testing.T, err error, code, vendor uint32)
 	for _, part := range []string{"application 40", "Foo", "code 70001", "vendor 10415", fmt.Sprintf("code %d", code), fmt.Sprintf("vendor %d", vendor)} {
 		if !strings.Contains(err.Error(), part) {
 			t.Errorf("error %q lacks %q", err, part)
-		}
-	}
-}
-
-func TestUnresolvedRuleExplainsInheritance(t *testing.T) {
-	for _, body := range []string{
-		`<avp name="Custom" code="70001"><data type="Grouped"><rule avp="Service-Information"/></data></avp>`,
-		`<command code="900" name="Custom"><request><rule avp="Service-Information"/></request><answer/></command>`,
-		`<command code="900" name="Custom"><request/><answer><rule avp="Service-Information"/></answer></command>`,
-	} {
-		p := New(RoRf)
-		before := p.Snapshot()
-		err := p.Load(strings.NewReader(`<diameter><application id="16777238">` + body + `</application></diameter>`))
-		if !errors.Is(err, ErrAVPConflict) || !errors.Is(err, ErrNotFound) {
-			t.Fatalf("unresolved rule = %v; want ErrAVPConflict and ErrNotFound", err)
-		}
-		for _, part := range []string{"Service-Information", "application 16777238", "inherited definitions require", "defining application", "inherits attribute"} {
-			if !strings.Contains(err.Error(), part) {
-				t.Errorf("unresolved rule error lacks %q: %v", part, err)
-			}
-		}
-		if p.Snapshot() != before {
-			t.Error("unresolved rule published a snapshot")
 		}
 	}
 }

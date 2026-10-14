@@ -4,12 +4,24 @@ import (
 	"bytes"
 	"testing"
 
+	"github.com/gomaja/go-diameter/diam/dict/s6a"
+
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+	"github.com/gomaja/go-diameter/diam/dict/nasreq"
+	"github.com/gomaja/go-diameter/diam/dict/rorf"
+	"github.com/gomaja/go-diameter/diam/dict/s6c"
+
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/dict"
 )
 
 func TestValidateOutgoingFlags(t *testing.T) {
+	testDict :=
+
+		// Deliberately corrupt the normalized constructor output.
+
+		newTestDictionary(s6a.Dictionary())
 	for _, tc := range []struct {
 		name   string
 		change func(*Message) *AVP
@@ -35,7 +47,7 @@ func TestValidateOutgoingFlags(t *testing.T) {
 		}, InvalidAVPBits},
 		{"unknown V set without vendor", func(m *Message) *AVP {
 			a := NewAVP(0xfedc, 0, 0, datatype.OctetString("unknown"))
-			a.Flags |= avp.Vbit // Deliberately corrupt the normalized constructor output.
+			a.Flags |= avp.Vbit
 			m.AddAVP(a)
 			return a
 		}, InvalidAVPBits},
@@ -52,7 +64,7 @@ func TestValidateOutgoingFlags(t *testing.T) {
 		}, 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			m := validationULR(t)
+			m := validationULR(t, testDict)
 			failed := tc.change(m)
 			got := m.ValidateOutgoing()
 			if tc.code == 0 {
@@ -69,6 +81,7 @@ func TestValidateOutgoingFlags(t *testing.T) {
 }
 
 func TestValidateOutgoingGroupedFlags(t *testing.T) {
+	testDict := newTestDictionary(s6a.Dictionary())
 	for _, tc := range []struct {
 		name         string
 		code, vendor uint32
@@ -81,7 +94,7 @@ func TestValidateOutgoingGroupedFlags(t *testing.T) {
 		{"Failed-AVP evidence", avp.FailedAVP, 0, avp.Mbit, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			m := validationULR(t)
+			m := validationULR(t, testDict)
 			child := NewAVP(avp.VendorID, 0, 0, datatype.Unsigned32(10415))
 			parent := NewAVP(tc.code, tc.flags, tc.vendor, &GroupedAVP{AVP: []*AVP{child, NewAVP(avp.AuthApplicationID, avp.Mbit, 0, datatype.Unsigned32(TGPP_S6A_APP_ID))}})
 			m.AddAVP(parent)
@@ -104,7 +117,9 @@ func TestValidateOutgoingGroupedFlags(t *testing.T) {
 }
 
 func TestValidateOutgoingFailedAVPEvidence(t *testing.T) {
-	m := validationULR(t)
+	testDict := newTestDictionary(s6a.Dictionary())
+
+	m := validationULR(t, testDict)
 	bad := NewAVP(avp.VendorSpecificApplicationID, avp.Vbit|avp.Pbit|0x1f, 0, &GroupedAVP{AVP: []*AVP{
 		NewAVP(avp.VendorID, 0, 0, datatype.Unsigned32(10415)),
 	}})
@@ -131,12 +146,14 @@ func TestValidateOutgoingFailedAVPEvidence(t *testing.T) {
 }
 
 func TestValidateOutgoingApplicationPRestriction(t *testing.T) {
+	testDict := newTestDictionary(s6a.Dictionary())
+
 	// TS 29.273 V19.2.0, Tables 5.2.3.1/1 and 8.2.3.0/1 prohibit P.
 	for _, a := range []*AVP{
 		NewAVP(318, avp.Mbit|avp.Vbit, 10415, datatype.DiameterIdentity("aaa.example")),
 		NewAVP(1524, avp.Vbit, 10415, datatype.OctetString("ssid")),
 	} {
-		snapshot := dict.Default.Snapshot()
+		snapshot := testDict.Snapshot()
 		if err := walkOutgoingFlags([]*AVP{a}, CHARGING_CONTROL_APP_ID, snapshot, make(map[*GroupedAVP]bool), nil); err != nil {
 			t.Fatal(err)
 		}
@@ -148,7 +165,7 @@ func TestValidateOutgoingApplicationPRestriction(t *testing.T) {
 }
 
 func TestValidateOutgoingUnruledGroup(t *testing.T) {
-	d := dict.New(dict.Base, dict.NASREQ, dict.CreditControl, dict.RoRf, dict.S6c, dict.S6a)
+	d := newTestDictionary(dict.Base(), nasreq.Dictionary(), creditcontrol.Dictionary(), rorf.Dictionary(), s6c.Dictionary(), s6a.Dictionary())
 	if err := d.Load(bytes.NewBufferString(`<diameter><application id="16777251" name="test"><avp name="Unruled" code="65000"><data type="Grouped"/></avp></application></diameter>`)); err != nil {
 		t.Fatal(err)
 	}
@@ -160,19 +177,23 @@ func TestValidateOutgoingUnruledGroup(t *testing.T) {
 }
 
 func TestValidateOutgoingInvalidGroups(t *testing.T) {
+	testDict := newTestDictionary(s6a.Dictionary())
+
 	for _, children := range [][]*AVP{
 		{nil},
 		{{Code: 65000, Data: (*GroupedAVP)(nil)}},
 	} {
 		parent := &AVP{Code: 65001, Data: &GroupedAVP{AVP: children}}
-		if err := walkOutgoingFlags([]*AVP{parent}, 0, dict.Default.Snapshot(), make(map[*GroupedAVP]bool), nil); err == nil {
+		if err := walkOutgoingFlags([]*AVP{parent}, 0, testDict.Snapshot(), make(map[*GroupedAVP]bool), nil); err == nil {
 			t.Fatal("accepted invalid outgoing group")
 		}
 	}
 }
 
 func TestValidateOutgoingGroupCycles(t *testing.T) {
-	m := validationULR(t)
+	testDict := newTestDictionary(s6a.Dictionary())
+
+	m := validationULR(t, testDict)
 	group := &GroupedAVP{}
 	a := NewAVP(65000, 0, 0, group)
 	group.AVP = []*AVP{a}

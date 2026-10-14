@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/dict"
@@ -14,6 +16,8 @@ import (
 // RFC 6733 (October 2012) §§4.1, 4.1.1: V indicates the optional Vendor-Id field;
 // AVP Length includes that field and excludes padding. Vendor-Id 0 is reserved.
 func TestNewAVPVendorFlagAndLength(t *testing.T) {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
 	for _, vendor := range []uint32{0, 10415} {
 		for _, flags := range []uint8{0, avp.Vbit, avp.Mbit | avp.Pbit, avp.Mbit | avp.Pbit | avp.Vbit} {
 			for _, payload := range []string{"", "abcd", "abcde"} {
@@ -25,7 +29,7 @@ func TestNewAVPVendorFlagAndLength(t *testing.T) {
 						header = 12
 					}
 					wantLength := header + len(payload)
-					m := NewRequest(272, 4, dict.Default)
+					m := NewRequest(272, 4, testDict)
 					for _, makeAVP := range []func() *AVP{
 						func() *AVP { return NewAVP(70001, flags, vendor, datatype.UTF8String(payload)) },
 						func() *AVP {
@@ -62,7 +66,7 @@ func TestNewAVPVendorFlagAndLength(t *testing.T) {
 		header int
 	}{{"TGPP-GGSN-MCC-MNC", 10415, 12}, {"User-Name", 0, 8}} {
 		for _, flags := range []uint8{0, avp.Vbit} {
-			m := NewRequest(272, 4, dict.Default)
+			m := NewRequest(272, 4, testDict)
 			a, err := m.NewAVPByName(tc.name, flags, datatype.UTF8String("abcd"))
 			if err != nil {
 				t.Fatal(err)
@@ -80,7 +84,7 @@ func TestUnknownAVPDecodeAllocations(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, strict := range []bool{false, true} {
-		p := dict.New(dict.Base)
+		p := newTestDictionary(dict.Base())
 		p.SetStrict(strict)
 		var got AVP
 		count := testing.AllocsPerRun(100, func() {
@@ -101,8 +105,10 @@ func TestUnknownAVPDecodeAllocations(t *testing.T) {
 }
 
 func TestUnknownMandatoryPresenceDoesNotAllocate(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	a := NewAVP(70001, avp.Mbit|avp.Vbit, 10415, datatype.Unknown{1, 2, 3, 4})
-	s := dict.Default.Snapshot()
+	s := testDict.Snapshot()
 	if n := testing.AllocsPerRun(100, func() {
 		if unknownMandatoryHierarchy(a, 4, s) != a {
 			t.Fatal("missing unknown mandatory AVP")
@@ -113,13 +119,15 @@ func TestUnknownMandatoryPresenceDoesNotAllocate(t *testing.T) {
 }
 
 func TestDecodeAVPResetsAbsentVendor(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	var reused AVP
 	for _, vendor := range []uint32{10415, 0} {
 		wire, err := NewAVP(70001, 0, vendor, datatype.Unknown{1, 2, 3, 4}).Serialize()
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := reused.DecodeFromBytes(wire, 4, dict.Default); err != nil {
+		if err := reused.DecodeFromBytes(wire, 4, testDict); err != nil {
 			t.Fatal(err)
 		}
 		if reused.VendorID != vendor {

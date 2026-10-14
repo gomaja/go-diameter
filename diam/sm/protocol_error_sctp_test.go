@@ -7,15 +7,21 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/diamtest"
-	"github.com/gomaja/go-diameter/diam/dict"
 	"github.com/gomaja/go-diameter/diam/internal/logtest"
 	"github.com/gomaja/go-diameter/diam/sm/smpeer"
 )
 
 func TestProtocolErrorInvalidDWRSCTPStream(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings2 :=
+
+		cloneTestSettings(serverSettings2, testDict)
+
 	requireSCTP(t)
 	events := make(chan diam.ProtocolErrorEvent, 4)
 	handshakes := make(chan diam.Conn, 1)
@@ -23,14 +29,14 @@ func TestProtocolErrorInvalidDWRSCTPStream(t *testing.T) {
 	cfg.OnProtocolError = func(event diam.ProtocolErrorEvent) { events <- event }
 	cfg.OnHandshake = func(c diam.Conn, _ *smpeer.Metadata) { handshakes <- c }
 	logs := logtest.New()
-	server := diamtest.NewUnstartedServerNetwork("sctp", mustNewStateMachine(t, &cfg), dict.Default)
+	server := diamtest.NewUnstartedServerNetwork("sctp", mustNewStateMachine(t, &cfg, testDict), testDict)
 	server.Config.Logger = logs.Logger()
 	server.Start()
 	defer server.Close()
 	answers := make(chan *diam.Message, 4)
 	mux := diam.NewServeMux()
 	mux.HandleFunc("ALL", func(_ diam.Conn, m *diam.Message) { answers <- m })
-	peer, err := diam.DialNetworkTimeout("sctp", server.Addr, mux, dict.Default, 5*time.Second)
+	peer, err := diam.DialNetworkTimeout("sctp", server.Addr, mux, testDict, 5*time.Second)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -20,7 +20,7 @@ func TestLoadAVPNameScope(t *testing.T) {
 	for _, split := range []bool{false, true} {
 		for _, other := range []struct{ code, vendor uint32 }{{70001, 99999}, {70002, 10415}} {
 			t.Run(fmt.Sprintf("split=%t/%v", split, other), func(t *testing.T) {
-				p := New(Base)
+				p := newTestParser(t, Base())
 				input := first
 				if split {
 					if err := p.Load(strings.NewReader("<diameter>" + first + "</diameter>")); err != nil {
@@ -45,7 +45,7 @@ func TestLoadAVPNameScope(t *testing.T) {
 	t.Run("child shadows parent", func(t *testing.T) {
 		child := nameDefinition(16777238, 70001, 99999, "Dup-Name", "Unsigned32")
 		for _, input := range []string{first + child, child + first} {
-			p := New()
+			p := newTestParser(t)
 			if err := p.Load(strings.NewReader("<diameter>" + input + "</diameter>")); err != nil {
 				t.Fatal(err)
 			}
@@ -63,7 +63,7 @@ func TestLoadAVPNameScope(t *testing.T) {
 }
 
 func TestLoadReplacesCodeAndRemovesOldName(t *testing.T) {
-	p := New()
+	p := newTestParser(t)
 	first := nameDefinition(4, 70001, 10415, "Old-Name", "UTF8String")
 	if err := p.Load(strings.NewReader("<diameter>" + first + "</diameter>")); err != nil {
 		t.Fatal(err)

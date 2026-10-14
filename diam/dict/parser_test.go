@@ -2,29 +2,41 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-package dict
+package dict_test
 
 import (
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/gomaja/go-diameter/diam/dict"
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+	"github.com/gomaja/go-diameter/diam/dict/nasreq"
+	"github.com/gomaja/go-diameter/diam/dict/rorf"
+	"github.com/gomaja/go-diameter/diam/dict/rx"
+	"github.com/gomaja/go-diameter/diam/dict/s6a"
+	"github.com/gomaja/go-diameter/diam/dict/s6c"
 )
 
 func TestNewParser(t *testing.T) {
+	reference := newAllTestParser(t)
+
 	var files []string
-	for _, b := range AllBundled() {
-		files = append(files, "bundled/"+string(b))
+	for _, name := range sourceNames(t) {
+		files = append(files, sourcePath(t, name))
 	}
-	p, err := NewParser(files...)
+	p, err := dict.NewParser(files...)
 	if err != nil {
 		t.Fatal(err)
 	}
-	diffDumps(t, "NewParser", dumpSnapshot(p.Snapshot()), dumpSnapshot(Default.Snapshot()))
+	diffDumps(t, "NewParser", dumpSnapshot(p.Snapshot()), dumpSnapshot(reference.Snapshot()))
 }
 
 // TS 29.214 §5.3.0 and §5.4.0: Rx AVPs with V set carry a vendor ID.
-func TestDefaultDictVendorID(t *testing.T) {
-	for _, app := range Default.Apps() {
+func TestShippedDictVendorID(t *testing.T) {
+	reference := newAllTestParser(t)
+
+	for _, app := range reference.Apps() {
 		for _, avp := range app.AVP {
 			if strings.Contains(avp.Must, "V") && avp.VendorID == 0 {
 				t.Errorf("app %d: AVP %s (%d) has V in must but no vendor-id", app.ID, avp.Name, avp.Code)
@@ -34,6 +46,8 @@ func TestDefaultDictVendorID(t *testing.T) {
 }
 
 func TestRxVendorIDs(t *testing.T) {
+	reference := newAllTestParser(t)
+
 	// TS 29.214 §5.3.0 (defined AVPs) and §5.4.0 (reused AVPs).
 	const rxAppID, vendorID = 16777236, 10415
 	for _, tc := range []struct {
@@ -48,10 +62,12 @@ func TestRxVendorIDs(t *testing.T) {
 	} {
 		for _, source := range []struct {
 			name string
-			load func() (*Parser, error)
+			load func() (*dict.Parser, error)
 		}{
-			{"embedded", func() (*Parser, error) { return Default, nil }},
-			{"selected", func() (*Parser, error) { return New(Rx, CreditControl, RoRf, NASREQ, Base), nil }},
+			{"embedded", func() (*dict.Parser, error) { return reference, nil }},
+			{"selected", func() (*dict.Parser, error) {
+				return newTestParser(t, rx.Dictionary(), creditcontrol.Dictionary(), rorf.Dictionary(), nasreq.Dictionary(), dict.Base()), nil
+			}},
 		} {
 			p, err := source.load()
 			if err != nil {
@@ -66,14 +82,18 @@ func TestRxVendorIDs(t *testing.T) {
 }
 
 func TestS6aReusedIETFAVPsHaveNoVendor(t *testing.T) {
+	reference := newAllTestParser(t)
+
 	// TS 29.272 Table 7.3.1/2 and §§7.3.36, 7.3.42, 7.3.45.
 	const s6aAppID = 16777251
 	for _, source := range []struct {
 		name string
-		load func() (*Parser, error)
+		load func() (*dict.Parser, error)
 	}{
-		{"embedded", func() (*Parser, error) { return Default, nil }},
-		{"selected", func() (*Parser, error) { return New(S6a, S6c, CreditControl, RoRf, NASREQ, Base), nil }},
+		{"embedded", func() (*dict.Parser, error) { return reference, nil }},
+		{"selected", func() (*dict.Parser, error) {
+			return newTestParser(t, s6a.Dictionary(), s6c.Dictionary(), creditcontrol.Dictionary(), rorf.Dictionary(), nasreq.Dictionary(), dict.Base()), nil
+		}},
 	} {
 		p, err := source.load()
 		if err != nil {
@@ -96,8 +116,8 @@ func TestS6aReusedIETFAVPsHaveNoVendor(t *testing.T) {
 }
 
 func TestLoadFile(t *testing.T) {
-	p := New()
-	for _, dict := range []string{"bundled/base.xml", "bundled/network_access_server.xml"} {
+	p := newTestParser(t)
+	for _, dict := range []string{"base.xml", "nasreq/network_access_server.xml"} {
 		if err := p.LoadFile(dict); err != nil {
 			t.Fatalf("Error Loading %s: %s", dict, err)
 		}
@@ -105,8 +125,8 @@ func TestLoadFile(t *testing.T) {
 }
 
 func TestLoad(t *testing.T) {
-	p := New()
-	for _, dict := range []string{"bundled/base.xml", "bundled/network_access_server.xml"} {
+	p := newTestParser(t)
+	for _, dict := range []string{"base.xml", "nasreq/network_access_server.xml"} {
 		f, err := os.Open(dict)
 		if err != nil {
 			t.Fatalf("Error Opening %s: %s", dict, err)

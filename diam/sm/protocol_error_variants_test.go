@@ -7,14 +7,17 @@ import (
 	"net"
 	"testing"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
-	"github.com/gomaja/go-diameter/diam/dict"
 	"github.com/gomaja/go-diameter/diam/internal/logtest"
 )
 
 func TestProtocolErrorCERValidationVariantsWire(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	for _, admitted := range []bool{false, true} {
 		for _, tc := range []struct {
 			name                       string
@@ -37,7 +40,7 @@ func TestProtocolErrorCERValidationVariantsWire(t *testing.T) {
 					c.RejectUnknownMandatoryAVPs = tc.unknown
 					c.HandshakeTimeout = -1
 				}, admitted)
-				cer := regressionCER(t, dict.Default, 1001)
+				cer := regressionCER(t, testDict, 1001)
 				if tc.missing {
 					for i, a := range cer.AVP {
 						if a.Code == avp.OriginHost {
@@ -63,7 +66,7 @@ func TestProtocolErrorCERValidationVariantsWire(t *testing.T) {
 					}
 				}
 				header := p.send(t, cer)
-				answer, err := diam.ReadMessage(p.peer, dict.Default)
+				answer, err := diam.ReadMessage(p.peer, testDict)
 				flags := uint8(0)
 				if tc.code == 3009 {
 					flags = diam.ErrorFlag // RFC 6733 §§7.1.3, 7.2.
@@ -122,11 +125,13 @@ func TestProtocolErrorCERValidationVariantsWire(t *testing.T) {
 }
 
 func TestProtocolErrorNestedUnknownMandatoryWire(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	p := newProtocolWire(t, func(c *Settings) { c.ValidateRequests = true; c.RejectUnknownMandatoryAVPs = true }, true)
 	request := unknownRequest(true, avp.Mbit)
 	request.AddAVP(diam.NewAVP(0xfedd, avp.Mbit|avp.Vbit, 10415, datatype.Unknown("second")))
 	header := p.send(t, request)
-	answer, err := diam.ReadMessage(p.peer, dict.Default)
+	answer, err := diam.ReadMessage(p.peer, testDict)
 	if err != nil || !testResultCode(answer, 5001) || answer.Header.CommandFlags != diam.ProxiableFlag || answer.Header.HopByHopID != header.HopByHopID || answer.Header.EndToEndID != header.EndToEndID {
 		t.Fatalf("answer=%v %v", answer, err)
 	}
@@ -207,15 +212,19 @@ func protocolVariantRAR() *diam.Message {
 }
 
 func (p *protocolVariantWire) usable(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	t.Helper()
 	header := p.send(t, regressionDWR(t))
-	answer, err := diam.ReadMessage(p.peer, dict.Default)
+	answer, err := diam.ReadMessage(p.peer, testDict)
 	if err != nil || !testResultCode(answer, 2001) || answer.Header.CommandCode != diam.DeviceWatchdog || answer.Header.HopByHopID != header.HopByHopID || answer.Header.EndToEndID != header.EndToEndID || p.conn.Closed() {
 		t.Fatalf("following DWR=%v %v", answer, err)
 	}
 }
 
 func TestProtocolErrorValidationResultVariantsWire(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	for _, client := range []bool{false, true} {
 		for _, validate := range []bool{false, true} {
 			for _, tc := range []struct {
@@ -237,7 +246,7 @@ func TestProtocolErrorValidationResultVariantsWire(t *testing.T) {
 					request := protocolVariantRAR()
 					tc.change(request)
 					header := p.send(t, request)
-					answer, err := diam.ReadMessage(p.peer, dict.Default)
+					answer, err := diam.ReadMessage(p.peer, testDict)
 					wantCode := uint32(2001)
 					if validate || tc.code == 3001 {
 						wantCode = tc.code
@@ -279,6 +288,8 @@ func TestProtocolErrorValidationResultVariantsWire(t *testing.T) {
 }
 
 func TestProtocolErrorDecodeAndUnknownPrecedenceVariantsWire(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	for _, client := range []bool{false, true} {
 		for _, validate := range []bool{false, true} {
 			for _, tc := range []struct {
@@ -312,7 +323,7 @@ func TestProtocolErrorDecodeAndUnknownPrecedenceVariantsWire(t *testing.T) {
 				t.Run(fmt.Sprintf("client=%t/validate=%t/%s", client, validate, tc.name), func(t *testing.T) {
 					p := newProtocolVariantWire(t, client, validate, true)
 					header := p.send(t, tc.message())
-					answer, err := diam.ReadMessage(p.peer, dict.Default)
+					answer, err := diam.ReadMessage(p.peer, testDict)
 					if err != nil || !testResultCode(answer, tc.code) || answer.Header.CommandFlags != diam.ProxiableFlag || answer.Header.HopByHopID != header.HopByHopID || answer.Header.EndToEndID != header.EndToEndID {
 						t.Fatalf("answer=%v %v", answer, err)
 					}

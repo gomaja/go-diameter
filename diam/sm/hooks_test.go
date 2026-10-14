@@ -9,17 +9,24 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/diamtest"
-	"github.com/gomaja/go-diameter/diam/dict"
 )
 
 // TestOnCERHook verifies that Settings.OnCER fires on a received CER before
 // the state machine's default handler, and that the default handshake still
 // completes.
 func TestOnCERHook(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings := cloneTestSettings(serverSettings,
+		testDict)
+	clientSettings := cloneTestSettings(clientSettings,
+		testDict)
+
 	var onCERCalls int32
 	settings := *serverSettings
 	settings.OnCER = func(c diam.Conn, m *diam.Message) {
@@ -29,18 +36,18 @@ func TestOnCERHook(t *testing.T) {
 		atomic.AddInt32(&onCERCalls, 1)
 	}
 
-	sm := mustNewStateMachine(t, &settings)
+	sm := mustNewStateMachine(t, &settings, testDict)
 	smHandshakes := testHandshakeNotifications(sm)
-	srv := diamtest.NewServer(sm, dict.Default)
+	srv := diamtest.NewServer(sm, testDict)
 	defer srv.Close()
 
-	cli, err := diam.Dial(srv.Addr, nil, dict.Default)
+	cli, err := diam.Dial(srv.Addr, nil, testDict)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer cli.Close()
 
-	m := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
+	m := diam.NewRequest(diam.CapabilitiesExchange, 0, testDict)
 	mustSMClientAVP(t, m, avp.OriginHost, avp.Mbit, 0, clientSettings.OriginHost)
 	mustSMClientAVP(t, m, avp.OriginRealm, avp.Mbit, 0, clientSettings.OriginRealm)
 	mustSMClientAVP(t, m, avp.HostIPAddress, avp.Mbit, 0, localhostAddress)
@@ -67,6 +74,12 @@ func TestOnCERHook(t *testing.T) {
 // TestOnDWRHook verifies that Settings.OnDWR fires on a received DWR after
 // the handshake and before the default DWR handler responds with DWA.
 func TestOnDWRHook(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings := cloneTestSettings(serverSettings,
+		testDict)
+	clientSettings := cloneTestSettings(clientSettings,
+		testDict)
+
 	onDWR := make(chan struct{}, 1)
 	settings := *serverSettings
 	settings.OnDWR = func(c diam.Conn, m *diam.Message) {
@@ -76,18 +89,18 @@ func TestOnDWRHook(t *testing.T) {
 		onDWR <- struct{}{}
 	}
 
-	sm := mustNewStateMachine(t, &settings)
+	sm := mustNewStateMachine(t, &settings, testDict)
 	smHandshakes := testHandshakeNotifications(sm)
-	srv := diamtest.NewServer(sm, dict.Default)
+	srv := diamtest.NewServer(sm, testDict)
 	defer srv.Close()
 
-	cli, err := diam.Dial(srv.Addr, nil, dict.Default)
+	cli, err := diam.Dial(srv.Addr, nil, testDict)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer cli.Close()
 
-	cer := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
+	cer := diam.NewRequest(diam.CapabilitiesExchange, 0, testDict)
 	mustSMClientAVP(t, cer, avp.OriginHost, avp.Mbit, 0, clientSettings.OriginHost)
 	mustSMClientAVP(t, cer, avp.OriginRealm, avp.Mbit, 0, clientSettings.OriginRealm)
 	mustSMClientAVP(t, cer, avp.HostIPAddress, avp.Mbit, 0, localhostAddress)
@@ -106,7 +119,7 @@ func TestOnDWRHook(t *testing.T) {
 		t.Fatal("handshake did not complete")
 	}
 
-	dwr := diam.NewRequest(diam.DeviceWatchdog, 0, dict.Default)
+	dwr := diam.NewRequest(diam.DeviceWatchdog, 0, testDict)
 	mustSMClientAVP(t, dwr, avp.OriginHost, avp.Mbit, 0, clientSettings.OriginHost)
 	mustSMClientAVP(t, dwr, avp.OriginRealm, avp.Mbit, 0, clientSettings.OriginRealm)
 	if _, err := dwr.WriteTo(cli); err != nil {
@@ -125,6 +138,12 @@ func TestOnDWRHook(t *testing.T) {
 // and that the default handshake still completes. Outbound counterpart of
 // TestOnCERHook.
 func TestOnCEAHook(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings := cloneTestSettings(serverSettings,
+		testDict)
+	clientSettings := cloneTestSettings(clientSettings,
+		testDict)
+
 	var onCEACalls int32
 	settings := *serverSettings
 	settings.OnCEA = func(c diam.Conn, m *diam.Message) {
@@ -137,18 +156,18 @@ func TestOnCEAHook(t *testing.T) {
 		atomic.AddInt32(&onCEACalls, 1)
 	}
 
-	sm := mustNewStateMachine(t, &settings)
+	sm := mustNewStateMachine(t, &settings, testDict)
 	smHandshakes := testHandshakeNotifications(sm)
-	srv := diamtest.NewServer(sm, dict.Default)
+	srv := diamtest.NewServer(sm, testDict)
 	defer srv.Close()
 
-	cli, err := diam.Dial(srv.Addr, nil, dict.Default)
+	cli, err := diam.Dial(srv.Addr, nil, testDict)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer cli.Close()
 
-	m := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
+	m := diam.NewRequest(diam.CapabilitiesExchange, 0, testDict)
 	mustSMClientAVP(t, m, avp.OriginHost, avp.Mbit, 0, clientSettings.OriginHost)
 	mustSMClientAVP(t, m, avp.OriginRealm, avp.Mbit, 0, clientSettings.OriginRealm)
 	mustSMClientAVP(t, m, avp.HostIPAddress, avp.Mbit, 0, localhostAddress)
@@ -176,6 +195,12 @@ func TestOnCEAHook(t *testing.T) {
 // server answers a CER with an error CEA (here: no common application),
 // covering both failed and successful capability exchanges.
 func TestOnCEAHookErrorCEA(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings := cloneTestSettings(serverSettings,
+		testDict)
+	clientSettings := cloneTestSettings(clientSettings,
+		testDict)
+
 	var onCEACalls int32
 	onCEA := make(chan *diam.Message, 1)
 	settings := *serverSettings
@@ -197,11 +222,11 @@ func TestOnCEAHookErrorCEA(t *testing.T) {
 		}
 	}
 
-	sm := mustNewStateMachine(t, &settings)
-	srv := diamtest.NewServer(sm, dict.Default)
+	sm := mustNewStateMachine(t, &settings, testDict)
+	srv := diamtest.NewServer(sm, testDict)
 	defer srv.Close()
 
-	cli, err := diam.Dial(srv.Addr, nil, dict.Default)
+	cli, err := diam.Dial(srv.Addr, nil, testDict)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -209,7 +234,7 @@ func TestOnCEAHookErrorCEA(t *testing.T) {
 
 	// Request an application the server does not support, forcing errorCEA
 	// (DIAMETER_NO_COMMON_APPLICATION).
-	m := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
+	m := diam.NewRequest(diam.CapabilitiesExchange, 0, testDict)
 	mustSMClientAVP(t, m, avp.OriginHost, avp.Mbit, 0, clientSettings.OriginHost)
 	mustSMClientAVP(t, m, avp.OriginRealm, avp.Mbit, 0, clientSettings.OriginRealm)
 	mustSMClientAVP(t, m, avp.HostIPAddress, avp.Mbit, 0, localhostAddress)
@@ -248,6 +273,12 @@ func TestOnCEAHookErrorCEA(t *testing.T) {
 // before a DWA is sent in response to a peer DWR. Outbound counterpart of
 // TestOnDWRHook.
 func TestOnDWAHook(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings := cloneTestSettings(serverSettings,
+		testDict)
+	clientSettings := cloneTestSettings(clientSettings,
+		testDict)
+
 	onDWA := make(chan *diam.Message, 1)
 	settings := *serverSettings
 	settings.OnDWA = func(c diam.Conn, m *diam.Message) {
@@ -263,18 +294,18 @@ func TestOnDWAHook(t *testing.T) {
 		}
 	}
 
-	sm := mustNewStateMachine(t, &settings)
+	sm := mustNewStateMachine(t, &settings, testDict)
 	smHandshakes := testHandshakeNotifications(sm)
-	srv := diamtest.NewServer(sm, dict.Default)
+	srv := diamtest.NewServer(sm, testDict)
 	defer srv.Close()
 
-	cli, err := diam.Dial(srv.Addr, nil, dict.Default)
+	cli, err := diam.Dial(srv.Addr, nil, testDict)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer cli.Close()
 
-	cer := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
+	cer := diam.NewRequest(diam.CapabilitiesExchange, 0, testDict)
 	mustSMClientAVP(t, cer, avp.OriginHost, avp.Mbit, 0, clientSettings.OriginHost)
 	mustSMClientAVP(t, cer, avp.OriginRealm, avp.Mbit, 0, clientSettings.OriginRealm)
 	mustSMClientAVP(t, cer, avp.HostIPAddress, avp.Mbit, 0, localhostAddress)
@@ -293,7 +324,7 @@ func TestOnDWAHook(t *testing.T) {
 		t.Fatal("handshake did not complete")
 	}
 
-	dwr := diam.NewRequest(diam.DeviceWatchdog, 0, dict.Default)
+	dwr := diam.NewRequest(diam.DeviceWatchdog, 0, testDict)
 	mustSMClientAVP(t, dwr, avp.OriginHost, avp.Mbit, 0, clientSettings.OriginHost)
 	mustSMClientAVP(t, dwr, avp.OriginRealm, avp.Mbit, 0, clientSettings.OriginRealm)
 	if _, err := dwr.WriteTo(cli); err != nil {

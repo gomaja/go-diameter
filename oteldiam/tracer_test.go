@@ -102,21 +102,22 @@ func noAttrs(t *testing.T, span sdktrace.ReadOnlySpan, keys ...attribute.Key) {
 // and a client handling the CEA with cea, and returns the CER sent. The
 // handlers report failures on errc; cea closes wait once it has the CEA.
 func exchangeCER(t *testing.T, errc chan error, wait chan struct{}, cer, cea diam.Handler) *diam.Message {
+	parser := newTestDictionary(dict.Base())
 	t.Helper()
 	smux := diam.NewServeMux()
 	smux.Handle("CER", cer)
 
-	srv := diamtest.NewServer(smux, nil)
+	srv := diamtest.NewServer(smux, parser)
 	defer srv.Close()
 
 	cmux := diam.NewServeMux()
 	cmux.HandleIdx(diam.CommandIndex{AppID: 0, Code: diam.CapabilitiesExchange, Request: false}, cea)
 
-	cli, err := diam.Dial(srv.Addr, cmux, nil)
+	cli, err := diam.Dial(srv.Addr, cmux, parser)
 	if err != nil {
 		t.Fatal(err)
 	}
-	m, err := sendCER(cli)
+	m, err := sendCER(cli, parser)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -191,6 +192,8 @@ func TestTracerFuncRecordsAnswerSpan(t *testing.T) {
 }
 
 func TestTracerStartsChildOfMessageContext(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	sr, tp := newRecorder(t)
 	parentCtx, parent := tp.Tracer("test").Start(context.Background(), "parent")
 	var inHandler trace.SpanContext
@@ -198,7 +201,7 @@ func TestTracerStartsChildOfMessageContext(t *testing.T) {
 		inHandler = trace.SpanContextFromContext(m.Context())
 	}), WithTracerProvider(tp))
 
-	m := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
+	m := diam.NewRequest(diam.CapabilitiesExchange, 0, testDict)
 	m.SetContext(parentCtx)
 	h.ServeDIAM(nil, m)
 	parent.End()
@@ -217,7 +220,9 @@ func TestTracerStartsChildOfMessageContext(t *testing.T) {
 }
 
 func TestTracerMarksFailedAnswers(t *testing.T) {
-	request := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
+	testDict := newTestDictionary(dict.Base())
+
+	request := diam.NewRequest(diam.CapabilitiesExchange, 0, testDict)
 	experimental := request.Answer(0)
 	experimental.AddAVP(diam.NewAVP(avp.ExperimentalResult, avp.Mbit, 0, &diam.GroupedAVP{AVP: []*diam.AVP{
 		diam.NewAVP(avp.VendorID, avp.Mbit, 0, datatype.Unsigned32(10415)),
@@ -265,9 +270,11 @@ func TestTracerMarksFailedAnswers(t *testing.T) {
 }
 
 func TestTracerNamesUnknownCommands(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	sr, tp := newRecorder(t)
 	h := NewTracer(diam.HandlerFunc(func(diam.Conn, *diam.Message) {}), WithTracerProvider(tp))
-	h.ServeDIAM(nil, diam.NewRequest(9999, 16777251, dict.Default))
+	h.ServeDIAM(nil, diam.NewRequest(9999, 16777251, testDict))
 	span := endedSpans(t, sr, 1)[0]
 	if span.Name() != "Unknown-Request" {
 		t.Errorf("span name = %q, want Unknown-Request", span.Name())
@@ -307,6 +314,8 @@ type panickyMessage struct{}
 func (panickyMessage) Error() string { panic("message failure") }
 
 func TestTracerMarksHandlerPanic(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	const pkg = "github.com/gomaja/go-diameter/oteldiam."
 	pathErr := &fs.PathError{Op: "open", Path: "/nonexistent", Err: fs.ErrNotExist}
 	wrapped := fmt.Errorf("load dictionary: %w", pathErr)
@@ -331,7 +340,7 @@ func TestTracerMarksHandlerPanic(t *testing.T) {
 			logs, lp := newLogRecorder(t)
 			// An answer whose Result-Code is a failure: the panic, which
 			// ended the handler, decides error.type and the status.
-			answer := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default).Answer(diam.UnableToDeliver)
+			answer := diam.NewRequest(diam.CapabilitiesExchange, 0, testDict).Answer(diam.UnableToDeliver)
 			h := NewTracer(diam.HandlerFunc(func(diam.Conn, *diam.Message) { panic(tc.value) }),
 				WithTracerProvider(tp), WithLoggerProvider(lp))
 			var recovered any
@@ -457,6 +466,8 @@ func (p apiLoggerProvider) Logger(string, ...otellog.LoggerOption) otellog.Logge
 // the Logs API as the record's error instance, and that a disabled logger
 // is given no record.
 func TestTracerGivesPanicErrorToLogger(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	pathErr := &fs.PathError{Op: "open", Path: "/nonexistent", Err: fs.ErrNotExist}
 	for _, tc := range []struct {
 		name    string
@@ -476,7 +487,7 @@ func TestTracerGivesPanicErrorToLogger(t *testing.T) {
 				WithTracerProvider(tp), WithLoggerProvider(apiLoggerProvider{logger: logger}))
 			func() {
 				defer func() { _ = recover() }()
-				h.ServeDIAM(nil, diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default))
+				h.ServeDIAM(nil, diam.NewRequest(diam.CapabilitiesExchange, 0, testDict))
 			}()
 			logger.mu.Lock()
 			defer logger.mu.Unlock()
@@ -505,13 +516,15 @@ func (panickingLoggerProvider) Logger(string, ...otellog.LoggerOption) otellog.L
 // pipeline neither replaces the handler's panic value nor leaves the span
 // open.
 func TestTracerSurvivesPanickingLogger(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	sr, tp := newRecorder(t)
 	h := NewTracer(diam.HandlerFunc(func(diam.Conn, *diam.Message) { panic("boom") }),
 		WithTracerProvider(tp), WithLoggerProvider(panickingLoggerProvider{}))
 	var recovered any
 	func() {
 		defer func() { recovered = recover() }()
-		h.ServeDIAM(nil, diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default))
+		h.ServeDIAM(nil, diam.NewRequest(diam.CapabilitiesExchange, 0, testDict))
 	}()
 	if recovered != "boom" {
 		t.Errorf("panic value after the tracer = %v, want boom", recovered)
@@ -533,6 +546,8 @@ func (panickingSpanProcessor) ForceFlush(context.Context) error                {
 // TestTracerSurvivesPanickingSpanPipeline checks that a span pipeline that
 // panics in span.End cannot replace the handler's panic value.
 func TestTracerSurvivesPanickingSpanPipeline(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	sr := tracetest.NewSpanRecorder()
 	tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(sr),
 		sdktrace.WithSpanProcessor(panickingSpanProcessor{}))
@@ -541,7 +556,7 @@ func TestTracerSurvivesPanickingSpanPipeline(t *testing.T) {
 	var recovered any
 	func() {
 		defer func() { recovered = recover() }()
-		h.ServeDIAM(nil, diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default))
+		h.ServeDIAM(nil, diam.NewRequest(diam.CapabilitiesExchange, 0, testDict))
 	}()
 	if recovered != "boom" {
 		t.Errorf("panic value after the tracer = %v, want boom", recovered)
@@ -555,6 +570,8 @@ func TestTracerSurvivesPanickingSpanPipeline(t *testing.T) {
 // runtime.Goexit, as t.FailNow does: nothing panicked, so the span ends
 // without a failure and nothing is logged.
 func TestTracerEndsSpanOnGoexit(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	sr, tp := newRecorder(t)
 	logs, lp := newLogRecorder(t)
 	h := NewTracer(diam.HandlerFunc(func(diam.Conn, *diam.Message) { runtime.Goexit() }),
@@ -562,7 +579,7 @@ func TestTracerEndsSpanOnGoexit(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		h.ServeDIAM(nil, diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default))
+		h.ServeDIAM(nil, diam.NewRequest(diam.CapabilitiesExchange, 0, testDict))
 		t.Error("ServeDIAM returned after the handler called runtime.Goexit")
 	}()
 	<-done
@@ -589,17 +606,18 @@ func TestTracerPanicReachesServerLogger(t *testing.T) {
 	logs := &lockedBuffer{}
 	smux := diam.NewServeMux()
 	smux.Handle("CER", NewTracer(diam.HandlerFunc(panicsHandlingCER), WithTracerProvider(tp), WithLoggerProvider(lp)))
-	srv := diamtest.NewUnstartedServer(smux, nil)
+	parser := newTestDictionary(dict.Base())
+	srv := diamtest.NewUnstartedServer(smux, parser)
 	srv.Config.Logger = slog.New(slog.NewJSONHandler(logs, nil))
 	srv.Start()
 	defer srv.Close()
 
-	cli, err := diam.Dial(srv.Addr, diam.NewServeMux(), nil)
+	cli, err := diam.Dial(srv.Addr, diam.NewServeMux(), parser)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer cli.Close()
-	if _, err := sendCER(cli); err != nil {
+	if _, err := sendCER(cli, parser); err != nil {
 		t.Fatal(err)
 	}
 
@@ -643,8 +661,12 @@ func (b *lockedBuffer) String() string {
 }
 
 // copy from diam/server_test.go
-func sendCER(w io.Writer) (*diam.Message, error) {
-	m := diam.NewRequest(diam.CapabilitiesExchange, 0, nil)
+func sendCER(w io.Writer, dictionaries ...*dict.Parser) (*diam.Message, error) {
+	parser := newTestDictionary(dict.Base())
+	if len(dictionaries) != 0 {
+		parser = dictionaries[0]
+	}
+	m := diam.NewRequest(diam.CapabilitiesExchange, 0, parser)
 	if _, err := m.NewAVP(avp.OriginHost, avp.Mbit, 0, datatype.OctetString("cli")); err != nil {
 		return nil, err
 	}

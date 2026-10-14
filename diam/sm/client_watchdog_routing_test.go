@@ -4,12 +4,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/diamtest"
-	"github.com/gomaja/go-diameter/diam/dict"
 )
 
 func TestClientWatchdogRoutesAnswersPerConnection(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings := cloneTestSettings(serverSettings, testDict)
+
 	const peers = 3
 	servers := make([]*diamtest.Server, 0, peers)
 	connections := make([]diam.Conn, 0, peers)
@@ -29,7 +33,7 @@ func TestClientWatchdogRoutesAnswersPerConnection(t *testing.T) {
 		dwr := make(chan struct{}, 16)
 		settings := *serverSettings
 		settings.OnDWR = func(diam.Conn, *diam.Message) { dwr <- struct{}{} }
-		srv := diamtest.NewServer(mustNewStateMachine(t, &settings), dict.Default)
+		srv := diamtest.NewServer(mustNewStateMachine(t, &settings, testDict), testDict)
 		servers = append(servers, srv)
 		requests = append(requests, dwr)
 		c, err := cli.Dial(srv.Addr)
@@ -60,11 +64,14 @@ func TestClientWatchdogRoutesAnswersPerConnection(t *testing.T) {
 }
 
 func TestClientWatchdogDoesNotCreditAnotherPeersAnswer(t *testing.T) {
-	healthy := diamtest.NewServer(mustNewStateMachine(t, serverSettings), dict.Default)
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings := cloneTestSettings(serverSettings, testDict)
+
+	healthy := diamtest.NewServer(mustNewStateMachine(t, serverSettings, testDict), testDict)
 	defer healthy.Close()
-	silentSM := mustNewStateMachine(t, serverSettings)
+	silentSM := mustNewStateMachine(t, serverSettings, testDict)
 	silentSM.dwrHandler = handshakeOK(func(diam.Conn, *diam.Message) {})
-	silent := diamtest.NewServer(silentSM, dict.Default)
+	silent := diamtest.NewServer(silentSM, testDict)
 	defer silent.Close()
 
 	cli := newLivenessClient(t)
@@ -93,11 +100,14 @@ func TestClientWatchdogDoesNotCreditAnotherPeersAnswer(t *testing.T) {
 }
 
 func TestClientWatchdogConnectionEventAttribution(t *testing.T) {
-	healthy := diamtest.NewServer(mustNewStateMachine(t, serverSettings), dict.Default)
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings := cloneTestSettings(serverSettings, testDict)
+
+	healthy := diamtest.NewServer(mustNewStateMachine(t, serverSettings, testDict), testDict)
 	defer healthy.Close()
-	silentSM := mustNewStateMachine(t, serverSettings)
+	silentSM := mustNewStateMachine(t, serverSettings, testDict)
 	silentSM.dwrHandler = handshakeOK(func(diam.Conn, *diam.Message) {})
-	silent := diamtest.NewServer(silentSM, dict.Default)
+	silent := diamtest.NewServer(silentSM, testDict)
 	defer silent.Close()
 
 	type connEvent struct {

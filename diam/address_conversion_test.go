@@ -10,6 +10,7 @@ import (
 
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
+	"github.com/gomaja/go-diameter/diam/dict"
 )
 
 type addressReviewIP net.IP
@@ -23,7 +24,9 @@ func addressReviewDestination(typ reflect.Type) reflect.Value {
 }
 
 func TestUnmarshalAddressUnsupported(t *testing.T) {
-	m := NewRequest(CapabilitiesExchange, 0, nil)
+	testDict := newTestDictionary(dict.Base())
+
+	m := NewRequest(CapabilitiesExchange, 0, testDict)
 	m.AddAVP(NewAVP(avp.HostIPAddress, avp.Mbit, 0, datatype.AddressFromIP(netip.MustParseAddr("192.0.2.1"))))
 	for _, typ := range []reflect.Type{reflect.TypeOf([]byte{}), reflect.TypeOf(""), reflect.TypeOf(0), reflect.TypeOf([4]byte{}), reflect.TypeOf(struct{}{}), reflect.TypeOf(map[string]string{}), reflect.TypeFor[any](), reflect.TypeOf([]string{}), reflect.TypeOf((*string)(nil))} {
 		t.Run(typ.String(), func(t *testing.T) {
@@ -36,11 +39,13 @@ func TestUnmarshalAddressUnsupported(t *testing.T) {
 }
 
 func TestUnmarshalAddressWrongData(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	valid := datatype.AddressFromIP(netip.MustParseAddr("192.0.2.1"))
 	for _, payload := range []datatype.Type{datatype.Unknown{0, 1, 1}, datatype.UTF8String("192.0.2.1"), nil} {
 		for _, typ := range []reflect.Type{reflect.TypeOf(datatype.Address{}), reflect.TypeOf([]datatype.Address{}), reflect.TypeOf([]*datatype.Address{}), reflect.TypeOf(net.IP{}), reflect.TypeOf(netip.Addr{}), reflect.TypeOf([]netip.Addr{}), reflect.TypeOf(addressReviewIP{}), reflect.TypeOf(addressReviewNetip{})} {
 			t.Run(fmt.Sprintf("%T/%s", payload, typ), func(t *testing.T) {
-				m := NewRequest(CapabilitiesExchange, 0, nil)
+				m := NewRequest(CapabilitiesExchange, 0, testDict)
 				// A partially decoded message may retain Unknown data for an invalid AVP.
 				m.AVP = []*AVP{&AVP{Code: avp.HostIPAddress, Flags: avp.Mbit, Data: payload}}
 				dst := addressReviewDestination(typ)
@@ -59,7 +64,9 @@ func TestUnmarshalAddressWrongData(t *testing.T) {
 }
 
 func TestUnmarshalAddressRecursiveType(t *testing.T) {
-	m := NewRequest(CapabilitiesExchange, 0, nil)
+	testDict := newTestDictionary(dict.Base())
+
+	m := NewRequest(CapabilitiesExchange, 0, testDict)
 	m.AddAVP(NewAVP(avp.HostIPAddress, avp.Mbit, 0, datatype.AddressFromIP(netip.MustParseAddr("192.0.2.1"))))
 	for _, typ := range []reflect.Type{reflect.TypeFor[addressReviewPointer](), reflect.TypeFor[addressReviewSlice]()} {
 		dst := addressReviewDestination(typ)
@@ -70,6 +77,8 @@ func TestUnmarshalAddressRecursiveType(t *testing.T) {
 }
 
 func TestReflectAddressNamedTypes(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	for _, literal := range []string{"192.0.2.1", "2001:db8::1"} {
 		addr := datatype.AddressFromIP(netip.MustParseAddr(literal))
 		for _, tc := range []struct {
@@ -81,7 +90,7 @@ func TestReflectAddressNamedTypes(t *testing.T) {
 			{reflect.TypeOf(addressReviewAddress{}), addressReviewAddress(addr)},
 		} {
 			t.Run(literal+tc.typ.String(), func(t *testing.T) {
-				m := NewRequest(CapabilitiesExchange, 0, nil)
+				m := NewRequest(CapabilitiesExchange, 0, testDict)
 				m.AddAVP(NewAVP(avp.HostIPAddress, avp.Mbit, 0, addr))
 				dst := addressReviewDestination(tc.typ)
 				if err := m.Unmarshal(dst.Interface()); err != nil {
@@ -90,7 +99,7 @@ func TestReflectAddressNamedTypes(t *testing.T) {
 				if got := dst.Elem().Field(0).Interface(); !reflect.DeepEqual(got, tc.want) {
 					t.Fatalf("named field = %v, want %v", got, tc.want)
 				}
-				out := NewRequest(CapabilitiesExchange, 0, nil)
+				out := NewRequest(CapabilitiesExchange, 0, testDict)
 				if err := out.Marshal(dst.Interface()); err != nil {
 					t.Fatal(err)
 				}
@@ -103,11 +112,13 @@ func TestReflectAddressNamedTypes(t *testing.T) {
 }
 
 func TestMarshalAddressOwnsValue(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	source := struct {
 		Host datatype.Address `avp:"Host-IP-Address"`
 	}{datatype.AddressFromIP(netip.MustParseAddr("192.0.2.1"))}
 	want := source.Host.Serialize()
-	m := NewRequest(CapabilitiesExchange, 0, nil)
+	m := NewRequest(CapabilitiesExchange, 0, testDict)
 	if err := m.Marshal(&source); err != nil {
 		t.Fatal(err)
 	}
@@ -122,12 +133,14 @@ func TestMarshalAddressOwnsValue(t *testing.T) {
 }
 
 func TestMessageNewAVPRejectsInvalidAddress(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	for _, addr := range []datatype.Address{{}, {Family: datatype.AddressFamilyIPv4, Value: make([]byte, 16)}, {Value: []byte{10, 0, 0, 1}}, {Family: 65535}, {Family: datatype.AddressFamilyIPv6, Value: make([]byte, 4)}} {
 		for name, add := range map[string]func(*Message) (*AVP, error){
 			"code": func(m *Message) (*AVP, error) { return m.NewAVP(avp.HostIPAddress, avp.Mbit, 0, addr) },
 			"name": func(m *Message) (*AVP, error) { return m.NewAVPByName("Host-IP-Address", avp.Mbit, addr) },
 		} {
-			m := NewRequest(CapabilitiesExchange, 0, nil)
+			m := NewRequest(CapabilitiesExchange, 0, testDict)
 			length := m.Header.MessageLength
 			if a, err := add(m); err == nil || a != nil {
 				t.Errorf("NewAVP accepted invalid Address %v for %s", addr, name)
@@ -140,16 +153,18 @@ func TestMessageNewAVPRejectsInvalidAddress(t *testing.T) {
 }
 
 func TestReflectMappedAddressRoundTrip(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	mapped := netip.MustParseAddr("::ffff:192.0.2.1")
 	address := datatype.Address{Family: datatype.AddressFamilyIPv6, Value: mapped.AsSlice()}
-	m := NewRequest(CapabilitiesExchange, 0, nil)
+	m := NewRequest(CapabilitiesExchange, 0, testDict)
 	m.AddAVP(NewAVP(avp.HostIPAddress, avp.Mbit, 0, address))
 	for _, typ := range []reflect.Type{reflect.TypeFor[net.IP](), reflect.TypeFor[netip.Addr](), reflect.TypeFor[datatype.Address]()} {
 		dst := addressReviewDestination(typ)
 		if err := m.Unmarshal(dst.Interface()); err != nil {
 			t.Fatal(err)
 		}
-		out := NewRequest(CapabilitiesExchange, 0, nil)
+		out := NewRequest(CapabilitiesExchange, 0, testDict)
 		if err := out.Marshal(dst.Interface()); err != nil {
 			t.Fatal(err)
 		}
@@ -165,10 +180,12 @@ func TestReflectMappedAddressRoundTrip(t *testing.T) {
 }
 
 func TestReflectAddressNamedOmitEmpty(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	for _, value := range []any{addressReviewAddress{Family: 1234}, addressReviewNetip(netip.IPv6Unspecified())} {
 		typ := reflect.TypeOf(value)
 		dst := reflect.New(reflect.StructOf([]reflect.StructField{{Name: "Host", Type: typ, Tag: `avp:"Host-IP-Address,omitempty"`}}))
-		m := NewRequest(CapabilitiesExchange, 0, nil)
+		m := NewRequest(CapabilitiesExchange, 0, testDict)
 		if err := m.Marshal(dst.Interface()); err != nil {
 			t.Fatal(err)
 		}
@@ -186,7 +203,9 @@ func TestReflectAddressNamedOmitEmpty(t *testing.T) {
 }
 
 func TestMessageNewAVPAddressPointer(t *testing.T) {
-	m := NewRequest(CapabilitiesExchange, 0, nil)
+	testDict := newTestDictionary(dict.Base())
+
+	m := NewRequest(CapabilitiesExchange, 0, testDict)
 	if _, err := m.NewAVP(avp.HostIPAddress, avp.Mbit, 0, (*datatype.Address)(nil)); err == nil {
 		t.Fatal("accepted nil Address pointer")
 	}

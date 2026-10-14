@@ -7,6 +7,8 @@ import (
 	"sync"
 	"testing"
 	"testing/synctest"
+
+	"github.com/gomaja/go-diameter/diam/dict"
 )
 
 type eofDispatchTransport struct {
@@ -22,6 +24,8 @@ func (c *eofDispatchTransport) SetErrorHandler(h MutistreamConnErrorHandler) {
 }
 
 func TestDecodedMessageBeforeEOFDispatches(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	for _, mode := range []int{0, 2, -1} {
 		t.Run(fmt.Sprint(mode), func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
@@ -40,7 +44,7 @@ func TestDecodedMessageBeforeEOFDispatches(t *testing.T) {
 				served := make(chan struct{})
 				go func() { c.serve(); close(served) }()
 				defer func() { unblock(); _ = raw.Close(); _ = remote.Close(); <-served }()
-				raw.reads <- restartRead{data: cerPayload(t)}
+				raw.reads <- restartRead{data: cerPayload(t, testDict)}
 				<-entered
 				transport.mu.Lock()
 				onError := transport.onError

@@ -1,12 +1,16 @@
-package dict
+package dict_test
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/gomaja/go-diameter/diam/dict"
+)
 
 // These expectations transcribe RFC 7683 §§7.1–7.8, RFC 8581 §§7.1–7.4,
 // and RFC 8583 §§7.1–7.5 independently of the application-specific copies.
 // Only Base is loaded so a Cx/Sh override cannot conceal a base definition error.
 func TestBaseOverloadLoadAVPs(t *testing.T) {
-	d := New(Base)
+	d := newTestParser(t, dict.Base())
 	for _, tc := range []struct {
 		name string
 		code uint32
@@ -49,13 +53,13 @@ func TestBaseOverloadLoadAVPs(t *testing.T) {
 }
 
 func TestBaseOverloadLoadGroupedRules(t *testing.T) {
-	d := New(Base)
+	d := newTestParser(t, dict.Base())
 	for _, tc := range []struct {
 		name  string
-		rules []Rule
+		rules []dict.Rule
 	}{
 		// RFC 7683 §7.1, replaced by RFC 8581 §7.1.
-		{"OC-Supported-Features", []Rule{
+		{"OC-Supported-Features", []dict.Rule{
 			{AVP: "OC-Feature-Vector", Max: 1, MaxSet: true},
 			{AVP: "SourceID", Max: 1, MaxSet: true},
 			{AVP: "OC-Peer-Algo", Max: 1, MaxSet: true},
@@ -63,7 +67,7 @@ func TestBaseOverloadLoadGroupedRules(t *testing.T) {
 		}},
 		// RFC 7683 §7.3, replaced by RFC 8581 §7.2. Angle brackets
 		// require the sequence number and report type in this fixed order.
-		{"OC-OLR", []Rule{
+		{"OC-OLR", []dict.Rule{
 			{AVP: "OC-Sequence-Number", Required: true, Max: 1, MaxSet: true, Fixed: true},
 			{AVP: "OC-Report-Type", Required: true, Max: 1, MaxSet: true, Fixed: true},
 			{AVP: "OC-Reduction-Percentage", Max: 1, MaxSet: true},
@@ -72,7 +76,7 @@ func TestBaseOverloadLoadGroupedRules(t *testing.T) {
 			{AVP: "AVP"},
 		}},
 		// RFC 8583 §7.1.
-		{"Load", []Rule{
+		{"Load", []dict.Rule{
 			{AVP: "Load-Type", Max: 1, MaxSet: true},
 			{AVP: "Load-Value", Max: 1, MaxSet: true},
 			{AVP: "SourceID", Max: 1, MaxSet: true},
@@ -102,19 +106,19 @@ func TestBaseOverloadLoadGroupedRules(t *testing.T) {
 }
 
 func TestBaseOverloadLoadEnumerations(t *testing.T) {
-	d := New(Base)
+	d := newTestParser(t, dict.Base())
 	for _, tc := range []struct {
 		name  string
-		items []Enum
+		items []dict.Enum
 	}{
 		// RFC 7683 §7.6 with the addition from RFC 8581 §7.2.1.
-		{"OC-Report-Type", []Enum{
+		{"OC-Report-Type", []dict.Enum{
 			{Code: 0, Name: "HOST_REPORT"},
 			{Code: 1, Name: "REALM_REPORT"},
 			{Code: 2, Name: "PEER_REPORT"},
 		}},
 		// RFC 8583 §7.2.
-		{"Load-Type", []Enum{
+		{"Load-Type", []dict.Enum{
 			{Code: 0, Name: "HOST"},
 			{Code: 1, Name: "PEER"},
 		}},

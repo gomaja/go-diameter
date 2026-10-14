@@ -17,6 +17,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
@@ -33,6 +35,8 @@ func TestStateMachineWritesMessageErrorAnswers(t *testing.T) {
 }
 
 func testStateMachineWritesMessageErrorAnswers(t *testing.T, wrap func(diam.Handler) diam.Handler) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	tests := []struct {
 		name       string
 		wire       []byte
@@ -66,9 +70,9 @@ func testStateMachineWritesMessageErrorAnswers(t *testing.T, wrap func(diam.Hand
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			settings := testMessageErrorSettings()
-			stateMachine := mustNewStateMachine(t, settings)
-			server := diamtest.NewServer(wrap(stateMachine), dict.Default)
+			settings := testMessageErrorSettings(testDict)
+			stateMachine := mustNewStateMachine(t, settings, testDict)
+			server := diamtest.NewServer(wrap(stateMachine), testDict)
 			defer server.Close()
 
 			conn, err := net.DialTimeout("tcp", server.Addr, time.Second)
@@ -78,7 +82,7 @@ func testStateMachineWritesMessageErrorAnswers(t *testing.T, wrap func(diam.Hand
 			defer func() { _ = conn.Close() }()
 			writeSMErrorWire(t, conn, tt.wire)
 
-			answer, err := diam.ReadMessage(conn, dict.Default)
+			answer, err := diam.ReadMessage(conn, testDict)
 			if err != nil {
 				t.Fatalf("read error answer: %v", err)
 			}
@@ -92,11 +96,13 @@ func testStateMachineWritesMessageErrorAnswers(t *testing.T, wrap func(diam.Hand
 // It still rejects non-CER traffic before admission. The malformed CER here
 // remains eligible for a CEA; Unwrap tests exercise timer-capable wiring.
 func TestStateMachineMessageErrorRoutingWithoutAdmission(t *testing.T) {
-	settings := testMessageErrorSettings()
-	stateMachine := mustNewStateMachine(t, settings)
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
+	settings := testMessageErrorSettings(testDict)
+	stateMachine := mustNewStateMachine(t, settings, testDict)
 	mux := diam.NewServeMux()
 	mux.Handle("CER", stateMachine)
-	server := diamtest.NewServer(mux, dict.Default)
+	server := diamtest.NewServer(mux, testDict)
 	defer server.Close()
 
 	conn, err := net.DialTimeout("tcp", server.Addr, time.Second)
@@ -110,7 +116,7 @@ func TestStateMachineMessageErrorRoutingWithoutAdmission(t *testing.T) {
 	})
 	writeSMErrorWire(t, conn, malformed)
 
-	answer, err := diam.ReadMessage(conn, dict.Default)
+	answer, err := diam.ReadMessage(conn, testDict)
 	if err != nil {
 		t.Fatalf("read mux-routed error answer: %v", err)
 	}
@@ -124,9 +130,11 @@ func TestStateMachineContinuesAfterInvalidAVPLength(t *testing.T) {
 }
 
 func testStateMachineContinuesAfterInvalidAVPLength(t *testing.T, wrap func(diam.Handler) diam.Handler) {
-	settings := testMessageErrorSettings()
-	stateMachine := mustNewStateMachine(t, settings)
-	server := diamtest.NewServer(wrap(stateMachine), dict.Default)
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
+	settings := testMessageErrorSettings(testDict)
+	stateMachine := mustNewStateMachine(t, settings, testDict)
+	server := diamtest.NewServer(wrap(stateMachine), testDict)
 	defer server.Close()
 
 	conn, err := net.DialTimeout("tcp", server.Addr, time.Second)
@@ -138,7 +146,7 @@ func testStateMachineContinuesAfterInvalidAVPLength(t *testing.T, wrap func(diam
 		t.Fatal(err)
 	}
 	writeValidSMErrorCER(t, conn)
-	if cea, err := diam.ReadMessage(conn, dict.Default); err != nil || !testResultCode(cea, diam.Success) {
+	if cea, err := diam.ReadMessage(conn, testDict); err != nil || !testResultCode(cea, diam.Success) {
 		t.Fatalf("initial CEA = %v, %v", cea, err)
 	}
 
@@ -147,7 +155,7 @@ func testStateMachineContinuesAfterInvalidAVPLength(t *testing.T, wrap func(diam
 		avp.Mbit, 0xff, 0xff, 0xff,
 	})
 	writeSMErrorWire(t, conn, malformed)
-	answer, err := diam.ReadMessage(conn, dict.Default)
+	answer, err := diam.ReadMessage(conn, testDict)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -157,7 +165,7 @@ func testStateMachineContinuesAfterInvalidAVPLength(t *testing.T, wrap func(diam
 	if _, err := regressionDWR(t).WriteTo(conn); err != nil {
 		t.Fatal(err)
 	}
-	dwa, err := diam.ReadMessage(conn, dict.Default)
+	dwa, err := diam.ReadMessage(conn, testDict)
 	if err != nil || dwa.Header.CommandCode != diam.DeviceWatchdog || !testResultCode(dwa, diam.Success) {
 		t.Fatalf("DWA after handled message error = %v, %v", dwa, err)
 	}
@@ -166,9 +174,11 @@ func testStateMachineContinuesAfterInvalidAVPLength(t *testing.T, wrap func(diam
 // TestStateMachineClosesAfterRejectedCER checks RFC 6733 §§5.3 and 5.6.1: a
 // CER answered with an error admits no peer, and the connection closes.
 func TestStateMachineClosesAfterRejectedCER(t *testing.T) {
-	settings := testMessageErrorSettings()
-	stateMachine := mustNewStateMachine(t, settings)
-	server := diamtest.NewServer(stateMachine, dict.Default)
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
+	settings := testMessageErrorSettings(testDict)
+	stateMachine := mustNewStateMachine(t, settings, testDict)
+	server := diamtest.NewServer(stateMachine, testDict)
 	defer server.Close()
 
 	conn, err := net.DialTimeout("tcp", server.Addr, time.Second)
@@ -184,12 +194,12 @@ func TestStateMachineClosesAfterRejectedCER(t *testing.T) {
 		avp.Mbit, 0xff, 0xff, 0xff,
 	})
 	writeSMErrorWire(t, conn, malformed)
-	answer, err := diam.ReadMessage(conn, dict.Default)
+	answer, err := diam.ReadMessage(conn, testDict)
 	if err != nil {
 		t.Fatal(err)
 	}
 	assertMessageErrorAnswer(t, answer, settings, diam.InvalidAVPLength, 0, true)
-	if extra, err := diam.ReadMessage(conn, dict.Default); err == nil {
+	if extra, err := diam.ReadMessage(conn, testDict); err == nil {
 		t.Fatalf("connection stayed open after the rejected CER: %v", extra)
 	} else if !errors.Is(err, io.EOF) {
 		t.Fatalf("read after the rejected CER: %v, want EOF", err)
@@ -197,9 +207,11 @@ func TestStateMachineClosesAfterRejectedCER(t *testing.T) {
 }
 
 func TestStateMachineMessageErrorAnswerCopiesSessionID(t *testing.T) {
-	settings := testMessageErrorSettings()
-	stateMachine := mustNewStateMachine(t, settings)
-	server := diamtest.NewServer(stateMachine, dict.Default)
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
+	settings := testMessageErrorSettings(testDict)
+	stateMachine := mustNewStateMachine(t, settings, testDict)
+	server := diamtest.NewServer(stateMachine, testDict)
 	defer server.Close()
 
 	conn, err := net.DialTimeout("tcp", server.Addr, time.Second)
@@ -216,7 +228,7 @@ func TestStateMachineMessageErrorAnswerCopiesSessionID(t *testing.T) {
 		avp.Mbit, 0xff, 0xff, 0xff,
 	}
 	writeSMErrorWire(t, conn, testSMErrorMessage(t, diam.RequestFlag, body))
-	answer, err := diam.ReadMessage(conn, dict.Default)
+	answer, err := diam.ReadMessage(conn, testDict)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -245,17 +257,19 @@ func TestStateMachineMessageErrorAnswerCopiesSessionID(t *testing.T) {
 }
 
 func TestStateMachineOmitsSessionIDThatWouldOverflowErrorAnswer(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	const maxAlignedMessageLength = diam.MaxMessageLength &^ 3
-	settings := testMessageErrorSettings()
+	settings := testMessageErrorSettings(testDict)
 	settings.HostIPAddresses = []datatype.Address{localhostAddress}
-	stateMachine := mustNewStateMachine(t, settings)
-	request := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
+	stateMachine := mustNewStateMachine(t, settings, testDict)
+	request := diam.NewRequest(diam.CapabilitiesExchange, 0, testDict)
 	request.Header.HopByHopID = 0x01020304
 	request.Header.EndToEndID = 0x05060708
 	sessionDataLength := maxAlignedMessageLength - diam.HeaderLength - 8
 	request.AddAVP(diam.NewAVP(avp.SessionID, avp.Mbit, 0, oversizedSessionData(sessionDataLength)))
 	failed := diam.NewAVP(avp.AuthApplicationID, avp.Mbit, 0, datatype.Unsigned32(0))
-	conn := &messageErrorCaptureConn{}
+	conn := &messageErrorCaptureConn{dictionary: testDict}
 
 	err := stateMachine.HandleMessageError(conn, request, &diam.MessageError{
 		ResultCode: diam.InvalidAVPLength,
@@ -267,7 +281,7 @@ func TestStateMachineOmitsSessionIDThatWouldOverflowErrorAnswer(t *testing.T) {
 	if conn.writeLen > maxAlignedMessageLength {
 		t.Fatalf("error answer length = %d, exceeds %d", conn.writeLen, maxAlignedMessageLength)
 	}
-	answer, err := diam.ReadMessage(bytes.NewReader(conn.wire.Bytes()), dict.Default)
+	answer, err := diam.ReadMessage(bytes.NewReader(conn.wire.Bytes()), testDict)
 	if err != nil {
 		t.Fatalf("decode bounded error answer: %v", err)
 	}
@@ -284,9 +298,11 @@ func TestStateMachineDoesNotAnswerMalformedAnswer(t *testing.T) {
 }
 
 func testStateMachineDoesNotAnswerMalformedAnswer(t *testing.T, wrap func(diam.Handler) diam.Handler) {
-	settings := testMessageErrorSettings()
-	stateMachine := mustNewStateMachine(t, settings)
-	server := diamtest.NewServer(wrap(stateMachine), dict.Default)
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
+	settings := testMessageErrorSettings(testDict)
+	stateMachine := mustNewStateMachine(t, settings, testDict)
+	server := diamtest.NewServer(wrap(stateMachine), testDict)
 	defer server.Close()
 
 	conn, err := net.DialTimeout("tcp", server.Addr, time.Second)
@@ -298,7 +314,7 @@ func testStateMachineDoesNotAnswerMalformedAnswer(t *testing.T, wrap func(diam.H
 	if err := conn.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
 		t.Fatal(err)
 	}
-	cea, err := diam.ReadMessage(conn, dict.Default)
+	cea, err := diam.ReadMessage(conn, testDict)
 	if err != nil || !testResultCode(cea, diam.Success) {
 		t.Fatalf("initial CEA = %v, %v", cea, err)
 	}
@@ -325,7 +341,7 @@ func testStateMachineDoesNotAnswerMalformedAnswer(t *testing.T, wrap func(diam.H
 	if _, err := regressionDWR(t).WriteTo(conn); err != nil {
 		t.Fatal(err)
 	}
-	dwa, err := diam.ReadMessage(conn, dict.Default)
+	dwa, err := diam.ReadMessage(conn, testDict)
 	if err != nil || dwa.Header.CommandCode != diam.DeviceWatchdog || !testResultCode(dwa, diam.Success) {
 		t.Fatalf("DWA after malformed answer = %v, %v", dwa, err)
 	}
@@ -402,8 +418,13 @@ func assertMessageErrorAnswer(
 	}
 }
 
-func testMessageErrorSettings() *Settings {
+func testMessageErrorSettings(dictionaries ...*dict.Parser) *Settings {
+	var parser *dict.Parser
+	if len(dictionaries) != 0 {
+		parser = dictionaries[0]
+	}
 	return &Settings{
+		Dict:          parser,
 		OriginHost:    datatype.DiameterIdentity("server.example"),
 		OriginRealm:   datatype.DiameterIdentity("example"),
 		OriginStateID: datatype.Unsigned32(42),
@@ -447,8 +468,10 @@ func writeSMErrorWire(t *testing.T, conn net.Conn, wire []byte) {
 }
 
 func writeValidSMErrorCER(t *testing.T, conn net.Conn) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	t.Helper()
-	m := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
+	m := diam.NewRequest(diam.CapabilitiesExchange, 0, testDict)
 	mustSMClientAVP(t, m, avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("peer.example"))
 	mustSMClientAVP(t, m, avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("example"))
 	mustSMClientAVP(t, m, avp.HostIPAddress, avp.Mbit, 0, datatype.AddressFromIP(netip.MustParseAddr("127.0.0.1")))
@@ -474,10 +497,11 @@ func (d oversizedSessionData) Type() datatype.TypeID {
 func (d oversizedSessionData) String() string { return "oversized Session-Id test data" }
 
 type messageErrorCaptureConn struct {
-	closed   atomic.Bool
-	wire     bytes.Buffer
-	writeLen int
-	ctx      context.Context
+	dictionary *dict.Parser
+	closed     atomic.Bool
+	wire       bytes.Buffer
+	writeLen   int
+	ctx        context.Context
 }
 
 func (c *messageErrorCaptureConn) Write(b []byte) (int, error) {
@@ -497,7 +521,7 @@ func (c *messageErrorCaptureConn) Closed() bool                   { return c.clo
 func (c *messageErrorCaptureConn) LocalAddr() net.Addr            { return nil }
 func (c *messageErrorCaptureConn) RemoteAddr() net.Addr           { return nil }
 func (c *messageErrorCaptureConn) TLS() *tls.ConnectionState      { return nil }
-func (c *messageErrorCaptureConn) Dictionary() *dict.Parser       { return dict.Default }
+func (c *messageErrorCaptureConn) Dictionary() *dict.Parser       { return c.dictionary }
 func (c *messageErrorCaptureConn) Context() context.Context       { return c.ctx }
 func (c *messageErrorCaptureConn) SetContext(ctx context.Context) { c.ctx = ctx }
 func (c *messageErrorCaptureConn) Connection() net.Conn           { return nil }

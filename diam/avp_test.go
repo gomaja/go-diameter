@@ -9,6 +9,8 @@ import (
 	"encoding/hex"
 	"testing"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/dict"
@@ -70,7 +72,9 @@ func TestNewAVP(t *testing.T) {
 }
 
 func TestDecodeAVP(t *testing.T) {
-	a, err := DecodeAVP(testAVP[0], 1, dict.Default)
+	testDict := newTestDictionary(dict.Base())
+
+	a, err := DecodeAVP(testAVP[0], 1, testDict)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -88,7 +92,9 @@ func TestDecodeAVP(t *testing.T) {
 }
 
 func TestDecodeAVPMalformed(t *testing.T) {
-	_, err := DecodeAVP(testAVP[0][:1], 1, dict.Default)
+	testDict := newTestDictionary(dict.Base())
+
+	_, err := DecodeAVP(testAVP[0][:1], 1, testDict)
 	if err == nil {
 		t.Fatal("Malformed AVP decoded with no error")
 	}
@@ -125,6 +131,14 @@ func TestDecodeAVPWithVendorID(t *testing.T) {
 }
 
 func TestDecodeAVPUnknownVendor(t *testing.T) {
+	// Credit-Control brings NASREQ, so application 4 knows vendor-zero
+	// NAS-Port (code 5). The vendor-10415 AVP with the same code must not
+	// fall back to it.
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+	if _, err := testDict.FindAVP(4, 5, 0); err != nil {
+		t.Fatalf("fixture lost the vendor-zero NAS-Port collision: %v", err)
+	}
+
 	// Unknown vendor AVP decodes as type Unknown with the full payload,
 	// not bound to same-code base NAS-Port.
 	payload := []byte("08-21090003e80000") // 17 bytes, not a 4-byte Unsigned32
@@ -133,7 +147,7 @@ func TestDecodeAVPUnknownVendor(t *testing.T) {
 	if err != nil {
 		t.Fatal("Failed to serialize AVP:", err)
 	}
-	got, err := DecodeAVP(b, 4, dict.Default)
+	got, err := DecodeAVP(b, 4, testDict)
 	if err != nil {
 		t.Fatal("Failed to decode unknown vendor AVP:", err)
 	}
@@ -152,9 +166,11 @@ func TestDecodeAVPUnknownVendor(t *testing.T) {
 }
 
 func TestReadMessageUnknownVendorAVP(t *testing.T) {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
 	// Regression: an unknown vendor AVP colliding with base code 5 (NAS-Port) must
 	// parse without desyncing the stream or panicking in (*AVP).Len().
-	m := NewRequest(CreditControl, 4, dict.Default)
+	m := NewRequest(CreditControl, 4, testDict)
 	mustAddAVP(t, m, avp.SessionID, avp.Mbit, 0, datatype.UTF8String("test;1;0;1"))
 	mustAddAVP(t, m, avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("client"))
 	mustAddAVP(t, m, avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("localhost"))
@@ -168,7 +184,7 @@ func TestReadMessageUnknownVendorAVP(t *testing.T) {
 	}
 	wire := buf.Bytes()
 
-	got, err := ReadMessage(bytes.NewReader(wire), dict.Default)
+	got, err := ReadMessage(bytes.NewReader(wire), testDict)
 	if err != nil {
 		t.Fatal("Failed to read message:", err)
 	}
@@ -236,29 +252,35 @@ func TestAVPLenWithoutData(t *testing.T) {
 }
 
 func TestDecodeAVPVbitShortLength(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	// AVP with Vbit set but length < 12 should return error, not panic.
 	data := []byte{
 		0x00, 0x00, 0x00, 0x01, // Code
 		0x80, 0x00, 0x00, 0x08, // Flags (Vbit set), Length=8
 	}
-	_, err := DecodeAVP(data, 1, dict.Default)
+	_, err := DecodeAVP(data, 1, testDict)
 	if err == nil {
 		t.Fatal("Expected error for AVP with Vbit and length < 12")
 	}
 }
 
 func TestDecodeAVPEmptyPayloadNoVendor(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	// AVP with no vendor and length=8 (empty payload) should not crash.
 	data := []byte{
 		0x00, 0x00, 0x01, 0x08, // Code: Origin-Host (264)
 		0x40, 0x00, 0x00, 0x08, // Flags (Mbit), Length=8
 	}
-	_, err := DecodeAVP(data, 1, dict.Default)
+	_, err := DecodeAVP(data, 1, testDict)
 	// May return a decode error for empty data, but must not panic.
 	_ = err
 }
 
 func TestDecodeAVPSizeMismatch(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	// VendorId (code 266) is Unsigned32 in the dictionary (expects 4 bytes).
 	// This AVP has a 12-byte payload — a deliberate size mismatch.
 	raw := []byte{
@@ -267,7 +289,7 @@ func TestDecodeAVPSizeMismatch(t *testing.T) {
 		0x00, 0x00, 0x00, 0x0d, 0x00, 0x00, 0x00, 0x00,
 		0x00, 0x00, 0x00, 0x00, // 12-byte payload
 	}
-	a, err := DecodeAVP(raw, 1, dict.Default)
+	a, err := DecodeAVP(raw, 1, testDict)
 	if err == nil {
 		t.Fatal("Expected DecodeError for type size mismatch, got nil")
 	}
@@ -280,6 +302,8 @@ func TestDecodeAVPSizeMismatch(t *testing.T) {
 }
 
 func TestDecodeAVPGroupedWithNonGroupedBytes(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	// Vendor-Specific-Application-Id (code 260) is Grouped in the dictionary.
 	// Payload bytes have a Length field (0xff=255) that exceeds available data,
 	// which is a fatal sub-AVP decode error.
@@ -289,7 +313,7 @@ func TestDecodeAVPGroupedWithNonGroupedBytes(t *testing.T) {
 		0x01, 0x02, 0x03, 0x04, // garbage: sub-AVP code
 		0x40, 0x00, 0x00, 0xff, // garbage: sub-AVP Length=255 > 4 remaining bytes
 	}
-	a, err := DecodeAVP(raw, 0, dict.Default)
+	a, err := DecodeAVP(raw, 0, testDict)
 	if err == nil {
 		t.Fatal("Expected DecodeError for grouped mismatch, got nil")
 	}
@@ -328,7 +352,9 @@ var testMismatchMessage = []byte{
 }
 
 func TestDecodeMessageWithSizeMismatchedAVP(t *testing.T) {
-	m, _ := ReadMessage(bytes.NewReader(testMismatchMessage), dict.Default)
+	testDict := newTestDictionary(dict.Base())
+
+	m, _ := ReadMessage(bytes.NewReader(testMismatchMessage), testDict)
 	if m == nil {
 		t.Fatal("Expected non-nil message even with decode error")
 	}
@@ -350,6 +376,8 @@ func TestDecodeMessageWithSizeMismatchedAVP(t *testing.T) {
 }
 
 func TestDecodeGroupedWithTruncatedSubAVP(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	// Auth-Application-Id sub-AVP (12 bytes) + 3 garbage bytes = 15 payload bytes.
 	// Outer AVP: code 260 (Vendor-Specific-Application-Id, Grouped), Length=23.
 	// One padding byte follows to align to 4 bytes.
@@ -364,7 +392,7 @@ func TestDecodeGroupedWithTruncatedSubAVP(t *testing.T) {
 		0x01, 0x02, 0x03,
 		0x00, // padding byte (not part of the AVP payload)
 	}
-	a, err := DecodeAVP(raw, 0, dict.Default)
+	a, err := DecodeAVP(raw, 0, testDict)
 	if err == nil {
 		t.Fatal("Expected DecodeError for grouped with truncated sub-AVP, got nil")
 	}
@@ -378,8 +406,10 @@ func TestDecodeGroupedWithTruncatedSubAVP(t *testing.T) {
 }
 
 func BenchmarkDecodeAVP(b *testing.B) {
+	testDict := newTestDictionary(dict.Base())
+
 	for n := 0; n < b.N; n++ {
-		if _, err := DecodeAVP(testAVP[0], 1, dict.Default); err != nil {
+		if _, err := DecodeAVP(testAVP[0], 1, testDict); err != nil {
 			b.Fatal(err)
 		}
 	}

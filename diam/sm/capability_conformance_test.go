@@ -9,19 +9,24 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/diamtest"
-	"github.com/gomaja/go-diameter/diam/dict"
 	"github.com/gomaja/go-diameter/diam/sm/smparser"
 )
 
 func TestCERSecurityValuesOnWire(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings :=
+		cloneTestSettings(serverSettings, testDict)
+
 	for _, secured := range []bool{false, true} {
 		for _, values := range [][]uint32{nil, {0}, {1}, {7}, {7, 0}, {7, 1}} {
 			t.Run(fmt.Sprintf("TLS=%v/values=%v", secured, values), func(t *testing.T) {
-				srv := diamtest.NewUnstartedServer(mustNewStateMachine(t, serverSettings), dict.Default)
+				srv := diamtest.NewUnstartedServer(mustNewStateMachine(t, serverSettings, testDict), testDict)
 				if secured {
 					srv.StartTLS()
 				} else {
@@ -42,7 +47,7 @@ func TestCERSecurityValuesOnWire(t *testing.T) {
 				if err = c.SetDeadline(time.Now().Add(2 * time.Second)); err != nil {
 					t.Fatal(err)
 				}
-				req := regressionCER(t, dict.Default, 1001)
+				req := regressionCER(t, testDict, 1001)
 				common := len(values) == 0
 				for _, v := range values {
 					req.AddAVP(diam.NewAVP(avp.InbandSecurityID, avp.Mbit, 0, datatype.Unsigned32(v)))
@@ -51,7 +56,7 @@ func TestCERSecurityValuesOnWire(t *testing.T) {
 				if _, err = req.WriteTo(c); err != nil {
 					t.Fatal(err)
 				}
-				answer, err := diam.ReadMessage(c, dict.Default)
+				answer, err := diam.ReadMessage(c, testDict)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -71,14 +76,18 @@ func TestCERSecurityValuesOnWire(t *testing.T) {
 }
 
 func TestCERApplicationIntersectionOnWire(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings :=
+		cloneTestSettings(serverSettings, testDict)
+
 	for _, id := range []uint32{0, 999999, 1001, 0xffffffff} {
 		for _, grouped := range []bool{false, true} {
 			t.Run(fmt.Sprintf("%d/grouped=%v", id, grouped), func(t *testing.T) {
 				settings := *serverSettings
 				settings.AcctApplicationID = []*diam.AVP{diam.NewAVP(avp.AcctApplicationID, avp.Mbit, 0, datatype.Unsigned32(1001))}
-				srv := diamtest.NewServer(mustNewStateMachine(t, &settings), dict.Default)
+				srv := diamtest.NewServer(mustNewStateMachine(t, &settings, testDict), testDict)
 				defer srv.Close()
-				req := regressionCER(t, dict.Default, id)
+				req := regressionCER(t, testDict, id)
 				if grouped {
 					for i, a := range req.AVP {
 						if a.Code == avp.AcctApplicationID {
@@ -86,7 +95,7 @@ func TestCERApplicationIntersectionOnWire(t *testing.T) {
 						}
 					}
 				}
-				answer, c := regressionExchange(t, srv, req, dict.Default)
+				answer, c := regressionExchange(t, srv, req, testDict)
 				want := uint32(diam.NoCommonApplication)
 				if id == 1001 || id == 0xffffffff {
 					want = diam.Success
@@ -103,6 +112,8 @@ func TestCERApplicationIntersectionOnWire(t *testing.T) {
 }
 
 func TestClientRejectsNonCEAOnWire(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	for _, kind := range []string{"CER", "DWR", "DWA", "application", "malformed-DWR", "wrong-app-CEA"} {
 		t.Run(kind, func(t *testing.T) {
 			observed := make(chan error, 1)
@@ -110,13 +121,13 @@ func TestClientRejectsNonCEAOnWire(t *testing.T) {
 				var msg *diam.Message
 				switch kind {
 				case "CER":
-					msg = regressionCER(t, dict.Default, 1001)
+					msg = regressionCER(t, testDict, 1001)
 				case "DWR", "malformed-DWR":
 					msg = regressionDWR(t)
 				case "DWA":
 					msg = regressionDWR(t).Answer(diam.Success)
 				case "application":
-					msg = diam.NewRequest(999999, 1001, dict.Default)
+					msg = diam.NewRequest(999999, 1001, testDict)
 				case "wrong-app-CEA":
 					msg = cer.Answer(diam.Success)
 					msg.Header.ApplicationID = 1001
@@ -140,7 +151,7 @@ func TestClientRejectsNonCEAOnWire(t *testing.T) {
 					return
 				}
 				observed <- nil
-			}), dict.Default)
+			}), testDict)
 			defer srv.Close()
 			cli := newLivenessClient(t)
 			cli.EnableWatchdog = false
@@ -160,11 +171,15 @@ func TestClientRejectsNonCEAOnWire(t *testing.T) {
 }
 
 func TestCEAErrorsPreserveCause(t *testing.T) {
-	c := newErrWriteConn()
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings :=
+		cloneTestSettings(serverSettings, testDict)
+
+	c := newErrWriteConn(testDict)
 	settings := *serverSettings
 	settings.HostIPAddresses = []datatype.Address{localhostAddress}
-	sm := mustNewStateMachine(t, &settings)
-	err := errorCEA(sm, c, regressionCER(t, dict.Default, 1001), smparser.ErrNoCommonApplication)
+	sm := mustNewStateMachine(t, &settings, testDict)
+	err := errorCEA(sm, c, regressionCER(t, testDict, 1001), smparser.ErrNoCommonApplication)
 	if !errors.Is(err, c.writeErr) || !errors.Is(err, smparser.ErrNoCommonApplication) {
 		t.Fatalf("errorCEA lost write cause: %v", err)
 	}
@@ -195,11 +210,15 @@ type invalidLocalConn struct{ *errWriteConn }
 func (*invalidLocalConn) LocalAddr() net.Addr { return emptyLocalAddr{} }
 
 func TestCapabilityAddressErrorsPreserveCause(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings :=
+		cloneTestSettings(serverSettings, testDict)
+
 	settings := *serverSettings
 	settings.HostIPAddresses = nil
-	sm := mustNewStateMachine(t, &settings)
-	c := &invalidLocalConn{newErrWriteConn()}
-	request := regressionCER(t, dict.Default, 1001)
+	sm := mustNewStateMachine(t, &settings, testDict)
+	c := &invalidLocalConn{newErrWriteConn(testDict)}
+	request := regressionCER(t, testDict, 1001)
 	err := errorCEA(sm, c, request, smparser.ErrNoCommonApplication)
 	var causes interface{ Unwrap() []error }
 	if !errors.Is(err, smparser.ErrNoCommonApplication) || !errors.As(err, &causes) {
@@ -212,7 +231,7 @@ func TestCapabilityAddressErrorsPreserveCause(t *testing.T) {
 	if !foundAddress {
 		t.Fatalf("error CEA lost address cause: %v", err)
 	}
-	cli := &Client{Handler: sm}
+	cli := &Client{Handler: sm, Dict: testDict}
 	_, err = cli.handshake(c, newWatchdogActivity())
 	if cause := errors.Unwrap(err); cause == nil || cause.Error() != "empty local address" {
 		t.Fatalf("client lost address cause: %v", err)

@@ -1,15 +1,21 @@
-package dict
+package dict_test
 
 import (
 	"encoding/json"
 	"os"
 	"slices"
 	"testing"
+
+	"github.com/gomaja/go-diameter/diam/dict"
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+	"github.com/gomaja/go-diameter/diam/dict/rorf"
 )
 
 // TS 32.299 V19.0.0 §§6.2.2–6.2.3, 6.4.2–6.4.5, 7.1.9,
 // 7.1.14 and 7.1.17 extend the current RFC grammars without dropping their rules.
 func TestRoRfSharedGrammars(t *testing.T) {
+	reference := newAllTestParser(t)
+
 	b, err := os.ReadFile("testdata/rorf_commands_spec.json")
 	if err != nil {
 		t.Fatal(err)
@@ -37,15 +43,15 @@ func TestRoRfSharedGrammars(t *testing.T) {
 			if want.RFCSource == "" || len(want.Rules) == 0 || len(want.Effective) == 0 {
 				t.Fatal("missing source or composed grammar")
 			}
-			var rules []*Rule
+			var rules []*dict.Rule
 			if want.Name != "" {
-				a, err := Default.FindAVPByName(4, want.Name)
+				a, err := reference.FindAVPByName(4, want.Name)
 				if err != nil {
 					t.Fatal(err)
 				}
 				rules = a.Data.Rule
 			} else {
-				c, err := Default.FindCommand(want.Application, want.Code)
+				c, err := reference.FindCommand(want.Application, want.Code)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -68,7 +74,9 @@ type roRfSpec struct{ AVPs []rxAVPSpec }
 // TS 32.299 V19.0.0 §§6.2.2–6.2.3, 7.2–7.4: Rf resolves the same
 // charging definitions as Ro without copying them or changing base accounting.
 func TestRoRfApplicationViews(t *testing.T) {
-	for _, dictionary := range []*Parser{Default, New(RoRf), New(CreditControl)} {
+	reference := newAllTestParser(t)
+
+	for _, dictionary := range []*dict.Parser{reference, newTestParser(t, rorf.Dictionary()), newTestParser(t, creditcontrol.Dictionary())} {
 		for _, want := range loadRoRfSpec(t).AVPs {
 			ro, err := dictionary.FindAVP(4, want.Code, want.Vendor)
 			if err != nil {
@@ -92,7 +100,7 @@ func TestRoRfApplicationViews(t *testing.T) {
 			t.Fatalf("Rf vendor declarations: %v", vendors)
 		}
 	}
-	base := New(Base)
+	base := newTestParser(t, dict.Base())
 	if _, err := base.FindAVPByName(3, "Service-Information"); err == nil {
 		t.Fatal("base-only accounting unexpectedly exposes charging definitions")
 	}
@@ -128,9 +136,11 @@ func loadRoRfSpec(t *testing.T) roRfSpec {
 // TS 32.299 V19.0.0 Table 7.2.0.1 and each AVP's independently cited
 // defining clause, including the current RFC base and QoS definitions.
 func TestRoRfAVPSpec(t *testing.T) {
+	reference := newAllTestParser(t)
+
 	for _, want := range loadRoRfSpec(t).AVPs {
 		t.Run(want.Name, func(t *testing.T) {
-			a, err := Default.FindAVP(4, want.Code, want.Vendor)
+			a, err := reference.FindAVP(4, want.Code, want.Vendor)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -140,6 +150,8 @@ func TestRoRfAVPSpec(t *testing.T) {
 }
 
 func TestRoRfFixtureClosure(t *testing.T) {
+	reference := newAllTestParser(t)
+
 	s := loadRoRfSpec(t)
 	s.AVPs = append(s.AVPs, loadOneM2MSpec(t)...)
 	names := map[string]bool{}
@@ -167,7 +179,7 @@ func TestRoRfFixtureClosure(t *testing.T) {
 			}
 		}
 	}
-	for _, app := range Default.Apps() {
+	for _, app := range reference.Apps() {
 		if app.ID != 4 {
 			continue
 		}
@@ -181,12 +193,12 @@ func TestRoRfFixtureClosure(t *testing.T) {
 
 // Project a composed grammar onto the RFC's members. The charging test
 // independently checks the exact full union, including every added rule.
-func roRfRFCOnlyRules(got []*Rule, names []string) []*Rule {
+func roRfRFCOnlyRules(got []*dict.Rule, names []string) []*dict.Rule {
 	allowed := make(map[string]bool, len(names))
 	for _, name := range names {
 		allowed[name] = true
 	}
-	var rules []*Rule
+	var rules []*dict.Rule
 	for _, rule := range got {
 		if allowed[rule.AVP] {
 			rules = append(rules, rule)
@@ -195,7 +207,7 @@ func roRfRFCOnlyRules(got []*Rule, names []string) []*Rule {
 	return rules
 }
 
-func roRfCreditControlRules(t *testing.T, got []*Rule, want []creditControlRule, name string) {
+func roRfCreditControlRules(t *testing.T, got []*dict.Rule, want []creditControlRule, name string) {
 	t.Helper()
 	if name == "Multiple-Services-Credit-Control" || name == "Used-Service-Unit" {
 		names := make([]string, len(want))

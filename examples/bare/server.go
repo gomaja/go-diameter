@@ -15,7 +15,11 @@ import (
 )
 
 func main() {
-	if err := dict.Default.LoadFile("diam_app.xml"); err != nil {
+	dictionary, err := dict.New(dict.Base())
+	if err != nil {
+		log.Fatal(err)
+	}
+	if err := dictionary.LoadFile("diam_app.xml"); err != nil {
 		log.Fatal(err)
 	}
 	srv, err := net.Listen("tcp", ":3868")
@@ -26,19 +30,19 @@ func main() {
 		if conn, err := srv.Accept(); err != nil {
 			panic(err)
 		} else {
-			go handleClient(conn)
+			go handleClient(conn, dictionary)
 		}
 	}
 }
 
-func handleClient(conn net.Conn) {
+func handleClient(conn net.Conn, dictionary *dict.Parser) {
 	defer func() {
 		if err := conn.Close(); err != nil {
 			log.Printf("close connection: %v", err)
 		}
 	}()
 	for {
-		m, err := diam.ReadMessage(conn, dict.Default)
+		m, err := diam.ReadMessage(conn, dictionary)
 		if err != nil {
 			log.Fatal(err)
 		}

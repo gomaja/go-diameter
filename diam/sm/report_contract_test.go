@@ -10,13 +10,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/diamtest"
-	"github.com/gomaja/go-diameter/diam/dict"
 	"github.com/gomaja/go-diameter/diam/internal/logtest"
 )
 
 func TestStateMachineLogsEveryUnhandledMessage(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	const count = 5000
 	for _, mode := range []int{0, -1} {
 		for _, request := range []bool{true, false} {
@@ -29,8 +32,8 @@ func TestStateMachineLogsEveryUnhandledMessage(t *testing.T) {
 					defer cancel()
 				}
 				records := logtest.New()
-				sm := mustNewStateMachine(t, testMessageErrorSettings())
-				srv := diamtest.NewUnstartedServer(sm, dict.Default)
+				sm := mustNewStateMachine(t, testMessageErrorSettings(testDict), testDict)
+				srv := diamtest.NewUnstartedServer(sm, testDict)
 				srv.Config.Logger = records.Logger()
 				srv.Config.MaxConcurrentHandlers = mode
 				srv.Start()
@@ -50,11 +53,11 @@ func TestStateMachineLogsEveryUnhandledMessage(t *testing.T) {
 							t.Error(err)
 							return
 						}
-						if _, err = regressionCER(t, dict.Default, 1001).WriteTo(c); err != nil {
+						if _, err = regressionCER(t, testDict, 1001).WriteTo(c); err != nil {
 							t.Error(err)
 							return
 						}
-						if a, e := diam.ReadMessage(c, dict.Default); e != nil || !testResultCode(a, diam.Success) {
+						if a, e := diam.ReadMessage(c, testDict); e != nil || !testResultCode(a, diam.Success) {
 							t.Errorf("CER: %v %v", a, e)
 							return
 						}
@@ -68,13 +71,13 @@ func TestStateMachineLogsEveryUnhandledMessage(t *testing.T) {
 							if request {
 								flags = diam.RequestFlag
 							}
-							m := diam.NewMessage(0xfedc, flags, 0, id, id+count, dict.Default)
+							m := diam.NewMessage(0xfedc, flags, 0, id, id+count, testDict)
 							if _, err = m.WriteTo(c); err != nil {
 								t.Error(err)
 								return
 							}
 							if request {
-								a, e := diam.ReadMessage(c, dict.Default)
+								a, e := diam.ReadMessage(c, testDict)
 								if e != nil {
 									t.Error(e)
 									return

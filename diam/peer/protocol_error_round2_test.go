@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/nasreq"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
@@ -30,7 +32,7 @@ func TestProtocolErrorManagerDWAResultCodeOnWire(t *testing.T) {
 		{"earlier top-level success", true, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			dictionary := dict.New(dict.Base, dict.NASREQ)
+			dictionary := newTestDictionary(dict.Base(), nasreq.Dictionary())
 			dictionary.SetStrict(tc.strict)
 			events := make(chan diam.ProtocolErrorEvent, 4)
 			records := logtest.New()
@@ -50,6 +52,7 @@ func TestProtocolErrorManagerDWAResultCodeOnWire(t *testing.T) {
 				t.Fatal(err)
 			}
 			server := &diam.Server{Dict: dictionary}
+			server.Dict = m.cfg.Settings.Dict
 			if err := m.BindServer(server); err != nil {
 				t.Fatal(err)
 			}
@@ -142,7 +145,7 @@ func TestProtocolErrorManagerCEAParserCodeOnWire(t *testing.T) {
 			if err := l.(*net.TCPListener).SetDeadline(time.Now().Add(2 * time.Second)); err != nil {
 				t.Fatal(err)
 			}
-			dictionary := dict.New(dict.Base, dict.NASREQ)
+			dictionary := newTestDictionary(dict.Base(), nasreq.Dictionary())
 			dictionary.SetStrict(tc.strict)
 			records := logtest.New()
 			events := make(chan diam.ProtocolErrorEvent, 4)

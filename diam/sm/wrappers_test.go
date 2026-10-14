@@ -10,10 +10,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/diamtest"
-	"github.com/gomaja/go-diameter/diam/dict"
 	"github.com/gomaja/go-diameter/diam/internal/logtest"
 )
 
@@ -38,17 +39,19 @@ var stateMachineWrappers = []struct {
 // An opaque wrapper intentionally hides optional interfaces; a plain Unwrap
 // wrapper retains RFC 6733 §5.6.1 admission and its handshake timer.
 func TestWrappedStateMachineAdmission(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	for _, variant := range stateMachineWrappers {
 		for _, mode := range []string{"malformed pre-CER", "valid pre-CER", "timeout"} {
 			t.Run(variant.name+"/"+mode, func(t *testing.T) {
 				records := logtest.New()
-				cfg := testMessageErrorSettings()
+				cfg := testMessageErrorSettings(testDict)
 				cfg.HandshakeTimeout = time.Second
 				if mode == "timeout" {
 					cfg.HandshakeTimeout = 30 * time.Millisecond
 				}
-				sm := mustNewStateMachine(t, cfg)
-				srv := diamtest.NewUnstartedServer(variant.wrap(sm), dict.Default)
+				sm := mustNewStateMachine(t, cfg, testDict)
+				srv := diamtest.NewUnstartedServer(variant.wrap(sm), testDict)
 				srv.Config.Logger = records.Logger()
 				srv.Start()
 				defer srv.Close()
@@ -70,7 +73,7 @@ func TestWrappedStateMachineAdmission(t *testing.T) {
 						t.Fatal(err)
 					}
 				}
-				if m, err := diam.ReadMessage(c, dict.Default); !errors.Is(err, io.EOF) {
+				if m, err := diam.ReadMessage(c, testDict); !errors.Is(err, io.EOF) {
 					t.Fatalf("before CER: %v, %v; want EOF without answer", m, err)
 				}
 				// C3: no waiting after peer EOF; the closing component already logged.
@@ -92,11 +95,13 @@ func TestWrappedStateMachineAdmission(t *testing.T) {
 	}
 }
 func TestOpaqueWrapperHidesStateMachineInterfaces(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	records := logtest.New()
-	cfg := testMessageErrorSettings()
+	cfg := testMessageErrorSettings(testDict)
 	cfg.HandshakeTimeout = 20 * time.Millisecond
-	sm := mustNewStateMachine(t, cfg)
-	srv := diamtest.NewUnstartedServer(opaqueHandlerWrapper{sm}, dict.Default)
+	sm := mustNewStateMachine(t, cfg, testDict)
+	srv := diamtest.NewUnstartedServer(opaqueHandlerWrapper{sm}, testDict)
 	srv.Config.Logger = records.Logger()
 	srv.Start()
 	defer srv.Close()
@@ -118,7 +123,7 @@ func TestOpaqueWrapperHidesStateMachineInterfaces(t *testing.T) {
 		t.Fatal(err)
 	}
 	writeSMErrorWire(t, c, testSMErrorMessage(t, diam.RequestFlag, []byte{0, 0, 1, 2, avp.Mbit, 255, 255, 255}))
-	if _, err = diam.ReadMessage(c, dict.Default); !errors.Is(err, io.EOF) {
+	if _, err = diam.ReadMessage(c, testDict); !errors.Is(err, io.EOF) {
 		t.Fatalf("opaque malformed read: %v", err)
 	}
 	var found bool
@@ -150,12 +155,14 @@ func (w *interceptingErrorWrapper) HandleMessageError(c diam.Conn, m *diam.Messa
 	return h.HandleMessageError(c, m, e)
 }
 func TestInterceptingStateMachineWrapper(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	for _, failure := range []error{nil, fmt.Errorf("wrapper: %w", errors.ErrUnsupported), errors.New("wrapper failure")} {
 		t.Run(fmt.Sprint(failure), func(t *testing.T) {
 			records := logtest.New()
-			sm := mustNewStateMachine(t, testMessageErrorSettings())
+			sm := mustNewStateMachine(t, testMessageErrorSettings(testDict), testDict)
 			h := &interceptingErrorWrapper{plainHandlerWrapper: plainHandlerWrapper{sm}, err: failure}
-			srv := diamtest.NewUnstartedServer(h, dict.Default)
+			srv := diamtest.NewUnstartedServer(h, testDict)
 			srv.Config.Logger = records.Logger()
 			srv.Start()
 			defer srv.Close()
@@ -166,13 +173,13 @@ func TestInterceptingStateMachineWrapper(t *testing.T) {
 			defer func() { _ = c.Close() }()
 			writeSMErrorWire(t, c, testSMErrorMessage(t, diam.RequestFlag, []byte{0, 0, 1, 2, avp.Mbit, 255, 255, 255}))
 			if failure == nil {
-				a, e := diam.ReadMessage(c, dict.Default)
+				a, e := diam.ReadMessage(c, testDict)
 				if e != nil {
 					t.Fatal(e)
 				}
 				assertMessageErrorAnswer(t, a, sm.cfg, diam.InvalidAVPLength, 0, true)
 			}
-			if _, err = diam.ReadMessage(c, dict.Default); !errors.Is(err, io.EOF) {
+			if _, err = diam.ReadMessage(c, testDict); !errors.Is(err, io.EOF) {
 				t.Fatalf("want EOF after exactly one answer: %v", err)
 			}
 			if h.calls.Load() != 1 {

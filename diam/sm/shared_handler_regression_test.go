@@ -4,18 +4,22 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/diamtest"
-	"github.com/gomaja/go-diameter/diam/dict"
 )
 
 // Client's connection-local handshake handlers must leave a shared server's
 // CER registration intact (RFC 6733 §5.3), including across repeated dials.
 func TestClientDialsPreserveSharedInboundCER(t *testing.T) {
-	shared := mustNewStateMachine(t, serverSettings)
-	inbound := diamtest.NewServer(shared, dict.Default)
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings := cloneTestSettings(serverSettings, testDict)
+
+	shared := mustNewStateMachine(t, serverSettings, testDict)
+	inbound := diamtest.NewServer(shared, testDict)
 	defer inbound.Close()
-	remote := diamtest.NewServer(mustNewStateMachine(t, serverSettings), dict.Default)
+	remote := diamtest.NewServer(mustNewStateMachine(t, serverSettings, testDict), testDict)
 	defer remote.Close()
 	client := newLivenessClient(t)
 	client.Handler = shared

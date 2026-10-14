@@ -75,7 +75,7 @@ func TestInheritanceSyntaxAndCycles(t *testing.T) {
 	}
 	for _, graph := range []string{`<application id="40" inherits="40"/>`, `<application id="40" inherits="41"/><application id="41" inherits="40"/>`, `<application id="40" inherits="41 42"/><application id="41"/><application id="42" inherits="40"/>`, `<application id="0" inherits="40"/>`} {
 		t.Run(graph, func(t *testing.T) {
-			p := New(Base)
+			p := newTestParser(t, Base())
 			before := p.Snapshot()
 			err := p.Load(strings.NewReader("<diameter>" + graph + "</diameter>"))
 			if !errors.Is(err, ErrParentCycle) {
@@ -85,46 +85,5 @@ func TestInheritanceSyntaxAndCycles(t *testing.T) {
 				t.Fatal("failed cycle load published snapshot")
 			}
 		})
-	}
-}
-
-// RFC 6733 §§2.4, 9.7: accounting acquires the TS 32.299 §6.2 tree
-// only through the loaded Ro/Rf contribution to application 3.
-func TestAccountingInheritanceIsBundleScoped(t *testing.T) {
-	for _, b := range []Bundled{Base, NASREQ, Cx, Sh} {
-		p := New(b)
-		count := 0
-		for _, app := range Default.Apps() {
-			for _, a := range app.AVP {
-				if _, err := p.FindAVP(3, a.Code, a.VendorID); err == nil {
-					count++
-				}
-			}
-		}
-		// Enumerate identities independently of duplicate bundle declarations.
-		keys := map[[2]uint32]bool{}
-		for _, app := range Default.Apps() {
-			for _, a := range app.AVP {
-				if _, err := p.FindAVP(3, a.Code, a.VendorID); err == nil {
-					keys[[2]uint32{a.Code, a.VendorID}] = true
-				}
-			}
-		}
-		if len(keys) != 63 {
-			t.Errorf("%s accounting has %d distinct AVPs (%d definitions), want 63", b, len(keys), count)
-		}
-		for key := range keys {
-			got, _ := p.FindAVP(3, key[0], key[1])
-			base, err := p.FindAVP(0, key[0], key[1])
-			if err != nil || got != base {
-				t.Errorf("%s app 3 differs from base at %v", b, key)
-			}
-		}
-	}
-	for _, b := range []Bundled{RoRf, CreditControl, Gx, Rx, S6a, SWx, S6c, SGd, Sy} {
-		p := New(b)
-		if _, err := p.FindAVPByName(3, "Service-Information"); err != nil {
-			t.Errorf("%s lacks Rf charging: %v", b, err)
-		}
 	}
 }

@@ -24,8 +24,10 @@ type failingBodyReader struct{ err error }
 
 func (r failingBodyReader) Read([]byte) (int, error) { return 0, r.err }
 func TestReadBodyPreservesTransportError(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	header := (&Header{Version: 1, MessageLength: HeaderLength + 8, CommandCode: CapabilitiesExchange, CommandFlags: RequestFlag}).Serialize()
-	_, err := ReadMessage(io.MultiReader(bytes.NewReader(header), failingBodyReader{bodyTimeout{}}), dict.Default)
+	_, err := ReadMessage(io.MultiReader(bytes.NewReader(header), failingBodyReader{bodyTimeout{}}), testDict)
 	var timeout net.Error
 	if !errors.As(err, &timeout) || !timeout.Timeout() {
 		t.Fatalf("body timeout identity lost: %v", err)
@@ -71,6 +73,8 @@ func TestReadErrorRecordLevels(t *testing.T) {
 }
 
 func TestMessageErrorTakesPrecedenceOverOrderlyClose(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	for _, cause := range []error{io.EOF, net.ErrClosed} {
 		for _, wrapped := range []bool{false, true} {
 			t.Run(fmt.Sprintf("%v/wrapped=%t", cause, wrapped), func(t *testing.T) {
@@ -78,7 +82,7 @@ func TestMessageErrorTakesPrecedenceOverOrderlyClose(t *testing.T) {
 				local, remote := net.Pipe()
 				defer func() { _ = local.Close(); _ = remote.Close() }()
 				c := (&Server{Handler: h, Logger: h.records.Logger()}).newConn(local)
-				m := NewRequest(DeviceWatchdog, 0, dict.Default)
+				m := NewRequest(DeviceWatchdog, 0, testDict)
 				me := &MessageError{ResultCode: InvalidAVPValue, Err: cause}
 				var err error = me
 				if wrapped {
@@ -146,11 +150,13 @@ func TestServerLogsEOFBeforeMessageBody(t *testing.T) {
 }
 
 func TestServerLocalCloseIsQuiet(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	for _, fromHandler := range []bool{false, true} {
 		t.Run(fmt.Sprintf("handler=%t", fromHandler), func(t *testing.T) {
 			records := logtest.New()
 			accepted := make(chan Conn, 1)
-			srv := &Server{Logger: records.Logger(), Dict: dict.Default,
+			srv := &Server{Logger: records.Logger(), Dict: testDict,
 				OnNewConnection: func(c Conn) {
 					accepted <- c
 					if !fromHandler {
@@ -162,7 +168,7 @@ func TestServerLocalCloseIsQuiet(t *testing.T) {
 			addr := reportingTCPServer(t, srv)
 			remote := reportingDial(t, addr)
 			if fromHandler {
-				if _, err := NewRequest(DeviceWatchdog, 0, dict.Default).WriteTo(remote); err != nil {
+				if _, err := NewRequest(DeviceWatchdog, 0, testDict).WriteTo(remote); err != nil {
 					t.Fatal(err)
 				}
 			}

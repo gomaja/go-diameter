@@ -6,9 +6,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/diamtest"
-	"github.com/gomaja/go-diameter/diam/dict"
 	"github.com/gomaja/go-diameter/diam/internal/logtest"
 )
 
@@ -28,8 +29,10 @@ func (h *validDWRGatedHandler) ServeDIAM(c diam.Conn, m *diam.Message) {
 	h.StateMachine.ServeDIAM(c, m)
 }
 func TestSMConcurrentCERThenValidDWROnWire(t *testing.T) {
-	h := &validDWRGatedHandler{StateMachine: mustNewStateMachine(t, testMessageErrorSettings()), cerEntered: make(chan struct{}), release: make(chan struct{}), dwrEntered: make(chan struct{}), dwrDone: make(chan struct{})}
-	srv := diamtest.NewUnstartedServer(h, dict.Default)
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
+	h := &validDWRGatedHandler{StateMachine: mustNewStateMachine(t, testMessageErrorSettings(testDict), testDict), cerEntered: make(chan struct{}), release: make(chan struct{}), dwrEntered: make(chan struct{}), dwrDone: make(chan struct{})}
+	srv := diamtest.NewUnstartedServer(h, testDict)
 	srv.Config.MaxConcurrentHandlers = 4
 	srv.Start()
 	defer srv.Close()
@@ -44,7 +47,7 @@ func TestSMConcurrentCERThenValidDWROnWire(t *testing.T) {
 	if err = c.SetDeadline(time.Now().Add(time.Second)); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = regressionCER(t, dict.Default, 1001).WriteTo(c); err != nil {
+	if _, err = regressionCER(t, testDict, 1001).WriteTo(c); err != nil {
 		t.Fatal(err)
 	}
 	select {
@@ -67,22 +70,24 @@ func TestSMConcurrentCERThenValidDWROnWire(t *testing.T) {
 	}
 	release()
 	for _, cmd := range []uint32{diam.CapabilitiesExchange, diam.DeviceWatchdog} {
-		a, e := diam.ReadMessage(c, dict.Default)
+		a, e := diam.ReadMessage(c, testDict)
 		if e != nil || a.Header.CommandCode != cmd || !testResultCode(a, diam.Success) {
 			t.Fatalf("want %d/2001: %v %v", cmd, a, e)
 		}
 	}
 }
 func TestInvalidDWAHeaderDoesNotResetActivity(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	records := logtest.New()
-	sm := mustNewStateMachine(t, testMessageErrorSettings())
+	sm := mustNewStateMachine(t, testMessageErrorSettings(testDict), testDict)
 	activity := newWatchdogActivity()
 	activity.ceaReceived.Store(true)
 	activity.last.Store(123)
 	called := false
 	h := activityHandler{StateMachine: sm, activity: activity, dwa: diam.HandlerFunc(func(diam.Conn, *diam.Message) { called = true })}
 	c := loggerHandshakeConn{newHandshakeConn(), records.Logger()}
-	m := diam.NewMessage(diam.DeviceWatchdog, 0, 4, 1, 2, dict.Default)
+	m := diam.NewMessage(diam.DeviceWatchdog, 0, 4, 1, 2, testDict)
 	h.ServeDIAM(c, m)
 	if activity.last.Load() != 123 {
 		t.Error("invalid DWA reset last activity")

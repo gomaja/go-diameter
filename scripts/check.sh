@@ -133,6 +133,13 @@ check_format() {
 	git diff --check "$base" || return 1
 	git ls-files -z --others --exclude-standard |
 		while IFS= read -r -d '' file; do
+			# Exact moves preserve existing dictionary bytes, including historical
+			# whitespace. Check changed/new XML normally, without changing the index.
+			if [[ "$file" == diam/dict/*.xml ]] &&
+				git show "$base:diam/dict/bundled/${file##*/}" > "$work/original-dictionary" 2>/dev/null &&
+				cmp -s "$work/original-dictionary" "$file"; then
+				continue
+			fi
 			git diff --no-index --check -- /dev/null "$file"
 			status=$?
 			# A no-index diff returns 1 for different content even when clean.

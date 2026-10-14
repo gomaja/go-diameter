@@ -5,6 +5,8 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/dict"
@@ -26,11 +28,18 @@ func psInformation(members ...*AVP) *AVP {
 
 // sameCodeLayouts places the two AVPs in a message of application 4, each
 // before the other, at the top level and inside a Grouped AVP.
-func sameCodeLayouts(t *testing.T) []struct {
+func sameCodeLayouts(t *testing.T, parsers ...*dict.Parser) []struct {
 	name       string
 	m          *Message
 	ietf, tgpp *AVP
 } {
+	var testDict *dict.Parser
+	if len(parsers) > 0 {
+		testDict = parsers[0]
+	} else {
+		testDict = newTestDictionary(creditcontrol.Dictionary())
+	}
+
 	t.Helper()
 	type layout = struct {
 		name       string
@@ -50,7 +59,7 @@ func sameCodeLayouts(t *testing.T) []struct {
 		{"3GPP at top level, IETF grouped", func(ietf, tgpp *AVP) []*AVP { return []*AVP{tgpp, psInformation(ietf)} }},
 	} {
 		ietf, tgpp := sameCodeAVPs()
-		m := NewMessage(CreditControl, RequestFlag|ProxiableFlag, 4, 1, 2, dict.Default)
+		m := NewMessage(CreditControl, RequestFlag|ProxiableFlag, 4, 1, 2, testDict)
 		for _, a := range tc.place(ietf, tgpp) {
 			m.AddAVP(a)
 		}
@@ -61,7 +70,7 @@ func sameCodeLayouts(t *testing.T) []struct {
 		if err != nil {
 			t.Fatalf("%s: serialize: %v", tc.name, err)
 		}
-		decoded, err := ReadMessage(bytes.NewReader(b), dict.Default)
+		decoded, err := ReadMessage(bytes.NewReader(b), testDict)
 		if err != nil {
 			t.Fatalf("%s: decode: %v", tc.name, err)
 		}
@@ -95,7 +104,9 @@ func walkAVPs(avps []*AVP, visit func(*AVP)) {
 // an AVP by its code and Vendor-Id together (RFC 6733 §4.1), at the top
 // level and inside Grouped AVPs: a code reused by another vendor never matches.
 func TestFindAVPMatchesCodeAndVendor(t *testing.T) {
-	for _, l := range sameCodeLayouts(t) {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
+	for _, l := range sameCodeLayouts(t, testDict) {
 		t.Run(l.name, func(t *testing.T) {
 			for _, q := range []struct {
 				code   uint32
@@ -129,8 +140,10 @@ func TestFindAVPMatchesCodeAndVendor(t *testing.T) {
 // TestFindAVPByNameUsesDefinitionVendor verifies name lookup selects the
 // definition's code and Vendor-Id, including when the code is shared.
 func TestFindAVPByNameUsesDefinitionVendor(t *testing.T) {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
 	ietf, tgpp := sameCodeAVPs()
-	m := NewMessage(CreditControl, RequestFlag|ProxiableFlag, 4, 1, 2, dict.Default)
+	m := NewMessage(CreditControl, RequestFlag|ProxiableFlag, 4, 1, 2, testDict)
 	m.AddAVP(ietf)
 	m.AddAVP(tgpp)
 	for _, tc := range []struct {
@@ -160,7 +173,9 @@ func TestFindAVPByNameUsesDefinitionVendor(t *testing.T) {
 // Vendor-Id is found whether or not the dictionary defines it: the pair is
 // the AVP's identity on the wire.
 func TestFindAVPByCodeNeedsNoDictionary(t *testing.T) {
-	m := NewMessage(CreditControl, RequestFlag|ProxiableFlag, 4, 1, 2, dict.Default)
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
+	m := NewMessage(CreditControl, RequestFlag|ProxiableFlag, 4, 1, 2, testDict)
 	unknown := NewAVP(4242, avp.Vbit, 99999, datatype.Unknown{1, 2, 3, 4})
 	m.AddAVP(psInformation(unknown))
 	got, err := m.FindAVP(4242, 99999)
@@ -176,7 +191,9 @@ func TestFindAVPByCodeNeedsNoDictionary(t *testing.T) {
 // a path is matched by its own code and Vendor-Id: a 3GPP Grouped AVP can
 // hold IETF members, and its members can reuse codes of other vendors.
 func TestFindAVPsWithPathMatchesEachElementsVendor(t *testing.T) {
-	for _, l := range sameCodeLayouts(t) {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
+	for _, l := range sameCodeLayouts(t, testDict) {
 		t.Run(l.name, func(t *testing.T) {
 			var group *AVP
 			var top []*AVP
@@ -222,7 +239,9 @@ func TestFindAVPsWithPathMatchesEachElementsVendor(t *testing.T) {
 // Service-Selection, an IETF AVP (RFC 5778 §6.2), inside 3GPP Grouped AVPs
 // (3GPP TS 29.272 §7.3.2).
 func TestFindAVPsWithPathCrossesVendorSpaces(t *testing.T) {
-	m := NewMessage(UpdateLocation, ProxiableFlag, TGPP_S6A_APP_ID, 1, 2, dict.Default)
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
+	m := NewMessage(UpdateLocation, ProxiableFlag, TGPP_S6A_APP_ID, 1, 2, testDict)
 	selection := NewAVP(avp.ServiceSelection, avp.Mbit, 0, datatype.UTF8String("internet"))
 	m.AddAVP(NewAVP(avp.SubscriptionData, avp.Mbit, vendor3GPP, &GroupedAVP{AVP: []*AVP{
 		NewAVP(avp.APNConfigurationProfile, avp.Mbit, vendor3GPP, &GroupedAVP{AVP: []*AVP{
@@ -249,6 +268,8 @@ func TestFindAVPsWithPathCrossesVendorSpaces(t *testing.T) {
 // a nil *GroupedAVP is searched as one without members, at the top level
 // and nested, by FindAVP, FindAVPs and FindAVPsWithPath.
 func TestFindAVPToleratesNilGroupedData(t *testing.T) {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
 	for _, tc := range []struct {
 		name   string
 		nested bool
@@ -256,7 +277,7 @@ func TestFindAVPToleratesNilGroupedData(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			empty := &AVP{Code: avp.PSInformation, Flags: avp.Mbit | avp.Vbit, VendorID: vendor3GPP, Data: (*GroupedAVP)(nil)}
 			_, target := sameCodeAVPs()
-			m := NewMessage(CreditControl, RequestFlag|ProxiableFlag, 4, 1, 2, dict.Default)
+			m := NewMessage(CreditControl, RequestFlag|ProxiableFlag, 4, 1, 2, testDict)
 			path := []AVPRef{{avp.PSInformation, vendor3GPP}, {avp.TGPPGGSNMCCMNC, vendor3GPP}}
 			if tc.nested {
 				// A literal: NewAVP would measure the nil group.

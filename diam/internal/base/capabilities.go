@@ -192,6 +192,8 @@ func advertisedApplications(cfg Settings) []LocalApplication {
 
 // AdvertisedApplicationIDs returns the effective local application set for
 // capabilities negotiation. Explicit lists replace dictionary inference.
+// Inference includes the selected dictionaries and their prerequisites; an
+// application import alone does not add capabilities to dict.Default.
 func AdvertisedApplicationIDs(cfg Settings) []uint32 {
 	ids := make([]uint32, 0)
 	for _, app := range advertisedApplications(cfg) {

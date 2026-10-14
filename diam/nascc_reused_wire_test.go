@@ -5,14 +5,17 @@ import (
 	"os"
 	"testing"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam/datatype"
-	"github.com/gomaja/go-diameter/diam/dict"
 )
 
 // RFC 7155 §§3–4 and RFC 8506 §§3, 8 reuse RFC 6733 and NASREQ AVPs.
 // Exercise their complete available named-member closure in each effective
 // application, using the same independent source metadata as the spec tests.
 func TestNASCCReusedAVPWireRoundTrip(t *testing.T) {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
 	lookup := map[string]nasreqWireAVP{}
 	_, qos := rfc5777WireSpec(t)
 	var baseNames []string
@@ -76,7 +79,7 @@ func TestNASCCReusedAVPWireRoundTrip(t *testing.T) {
 		for _, name := range names {
 			t.Run(string(rune('0'+app))+"/"+name, func(t *testing.T) {
 				want := lookup[name]
-				def, err := dict.Default.FindAVP(app, want.Code, want.Vendor)
+				def, err := testDict.FindAVP(app, want.Code, want.Vendor)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -88,13 +91,13 @@ func TestNASCCReusedAVPWireRoundTrip(t *testing.T) {
 					}
 					data = rfc5777Data(t, source, qos)
 				} else {
-					data = nasreqWireData(t, want, lookup)
+					data = nasreqWireData(t, want, lookup, testDict)
 				}
-				m := NewRequest(265, app, dict.Default)
+				m := NewRequest(265, app, testDict)
 				if _, err := m.NewAVPByName(def.Name, gxWireFlags(def.Must), data); err != nil {
 					t.Fatal(err)
 				}
-				assertRefreshWire(t, m, want.Code, gxWireFlags(want.Must), want.Vendor, data)
+				assertRefreshWire(t, m, want.Code, gxWireFlags(want.Must), want.Vendor, data, testDict)
 			})
 		}
 	}

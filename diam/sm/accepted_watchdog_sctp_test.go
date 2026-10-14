@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/diamtest"
 	"github.com/gomaja/go-diameter/diam/dict"
@@ -14,6 +16,10 @@ import (
 )
 
 func acceptedWatchdogSCTPSettings(events chan<- WatchdogEvent) *Settings {
+	testDict := newSMTestDictionary(dict.Base())
+	serverSettings :=
+		cloneTestSettings(serverSettings, testDict)
+
 	cfg := *serverSettings
 	cfg.EnableWatchdog = true
 	cfg.WatchdogInterval = 50 * time.Millisecond
@@ -24,13 +30,15 @@ func acceptedWatchdogSCTPSettings(events chan<- WatchdogEvent) *Settings {
 }
 
 func dialAcceptedWatchdogSCTP(t *testing.T, server *diamtest.Server, handler diam.Handler) diam.Conn {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	t.Helper()
-	client, err := diam.DialNetworkTimeout("sctp", server.Addr, handler, dict.Default, testutil.SCTPTimeout)
+	client, err := diam.DialNetworkTimeout("sctp", server.Addr, handler, testDict, testutil.SCTPTimeout)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(client.Close)
-	if _, err := regressionCER(t, dict.Default, 1001).WriteTo(client); err != nil {
+	if _, err := regressionCER(t, testDict, 1001).WriteTo(client); err != nil {
 		t.Fatal(err)
 	}
 	return client
@@ -49,9 +57,11 @@ func waitAcceptedSCTPEvent(t *testing.T, events <-chan WatchdogEvent, want Watch
 }
 
 func TestAcceptedWatchdogSCTPStreamAndTimeout(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	requireSCTP(t)
 	events := make(chan WatchdogEvent, 8)
-	server := diamtest.NewServerNetwork("sctp", mustNewStateMachine(t, acceptedWatchdogSCTPSettings(events)), dict.Default)
+	server := diamtest.NewServerNetwork("sctp", mustNewStateMachine(t, acceptedWatchdogSCTPSettings(events), testDict), testDict)
 	defer server.Close()
 	cea := make(chan *diam.Message, 1)
 	dwr := make(chan *diam.Message, 4)
@@ -94,9 +104,13 @@ func TestAcceptedWatchdogSCTPStreamAndTimeout(t *testing.T) {
 }
 
 func TestAcceptedWatchdogSCTPAnswerOnDifferentStream(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	clientSettings :=
+		cloneTestSettings(clientSettings, testDict)
+
 	requireSCTP(t)
 	events := make(chan WatchdogEvent, 16)
-	server := diamtest.NewServerNetwork("sctp", mustNewStateMachine(t, acceptedWatchdogSCTPSettings(events)), dict.Default)
+	server := diamtest.NewServerNetwork("sctp", mustNewStateMachine(t, acceptedWatchdogSCTPSettings(events), testDict), testDict)
 	defer server.Close()
 	cea := make(chan *diam.Message, 1)
 	type receivedDWR struct {

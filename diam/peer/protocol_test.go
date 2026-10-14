@@ -14,6 +14,8 @@ import (
 	"testing/synctest"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
@@ -29,15 +31,20 @@ type fakeClock struct {
 	armed  chan struct{}
 }
 type fakeConn struct {
+	dictionary        *dict.Parser
 	once              sync.Once
 	done              chan struct{}
 	underlying, other net.Conn
 	ctx               context.Context
 }
 
-func newFakeConn() *fakeConn {
+func newFakeConn(dictionaries ...*dict.Parser) *fakeConn {
+	parser := newTestDictionary(dict.Base())
+	if len(dictionaries) != 0 {
+		parser = dictionaries[0]
+	}
 	a, b := net.Pipe()
-	return &fakeConn{done: make(chan struct{}), underlying: a, other: b, ctx: context.Background()}
+	return &fakeConn{dictionary: parser, done: make(chan struct{}), underlying: a, other: b, ctx: context.Background()}
 }
 func (c *fakeConn) Write(b []byte) (int, error)               { return len(b), nil }
 func (c *fakeConn) WriteStream(b []byte, _ uint) (int, error) { return c.Write(b) }
@@ -56,7 +63,7 @@ func (c *fakeConn) CloseNotify() <-chan struct{}   { return c.done }
 func (c *fakeConn) LocalAddr() net.Addr            { return &net.TCPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 3868} }
 func (c *fakeConn) RemoteAddr() net.Addr           { return &net.TCPAddr{IP: net.IPv4(127, 0, 0, 2), Port: 3868} }
 func (c *fakeConn) TLS() *tls.ConnectionState      { return nil }
-func (c *fakeConn) Dictionary() *dict.Parser       { return dict.Default }
+func (c *fakeConn) Dictionary() *dict.Parser       { return c.dictionary }
 func (c *fakeConn) Logger() *slog.Logger           { return slog.Default() }
 func (c *fakeConn) Context() context.Context       { return c.ctx }
 func (c *fakeConn) SetContext(ctx context.Context) { c.ctx = ctx }
@@ -162,12 +169,18 @@ func (c *fakeClock) fire() {
 		}
 	}
 }
-func testSettings(host string) sm.Settings {
-	return sm.Settings{OriginHost: datatype.DiameterIdentity(host), OriginRealm: "example.net", VendorID: 1, ProductName: "test"}
+func testSettings(host string, dictionaries ...*dict.Parser) sm.Settings {
+	parser := newTestDictionary(creditcontrol.Dictionary())
+	if len(dictionaries) != 0 {
+		parser = dictionaries[0]
+	}
+	return sm.Settings{Dict: parser, OriginHost: datatype.DiameterIdentity(host), OriginRealm: "example.net", VendorID: 1, ProductName: "test"}
 }
 func testBase(host string) base.Settings {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
 	cfg := base.Settings{OriginHost: datatype.DiameterIdentity(host), OriginRealm: "example.net", VendorID: 1, ProductName: "test", HostIPAddresses: []datatype.Address{datatype.AddressFromIP(netip.MustParseAddr("127.0.0.1"))}}
-	apps := sm.PrepareSupportedApps(dict.Default)
+	apps := sm.PrepareSupportedApps(testDict)
 	for _, a := range apps {
 		if a.AppType == "auth" && a.Vendor == 0 {
 			cfg.AuthApplicationID = []*diam.AVP{diam.NewAVP(avp.AuthApplicationID, avp.Mbit, 0, datatype.Unsigned32(a.ID))}
@@ -185,7 +198,8 @@ func startReceiverWithHandlers(t *testing.T, m *Manager, concurrent int) (net.Li
 	if e != nil {
 		t.Fatal(e)
 	}
-	srv := &diam.Server{MaxConcurrentHandlers: concurrent}
+	srv := &diam.Server{Dict: m.cfg.Settings.Dict, MaxConcurrentHandlers: concurrent}
+	srv.Dict = m.cfg.Settings.Dict
 	if e = m.BindServer(srv); e != nil {
 		t.Fatal(e)
 	}
@@ -194,7 +208,9 @@ func startReceiverWithHandlers(t *testing.T, m *Manager, concurrent int) (net.Li
 }
 
 func TestConcurrentDispatchPreservesFirstCER(t *testing.T) {
-	m, err := New(Config{Settings: testSettings("local.example.net")})
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
+	m, err := New(Config{Settings: testSettings("local.example.net", testDict)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -209,11 +225,11 @@ func TestConcurrentDispatchPreservesFirstCER(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		cer, err := base.BuildCER(dict.Default, cfg)
+		cer, err := base.BuildCER(testDict, cfg)
 		if err != nil {
 			t.Fatal(err)
 		}
-		dwr, err := base.BuildDWR(dict.Default, cfg, 0)
+		dwr, err := base.BuildDWR(testDict, cfg, 0)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -232,7 +248,7 @@ func TestConcurrentDispatchPreservesFirstCER(t *testing.T) {
 		if cea.Header.CommandCode != diam.CapabilitiesExchange || code(t, cea) != diam.Success || dwa.Header.CommandCode != diam.DeviceWatchdog || code(t, dwa) != diam.Success {
 			t.Fatalf("run %d: response order %d/%d", run, cea.Header.CommandCode, dwa.Header.CommandCode)
 		}
-		dpr, err := base.BuildDPR(dict.Default, cfg, 0)
+		dpr, err := base.BuildDPR(testDict, cfg, 0)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -247,21 +263,23 @@ func TestConcurrentDispatchPreservesFirstCER(t *testing.T) {
 }
 
 func TestOrderedIngressFIFOWithSingleSlot(t *testing.T) {
-	m, err := New(Config{Settings: testSettings("local.example.net"), Limits: Limits{Events: 1}})
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
+	m, err := New(Config{Settings: testSettings("local.example.net", testDict), Limits: Limits{Events: 1}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if err := m.AddPeer(PeerConfig{Host: "known.example.net"}); err != nil {
 		t.Fatal(err)
 	}
-	c := &capabilityWireConn{fakeConn: newFakeConn(), wire: make(chan []byte, 2)}
+	c := &capabilityWireConn{fakeConn: newFakeConn(testDict), wire: make(chan []byte, 2)}
 	s := m.newSession(c, nil, 0, true)
 	defer func() { s.close(); closeManager(t, m, nil) }()
-	cer, err := base.BuildCER(dict.Default, testBase("known.example.net"))
+	cer, err := base.BuildCER(testDict, testBase("known.example.net"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	dwr, err := base.BuildDWR(dict.Default, testBase("known.example.net"), 0)
+	dwr, err := base.BuildDWR(testDict, testBase("known.example.net"), 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -271,7 +289,7 @@ func TestOrderedIngressFIFOWithSingleSlot(t *testing.T) {
 		s.ingress <- incoming{msg: request}
 		select {
 		case wire := <-c.wire:
-			answer, err := diam.ReadMessage(bytes.NewReader(wire), dict.Default)
+			answer, err := diam.ReadMessage(bytes.NewReader(wire), testDict)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -303,9 +321,11 @@ func closeManager(t *testing.T, m *Manager, s *diam.Server) {
 	}
 }
 func read(t *testing.T, c net.Conn) *diam.Message {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
 	t.Helper()
 	_ = c.SetReadDeadline(time.Now().Add(time.Second))
-	m, e := diam.ReadMessage(c, dict.Default)
+	m, e := diam.ReadMessage(c, testDict)
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -341,11 +361,13 @@ func awaitState(t *testing.T, m *Manager, want PeerState) {
 }
 
 func TestPreCERGateAndUnknownPeer(t *testing.T) {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
 	for _, name := range []string{"non-CER", "timeout", "unknown-peer", "missing-host", "no-common-application"} {
 		t.Run(name, func(t *testing.T) {
 			clock := &fakeClock{}
 			records := logtest.New()
-			m, e := New(Config{Logger: records.Logger(), Settings: testSettings("local.example.net"), Clock: clock})
+			m, e := New(Config{Logger: records.Logger(), Settings: testSettings("local.example.net", testDict), Clock: clock})
 			if e != nil {
 				t.Fatal(e)
 			}
@@ -361,7 +383,7 @@ func TestPreCERGateAndUnknownPeer(t *testing.T) {
 			defer func() { _ = c.Close() }()
 			switch name {
 			case "non-CER":
-				dwr, e := base.BuildDWR(dict.Default, testBase("known.example.net"), 0)
+				dwr, e := base.BuildDWR(testDict, testBase("known.example.net"), 0)
 				if e != nil {
 					t.Fatal(e)
 				}
@@ -374,7 +396,7 @@ func TestPreCERGateAndUnknownPeer(t *testing.T) {
 				if name == "unknown-peer" {
 					host = "other.example.net"
 				}
-				cer, e := base.BuildCER(dict.Default, testBase(host))
+				cer, e := base.BuildCER(testDict, testBase(host))
 				if e != nil {
 					t.Fatal(e)
 				}
@@ -400,7 +422,7 @@ func TestPreCERGateAndUnknownPeer(t *testing.T) {
 				}
 				write(t, c, cer)
 				_ = c.SetReadDeadline(time.Now().Add(time.Second))
-				ans, readErr := diam.ReadMessage(c, dict.Default)
+				ans, readErr := diam.ReadMessage(c, testDict)
 				if readErr != nil {
 					t.Fatalf("read: %v; state: %+v; records: %v", readErr, m.Peers(), records.Records())
 				}
@@ -432,6 +454,8 @@ func TestPreCERGateAndUnknownPeer(t *testing.T) {
 }
 
 func TestMalformedFirstMessageCannotAdmitLaterCER(t *testing.T) {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
 	for _, tc := range []struct {
 		name       string
 		firstCER   bool
@@ -443,7 +467,7 @@ func TestMalformedFirstMessageCannotAdmitLaterCER(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			clock := &fakeClock{}
 			records := logtest.New()
-			m, err := New(Config{Logger: records.Logger(), Settings: testSettings("local.example.net"), Clock: clock})
+			m, err := New(Config{Logger: records.Logger(), Settings: testSettings("local.example.net", testDict), Clock: clock})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -458,13 +482,13 @@ func TestMalformedFirstMessageCannotAdmitLaterCER(t *testing.T) {
 			}
 			defer func() { _ = c.Close() }()
 			cfg := testBase("known.example.net")
-			cer, err := base.BuildCER(dict.Default, cfg)
+			cer, err := base.BuildCER(testDict, cfg)
 			if err != nil {
 				t.Fatal(err)
 			}
 			first := cer
 			if !tc.firstCER {
-				first, err = base.BuildDWR(dict.Default, cfg, 0)
+				first, err = base.BuildDWR(testDict, cfg, 0)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -484,7 +508,7 @@ func TestMalformedFirstMessageCannotAdmitLaterCER(t *testing.T) {
 			}
 			_ = c.SetReadDeadline(time.Now().Add(time.Second))
 			if tc.wantAnswer {
-				answer, err := diam.ReadMessage(c, dict.Default)
+				answer, err := diam.ReadMessage(c, testDict)
 				if err != nil {
 					t.Fatalf("missing malformed CER answer: %v", err)
 				}
@@ -492,7 +516,7 @@ func TestMalformedFirstMessageCannotAdmitLaterCER(t *testing.T) {
 					t.Fatalf("Result-Code=%d want %d", got, diam.InvalidAVPLength)
 				}
 			}
-			if answer, err := diam.ReadMessage(c, dict.Default); err == nil {
+			if answer, err := diam.ReadMessage(c, testDict); err == nil {
 				t.Fatalf("admitted later CER: answer command=%d code=%d", answer.Header.CommandCode, code(t, answer))
 			} else if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
 				t.Fatalf("connection stayed open after malformed first message: %v", err)
@@ -534,18 +558,20 @@ func TestFakeTransportPreCERTimer(t *testing.T) {
 }
 
 func TestFakeTransportOpenControl(t *testing.T) {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
 	clock := &fakeClock{}
-	m, err := New(Config{Settings: testSettings("local.example.net"), Clock: clock})
+	m, err := New(Config{Settings: testSettings("local.example.net", testDict), Clock: clock})
 	if err != nil {
 		t.Fatal(err)
 	}
 	a := &actor{m: m, cfg: PeerConfig{Host: "known.example.net"}, state: ROpen, events: make(chan event, 8), done: make(chan struct{})}
-	s := &session{m: m, c: newFakeConn(), actor: a, gen: 1, writes: make(chan writeRequest, 8), closed: make(chan struct{})}
+	s := &session{m: m, c: newFakeConn(testDict), actor: a, gen: 1, writes: make(chan writeRequest, 8), closed: make(chan struct{})}
 	a.r = s
 	a.active = s
 	a.publish(nil)
 	cfg := testBase("known.example.net")
-	dwr, err := base.BuildDWR(dict.Default, cfg, 0)
+	dwr, err := base.BuildDWR(testDict, cfg, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -554,7 +580,7 @@ func TestFakeTransportOpenControl(t *testing.T) {
 	if w.msg.Header.CommandCode != diam.DeviceWatchdog || w.msg.Header.HopByHopID != dwr.Header.HopByHopID || code(t, w.msg) != diam.Success {
 		t.Fatal("wrong DWA")
 	}
-	dpr, err := base.BuildDPR(dict.Default, cfg, 0)
+	dpr, err := base.BuildDPR(testDict, cfg, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -577,16 +603,18 @@ func TestFakeTransportOpenControl(t *testing.T) {
 }
 
 func TestMismatchedDPRIsReportedWithoutDPA(t *testing.T) {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
 	for _, state := range []PeerState{IOpen, ROpen, Closing} {
 		t.Run(string(state), func(t *testing.T) {
 			records := logtest.New()
-			m, err := New(Config{Logger: records.Logger(), Settings: testSettings("local.example.net")})
+			m, err := New(Config{Logger: records.Logger(), Settings: testSettings("local.example.net", testDict)})
 			if err != nil {
 				t.Fatal(err)
 			}
 			defer closeManager(t, m, nil)
 			a := &actor{m: m, cfg: PeerConfig{Host: "known.example.net"}, state: state, events: make(chan event, 8), done: make(chan struct{})}
-			s := &session{m: m, c: newFakeConn(), actor: a, gen: 1, writes: make(chan writeRequest, 8), closed: make(chan struct{})}
+			s := &session{m: m, c: newFakeConn(testDict), actor: a, gen: 1, writes: make(chan writeRequest, 8), closed: make(chan struct{})}
 			defer s.close()
 			if state == IOpen {
 				a.i = s
@@ -595,7 +623,7 @@ func TestMismatchedDPRIsReportedWithoutDPA(t *testing.T) {
 			}
 			a.active = s
 			a.publish(nil)
-			bad, err := base.BuildDPR(dict.Default, testBase("other.example.net"), 0)
+			bad, err := base.BuildDPR(testDict, testBase("other.example.net"), 0)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -612,7 +640,7 @@ func TestMismatchedDPRIsReportedWithoutDPA(t *testing.T) {
 			if len(got) != 1 || !strings.Contains(logtest.Attr(got[0], "error").Any().(error).Error(), "DPR Origin-Host mismatch") {
 				t.Fatalf("mismatch records=%v", got)
 			}
-			good, err := base.BuildDPR(dict.Default, testBase("KNOWN.example.net"), 0)
+			good, err := base.BuildDPR(testDict, testBase("KNOWN.example.net"), 0)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -711,7 +739,9 @@ func TestManagerSupportsApplication(t *testing.T) {
 // TestManagedUnsupportedApplication checks RFC 6733 §7.1.3: a request for an
 // application the manager does not advertise gets an E-bit 3007, not 3001.
 func TestManagedUnsupportedApplication(t *testing.T) {
-	m, e := New(Config{Settings: testSettings("local.example.net")})
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
+	m, e := New(Config{Settings: testSettings("local.example.net", testDict)})
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -725,7 +755,7 @@ func TestManagedUnsupportedApplication(t *testing.T) {
 		t.Fatal(e)
 	}
 	defer func() { _ = c.Close() }()
-	cer, e := base.BuildCER(dict.Default, testBase("known.example.net"))
+	cer, e := base.BuildCER(testDict, testBase("known.example.net"))
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -741,7 +771,7 @@ func TestManagedUnsupportedApplication(t *testing.T) {
 		{0x00abcdef, diam.ApplicationUnsupported},
 		{diam.CHARGING_CONTROL_APP_ID, diam.CommandUnsupported},
 	} {
-		req := diam.NewMessage(999, diam.RequestFlag, tc.appID, 0x1234, 0x5678, dict.Default)
+		req := diam.NewMessage(999, diam.RequestFlag, tc.appID, 0x1234, 0x5678, testDict)
 		write(t, c, req)
 		ans := read(t, c)
 		if ans.Header.CommandFlags&diam.ErrorFlag == 0 || code(t, ans) != tc.want {
@@ -751,8 +781,10 @@ func TestManagedUnsupportedApplication(t *testing.T) {
 }
 
 func TestManagedControlAndUnsupported(t *testing.T) {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
 	records := logtest.New()
-	m, e := New(Config{Logger: records.Logger(), Settings: testSettings("local.example.net")})
+	m, e := New(Config{Logger: records.Logger(), Settings: testSettings("local.example.net", testDict)})
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -767,7 +799,7 @@ func TestManagedControlAndUnsupported(t *testing.T) {
 	}
 	defer func() { _ = c.Close() }()
 	cfg := testBase("known.example.net")
-	cer, e := base.BuildCER(dict.Default, cfg)
+	cer, e := base.BuildCER(testDict, cfg)
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -777,7 +809,7 @@ func TestManagedControlAndUnsupported(t *testing.T) {
 		t.Fatalf("CEA %d", code(t, cea))
 	}
 	awaitState(t, m, ROpen)
-	dwr, e := base.BuildDWR(dict.Default, cfg, 0)
+	dwr, e := base.BuildDWR(testDict, cfg, 0)
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -786,7 +818,7 @@ func TestManagedControlAndUnsupported(t *testing.T) {
 	if dwa.Header.CommandCode != diam.DeviceWatchdog || code(t, dwa) != diam.Success {
 		t.Fatalf("DWA %+v", dwa.Header)
 	}
-	req := diam.NewRequest(999, 0, dict.Default)
+	req := diam.NewRequest(999, 0, testDict)
 	write(t, c, req)
 	ans := read(t, c)
 	if ans.Header.CommandFlags&diam.ErrorFlag == 0 || code(t, ans) != diam.CommandUnsupported {
@@ -808,7 +840,7 @@ func TestManagedControlAndUnsupported(t *testing.T) {
 	if _, err := c.Read(extra[:]); err == nil {
 		t.Fatal("answered an answer")
 	}
-	dpr, e := base.BuildDPR(dict.Default, cfg, 0)
+	dpr, e := base.BuildDPR(testDict, cfg, 0)
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -822,10 +854,12 @@ func TestManagedControlAndUnsupported(t *testing.T) {
 }
 
 func TestInboundSurvivesOutboundNackWithoutCERTimer(t *testing.T) {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
 	clock := &fakeClock{}
 	release := make(chan struct{})
 	m, err := New(Config{
-		Settings: testSettings("local.example.net"), Clock: clock,
+		Settings: testSettings("local.example.net", testDict), Clock: clock,
 		Dial: func(context.Context, Endpoint) (net.Conn, error) {
 			<-release
 			return nil, errors.New("dial refused")
@@ -849,7 +883,7 @@ func TestInboundSurvivesOutboundNackWithoutCERTimer(t *testing.T) {
 	}
 	defer func() { _ = c.Close() }()
 	cfg := testBase("known.example.net")
-	cer, err := base.BuildCER(dict.Default, cfg)
+	cer, err := base.BuildCER(testDict, cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -879,7 +913,7 @@ func TestInboundSurvivesOutboundNackWithoutCERTimer(t *testing.T) {
 		t.Fatal(err)
 	}
 	write(t, c, answer)
-	dpr, err := base.BuildDPR(dict.Default, cfg, 0)
+	dpr, err := base.BuildDPR(testDict, cfg, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -892,6 +926,8 @@ func TestInboundSurvivesOutboundNackWithoutCERTimer(t *testing.T) {
 }
 
 func TestRejectedCEA(t *testing.T) {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
 	for _, name := range []string{"bad-result", "missing-origin-host", "no-common-application"} {
 		t.Run(name, func(t *testing.T) {
 			l, e := net.Listen("tcp", "127.0.0.1:0")
@@ -907,7 +943,7 @@ func TestRejectedCEA(t *testing.T) {
 					return
 				}
 				defer func() { _ = c.Close() }()
-				cer, e := diam.ReadMessage(c, dict.Default)
+				cer, e := diam.ReadMessage(c, testDict)
 				if e != nil {
 					return
 				}
@@ -944,7 +980,7 @@ func TestRejectedCEA(t *testing.T) {
 				var b [1]byte
 				_, _ = c.Read(b[:])
 			}()
-			m, e := New(Config{Settings: testSettings("local.example.net")})
+			m, e := New(Config{Settings: testSettings("local.example.net", testDict)})
 			if e != nil {
 				t.Fatal(e)
 			}
@@ -982,6 +1018,7 @@ func TestBindServerRejectsServingAndHandler(t *testing.T) {
 	}
 	defer closeManager(t, m, nil)
 	srv := &diam.Server{Handler: diam.NewServeMux()}
+	srv.Dict = m.cfg.Settings.Dict
 	if e = m.BindServer(srv); e == nil {
 		t.Fatal("accepted existing handler")
 	}
@@ -991,7 +1028,7 @@ func TestBindServerRejectsServingAndHandler(t *testing.T) {
 	}
 	defer func() { _ = l.Close() }()
 	accepted := make(chan struct{}, 1)
-	serving := &diam.Server{OnNewConnection: func(diam.Conn) { accepted <- struct{}{} }}
+	serving := &diam.Server{Dict: m.cfg.Settings.Dict, OnNewConnection: func(diam.Conn) { accepted <- struct{}{} }}
 	go func() { _ = serving.Serve(l) }()
 	c, e := net.Dial("tcp", l.Addr().String())
 	if e != nil {
@@ -1117,7 +1154,8 @@ func TestCloseRacesInboundConnections(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		srv := &diam.Server{}
+		srv := &diam.Server{Dict: m.cfg.Settings.Dict}
+		srv.Dict = m.cfg.Settings.Dict
 		if err := m.BindServer(srv); err != nil {
 			t.Fatal(err)
 		}
@@ -1164,7 +1202,8 @@ func TestBindServerChainsHooks(t *testing.T) {
 		t.Fatal(err)
 	}
 	var newCalls, shutdownCalls int
-	srv := &diam.Server{OnNewConnection: func(diam.Conn) { newCalls++ }, OnShutdownConnection: func(context.Context, diam.Conn) { shutdownCalls++ }}
+	srv := &diam.Server{Dict: m.cfg.Settings.Dict, OnNewConnection: func(diam.Conn) { newCalls++ }, OnShutdownConnection: func(context.Context, diam.Conn) { shutdownCalls++ }}
+	srv.Dict = m.cfg.Settings.Dict
 	if err := m.BindServer(srv); err != nil {
 		t.Fatal(err)
 	}

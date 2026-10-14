@@ -8,6 +8,10 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+	"github.com/gomaja/go-diameter/diam/dict/nasreq"
+	"github.com/gomaja/go-diameter/diam/dict/rorf"
+
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/dict"
 )
@@ -114,7 +118,7 @@ func appliedUpdateTestChanges(m *Message, changes int) (int, error) {
 // Run with -race.
 func TestReadMessageWhileDictionaryChanges(t *testing.T) {
 	const changes, decoders = 16, 8
-	p := dict.New(dict.Base, dict.CreditControl, dict.RoRf, dict.NASREQ)
+	p := newTestDictionary(dict.Base(), creditcontrol.Dictionary(), rorf.Dictionary(), nasreq.Dictionary())
 	wire := updateTestMessage(t, p, changes)
 
 	var (
@@ -180,7 +184,7 @@ func TestReadMessageWhileDictionaryChanges(t *testing.T) {
 // registered Grouped AVP through ReadMessage and Validate: its member rules
 // apply like those of a loaded Grouped AVP.
 func TestRegisteredGroupedAVPDecodesAndValidates(t *testing.T) {
-	p := dict.New(dict.Base, dict.CreditControl, dict.RoRf, dict.NASREQ)
+	p := newTestDictionary(dict.Base(), creditcontrol.Dictionary(), rorf.Dictionary(), nasreq.Dictionary())
 	if err := applyUpdateTestChange(p, 0); err != nil {
 		t.Fatal(err)
 	}
@@ -236,12 +240,12 @@ func TestRegisteredGroupedAVPDecodesAndValidates(t *testing.T) {
 func TestDecodeDoesNotInheritInUndeclaredApplication(t *testing.T) {
 	const gx = 16777238
 	text, _, _ := updateTestCodes(1)
-	registered := dict.New(dict.Base)
+	registered := newTestDictionary(dict.Base())
 	if err := registered.RegisterAVP(4, &dict.AVP{Name: "Update-Text-1", Code: text, VendorID: updateTestVendor,
 		Must: "M,V", Data: dict.Data{TypeName: "UTF8String"}}); err != nil {
 		t.Fatal(err)
 	}
-	loaded := dict.New(dict.Base)
+	loaded := newTestDictionary(dict.Base())
 	if err := applyUpdateTestChange(loaded, 1); err != nil { // loads application 4
 		t.Fatal(err)
 	}

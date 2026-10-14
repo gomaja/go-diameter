@@ -8,9 +8,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/datatype"
-	"github.com/gomaja/go-diameter/diam/dict"
 	"github.com/gomaja/go-diameter/diam/internal/base"
 	"github.com/gomaja/go-diameter/diam/internal/testutil"
 	"github.com/gomaja/go-diameter/diam/sm"
@@ -57,6 +58,8 @@ func TestRFC6733StateTable(t *testing.T) {
 }
 
 func assertActorRow(t *testing.T, state PeerState, kind psmEvent, row psmStep) {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
 	t.Helper()
 	clock := &fakeClock{}
 	m, err := New(Config{Settings: sm.Settings{OriginHost: "local.example.net", OriginRealm: "example.net", VendorID: 1, ProductName: "table-test"}, Clock: clock})
@@ -66,7 +69,7 @@ func assertActorRow(t *testing.T, state PeerState, kind psmEvent, row psmStep) {
 	defer closeManager(t, m, nil)
 	a := &actor{m: m, cfg: PeerConfig{Host: "remote.example.net"}, state: state, done: make(chan struct{}), events: make(chan event, 8), closeCause: sm.DisconnectBusy}
 	makeSession := func(gen uint64) *session {
-		return &session{m: m, c: newFakeConn(), actor: a, gen: gen, writes: make(chan writeRequest, 8), closed: make(chan struct{})}
+		return &session{m: m, c: newFakeConn(testDict), actor: a, gen: gen, writes: make(chan writeRequest, 8), closed: make(chan struct{})}
 	}
 	i, r, candidate := makeSession(1), makeSession(2), makeSession(3)
 	defer i.close()
@@ -80,7 +83,7 @@ func assertActorRow(t *testing.T, state PeerState, kind psmEvent, row psmStep) {
 		a.active = r
 	}
 	a.publish(nil)
-	cer, err := base.BuildCER(dict.Default, testBase("remote.example.net"))
+	cer, err := base.BuildCER(testDict, testBase("remote.example.net"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -89,11 +92,11 @@ func assertActorRow(t *testing.T, state PeerState, kind psmEvent, row psmStep) {
 	s := r
 	switch kind {
 	case iDWR, rDWR:
-		msg, err = base.BuildDWR(dict.Default, testBase("remote.example.net"), 0)
+		msg, err = base.BuildDWR(testDict, testBase("remote.example.net"), 0)
 	case iDPR, rDPR:
-		msg, err = base.BuildDPR(dict.Default, testBase("remote.example.net"), 0)
+		msg, err = base.BuildDPR(testDict, testBase("remote.example.net"), 0)
 	case iMessage, rMessage:
-		msg = diam.NewRequest(999, 0, dict.Default)
+		msg = diam.NewRequest(999, 0, testDict)
 	}
 	if err != nil {
 		t.Fatal(err)
@@ -211,9 +214,11 @@ func testManagersSimultaneous(t *testing.T, network, hostA, hostB string, fallba
 		t.Fatal(err)
 	}
 	sa, sb := &diam.Server{}, &diam.Server{}
+	sa.Dict = ma.cfg.Settings.Dict
 	if err := ma.BindServer(sa); err != nil {
 		t.Fatal(err)
 	}
+	sb.Dict = mb.cfg.Settings.Dict
 	if err := mb.BindServer(sb); err != nil {
 		t.Fatal(err)
 	}
@@ -265,6 +270,8 @@ func testManagersSimultaneous(t *testing.T, network, hostA, hostB string, fallba
 	}
 }
 func TestStaleCandidateEventsIgnored(t *testing.T) {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
 	m, err := New(Config{Settings: sm.Settings{OriginHost: "local.example.net", OriginRealm: "example.net"}})
 	if err != nil {
 		t.Fatal(err)
@@ -276,7 +283,7 @@ func TestStaleCandidateEventsIgnored(t *testing.T) {
 	a.active = winner
 	a.publish(nil)
 	a.onGone(loser)
-	lateCEA := diam.NewRequest(diam.CapabilitiesExchange, 0, nil).Answer(diam.Success)
+	lateCEA := diam.NewRequest(diam.CapabilitiesExchange, 0, testDict).Answer(diam.Success)
 	a.onWire(event{kind: wireEvent, s: loser, msg: lateCEA})
 	a.handle(event{kind: timeout, token: 6})
 	if a.state != ROpen || a.active != winner {

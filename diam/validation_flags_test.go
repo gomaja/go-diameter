@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"testing"
 
+	"github.com/gomaja/go-diameter/diam/dict/s6a"
+
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/dict"
@@ -28,6 +30,7 @@ func TestFlagListedAcceptsCompactRules(t *testing.T) {
 }
 
 func TestValidateUnderstoodAVPFlags(t *testing.T) {
+	testDict := newTestDictionary(s6a.Dictionary())
 	for _, tc := range []struct {
 		name   string
 		code   uint32
@@ -45,7 +48,7 @@ func TestValidateUnderstoodAVPFlags(t *testing.T) {
 		{"DRMP M", avp.DRMP, 0, avp.Mbit, datatype.Enumerated(0), ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			m := validationULR(t)
+			m := validationULR(t, testDict)
 			definition, err := m.Dictionary().FindAVP(m.Header.ApplicationID, tc.code, tc.vendor)
 			if err != nil {
 				t.Fatal(err)
@@ -86,9 +89,16 @@ func TestValidateUnderstoodAVPFlags(t *testing.T) {
 	}
 }
 
-func validationULR(t *testing.T) *Message {
+func validationULR(t *testing.T, parsers ...*dict.Parser) *Message {
+	var testDict *dict.Parser
+	if len(parsers) > 0 {
+		testDict = parsers[0]
+	} else {
+		testDict = newTestDictionary(s6a.Dictionary())
+	}
+
 	t.Helper()
-	m := NewMessage(UpdateLocation, RequestFlag|ProxiableFlag, TGPP_S6A_APP_ID, 1, 2, dict.Default)
+	m := NewMessage(UpdateLocation, RequestFlag|ProxiableFlag, TGPP_S6A_APP_ID, 1, 2, testDict)
 	if err := m.Marshal(&struct {
 		SessionID        string                    `avp:"Session-Id"`
 		AuthSessionState datatype.Enumerated       `avp:"Auth-Session-State"`
@@ -145,7 +155,9 @@ func TestInvalidAVPFlagsReceiveRules(t *testing.T) {
 }
 
 func TestMarshalDictionaryFlags(t *testing.T) {
-	m := NewRequest(UpdateLocation, TGPP_S6A_APP_ID, nil)
+	testDict := newTestDictionary(s6a.Dictionary())
+
+	m := NewRequest(UpdateLocation, TGPP_S6A_APP_ID, testDict)
 	if err := m.Marshal(&struct {
 		Host     datatype.DiameterIdentity `avp:"Origin-Host"`
 		Firmware datatype.Unsigned32       `avp:"Firmware-Revision"`
@@ -193,8 +205,10 @@ func TestAnswerClearsReservedCommandBits(t *testing.T) {
 }
 
 func TestValidateErrorCommandBits(t *testing.T) {
+	testDict := newTestDictionary(s6a.Dictionary())
+
 	for _, flags := range []uint8{ErrorFlag, ErrorFlag | RequestFlag, ErrorFlag | RetransmittedFlag} {
-		m := NewMessage(0xfedc, flags|0x0f, 0, 1, 2, nil)
+		m := NewMessage(0xfedc, flags|0x0f, 0, 1, 2, testDict)
 		m.AddAVP(NewAVP(avp.ResultCode, avp.Mbit, 0, datatype.Unsigned32(CommandUnsupported)))
 		m.AddAVP(NewAVP(avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("host.example")))
 		m.AddAVP(NewAVP(avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("example")))

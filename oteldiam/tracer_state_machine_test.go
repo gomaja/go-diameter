@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/nasreq"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
@@ -17,8 +19,10 @@ import (
 )
 
 func tracerStateMachineConn(t *testing.T, timeout time.Duration) (net.Conn, *sm.Settings, *lockedBuffer) {
+	testDict := newTestDictionary(nasreq.Dictionary())
+
 	t.Helper()
-	settings := &sm.Settings{OriginHost: "traced.server.example", OriginRealm: "server.example", ProductName: "traced-server", AcctApplicationID: []*diam.AVP{diam.NewAVP(avp.AcctApplicationID, avp.Mbit, 0, datatype.Unsigned32(1))}, HandshakeTimeout: timeout}
+	settings := &sm.Settings{Dict: testDict, OriginHost: "traced.server.example", OriginRealm: "server.example", ProductName: "traced-server", AcctApplicationID: []*diam.AVP{diam.NewAVP(avp.AcctApplicationID, avp.Mbit, 0, datatype.Unsigned32(1))}, HandshakeTimeout: timeout}
 	state, err := sm.New(settings)
 	if err != nil {
 		t.Fatal(err)
@@ -28,7 +32,7 @@ func tracerStateMachineConn(t *testing.T, timeout time.Duration) (net.Conn, *sm.
 		t.Fatal(err)
 	}
 	logs := &lockedBuffer{}
-	srv := &diam.Server{Handler: NewTracer(state), Dict: dict.Default, Logger: slog.New(slog.NewTextHandler(logs, &slog.HandlerOptions{Level: slog.LevelDebug}))}
+	srv := &diam.Server{Handler: NewTracer(state), Dict: testDict, Logger: slog.New(slog.NewTextHandler(logs, &slog.HandlerOptions{Level: slog.LevelDebug}))}
 	done := make(chan error, 1)
 	go func() { done <- srv.Serve(listener) }()
 	t.Cleanup(func() {
@@ -52,9 +56,9 @@ func tracerStateMachineConn(t *testing.T, timeout time.Duration) (net.Conn, *sm.
 	return c, settings, logs
 }
 
-func malformedTracedDWR(t *testing.T) (*diam.Message, []byte) {
+func malformedTracedDWR(t *testing.T, testDict *dict.Parser) (*diam.Message, []byte) {
 	t.Helper()
-	m := diam.NewRequest(diam.DeviceWatchdog, 0, dict.Default)
+	m := diam.NewRequest(diam.DeviceWatchdog, 0, testDict)
 	m.Header.CommandFlags |= diam.ProxiableFlag | diam.RetransmittedFlag
 	wire, err := m.Serialize()
 	if err != nil {
@@ -66,21 +70,22 @@ func malformedTracedDWR(t *testing.T) (*diam.Message, []byte) {
 
 func TestTracerStateMachineAnswersMalformedRequest(t *testing.T) {
 	c, settings, _ := tracerStateMachineConn(t, time.Second)
-	if _, err := sendCER(c); err != nil {
+	testDict := settings.Dict
+	if _, err := sendCER(c, settings.Dict); err != nil {
 		t.Fatal(err)
 	}
-	cea, err := diam.ReadMessage(c, dict.Default)
+	cea, err := diam.ReadMessage(c, testDict)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if a, err := cea.FindAVP(avp.ResultCode, 0); err != nil || a.Data != datatype.Unsigned32(diam.Success) {
 		t.Fatalf("handshake result=%v, %v", a, err)
 	}
-	request, wire := malformedTracedDWR(t)
+	request, wire := malformedTracedDWR(t, settings.Dict)
 	if _, err := c.Write(wire); err != nil {
 		t.Fatal(err)
 	}
-	answer, err := diam.ReadMessage(c, dict.Default)
+	answer, err := diam.ReadMessage(c, testDict)
 	if err != nil {
 		t.Fatalf("traced state machine did not answer malformed request: %v", err)
 	}
@@ -113,13 +118,13 @@ func TestTracerStateMachineAnswersMalformedRequest(t *testing.T) {
 	if failed != 1 {
 		t.Fatalf("Failed-AVP count=%d, want 1", failed)
 	}
-	dwr := diam.NewRequest(diam.DeviceWatchdog, 0, dict.Default)
+	dwr := diam.NewRequest(diam.DeviceWatchdog, 0, testDict)
 	dwr.AddAVP(diam.NewAVP(avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("cli")))
 	dwr.AddAVP(diam.NewAVP(avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("localhost")))
 	if _, err := dwr.WriteTo(c); err != nil {
 		t.Fatal(err)
 	}
-	dwa, err := diam.ReadMessage(c, dict.Default)
+	dwa, err := diam.ReadMessage(c, testDict)
 	if err != nil {
 		t.Fatalf("connection did not continue after 5014: %v", err)
 	}
@@ -132,8 +137,8 @@ func TestTracerStateMachineAnswersMalformedRequest(t *testing.T) {
 }
 
 func TestTracerStateMachineRejectsMalformedBeforeCER(t *testing.T) {
-	c, _, logs := tracerStateMachineConn(t, time.Second)
-	_, wire := malformedTracedDWR(t)
+	c, settings, logs := tracerStateMachineConn(t, time.Second)
+	_, wire := malformedTracedDWR(t, settings.Dict)
 	if _, err := c.Write(wire); err != nil {
 		t.Fatal(err)
 	}

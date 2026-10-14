@@ -13,11 +13,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/diamtest"
-	"github.com/gomaja/go-diameter/diam/dict"
 	"github.com/gomaja/go-diameter/diam/internal/logtest"
 	"github.com/gomaja/go-diameter/diam/sm/smpeer"
 )
@@ -74,22 +75,24 @@ type protocolLocalWire struct {
 }
 
 func newProtocolLocalWire(t *testing.T, configure func(*Settings, *protocolLocalFaults), admit bool) *protocolLocalWire {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	t.Helper()
 	p := &protocolLocalWire{
 		protocolWire: &protocolWire{events: make(chan diam.ProtocolErrorEvent, 16), logs: logtest.New()},
 		faults:       &protocolLocalFaults{attempts: make(chan []byte, 8)},
 		marker:       make(chan diam.Header, 1),
 	}
-	cfg := testMessageErrorSettings()
+	cfg := testMessageErrorSettings(testDict)
 	cfg.OnProtocolError = func(e diam.ProtocolErrorEvent) { p.events <- e }
 	if configure != nil {
 		configure(cfg, p.faults)
 	}
-	p.sm = mustNewStateMachine(t, cfg)
+	p.sm = mustNewStateMachine(t, cfg, testDict)
 	p.sm.HandleIdx(diam.CommandIndex{AppID: 0, Code: 0xeefe, Request: false}, diam.HandlerFunc(func(_ diam.Conn, message *diam.Message) {
 		p.marker <- *message.Header
 	}))
-	server := diamtest.NewUnstartedServer(p.sm, dict.Default)
+	server := diamtest.NewUnstartedServer(p.sm, testDict)
 	server.Listener = &protocolLocalListener{Listener: server.Listener, faults: p.faults}
 	server.Config.Logger = p.logs.Logger()
 	accepted := make(chan diam.Conn, 1)
@@ -117,11 +120,13 @@ func newProtocolLocalWire(t *testing.T, configure func(*Settings, *protocolLocal
 }
 
 func (p *protocolLocalWire) reading(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	t.Helper()
 	// A failed buffered TCP write stays failed, even when the transport's
 	// injected fault is removed. Prove retained reader/dispatch state with a
 	// registered answer that needs no reply, rather than attempting recovery.
-	message := diam.NewMessage(0xeefe, 0, 0, 0x86aa, 0x86bb, dict.Default)
+	message := diam.NewMessage(0xeefe, 0, 0, 0x86aa, 0x86bb, testDict)
 	header := p.send(t, message)
 	select {
 	case observed := <-p.marker:
@@ -146,9 +151,11 @@ func (p *protocolLocalWire) reading(t *testing.T) {
 }
 
 func (p *protocolLocalWire) handshake(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	t.Helper()
-	p.send(t, regressionCER(t, dict.Default, 1001))
-	answer, err := diam.ReadMessage(p.peer, dict.Default)
+	p.send(t, regressionCER(t, testDict, 1001))
+	answer, err := diam.ReadMessage(p.peer, testDict)
 	if err != nil || !testResultCode(answer, diam.Success) {
 		t.Fatalf("handshake: %v %v", answer, err)
 	}
@@ -199,6 +206,8 @@ func protocolLocalNoEvents(t *testing.T, events <-chan diam.ProtocolErrorEvent) 
 }
 
 func (p *protocolLocalWire) attemptedAnswer(t *testing.T, header diam.Header, code uint32, failedAVP bool) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	t.Helper()
 	var wire []byte
 	select {
@@ -206,7 +215,7 @@ func (p *protocolLocalWire) attemptedAnswer(t *testing.T, header diam.Header, co
 	default:
 		t.Fatal("answer did not reach failing TCP Write")
 	}
-	answer, err := diam.ReadMessage(bytes.NewReader(wire), dict.Default)
+	answer, err := diam.ReadMessage(bytes.NewReader(wire), testDict)
 	if err != nil || !testResultCode(answer, code) || answer.Header.CommandCode != header.CommandCode || answer.Header.HopByHopID != header.HopByHopID || answer.Header.EndToEndID != header.EndToEndID {
 		t.Fatalf("attempted answer=%v err=%v, want code %d and original identifiers", answer, err, code)
 	}
@@ -240,6 +249,8 @@ func (p *protocolLocalWire) attemptedAnswer(t *testing.T, header diam.Header, co
 }
 
 func TestProtocolErrorLocalErrorAnswerWriteFailure(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	for _, condition := range []string{"malformed", "unsupported_command", "unknown_mandatory", "request_validation"} {
 		t.Run(condition, func(t *testing.T) {
 			p := newProtocolLocalWire(t, func(cfg *Settings, _ *protocolLocalFaults) {
@@ -253,7 +264,7 @@ func TestProtocolErrorLocalErrorAnswerWriteFailure(t *testing.T) {
 			case "malformed":
 				m.AddAVP(diam.NewAVP(avp.InbandSecurityID, avp.Mbit, 0, datatype.Unknown([]byte{1, 2})))
 			case "unsupported_command":
-				m = diam.NewMessage(0xfedc, diam.RequestFlag, 0, 0x8601, 0x8602, dict.Default)
+				m = diam.NewMessage(0xfedc, diam.RequestFlag, 0, 0x8601, 0x8602, testDict)
 				kind, code = diam.ProtocolUnsupportedCommand, 3001
 				logs = []string{"sm: error answer failed"}
 			case "unknown_mandatory":
@@ -289,6 +300,8 @@ func TestProtocolErrorLocalErrorAnswerWriteFailure(t *testing.T) {
 }
 
 func TestProtocolErrorLocalCERBuildAndWriteFailure(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	for _, rejected := range []bool{false, true} {
 		for _, failure := range []string{"build", "write"} {
 			t.Run(fmt.Sprintf("rejected=%t/%s", rejected, failure), func(t *testing.T) {
@@ -304,7 +317,7 @@ func TestProtocolErrorLocalCERBuildAndWriteFailure(t *testing.T) {
 				if rejected {
 					app = 999999
 				}
-				header := p.send(t, regressionCER(t, dict.Default, app))
+				header := p.send(t, regressionCER(t, testDict, app))
 				if rejected {
 					event := protocolEvent(t, p.events)
 					assertProtocolEvent(t, event, p.conn, &header, diam.ProtocolCERRejected, 5010, true, diam.ProtocolReplyFailed, 5010)
@@ -339,6 +352,8 @@ func TestProtocolErrorLocalCERBuildAndWriteFailure(t *testing.T) {
 }
 
 func TestProtocolErrorLocalInitialCERErrorAnswerFailure(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	for _, failure := range []string{"build", "write"} {
 		for _, condition := range []string{"malformed", "unknown_mandatory", "request_validation"} {
 			t.Run(failure+"/"+condition, func(t *testing.T) {
@@ -346,7 +361,7 @@ func TestProtocolErrorLocalInitialCERErrorAnswerFailure(t *testing.T) {
 					cfg.RejectUnknownMandatoryAVPs = condition == "unknown_mandatory"
 					cfg.ValidateRequests = condition == "request_validation"
 				}, false)
-				m := regressionCER(t, dict.Default, 1001)
+				m := regressionCER(t, testDict, 1001)
 				kind, code := diam.ProtocolMalformedMessage, uint32(5014)
 				logs := []string{"diam: malformed message", "sm: error answer failed"}
 				switch condition {
@@ -427,6 +442,8 @@ func TestProtocolErrorLocalValidDWRDPRWriteFailure(t *testing.T) {
 }
 
 func TestProtocolErrorLocalWatchdogWriteFailure(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	watchdogEvents := make(chan acceptedWatchdogEvent, 4)
 	p := newProtocolLocalWire(t, func(cfg *Settings, faults *protocolLocalFaults) {
 		cfg.EnableWatchdog = true
@@ -440,7 +457,7 @@ func TestProtocolErrorLocalWatchdogWriteFailure(t *testing.T) {
 	if len(p.faults.attempts) != 1 {
 		t.Fatalf("watchdog write attempts=%d", len(p.faults.attempts))
 	}
-	request, err := diam.ReadMessage(bytes.NewReader(<-p.faults.attempts), dict.Default)
+	request, err := diam.ReadMessage(bytes.NewReader(<-p.faults.attempts), testDict)
 	if err != nil || request.Header.CommandCode != diam.DeviceWatchdog || request.Header.CommandFlags&diam.RequestFlag == 0 {
 		t.Fatalf("failed watchdog write=%v %v", request, err)
 	}
@@ -456,17 +473,23 @@ func TestProtocolErrorLocalWatchdogWriteFailure(t *testing.T) {
 }
 
 func TestProtocolErrorLocalOnHandshakePanic(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings := cloneTestSettings(serverSettings,
+		testDict)
+	clientSettings := cloneTestSettings(clientSettings,
+		testDict)
+
 	records := logtest.New()
 	events := make(chan diam.ProtocolErrorEvent, 4)
 	entered := make(chan diam.Conn, 1)
-	server := diamtest.NewServer(mustNewStateMachine(t, serverSettings), dict.Default)
+	server := diamtest.NewServer(mustNewStateMachine(t, serverSettings, testDict), testDict)
 	t.Cleanup(server.Close)
 	cfg := *clientSettings
 	cfg.OnProtocolError = func(event diam.ProtocolErrorEvent) { events <- event }
 	cfg.OnHandshake = func(c diam.Conn, _ *smpeer.Metadata) { entered <- c; panic("injected handshake callback panic") }
 	client := newLivenessClient(t)
 	client.EnableWatchdog = false
-	client.Handler = mustNewStateMachine(t, &cfg)
+	client.Handler = mustNewStateMachine(t, &cfg, testDict)
 	client.Logger = records.Logger()
 	client.RetransmitInterval = time.Second
 	c, err := client.Dial(server.Addr)

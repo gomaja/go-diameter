@@ -17,12 +17,16 @@ import (
 )
 
 func main() {
-	err := dict.Default.Load(bytes.NewReader(customApp))
+	dictionary, err := dict.New(dict.Base())
+	if err != nil {
+		log.Fatal(err)
+	}
+	err = dictionary.Load(bytes.NewReader(customApp))
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	m := diam.NewMessage(1111, diam.RequestFlag, 999, 1, 2, dict.Default)
+	m := diam.NewMessage(1111, diam.RequestFlag, 999, 1, 2, dictionary)
 	if _, err := m.NewAVP(avp.ProductName, avp.Mbit, 0, datatype.Unsigned32(1)); err != nil {
 		log.Fatal(err)
 	}
@@ -53,7 +57,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	z, err := diam.ReadMessage(&b, dict.Default)
+	z, err := diam.ReadMessage(&b, dictionary)
 	if err != nil {
 		log.Fatal(err)
 	}

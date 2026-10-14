@@ -23,6 +23,8 @@ func (h dispatchRegressionHandler) HandleMessageError(c Conn, m *Message, e *Mes
 }
 
 func TestConcurrentReadErrorDoesNotBlockProxy(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	for _, limit := range []int{4, -1} {
 		t.Run(fmt.Sprint(limit), func(t *testing.T) {
 			answer := make(chan struct{})
@@ -32,7 +34,7 @@ func TestConcurrentReadErrorDoesNotBlockProxy(t *testing.T) {
 					close(answer)
 					return
 				}
-				dwr := NewRequest(DeviceWatchdog, 0, dict.Default)
+				dwr := NewRequest(DeviceWatchdog, 0, testDict)
 				dwr.AddAVP(NewAVP(avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("proxy.example")))
 				dwr.AddAVP(NewAVP(avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("example")))
 				if _, err := dwr.WriteTo(c); err != nil {
@@ -59,14 +61,14 @@ func TestConcurrentReadErrorDoesNotBlockProxy(t *testing.T) {
 			if err = c.SetDeadline(time.Now().Add(2 * time.Second)); err != nil {
 				t.Fatal(err)
 			}
-			if _, err = c.Write(cerPayload(t)); err != nil {
+			if _, err = c.Write(cerPayload(t, testDict)); err != nil {
 				t.Fatal(err)
 			}
-			dwr, err := ReadMessage(c, dict.Default)
+			dwr, err := ReadMessage(c, testDict)
 			if err != nil {
 				t.Fatal(err)
 			}
-			bad := NewRequest(DeviceWatchdog, 0, dict.Default)
+			bad := NewRequest(DeviceWatchdog, 0, testDict)
 			bad.AddAVP(NewAVP(avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("peer.example")))
 			bad.AddAVP(NewAVP(avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("example")))
 			bad.AddAVP(NewAVP(avp.InbandSecurityID, avp.Mbit, 0, datatype.Unknown{1, 2}))
@@ -94,6 +96,8 @@ func TestConcurrentReadErrorDoesNotBlockProxy(t *testing.T) {
 }
 
 func TestConcurrentDispatchDoesNotParkCompletedHandlers(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	for _, limit := range []int{4, -1} {
 		t.Run(fmt.Sprint(limit), func(t *testing.T) {
 			baseline := runtime.NumGoroutine()
@@ -112,10 +116,10 @@ func TestConcurrentDispatchDoesNotParkCompletedHandlers(t *testing.T) {
 				c.sem = make(chan struct{}, limit)
 			}
 			defer func() { close(release); c.hwg.Wait() }()
-			c.dispatch(NewMessage(DeviceWatchdog, RequestFlag, 0, 1, 1, nil))
+			c.dispatch(NewMessage(DeviceWatchdog, RequestFlag, 0, 1, 1, testDict))
 			<-started
 			for i := 0; i < 200; i++ {
-				c.dispatch(NewMessage(DeviceWatchdog, RequestFlag, 0, uint32(i+2), 1, nil))
+				c.dispatch(NewMessage(DeviceWatchdog, RequestFlag, 0, uint32(i+2), 1, testDict))
 				select {
 				case <-completed:
 				case <-time.After(time.Second):

@@ -14,6 +14,8 @@ import (
 )
 
 func TestCERSecurityChecksEveryAVP(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	for _, tlsActive := range []bool{false, true} {
 		for _, values := range [][]datatype.Type{
 			nil, {datatype.Unsigned32(0)}, {datatype.Unsigned32(1)}, {datatype.Unsigned32(42)},
@@ -21,7 +23,7 @@ func TestCERSecurityChecksEveryAVP(t *testing.T) {
 			{datatype.Unsigned32(0), datatype.Unknown{0, 1}},
 			{datatype.Unknown{0, 1}, datatype.Unsigned32(0)},
 		} {
-			request, err := base.BuildCER(dict.Default, fixtureSettings())
+			request, err := base.BuildCER(testDict, fixtureSettings())
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -60,7 +62,7 @@ func FuzzCERSecurityLength(f *testing.F) {
 	for _, seed := range [][]byte{{}, {0, 1}, {0, 0, 0, 0}, {0, 0, 0, 1}, {1, 2, 3, 4, 5}} {
 		f.Add(seed)
 	}
-	dictionary := dict.New(dict.Base)
+	dictionary := newTestDictionary(dict.Base())
 	dictionary.SetStrict(false)
 	f.Fuzz(func(t *testing.T, payload []byte) {
 		if len(payload) > 64 {

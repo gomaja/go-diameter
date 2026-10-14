@@ -4,13 +4,16 @@ import (
 	"bytes"
 	"testing"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam"
-	"github.com/gomaja/go-diameter/diam/dict"
 	"github.com/gomaja/go-diameter/diam/internal/base"
 )
 
 func FuzzManagedDWA(f *testing.F) {
-	request, err := base.BuildDWR(dict.Default, testBase("local.example.net"), 0)
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
+	request, err := base.BuildDWR(testDict, testBase("local.example.net"), 0)
 	if err != nil {
 		f.Fatal(err)
 	}
@@ -29,7 +32,7 @@ func FuzzManagedDWA(f *testing.F) {
 		if len(raw) > 4096 {
 			return
 		}
-		msg, err := diam.ReadMessage(bytes.NewReader(raw), dict.Default)
+		msg, err := diam.ReadMessage(bytes.NewReader(raw), testDict)
 		if err != nil || msg == nil || msg.Header == nil || msg.Header.CommandCode != diam.DeviceWatchdog || msg.Header.ApplicationID != 0 || msg.Header.CommandFlags&diam.RequestFlag != 0 {
 			return
 		}

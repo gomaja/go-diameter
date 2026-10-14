@@ -14,7 +14,7 @@ import (
 // the message's application, so a registered vendor Grouped AVP must round
 // trip, and a vendor-0 AVP sharing its code must not be picked instead.
 func TestMarshalUnmarshalRegisteredGroupedAVP(t *testing.T) {
-	p := dict.New(dict.Base)
+	p := newTestDictionary(dict.Base())
 	if err := p.Load(strings.NewReader(`<diameter><application id="16777999" type="auth" name="Registered">
 		<vendor id="10415" name="TGPP"/>
 	</application></diameter>`)); err != nil {

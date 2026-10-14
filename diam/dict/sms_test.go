@@ -1,4 +1,4 @@
-package dict
+package dict_test
 
 import (
 	"errors"
@@ -6,9 +6,17 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/gomaja/go-diameter/diam/dict"
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+	"github.com/gomaja/go-diameter/diam/dict/nasreq"
+	"github.com/gomaja/go-diameter/diam/dict/rorf"
+	"github.com/gomaja/go-diameter/diam/dict/s6c"
 )
 
 func TestSMSApplicationsAndCommands(t *testing.T) {
+	reference := newAllTestParser(t)
+
 	// 3GPP TS 29.338 V19.3.0 §§4.1, 5.3.2.2, 6.3.2.2; Tables 5.3.2.2/1, 6.3.2.2/1.
 	for _, tc := range []struct {
 		app      uint32
@@ -17,11 +25,11 @@ func TestSMSApplicationsAndCommands(t *testing.T) {
 		{16777312, []uint32{8388647, 8388648, 8388649}},
 		{16777313, []uint32{8388645, 8388646}},
 	} {
-		if _, err := Default.App(tc.app); err != nil {
+		if _, err := reference.App(tc.app); err != nil {
 			t.Errorf("application %d: %v", tc.app, err)
 		}
 		for _, code := range tc.commands {
-			if _, err := Default.FindCommand(tc.app, code); err != nil {
+			if _, err := reference.FindCommand(tc.app, code); err != nil {
 				t.Errorf("application %d command %d: %v", tc.app, code, err)
 			}
 		}
@@ -29,6 +37,8 @@ func TestSMSApplicationsAndCommands(t *testing.T) {
 }
 
 func TestSMSRequiredRules(t *testing.T) {
+	reference := newAllTestParser(t)
+
 	// 3GPP TS 29.338 V19.3.0 §§5.3.2.3-5.3.2.8, 6.3.2.3-6.3.2.6.
 	commonRequest := []string{"Session-Id", "Auth-Session-State", "Origin-Host", "Origin-Realm", "Destination-Realm"}
 	commonAnswer := []string{"Session-Id", "Auth-Session-State", "Origin-Host", "Origin-Realm"}
@@ -42,13 +52,13 @@ func TestSMSRequiredRules(t *testing.T) {
 		{16777313, 8388645, append(slices.Clone(commonRequest), "SC-Address", "User-Identifier", "SM-RP-UI"), commonAnswer},
 		{16777313, 8388646, []string{"Session-Id", "Auth-Session-State", "Origin-Host", "Origin-Realm", "Destination-Host", "Destination-Realm", "User-Name", "SC-Address", "SM-RP-UI"}, commonAnswer},
 	} {
-		cmd, err := Default.FindCommand(tc.app, tc.code)
+		cmd, err := reference.FindCommand(tc.app, tc.code)
 		if err != nil {
 			t.Fatal(err)
 		}
 		for _, side := range []struct {
 			name  string
-			rules []*Rule
+			rules []*dict.Rule
 			want  []string
 		}{{"request", cmd.Request.Rule, tc.request}, {"answer", cmd.Answer.Rule, tc.answer}} {
 			var got []string
@@ -65,6 +75,8 @@ func TestSMSRequiredRules(t *testing.T) {
 }
 
 func TestSMSAVPCodesAndTypes(t *testing.T) {
+	reference := newAllTestParser(t)
+
 	// 3GPP TS 29.338 V19.3.0 Tables 5.3.3.1/1, 6.3.3.1/1-2.
 	for _, tc := range []struct {
 		name      string
@@ -82,7 +94,7 @@ func TestSMSAVPCodesAndTypes(t *testing.T) {
 		{"MSISDN", 701, "OctetString", true},
 	} {
 		for _, app := range []uint32{16777312, 16777313} {
-			a, err := Default.FindAVPByName(app, tc.name)
+			a, err := reference.FindAVPByName(app, tc.name)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -94,6 +106,8 @@ func TestSMSAVPCodesAndTypes(t *testing.T) {
 }
 
 func TestSMSServingNodeReferences(t *testing.T) {
+	reference := newAllTestParser(t)
+
 	// 3GPP TS 29.173 V19.0.0 §6.4.6, Table 6.4.1/1; TS 29.273
 	// V19.2.0 §8.2.3.24, Table 8.2.3.0/1.
 	for _, tc := range []struct {
@@ -106,7 +120,7 @@ func TestSMSServingNodeReferences(t *testing.T) {
 		{"LCS-Capabilities-Sets", 2404, "Unsigned32", []uint32{4, 16777312, 16777313}},
 	} {
 		for _, appID := range tc.apps {
-			got, err := Default.FindAVPByName(appID, tc.name)
+			got, err := reference.FindAVPByName(appID, tc.name)
 			if err != nil || got.Code != tc.code || got.Data.TypeName != tc.typ || got.VendorID != 10415 || got.Must != "M,V" {
 				t.Errorf("app %d %s: got %v, err %v", appID, tc.name, got, err)
 			}
@@ -115,7 +129,7 @@ func TestSMSServingNodeReferences(t *testing.T) {
 }
 
 func TestSMSFlagRuleFormat(t *testing.T) {
-	app, err := New(S6c, CreditControl, RoRf, NASREQ, Base).App(16777312)
+	app, err := newTestParser(t, s6c.Dictionary(), creditcontrol.Dictionary(), rorf.Dictionary(), nasreq.Dictionary(), dict.Base()).App(16777312)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -141,7 +155,9 @@ func TestSMSFlagRuleFormat(t *testing.T) {
 // application. The SGd application must not define the command, so a request
 // built for it cannot borrow a definition under the wrong Application-ID.
 func TestSMSAlertServiceCentreUsesS6cApplication(t *testing.T) {
-	cmd, err := Default.FindCommand(16777312, 8388648)
+	reference := newAllTestParser(t)
+
+	cmd, err := reference.FindCommand(16777312, 8388648)
 	if err != nil {
 		t.Fatalf("S6c ALR/ALA: %v", err)
 	}
@@ -149,13 +165,13 @@ func TestSMSAlertServiceCentreUsesS6cApplication(t *testing.T) {
 	// and "< Diameter Header: 8388648, PXY, 16777312 >".
 	for _, side := range []struct {
 		name string
-		rule CommandRule
+		rule dict.CommandRule
 	}{{"request", cmd.Request}, {"answer", cmd.Answer}} {
 		if side.rule.Proxiable == nil || !*side.rule.Proxiable {
 			t.Errorf("S6c ALR/ALA %s proxiable = %v, want true", side.name, side.rule.Proxiable)
 		}
 	}
-	if got, err := Default.FindCommand(16777313, 8388648); !errors.Is(err, ErrNotFound) {
+	if got, err := reference.FindCommand(16777313, 8388648); !errors.Is(err, dict.ErrNotFound) {
 		t.Errorf("SGd application defines ALR/ALA: %v, %v; want ErrNotFound", got, err)
 	}
 }

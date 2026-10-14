@@ -20,6 +20,7 @@ import (
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/dict"
+	"github.com/gomaja/go-diameter/diam/dict/s6a"
 	"github.com/gomaja/go-diameter/diam/sm"
 	"github.com/gomaja/go-diameter/diam/sm/smpeer"
 	"github.com/gomaja/go-sctp"
@@ -127,6 +128,8 @@ func (c *observedConn) ResetForRestart() {
 }
 
 func main() {
+	parser, err := dict.New(s6a.Dictionary())
+	must(err)
 	log.SetFlags(log.Lmicroseconds)
 	mode := flag.String("mode", "server", "")
 	addr := flag.String("addr", ":3868", "")
@@ -138,7 +141,7 @@ func main() {
 	watchdog := flag.Bool("watchdog", false, "")
 	flag.Parse()
 	if *mode == "server" {
-		settings := &sm.Settings{OriginHost: "server.example", OriginRealm: "example", VendorID: 0, ProductName: "i81-wire", AuthApplicationID: []*diam.AVP{app(4), app(16777251)}, AcctApplicationID: []*diam.AVP{}, VendorSpecificApplicationID: []*diam.AVP{}, EnableWatchdog: *watchdog, WatchdogInterval: 6 * time.Second,
+		settings := &sm.Settings{Dict: parser, OriginHost: "server.example", OriginRealm: "example", VendorID: 0, ProductName: "i81-wire", AuthApplicationID: []*diam.AVP{app(4), app(16777251)}, AcctApplicationID: []*diam.AVP{}, VendorSpecificApplicationID: []*diam.AVP{}, EnableWatchdog: *watchdog, WatchdogInterval: 6 * time.Second,
 			OnCER: func(c diam.Conn, m *diam.Message) {
 				log.Printf("CER conn=%p generation=%d hop=%x end=%x", c, generation(c), m.Header.HopByHopID, m.Header.EndToEndID)
 			},
@@ -150,7 +153,7 @@ func main() {
 			}}
 		mux, err := sm.New(settings)
 		must(err)
-		srv := &diam.Server{Network: "sctp4", Addr: *addr, Handler: &tracked{mux}, Dict: dict.Default, OnNewConnection: func(c diam.Conn) {
+		srv := &diam.Server{Network: "sctp4", Addr: *addr, Handler: &tracked{mux}, Dict: parser, OnNewConnection: func(c diam.Conn) {
 			log.Printf("PHYSICAL_ACCEPT conn=%p generation=%d", c, generation(c))
 			c.SetContext(context.WithValue(c.Context(), contextKey{}, "old-value"))
 			go func() {
@@ -205,7 +208,7 @@ func main() {
 	}))
 	must(sockerr)
 	log.Printf("SO_LINGER enabled=1 seconds=0 phase=%d", *phase)
-	m := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
+	m := diam.NewRequest(diam.CapabilitiesExchange, 0, parser)
 	m.Header.HopByHopID = 0x81000000 + uint32(*phase)
 	m.Header.EndToEndID = 0x82000000 + uint32(*phase)
 	for _, a := range []*diam.AVP{diam.NewAVP(avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("client"+strconv.Itoa(*phase)+".example")), diam.NewAVP(avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("example")), diam.NewAVP(avp.HostIPAddress, avp.Mbit, 0, datatype.AddressFromIP(la.IPs[0])), diam.NewAVP(avp.VendorID, avp.Mbit, 0, datatype.Unsigned32(0)), diam.NewAVP(avp.ProductName, 0, 0, datatype.UTF8String("i81-wire")), diam.NewAVP(avp.OriginStateID, avp.Mbit, 0, datatype.Unsigned32(*phase)), app(uint32(*appid))} {
@@ -216,7 +219,7 @@ func main() {
 	_, err = c.SendMsg(b, sctp.SendOptions{Info: &sctp.SndInfo{Stream: uint16(*stream), PPID: 46}})
 	must(err)
 	must(c.SetReadDeadline(start.Add(4 * time.Second)))
-	answer, err := diam.ReadMessage(c, dict.Default)
+	answer, err := diam.ReadMessage(c, parser)
 	if err != nil {
 		log.Fatalf("FAIL phase=%d CEA wait=%s error=%v", *phase, time.Since(start), err)
 	}
@@ -243,7 +246,7 @@ func main() {
 	// Keep the renewed peer alive until the old Close hook has fired, then prove
 	// the renewed generation still handles traffic (RFC 6733 §5.5.1).
 	time.Sleep(200 * time.Millisecond)
-	dwr := diam.NewRequest(diam.DeviceWatchdog, 0, dict.Default)
+	dwr := diam.NewRequest(diam.DeviceWatchdog, 0, parser)
 	dwr.Header.HopByHopID = 0x81000102
 	dwr.Header.EndToEndID = 0x82000102
 	dwr.AddAVP(diam.NewAVP(avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("client2.example")))
@@ -252,7 +255,7 @@ func main() {
 	must(err)
 	_, err = c.SendMsg(dwrBytes, sctp.SendOptions{Info: &sctp.SndInfo{Stream: uint16(*stream), PPID: 46}})
 	must(err)
-	dwa, err := diam.ReadMessage(c, dict.Default)
+	dwa, err := diam.ReadMessage(c, parser)
 	must(err)
 	var result struct {
 		ResultCode datatype.Unsigned32 `avp:"Result-Code"`

@@ -1,6 +1,10 @@
-package dict
+package dict_test
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/gomaja/go-diameter/diam/dict"
+)
 
 // TestBundledCommandsStateTheirPBit guards that every bundled command
 // records the P bit of its request and answer Command Code Formats, which
@@ -12,13 +16,13 @@ import "testing"
 // TS 29.272 §7.2, TS 29.273 §8.2.2, TS 29.338 §§5.3.2, 6.3.2).
 func TestBundledCommandsStateTheirPBit(t *testing.T) {
 	hopByHop := map[uint32]bool{257: true, 280: true, 282: true}
-	for _, b := range AllBundled() {
-		for _, app := range bundledApps(t, b) {
+	for _, b := range sourceNames(t) {
+		for _, app := range sourceApps(t, b) {
 			for _, cmd := range app.Command {
 				want := app.ID != 0 || !hopByHop[cmd.Code]
 				for _, side := range []struct {
 					name string
-					rule CommandRule
+					rule dict.CommandRule
 				}{{"request", cmd.Request}, {"answer", cmd.Answer}} {
 					switch p := side.rule.Proxiable; {
 					case p == nil:

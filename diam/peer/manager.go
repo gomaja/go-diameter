@@ -63,7 +63,9 @@ type PeerConfig struct {
 	NoAutoReconnect bool
 }
 type Config struct {
-	// Settings supplies local capabilities and decoding policy. Manager owns the
+	// Settings supplies local capabilities and decoding policy. Settings.Dict
+	// selects application definitions; nil uses the shared, initially base-only
+	// dict.Default. A bound Server must use the same parser. Manager owns the
 	// base protocol; New rejects OnCER, OnCEA, OnDWR, OnDWA, OnDPR and
 	// OnHandshake hooks, and EnableWatchdog, WatchdogInterval, WatchdogStream,
 	// OnWatchdogConnEvent. Use Timers.TwInit and OnPeerEvent for managed peers.

@@ -1,10 +1,10 @@
-package dict
+package dict_test
 
 import (
 	"bytes"
 	"encoding/xml"
 	"io"
-	"io/fs"
+	"os"
 	"sort"
 	"testing"
 )
@@ -30,10 +30,7 @@ func TestBundledEnumerationConsistency(t *testing.T) {
 		} `xml:"data"`
 	}
 
-	entries, err := fs.ReadDir(bundledFS, "bundled")
-	if err != nil {
-		t.Fatal(err)
-	}
+	entries := sourceNames(t)
 	definitions := make(map[key][]definition)
 	// Add a key only for a specification-backed application exception, with
 	// the document, version, and clause in its reason. Stale entries fail.
@@ -45,10 +42,8 @@ func TestBundledEnumerationConsistency(t *testing.T) {
 		}
 	}
 	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
-		contents, err := fs.ReadFile(bundledFS, "bundled/"+entry.Name())
+
+		contents, err := os.ReadFile(sourcePath(t, entry))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -59,7 +54,7 @@ func TestBundledEnumerationConsistency(t *testing.T) {
 				break
 			}
 			if err != nil {
-				t.Fatalf("%s: %v", entry.Name(), err)
+				t.Fatalf("%s: %v", entry, err)
 			}
 			start, ok := token.(xml.StartElement)
 			if !ok || start.Name.Local != "avp" {
@@ -67,7 +62,7 @@ func TestBundledEnumerationConsistency(t *testing.T) {
 			}
 			var avp avpXML
 			if err := decoder.DecodeElement(&avp, &start); err != nil {
-				t.Fatalf("%s: %v", entry.Name(), err)
+				t.Fatalf("%s: %v", entry, err)
 			}
 			if avp.Data.Type != "Enumerated" {
 				continue
@@ -75,12 +70,12 @@ func TestBundledEnumerationConsistency(t *testing.T) {
 			items := make(map[int32]string, len(avp.Data.Items))
 			for _, item := range avp.Data.Items {
 				if old, exists := items[item.Code]; exists {
-					t.Errorf("%s: %s (%d,%d) repeats value %d (%q, %q)", entry.Name(), avp.Name, avp.VendorID, avp.Code, item.Code, old, item.Name)
+					t.Errorf("%s: %s (%d,%d) repeats value %d (%q, %q)", entry, avp.Name, avp.VendorID, avp.Code, item.Code, old, item.Name)
 				}
 				items[item.Code] = item.Name
 			}
 			k := key{avp.VendorID, avp.Code}
-			definitions[k] = append(definitions[k], definition{entry.Name(), avp.Name, items})
+			definitions[k] = append(definitions[k], definition{entry, avp.Name, items})
 		}
 	}
 
@@ -133,7 +128,9 @@ func TestBundledEnumerationConsistency(t *testing.T) {
 // TS 29.273 V19.2.0 Table 8.2.3.0/2 Note 1 keeps the defining AVP's
 // flags unless SWx explicitly overrides its M bit.
 func TestSWxReusedEnumerationsInheritDefinitions(t *testing.T) {
-	p := Default
+	reference := newAllTestParser(t)
+
+	p := reference
 	for _, tc := range []struct {
 		name                           string
 		code, parentApp                uint32
@@ -168,11 +165,13 @@ func TestSWxReusedEnumerationsInheritDefinitions(t *testing.T) {
 }
 
 func TestRxOCReportTypeInheritsBase(t *testing.T) {
-	base, err := Default.FindAVP(0, 626, 0)
+	reference := newAllTestParser(t)
+
+	base, err := reference.FindAVP(0, 626, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
-	rx, err := Default.FindAVP(16777236, 626, 0)
+	rx, err := reference.FindAVP(16777236, 626, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -182,10 +181,12 @@ func TestRxOCReportTypeInheritsBase(t *testing.T) {
 }
 
 func TestReusedEnumNameTypography(t *testing.T) {
+	reference := newAllTestParser(t)
+
 	// TS 29.212 V20.0.0 §5.3.31 assigns value 2; TS 29.214 V20.0.0
 	// Annex E.6 confirms the TRUSTED-N3GA spelling without an internal space.
 	for _, app := range []uint32{4, 16777236, 16777251, 16777265} {
-		item, err := Default.Enum(app, 1032, 10415, 2)
+		item, err := reference.Enum(app, 1032, 10415, 2)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -196,7 +197,7 @@ func TestReusedEnumNameTypography(t *testing.T) {
 	// TS 29.272 V19.6.0 §7.3.135 prints an accidental space before
 	// the underscore; names in the dictionary are stable tokens.
 	for code, want := range map[int32]string{0: "SIPTO_above_RAN_ALLOWED", 1: "SIPTO_above_RAN_NOTALLOWED"} {
-		item, err := Default.Enum(16777251, 1613, 10415, code)
+		item, err := reference.Enum(16777251, 1613, 10415, code)
 		if err != nil {
 			t.Fatal(err)
 		}

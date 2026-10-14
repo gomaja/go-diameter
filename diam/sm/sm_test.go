@@ -8,11 +8,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/diamtest"
-	"github.com/gomaja/go-diameter/diam/dict"
 	"github.com/gomaja/go-diameter/diam/internal/testutil"
 )
 
@@ -38,11 +39,17 @@ func TestStateMachineTCP(t *testing.T) {
 // sends a Re-Auth-Request message to ensure the handshake was
 // completed and that the RAR handler has context from the peer.
 func testStateMachine(t *testing.T, network string) {
-	sm := mustNewStateMachine(t, serverSettings)
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings := cloneTestSettings(serverSettings,
+		testDict)
+	clientSettings := cloneTestSettings(clientSettings,
+		testDict)
+
+	sm := mustNewStateMachine(t, serverSettings, testDict)
 	if sm.Settings() != serverSettings {
 		t.Fatal("Invalid settings")
 	}
-	srv := diamtest.NewServerNetwork(network, sm, dict.Default)
+	srv := diamtest.NewServerNetwork(network, sm, testDict)
 	defer srv.Close()
 	// Reserved commands are programmer errors at registration time.
 	func() {
@@ -65,13 +72,13 @@ func testStateMachine(t *testing.T, network string) {
 	mux.HandleFunc("DWA", func(c diam.Conn, m *diam.Message) {
 		mc <- m
 	})
-	cli, err := diam.DialNetworkTimeout(network, srv.Addr, mux, dict.Default, testutil.NetworkTimeout(network, 0))
+	cli, err := diam.DialNetworkTimeout(network, srv.Addr, mux, testDict, testutil.NetworkTimeout(network, 0))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer cli.Close()
 	// Send CER first, wait for CEA.
-	m := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
+	m := diam.NewRequest(diam.CapabilitiesExchange, 0, testDict)
 	mustSMClientAVP(t, m, avp.OriginHost, avp.Mbit, 0, clientSettings.OriginHost)
 	mustSMClientAVP(t, m, avp.OriginRealm, avp.Mbit, 0, clientSettings.OriginRealm)
 	mustSMClientAVP(t, m, avp.HostIPAddress, avp.Mbit, 0, localhostAddress)
@@ -99,7 +106,7 @@ func testStateMachine(t *testing.T, network string) {
 		t.Fatal("No CEA message received")
 	}
 	// Send RAR.
-	m = diam.NewRequest(diam.ReAuth, 0, dict.Default)
+	m = diam.NewRequest(diam.ReAuth, 0, testDict)
 	mustSMClientAVP(t, m, avp.SessionID, avp.Mbit, 0, datatype.OctetString("foobar"))
 	mustSMClientAVP(t, m, avp.OriginHost, avp.Mbit, 0, clientSettings.OriginHost)
 	mustSMClientAVP(t, m, avp.OriginRealm, avp.Mbit, 0, clientSettings.OriginRealm)
@@ -119,7 +126,7 @@ func testStateMachine(t *testing.T, network string) {
 		t.Fatal("No RAR message received")
 	}
 	// Send DWR.
-	m = diam.NewRequest(diam.DeviceWatchdog, 0, dict.Default)
+	m = diam.NewRequest(diam.DeviceWatchdog, 0, testDict)
 	mustSMClientAVP(t, m, avp.OriginHost, avp.Mbit, 0, clientSettings.OriginHost)
 	mustSMClientAVP(t, m, avp.OriginRealm, avp.Mbit, 0, clientSettings.OriginRealm)
 	_, err = m.WriteTo(cli)

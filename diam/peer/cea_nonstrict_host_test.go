@@ -10,6 +10,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+	"github.com/gomaja/go-diameter/diam/dict/nasreq"
+	"github.com/gomaja/go-diameter/diam/dict/rorf"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
@@ -18,7 +22,7 @@ import (
 
 func TestManagerRejectsNonStrictMalformedCEAHostIPAddress(t *testing.T) {
 	// RFC 6733 §§5.3.2 and 7.1.5: a malformed CEA ends the exchange.
-	p := dict.New(dict.Base, dict.NASREQ, dict.CreditControl, dict.RoRf)
+	p := newTestDictionary(dict.Base(), nasreq.Dictionary(), creditcontrol.Dictionary(), rorf.Dictionary())
 	p.SetStrict(false)
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {

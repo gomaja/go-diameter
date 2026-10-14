@@ -3,6 +3,8 @@ package sm
 import (
 	"testing"
 
+	"github.com/gomaja/go-diameter/diam/dict/sy"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
@@ -12,7 +14,12 @@ import (
 // TS 29.219 V19.0.0 §5.1.5 and Table 5.4; RFC 6733 §§5.3.6, 6.11:
 // 3GPP authors Sy; ETSI supplies Logical-Access-ID and Physical-Access-ID.
 func TestSyCapabilitiesWire(t *testing.T) {
-	for _, dictionary := range []*dict.Parser{dict.Default, dict.New(dict.Sy)} {
+	testDict := newSMTestDictionary(sy.Dictionary())
+	serverSettings := cloneTestSettings(serverSettings,
+		testDict,
+	)
+
+	for _, dictionary := range []*dict.Parser{testDict, newTestDictionary(sy.Dictionary())} {
 		settings := *serverSettings
 		settings.Dict = dictionary
 		client := &Client{Handler: mustNew(&settings), Dict: dictionary}

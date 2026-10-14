@@ -76,6 +76,12 @@ func TestClientWatchdogUsesCloseNotifierOverDispatchDone(t *testing.T) {
 }
 
 func TestClientWatchdogSerializesRequestAndDWAEvents(t *testing.T) {
+	testDict := newSMTestDictionary(dict.Base())
+	serverSettings :=
+		cloneTestSettings(serverSettings,
+			testDict,
+		)
+
 	cli := newLivenessClient(t)
 	c := &blockingPublishWatchdogConn{
 		watchdogProbeConn: newWatchdogProbeConn(),
@@ -106,7 +112,7 @@ func TestClientWatchdogSerializesRequestAndDWAEvents(t *testing.T) {
 		<-requestDone
 		t.Fatal("watchdog event lock was free during the DWR write")
 	}
-	request, err := diam.ReadMessage(bytes.NewReader(<-c.written), dict.Default)
+	request, err := diam.ReadMessage(bytes.NewReader(<-c.written), testDict)
 	if err != nil {
 		close(c.release)
 		<-requestDone

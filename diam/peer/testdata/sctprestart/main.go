@@ -20,6 +20,7 @@ import (
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/dict"
+	"github.com/gomaja/go-diameter/diam/dict/s6a"
 	"github.com/gomaja/go-diameter/diam/peer"
 	"github.com/gomaja/go-diameter/diam/sm"
 	"github.com/gomaja/go-sctp"
@@ -199,6 +200,8 @@ func (c *observedConn) ResetForRestart() {
 }
 
 func main() {
+	parser, err := dict.New(s6a.Dictionary())
+	must(err)
 	log.SetFlags(log.Lmicroseconds)
 	mode := flag.String("mode", "server", "")
 	addr := flag.String("addr", ":3868", "")
@@ -214,7 +217,7 @@ func main() {
 	watchdog := flag.Bool("watchdog", false, "")
 	flag.Parse()
 	if *mode == "alternate" {
-		settings := sm.Settings{OriginHost: "alternate.example", OriginRealm: "example", VendorID: 0, ProductName: "i93-wire", AuthApplicationID: []*diam.AVP{app(4)}, AcctApplicationID: []*diam.AVP{}, VendorSpecificApplicationID: []*diam.AVP{}}
+		settings := sm.Settings{Dict: parser, OriginHost: "alternate.example", OriginRealm: "example", VendorID: 0, ProductName: "i93-wire", AuthApplicationID: []*diam.AVP{app(4)}, AcctApplicationID: []*diam.AVP{}, VendorSpecificApplicationID: []*diam.AVP{}}
 		mux, err := sm.New(&settings)
 		must(err)
 		mux.HandleIdx(diam.CommandIndex{AppID: 4, Code: 272, Request: true}, diam.HandlerFunc(func(c diam.Conn, request *diam.Message) {
@@ -226,7 +229,7 @@ func main() {
 			_, err := answer.WriteTo(c)
 			must(err)
 		}))
-		srv := &diam.Server{Network: "sctp4", Addr: *addr, Handler: mux, Dict: dict.Default}
+		srv := &diam.Server{Network: "sctp4", Addr: *addr, Handler: mux, Dict: parser}
 		log.Printf("ALTERNATE_LISTENING addr=%s", *addr)
 		listener, err := diam.MultistreamListen("sctp4", *addr)
 		must(err)
@@ -234,7 +237,7 @@ func main() {
 		return
 	}
 	if *mode == "server" {
-		settings := sm.Settings{OriginHost: "server.example", OriginRealm: "example", VendorID: 0, ProductName: "i93-wire", AuthApplicationID: []*diam.AVP{app(4), app(16777251)}, AcctApplicationID: []*diam.AVP{}, VendorSpecificApplicationID: []*diam.AVP{}}
+		settings := sm.Settings{Dict: parser, OriginHost: "server.example", OriginRealm: "example", VendorID: 0, ProductName: "i93-wire", AuthApplicationID: []*diam.AVP{app(4), app(16777251)}, AcctApplicationID: []*diam.AVP{}, VendorSpecificApplicationID: []*diam.AVP{}}
 		tw := 30 * time.Second
 		if *watchdog {
 			tw = 6 * time.Second
@@ -247,7 +250,7 @@ func main() {
 		must(manager.AddPeer(peer.PeerConfig{Host: "alternate.example", Endpoints: []peer.Endpoint{{Network: "sctp4", Address: *alternate}}, NoAutoReconnect: true}))
 		must(manager.SetRoutes([]peer.Route{{Realm: "example", ApplicationID: 4, PeerHosts: []datatype.DiameterIdentity{"client1.example", "alternate.example"}}}))
 		must(manager.Start(context.Background()))
-		srv := &diam.Server{Network: "sctp4", Addr: *addr, RenewAcceptedCER: true, Dict: dict.Default, OnNewConnection: func(c diam.Conn) {
+		srv := &diam.Server{Network: "sctp4", Addr: *addr, RenewAcceptedCER: true, Dict: parser, OnNewConnection: func(c diam.Conn) {
 			log.Printf("PHYSICAL_ACCEPT conn=%p generation=%d", c, generation(c))
 			c.SetContext(context.WithValue(c.Context(), contextKey{}, "old-value"))
 			go func() {
@@ -262,7 +265,7 @@ func main() {
 			serveCheckpoints(*addr, observer.checkpoints)
 		}
 		srv.Handler = observer
-		go sendPending(manager, *requestTimeout)
+		go sendPending(manager, parser, *requestTimeout)
 		field := reflect.ValueOf(srv).Elem().FieldByName("OnConnectionRestart")
 		if field.IsValid() {
 			field.Set(reflect.MakeFunc(field.Type(), func(args []reflect.Value) []reflect.Value {
@@ -310,7 +313,7 @@ func main() {
 	}))
 	must(sockerr)
 	log.Printf("SO_LINGER enabled=1 seconds=0 phase=%d", *phase)
-	m := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
+	m := diam.NewRequest(diam.CapabilitiesExchange, 0, parser)
 	m.Header.HopByHopID = 0x81000000 + uint32(*phase)
 	m.Header.EndToEndID = 0x82000000 + uint32(*phase)
 	for _, a := range []*diam.AVP{diam.NewAVP(avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity(*host)), diam.NewAVP(avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("example")), diam.NewAVP(avp.HostIPAddress, avp.Mbit, 0, datatype.AddressFromIP(la.IPs[0])), diam.NewAVP(avp.VendorID, avp.Mbit, 0, datatype.Unsigned32(0)), diam.NewAVP(avp.ProductName, 0, 0, datatype.UTF8String("i93-wire")), diam.NewAVP(avp.OriginStateID, avp.Mbit, 0, datatype.Unsigned32(*phase)), app(uint32(*appid))} {
@@ -321,7 +324,7 @@ func main() {
 	_, err = c.SendMsg(b, sctp.SendOptions{Info: &sctp.SndInfo{Stream: uint16(*stream), PPID: 46}})
 	must(err)
 	must(c.SetReadDeadline(start.Add(4 * time.Second)))
-	answer, err := diam.ReadMessage(c, dict.Default)
+	answer, err := diam.ReadMessage(c, parser)
 	if err != nil {
 		log.Fatalf("FAIL phase=%d CEA wait=%s error=%v", *phase, time.Since(start), err)
 	}
@@ -343,7 +346,7 @@ func main() {
 		// Leave this application request unanswered so retirement must transfer it.
 		must(c.SetReadDeadline(time.Now().Add(6 * time.Second)))
 		for {
-			request, err := diam.ReadMessage(c, dict.Default)
+			request, err := diam.ReadMessage(c, parser)
 			must(err)
 			if request.Header.CommandCode == diam.DeviceWatchdog {
 				answerWatchdog(c, request, datatype.DiameterIdentity(*host))
@@ -358,7 +361,7 @@ func main() {
 		}
 		if *watchdog {
 			must(c.SetReadDeadline(time.Now().Add(12 * time.Second)))
-			request, err := diam.ReadMessage(c, dict.Default)
+			request, err := diam.ReadMessage(c, parser)
 			must(err)
 			if request.Header.CommandCode != diam.DeviceWatchdog || request.Header.CommandFlags&diam.RequestFlag == 0 {
 				log.Fatalf("expected pending old DWR: %+v", request.Header)
@@ -382,7 +385,7 @@ func main() {
 		waitCheckpoint(control, checkpoints, diam.CapabilitiesExchange, m.Header.HopByHopID, m.Header.EndToEndID)
 	}
 	time.Sleep(200 * time.Millisecond)
-	dwr := diam.NewRequest(diam.DeviceWatchdog, 0, dict.Default)
+	dwr := diam.NewRequest(diam.DeviceWatchdog, 0, parser)
 	dwr.Header.HopByHopID = 0x81000102
 	dwr.Header.EndToEndID = 0x82000102
 	dwr.AddAVP(diam.NewAVP(avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity(*host)))
@@ -395,7 +398,7 @@ func main() {
 	ownDWA := false
 	must(c.SetReadDeadline(time.Now().Add(32 * time.Second)))
 	for !ownDWA || (*watchdog && recoveryCount < 3) {
-		message, err := diam.ReadMessage(c, dict.Default)
+		message, err := diam.ReadMessage(c, parser)
 		must(err)
 		if message.Header.CommandCode == diam.DeviceWatchdog && message.Header.CommandFlags&diam.RequestFlag != 0 {
 			answerWatchdog(c, message, datatype.DiameterIdentity(*host))
@@ -430,7 +433,7 @@ func answerWatchdog(c *sctp.Conn, request *diam.Message, host datatype.DiameterI
 	must(err)
 }
 
-func sendPending(manager *peer.Manager, timeout time.Duration) {
+func sendPending(manager *peer.Manager, parser *dict.Parser, timeout time.Duration) {
 	deadline := time.Now().Add(8 * time.Second)
 	for {
 		ready := 0
@@ -447,7 +450,7 @@ func sendPending(manager *peer.Manager, timeout time.Duration) {
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
-	request := diam.NewRequest(272, 4, dict.Default)
+	request := diam.NewRequest(272, 4, parser)
 	request.AddAVP(diam.NewAVP(avp.DestinationRealm, avp.Mbit, 0, datatype.DiameterIdentity("example")))
 	request.AddAVP(diam.NewAVP(avp.SessionID, avp.Mbit, 0, datatype.UTF8String("i93-wire;synthetic;1")))
 	request.AddAVP(diam.NewAVP(avp.UserName, avp.Mbit, 0, datatype.UTF8String("synthetic-wire-payload")))

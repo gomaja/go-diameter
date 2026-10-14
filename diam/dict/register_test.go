@@ -1,10 +1,13 @@
-package dict
+package dict_test
 
 import (
 	"errors"
 	"fmt"
 	"strings"
 	"testing"
+
+	"github.com/gomaja/go-diameter/diam/dict"
+	"github.com/gomaja/go-diameter/diam/dict/all"
 )
 
 const (
@@ -12,12 +15,12 @@ const (
 	gxAppID    = 16777238
 )
 
-func vendorAVP(name string, code uint32, typ string) *AVP {
-	return &AVP{Name: name, Code: code, VendorID: testVendor, Must: "V", MustNot: "M", Data: Data{TypeName: typ}}
+func vendorAVP(name string, code uint32, typ string) *dict.AVP {
+	return &dict.AVP{Name: name, Code: code, VendorID: testVendor, Must: "V", MustNot: "M", Data: dict.Data{TypeName: typ}}
 }
 
 // mustRegister registers avps in app and fails the test on error.
-func mustRegister(t *testing.T, p *Parser, app uint32, avps ...*AVP) {
+func mustRegister(t *testing.T, p *dict.Parser, app uint32, avps ...*dict.AVP) {
 	t.Helper()
 	if err := p.RegisterAVP(app, avps...); err != nil {
 		t.Fatal(err)
@@ -25,7 +28,7 @@ func mustRegister(t *testing.T, p *Parser, app uint32, avps ...*AVP) {
 }
 
 // requireUnchanged fails unless p still publishes before.
-func requireUnchanged(t *testing.T, p *Parser, before *Snapshot) {
+func requireUnchanged(t *testing.T, p *dict.Parser, before *dict.Snapshot) {
 	t.Helper()
 	if p.Snapshot() != before {
 		t.Fatal("the Parser published a new Snapshot")
@@ -37,7 +40,7 @@ func requireUnchanged(t *testing.T, p *Parser, before *Snapshot) {
 // and TGPP-GGSN-MCC-MNC for 3GPP (TS 29.061). RFC 6733 §4.1: the code and
 // the vendor together identify an AVP.
 func TestRegisterAVPIsVendorScoped(t *testing.T) {
-	p := New(AllBundled()...)
+	p := newTestParser(t, all.Dictionary())
 	ietf, err := p.FindAVP(4, uint32(9), 0)
 	if err != nil {
 		t.Fatal(err)
@@ -63,8 +66,8 @@ func TestRegisterAVPIsVendorScoped(t *testing.T) {
 	assertNoWildcardRegistrations(t, p.Snapshot())
 
 	// A vendor-specific registration cannot answer a vendor-0 lookup.
-	fresh := New()
-	mustRegister(t, fresh, 4, &AVP{Name: "TGPP-GGSN-MCC-MNC", Code: 9, VendorID: 10415, Must: "V", Data: Data{TypeName: "UTF8String"}})
+	fresh := newTestParser(t)
+	mustRegister(t, fresh, 4, &dict.AVP{Name: "TGPP-GGSN-MCC-MNC", Code: 9, VendorID: 10415, Must: "V", Data: dict.Data{TypeName: "UTF8String"}})
 	if avp, err := fresh.FindAVP(4, 9, 0); err == nil {
 		t.Errorf("code 9 vendor 0 = %v", avp)
 	}
@@ -72,58 +75,58 @@ func TestRegisterAVPIsVendorScoped(t *testing.T) {
 }
 
 // assertNoWildcardRegistrations checks every code index retains its vendor.
-func assertNoWildcardRegistrations(t *testing.T, s *Snapshot) {
+func assertNoWildcardRegistrations(t *testing.T, s *dict.Snapshot) {
 	t.Helper()
-	for idx, avp := range s.avpcode {
-		if idx.vendorID != avp.VendorID {
-			t.Errorf("%s indexed under vendor %d, want %d", avp.Name, idx.vendorID, avp.VendorID)
+	for idx, avp := range dict.CodeIndexForTesting(s) {
+		if idx.VendorID != avp.VendorID {
+			t.Errorf("%s indexed under vendor %d, want %d", avp.Name, idx.VendorID, avp.VendorID)
 		}
 	}
 }
 
 func TestRegisterAVPRejectsInvalidDefinitions(t *testing.T) {
-	grouped := func(rules ...*Rule) *AVP {
+	grouped := func(rules ...*dict.Rule) *dict.AVP {
 		a := vendorAVP("Test-Group", 70000, "Grouped")
 		a.Data.Rule = rules
 		return a
 	}
-	with := func(f func(*AVP)) *AVP {
+	with := func(f func(*dict.AVP)) *dict.AVP {
 		a := vendorAVP("Test-AVP", 70001, "UTF8String")
 		f(a)
 		return a
 	}
 	for _, tc := range []struct {
 		name string
-		avp  *AVP
+		avp  *dict.AVP
 		want string
 	}{
 		{"nil", nil, "nil definition"},
-		{"empty name", with(func(a *AVP) { a.Name = "" }), "name"},
-		{"name starts with a digit", with(func(a *AVP) { a.Name = "3GPP-Thing" }), "name"},
-		{"name with underscore", with(func(a *AVP) { a.Name = "Test_AVP" }), "name"},
-		{"name with space", with(func(a *AVP) { a.Name = "Test AVP" }), "name"},
-		{"name AVP", with(func(a *AVP) { a.Name = "AVP" }), "any AVP"},
-		{"code 0", with(func(a *AVP) { a.Code = 0 }), "code 0"},
-		{"unknown type", with(func(a *AVP) { a.Data.TypeName = "Unknown" }), "data type"},
-		{"no type", with(func(a *AVP) { a.Data.TypeName = "" }), "data type"},
-		{"items on non-enumerated", with(func(a *AVP) { a.Data.Enum = []*Enum{{Code: 1, Name: "ONE"}} }), "Enumerated"},
-		{"nil item", with(func(a *AVP) { a.Data.TypeName = "Enumerated"; a.Data.Enum = []*Enum{nil} }), "nil enumerated"},
-		{"rules on non-grouped", with(func(a *AVP) { a.Data.Rule = []*Rule{{AVP: "Session-Id"}} }), "Grouped"},
-		{"unknown flag", with(func(a *AVP) { a.Must = "V,X" }), "unknown flag"},
-		{"bad may", with(func(a *AVP) { a.May = "Q" }), "may flags"},
-		{"required and forbidden", with(func(a *AVP) { a.Must = "M,V"; a.MustNot = "M" }), "both"},
-		{"V without vendor", with(func(a *AVP) { a.VendorID = 0; a.Must = "M,V"; a.MustNot = "" }), "no vendor"},
-		{"V forbidden with vendor", with(func(a *AVP) { a.Must = ""; a.MustNot = "V" }), "has a vendor"},
+		{"empty name", with(func(a *dict.AVP) { a.Name = "" }), "name"},
+		{"name starts with a digit", with(func(a *dict.AVP) { a.Name = "3GPP-Thing" }), "name"},
+		{"name with underscore", with(func(a *dict.AVP) { a.Name = "Test_AVP" }), "name"},
+		{"name with space", with(func(a *dict.AVP) { a.Name = "Test AVP" }), "name"},
+		{"name AVP", with(func(a *dict.AVP) { a.Name = "AVP" }), "any AVP"},
+		{"code 0", with(func(a *dict.AVP) { a.Code = 0 }), "code 0"},
+		{"unknown type", with(func(a *dict.AVP) { a.Data.TypeName = "Unknown" }), "data type"},
+		{"no type", with(func(a *dict.AVP) { a.Data.TypeName = "" }), "data type"},
+		{"items on non-enumerated", with(func(a *dict.AVP) { a.Data.Enum = []*dict.Enum{{Code: 1, Name: "ONE"}} }), "Enumerated"},
+		{"nil item", with(func(a *dict.AVP) { a.Data.TypeName = "Enumerated"; a.Data.Enum = []*dict.Enum{nil} }), "nil enumerated"},
+		{"rules on non-grouped", with(func(a *dict.AVP) { a.Data.Rule = []*dict.Rule{{AVP: "Session-Id"}} }), "Grouped"},
+		{"unknown flag", with(func(a *dict.AVP) { a.Must = "V,X" }), "unknown flag"},
+		{"bad may", with(func(a *dict.AVP) { a.May = "Q" }), "may flags"},
+		{"required and forbidden", with(func(a *dict.AVP) { a.Must = "M,V"; a.MustNot = "M" }), "both"},
+		{"V without vendor", with(func(a *dict.AVP) { a.VendorID = 0; a.Must = "M,V"; a.MustNot = "" }), "no vendor"},
+		{"V forbidden with vendor", with(func(a *dict.AVP) { a.Must = ""; a.MustNot = "V" }), "has a vendor"},
 		{"nil rule", grouped(nil), "nil member"},
-		{"bad member name", grouped(&Rule{AVP: "Not a name"}), "not an AVP name"},
-		{"member twice", grouped(&Rule{AVP: "Session-Id"}, &Rule{AVP: "Session-Id"}), "more than one"},
-		{"negative minimum", grouped(&Rule{AVP: "Session-Id", Min: -1}), "negative"},
-		{"maximum below minimum", grouped(&Rule{AVP: "Session-Id", Min: 2, Max: 1}), "below its minimum"},
-		{"required member never allowed", grouped(&Rule{AVP: "Session-Id", Required: true, MaxSet: true}), "below its minimum"},
-		{"unresolved member", grouped(&Rule{AVP: "No-Such-AVP"}), "does not resolve"},
+		{"bad member name", grouped(&dict.Rule{AVP: "Not a name"}), "not an AVP name"},
+		{"member twice", grouped(&dict.Rule{AVP: "Session-Id"}, &dict.Rule{AVP: "Session-Id"}), "more than one"},
+		{"negative minimum", grouped(&dict.Rule{AVP: "Session-Id", Min: -1}), "negative"},
+		{"maximum below minimum", grouped(&dict.Rule{AVP: "Session-Id", Min: 2, Max: 1}), "below its minimum"},
+		{"required member never allowed", grouped(&dict.Rule{AVP: "Session-Id", Required: true, MaxSet: true}), "below its minimum"},
+		{"unresolved member", grouped(&dict.Rule{AVP: "No-Such-AVP"}), "does not resolve"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			p := New(Base)
+			p := newTestParser(t, dict.Base())
 			before := p.Snapshot()
 			err := p.RegisterAVP(4, tc.avp)
 			if err == nil || !strings.Contains(err.Error(), tc.want) {
@@ -135,27 +138,27 @@ func TestRegisterAVPRejectsInvalidDefinitions(t *testing.T) {
 }
 
 func TestRegisterAVPConflicts(t *testing.T) {
-	p := New(AllBundled()...)
+	p := newTestParser(t, all.Dictionary())
 	mustRegister(t, p, 4, vendorAVP("Test-Alpha", 70000, "UTF8String"))
 	for _, tc := range []struct {
 		name string
 		app  uint32
-		avps []*AVP
+		avps []*dict.AVP
 	}{
-		{"same code and vendor, other name", 4, []*AVP{vendorAVP("Test-Beta", 70000, "UTF8String")}},
-		{"same code and vendor, other type", 4, []*AVP{vendorAVP("Test-Alpha", 70000, "OctetString")}},
-		{"same name and vendor, other code", 4, []*AVP{vendorAVP("Test-Alpha", 70001, "UTF8String")}},
-		{"same name, other vendor", 4, []*AVP{{Name: "Test-Alpha", Code: 70000, VendorID: 94, Must: "V", Data: Data{TypeName: "UTF8String"}}}},
-		{"inherited by a child application", gxAppID, []*AVP{vendorAVP("Test-Alpha", 70000, "Integer32")}},
-		{"name of a loaded AVP", 4, []*AVP{vendorAVP("Session-Id", 70002, "UTF8String")}},
-		{"redefines a loaded AVP", 4, []*AVP{{Name: "Session-Id", Code: 263, Must: "M", Data: Data{TypeName: "OctetString"}}}},
-		{"conflict within the call", 4, []*AVP{vendorAVP("Test-Gamma", 70003, "UTF8String"), vendorAVP("Test-Delta", 70003, "UTF8String")}},
-		{"valid one first, conflict second", 4, []*AVP{vendorAVP("Test-Epsilon", 70004, "UTF8String"), vendorAVP("Test-Beta", 70000, "UTF8String")}},
+		{"same code and vendor, other name", 4, []*dict.AVP{vendorAVP("Test-Beta", 70000, "UTF8String")}},
+		{"same code and vendor, other type", 4, []*dict.AVP{vendorAVP("Test-Alpha", 70000, "OctetString")}},
+		{"same name and vendor, other code", 4, []*dict.AVP{vendorAVP("Test-Alpha", 70001, "UTF8String")}},
+		{"same name, other vendor", 4, []*dict.AVP{{Name: "Test-Alpha", Code: 70000, VendorID: 94, Must: "V", Data: dict.Data{TypeName: "UTF8String"}}}},
+		{"inherited by a child application", gxAppID, []*dict.AVP{vendorAVP("Test-Alpha", 70000, "Integer32")}},
+		{"name of a loaded AVP", 4, []*dict.AVP{vendorAVP("Session-Id", 70002, "UTF8String")}},
+		{"redefines a loaded AVP", 4, []*dict.AVP{{Name: "Session-Id", Code: 263, Must: "M", Data: dict.Data{TypeName: "OctetString"}}}},
+		{"conflict within the call", 4, []*dict.AVP{vendorAVP("Test-Gamma", 70003, "UTF8String"), vendorAVP("Test-Delta", 70003, "UTF8String")}},
+		{"valid one first, conflict second", 4, []*dict.AVP{vendorAVP("Test-Epsilon", 70004, "UTF8String"), vendorAVP("Test-Beta", 70000, "UTF8String")}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			before := p.Snapshot()
 			err := p.RegisterAVP(tc.app, tc.avps...)
-			if !errors.Is(err, ErrAVPConflict) {
+			if !errors.Is(err, dict.ErrAVPConflict) {
 				t.Fatalf("RegisterAVP error = %v, want ErrAVPConflict", err)
 			}
 			requireUnchanged(t, p, before)
@@ -167,7 +170,7 @@ func TestRegisterAVPConflicts(t *testing.T) {
 }
 
 func TestRegisterAVPIdenticalIsNoOp(t *testing.T) {
-	p := New(AllBundled()...)
+	p := newTestParser(t, all.Dictionary())
 	alpha := vendorAVP("Test-Alpha", 70000, "UTF8String")
 	mustRegister(t, p, 4, alpha)
 	before := p.Snapshot()
@@ -183,7 +186,7 @@ func TestRegisterAVPIdenticalIsNoOp(t *testing.T) {
 	copied := *sessionID
 	mustRegister(t, p, 4, &copied)
 	requireUnchanged(t, p, before)
-	if n := len(p.Snapshot().regs); n != 1 {
+	if n := dict.RegistrationCountForTesting(p.Snapshot()); n != 1 {
 		t.Fatalf("%d registrations, want 1", n)
 	}
 }
@@ -196,7 +199,7 @@ func TestRegisterAVPIdenticalIsNoOp(t *testing.T) {
 // 70002 and rejects the 70001 it was given (RFC 6733 §4.4: a rule names
 // one AVP).
 func TestRegisterAVPIdenticalByCodeStillChecksName(t *testing.T) {
-	p := New()
+	p := newTestParser(t)
 	if err := p.Load(strings.NewReader(`<diameter>
 		<application id="0"><avp name="Test-Member" code="70001" must="V" vendor-id="99999"><data type="Unsigned32"/></avp></application>
 		<application id="4"><avp name="Test-Member" code="70002" must="V" vendor-id="99999"><data type="UTF8String"/></avp></application>
@@ -211,15 +214,15 @@ func TestRegisterAVPIdenticalByCodeStillChecksName(t *testing.T) {
 		t.Fatalf("application 4 does not inherit the base member: %v, %v", have, err)
 	}
 	group := vendorAVP("Test-Group", 70000, "Grouped")
-	group.Data.Rule = []*Rule{{AVP: "Test-Member", Required: true, Max: 1}}
-	for name, avps := range map[string][]*AVP{
+	group.Data.Rule = []*dict.Rule{{AVP: "Test-Member", Required: true, Max: 1}}
+	for name, avps := range map[string][]*dict.AVP{
 		"member alone":     {member},
 		"group and member": {group, member},
 		"member and group": {member, group},
 	} {
 		t.Run(name, func(t *testing.T) {
 			before := p.Snapshot()
-			if err := p.RegisterAVP(4, avps...); !errors.Is(err, ErrAVPConflict) {
+			if err := p.RegisterAVP(4, avps...); !errors.Is(err, dict.ErrAVPConflict) {
 				t.Fatalf("RegisterAVP error = %v, want ErrAVPConflict", err)
 			}
 			requireUnchanged(t, p, before)
@@ -233,10 +236,10 @@ func TestRegisterAVPIdenticalByCodeStillChecksName(t *testing.T) {
 
 // Undeclared applications inherit only base, for loaded and registered AVPs alike.
 func TestUndeclaredApplicationsFallBackOnlyToBase(t *testing.T) {
-	registered := New(Base)
+	registered := newTestParser(t, dict.Base())
 	mustRegister(t, registered, 4, vendorAVP("Test-Counter", 70000, "Unsigned32"))
 	mustRegister(t, registered, 0, vendorAVP("Test-Base-Vendor", 70001, "Unsigned32"))
-	loaded := New(Base)
+	loaded := newTestParser(t, dict.Base())
 	if err := loaded.Load(strings.NewReader(`<diameter>
 		<application id="4" type="auth" name="Test">
 			<avp name="Test-Counter" code="70000" must="V" must-not="M" vendor-id="99999"><data type="Unsigned32"/></avp>
@@ -249,7 +252,7 @@ func TestUndeclaredApplicationsFallBackOnlyToBase(t *testing.T) {
 	}
 	keys := []struct{ code, vendor uint32 }{{70000, testVendor}, {70001, testVendor}, {263, 0}, {70002, testVendor}}
 	apps := []uint32{0, 1, 3, 4, 16777236, 16777238, 16777251, 16777252, 16777265, 16777302, 16777312, 16777313, 16777999}
-	for name, p := range map[string]*Parser{"registered": registered, "loaded": loaded} {
+	for name, p := range map[string]*dict.Parser{"registered": registered, "loaded": loaded} {
 		for _, app := range apps {
 			for _, key := range keys {
 				want := ""
@@ -287,12 +290,12 @@ func TestUndeclaredApplicationsFallBackOnlyToBase(t *testing.T) {
 // TestRegisterAVPInheritsLikeLoad checks that a registered AVP is visible
 // in exactly the applications where the same AVP loaded from XML is.
 func TestRegisterAVPInheritsLikeLoad(t *testing.T) {
-	registered := New(AllBundled()...)
+	registered := newTestParser(t, all.Dictionary())
 	shadow := vendorAVP("Test-Shadowed", 1001, "UTF8String")
 	shadow.VendorID = 10415 // Gx defines Charging-Rule-Install with this code
 	mustRegister(t, registered, 4, vendorAVP("Test-Inherited", 70000, "UTF8String"), shadow)
 
-	loaded := New(AllBundled()...)
+	loaded := newTestParser(t, all.Dictionary())
 	if err := loaded.Load(strings.NewReader(`<diameter><application id="4">
 		<avp name="Test-Inherited" code="70000" must="V" must-not="M" vendor-id="99999"><data type="UTF8String"/></avp>
 		<avp name="Test-Shadowed" code="1001" must="V" must-not="M" vendor-id="10415"><data type="UTF8String"/></avp>
@@ -336,13 +339,13 @@ func TestRegisterAVPInheritsLikeLoad(t *testing.T) {
 
 func TestRegisterAVPDeclaresNoApplication(t *testing.T) {
 	const private = 16777999
-	p := New(Base)
+	p := newTestParser(t, dict.Base())
 	appsBefore := fmt.Sprint(p.Apps())
 	mustRegister(t, p, private, vendorAVP("Test-Private", 70000, "UTF8String"))
 	if apps := fmt.Sprint(p.Apps()); apps != appsBefore {
 		t.Errorf("Apps() = %s, was %s", apps, appsBefore)
 	}
-	if _, err := p.App(private); !errors.Is(err, ErrApplicationUnsupported) {
+	if _, err := p.App(private); !errors.Is(err, dict.ErrApplicationUnsupported) {
 		t.Errorf("App(%d) error = %v, want ErrApplicationUnsupported", private, err)
 	}
 	if avp, err := p.FindAVP(private, 70000, testVendor); err != nil || avp.App.ID != private {
@@ -354,7 +357,7 @@ func TestRegisterAVPDeclaresNoApplication(t *testing.T) {
 }
 
 func TestRegisterAVPSurvivesLoad(t *testing.T) {
-	p := New(Base)
+	p := newTestParser(t, dict.Base())
 	if err := p.Load(strings.NewReader(`<diameter><application id="1"/><application id="4" inherits="1"/><application id="16777238" inherits="4"/><application id="16777236" inherits="4"/></diameter>`)); err != nil {
 		t.Fatal(err)
 	}
@@ -378,7 +381,7 @@ func TestRegisterAVPSurvivesLoad(t *testing.T) {
 		`<avp name="Test-Kept" code="70000" must="V" must-not="M" vendor-id="94"><data type="UTF8String"/></avp>`,
 	} {
 		before := p.Snapshot()
-		if err := load(refused); !errors.Is(err, ErrAVPConflict) {
+		if err := load(refused); !errors.Is(err, dict.ErrAVPConflict) {
 			t.Errorf("Load(%s) error = %v, want ErrAVPConflict", refused, err)
 		}
 		requireUnchanged(t, p, before)
@@ -406,13 +409,13 @@ func TestRegisterAVPSurvivesLoad(t *testing.T) {
 }
 
 func TestRegisterAVPNameScope(t *testing.T) {
-	p := New(Base)
+	p := newTestParser(t, dict.Base())
 	if err := p.Load(strings.NewReader(`<diameter><application id="1"/><application id="4" inherits="1"/><application id="16777238" inherits="4"/><application id="16777236" inherits="4"/></diameter>`)); err != nil {
 		t.Fatal(err)
 	}
 	// A nearer application may register a name an ancestor gets later...
 	mustRegister(t, p, 4, vendorAVP("Test-Name", 70000, "UTF8String"))
-	mustRegister(t, p, 1, &AVP{Name: "Test-Name", Code: 70000, VendorID: 94, Must: "V", Data: Data{TypeName: "UTF8String"}})
+	mustRegister(t, p, 1, &dict.AVP{Name: "Test-Name", Code: 70000, VendorID: 94, Must: "V", Data: dict.Data{TypeName: "UTF8String"}})
 	for app, vendor := range map[uint32]uint32{4: testVendor, gxAppID: testVendor, 1: 94} {
 		if avp, err := p.FindAVPByName(app, "Test-Name"); err != nil || avp.VendorID != vendor {
 			t.Errorf("app %d Test-Name = %v, %v; want vendor %d", app, avp, err, vendor)
@@ -420,26 +423,26 @@ func TestRegisterAVPNameScope(t *testing.T) {
 	}
 	// ...but not take over a name it already resolves.
 	before := p.Snapshot()
-	if err := p.RegisterAVP(16777236, &AVP{Name: "Test-Name", Code: 70001, VendorID: 95, Must: "V", Data: Data{TypeName: "UTF8String"}}); !errors.Is(err, ErrAVPConflict) {
+	if err := p.RegisterAVP(16777236, &dict.AVP{Name: "Test-Name", Code: 70001, VendorID: 95, Must: "V", Data: dict.Data{TypeName: "UTF8String"}}); !errors.Is(err, dict.ErrAVPConflict) {
 		t.Fatalf("RegisterAVP error = %v, want ErrAVPConflict", err)
 	}
 	requireUnchanged(t, p, before)
 }
 
 func TestRegisterGroupedAVP(t *testing.T) {
-	p := New(Base)
+	p := newTestParser(t, dict.Base())
 	if err := p.Load(strings.NewReader(`<diameter><application id="1"/><application id="4" inherits="1"/><application id="16777238" inherits="4"/><application id="16777236" inherits="4"/></diameter>`)); err != nil {
 		t.Fatal(err)
 	}
 	group := vendorAVP("Test-Group", 70000, "Grouped")
-	group.Data.Rule = []*Rule{
+	group.Data.Rule = []*dict.Rule{
 		{AVP: "Test-Member", Required: true, Max: 1},
 		{AVP: "Test-Level", Max: 1, MaxSet: true},
 		{AVP: "Session-Id"},
 		{AVP: "AVP"},
 	}
 	level := vendorAVP("Test-Level", 70002, "Enumerated")
-	level.Data.Enum = []*Enum{{Code: 0, Name: "LOW"}, {Code: 1, Name: "HIGH"}}
+	level.Data.Enum = []*dict.Enum{{Code: 0, Name: "LOW"}, {Code: 1, Name: "HIGH"}}
 	mustRegister(t, p, 4, group, vendorAVP("Test-Member", 70001, "UTF8String"), level)
 
 	have, err := p.FindAVP(4, 70000, testVendor)
@@ -471,17 +474,17 @@ func TestRegisterGroupedAVP(t *testing.T) {
 }
 
 func TestRegisterAVPOnFreshParsers(t *testing.T) {
-	fromNewParser, err := NewParser()
+	fromNewParser, err := dict.NewParser()
 	if err != nil {
 		t.Fatal(err)
 	}
-	for name, p := range map[string]*Parser{"NewParser()": fromNewParser, "zero Parser": new(Parser), "New()": New()} {
+	for name, p := range map[string]*dict.Parser{"NewParser()": fromNewParser, "zero Parser": new(dict.Parser), "newTestParser(t)": newTestParser(t)} {
 		t.Run(name, func(t *testing.T) {
-			if !p.Strict() || p.MaxGroupedDepth() != DefaultMaxGroupedDepth {
+			if !p.Strict() || p.MaxGroupedDepth() != dict.DefaultMaxGroupedDepth {
 				t.Fatalf("policy: strict %t, depth %d", p.Strict(), p.MaxGroupedDepth())
 			}
 			group := vendorAVP("Test-Group", 70000, "Grouped")
-			group.Data.Rule = []*Rule{{AVP: "Test-Member"}}
+			group.Data.Rule = []*dict.Rule{{AVP: "Test-Member"}}
 			mustRegister(t, p, 0, group, vendorAVP("Test-Member", 70001, "UTF8String"))
 			if avp, err := p.FindAVP(0, 70000, testVendor); err != nil || avp.Name != "Test-Group" {
 				t.Errorf("by code: %v, %v", avp, err)
@@ -503,14 +506,14 @@ func TestRegisterAVPOnFreshParsers(t *testing.T) {
 // leaves the child's definition in force by code and by name: the base name
 // does not resolve in the child, and base itself sees the registered AVP.
 func TestRegisteredBaseAVPLeavesChildDefinition(t *testing.T) {
-	p := New(Base)
+	p := newTestParser(t, dict.Base())
 	if err := p.Load(strings.NewReader(`<diameter><application id="16777999" type="auth" name="Child">
 		<vendor id="10415" name="TGPP"/>
 		<avp name="Child-X" code="70100" vendor-id="10415" must="V" must-not="M"><data type="Unsigned32"/></avp>
 	</application></diameter>`)); err != nil {
 		t.Fatal(err)
 	}
-	mustRegister(t, p, 0, &AVP{Name: "Base-X", Code: 70100, VendorID: 10415, Must: "V", MustNot: "M", Data: Data{TypeName: "OctetString"}})
+	mustRegister(t, p, 0, &dict.AVP{Name: "Base-X", Code: 70100, VendorID: 10415, Must: "V", MustNot: "M", Data: dict.Data{TypeName: "OctetString"}})
 
 	if a, err := p.FindAVP(16777999, 70100, 10415); err != nil || a.Name != "Child-X" {
 		t.Fatalf("child by code = %v, %v; want Child-X", a, err)
@@ -518,7 +521,7 @@ func TestRegisteredBaseAVPLeavesChildDefinition(t *testing.T) {
 	if a, err := p.FindAVPByName(16777999, "Child-X"); err != nil || a.Code != 70100 {
 		t.Fatalf("child by own name = %v, %v", a, err)
 	}
-	if a, err := p.FindAVPByName(16777999, "Base-X"); a != nil || !errors.Is(err, ErrNotFound) {
+	if a, err := p.FindAVPByName(16777999, "Base-X"); a != nil || !errors.Is(err, dict.ErrNotFound) {
 		t.Fatalf("child by base name = %v, %v; want ErrNotFound", a, err)
 	}
 	if a, err := p.FindAVP(0, 70100, 10415); err != nil || a.Name != "Base-X" {
@@ -529,7 +532,7 @@ func TestRegisteredBaseAVPLeavesChildDefinition(t *testing.T) {
 // A later load that replaces a base definition reaches every application that
 // falls back to it, by code and by name.
 func TestLaterBaseLoadReachesDescendants(t *testing.T) {
-	p := New(Base)
+	p := newTestParser(t, dict.Base())
 	load := func(typ string) {
 		t.Helper()
 		if err := p.Load(strings.NewReader(`<diameter><application id="0"><vendor id="10415" name="TGPP"/>

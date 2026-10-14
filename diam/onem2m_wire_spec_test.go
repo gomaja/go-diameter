@@ -7,6 +7,8 @@ import (
 	"os"
 	"testing"
 
+	"github.com/gomaja/go-diameter/diam/dict/s6a"
+
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/dict"
@@ -36,10 +38,12 @@ func oneM2MWireSpec(t *testing.T) []oneM2MWireAVPSpec {
 // oneM2M TS-0004 V5.2.0 Table A.4-1; TS 32.299 V19.0.0 §7.5.
 // Source identities and flags must survive serialization in both Ro and Rf.
 func TestOneM2MAVPWireRoundTrip(t *testing.T) {
+	testDict := newTestDictionary(s6a.Dictionary())
+
 	for _, want := range oneM2MWireSpec(t) {
 		for _, app := range []uint32{3, 4} {
 			t.Run(fmt.Sprintf("%d/%s", app, want.Name), func(t *testing.T) {
-				a, err := dict.Default.FindAVP(app, want.Code, want.Vendor)
+				a, err := testDict.FindAVP(app, want.Code, want.Vendor)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -51,22 +55,29 @@ func TestOneM2MAVPWireRoundTrip(t *testing.T) {
 				if app == 4 {
 					code = 272
 				}
-				m := NewRequest(code, app, dict.Default)
+				m := NewRequest(code, app, testDict)
 				if _, err := m.NewAVPByName(a.Name, roRfWireFlags(t, a.Must), data); err != nil {
 					t.Fatal(err)
 				}
-				assertRefreshWire(t, m, want.Code, roRfWireFlags(t, want.Must), want.Vendor, data)
+				assertRefreshWire(t, m, want.Code, roRfWireFlags(t, want.Must), want.Vendor, data, testDict)
 			})
 		}
 	}
 }
 
-func oneM2MACR(t *testing.T, group *GroupedAVP) *Message {
+func oneM2MACR(t *testing.T, group *GroupedAVP, parsers ...*dict.Parser) *Message {
+	var testDict *dict.Parser
+	if len(parsers) > 0 {
+		testDict = parsers[0]
+	} else {
+		testDict = newTestDictionary(s6a.Dictionary())
+	}
+
 	t.Helper()
-	m := NewRequest(271, 3, dict.Default)
+	m := NewRequest(271, 3, testDict)
 	// TS 32.299 V19.0.0 §6.2.2 required ACR prefix.
 	for _, name := range []string{"Session-Id", "Origin-Host", "Origin-Realm", "Destination-Realm", "Accounting-Record-Type", "Accounting-Record-Number"} {
-		a := roRfFindAVP(t, name)
+		a := roRfFindAVP(t, name, testDict)
 		data := roRfSampleData(t, a, 0)
 		if name == "Accounting-Record-Type" {
 			data = datatype.Enumerated(1)
@@ -79,9 +90,16 @@ func oneM2MACR(t *testing.T, group *GroupedAVP) *Message {
 	return m
 }
 
-func checkOneM2MACR(t *testing.T, group *GroupedAVP) {
+func checkOneM2MACR(t *testing.T, group *GroupedAVP, parsers ...*dict.Parser) {
+	var testDict *dict.Parser
+	if len(parsers) > 0 {
+		testDict = parsers[0]
+	} else {
+		testDict = newTestDictionary(s6a.Dictionary())
+	}
+
 	t.Helper()
-	m := oneM2MACR(t, group)
+	m := oneM2MACR(t, group, testDict)
 	if err := m.ValidateOutgoing(); err != nil {
 		t.Fatalf("ACR with M2M-Information: %v", err)
 	}
@@ -89,7 +107,7 @@ func checkOneM2MACR(t *testing.T, group *GroupedAVP) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, err := ReadMessage(bytes.NewReader(wire), dict.Default)
+	got, err := ReadMessage(bytes.NewReader(wire), testDict)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -108,7 +126,9 @@ func checkOneM2MACR(t *testing.T, group *GroupedAVP) {
 // TS-0004 V5.2.0 §A.5.14: each named member is optional and singleton;
 // the trailing *[AVP] admits extensions. TS 32.299 §7.2.192 admits the group.
 func TestOneM2MACR(t *testing.T) {
-	t.Run("empty", func(t *testing.T) { checkOneM2MACR(t, &GroupedAVP{}) })
+	testDict := newTestDictionary(s6a.Dictionary())
+
+	t.Run("empty", func(t *testing.T) { checkOneM2MACR(t, &GroupedAVP{}, testDict) })
 	for _, source := range oneM2MWireSpec(t) {
 		if source.Code != 1011 {
 			continue
@@ -120,20 +140,20 @@ func TestOneM2MACR(t *testing.T) {
 				if name == "AVP" {
 					name = "User-Name"
 				}
-				a := roRfFindAVP(t, name)
+				a := roRfFindAVP(t, name, testDict)
 				child := NewAVP(a.Code, roRfWireFlags(t, a.Must), a.VendorID, roRfSampleData(t, a, 0))
-				checkOneM2MACR(t, &GroupedAVP{AVP: []*AVP{child}})
+				checkOneM2MACR(t, &GroupedAVP{AVP: []*AVP{child}}, testDict)
 				pair := &GroupedAVP{AVP: []*AVP{child, child}}
 				if r.Name == "AVP" {
-					checkOneM2MACR(t, pair)
+					checkOneM2MACR(t, pair, testDict)
 				} else {
-					if err := oneM2MACR(t, pair).ValidateOutgoing(); err == nil {
+					if err := oneM2MACR(t, pair, testDict).ValidateOutgoing(); err == nil {
 						t.Fatalf("duplicate singleton %s accepted", name)
 					}
 					all.AVP = append(all.AVP, child)
 				}
 			})
 		}
-		t.Run("all", func(t *testing.T) { checkOneM2MACR(t, all) })
+		t.Run("all", func(t *testing.T) { checkOneM2MACR(t, all, testDict) })
 	}
 }

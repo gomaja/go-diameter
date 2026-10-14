@@ -14,11 +14,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/diamtest"
-	"github.com/gomaja/go-diameter/diam/dict"
 	"github.com/gomaja/go-diameter/diam/internal/logtest"
 )
 
@@ -29,6 +30,8 @@ func TestStateMachineAnswersUndecodableAVPs(t *testing.T) {
 }
 
 func testStateMachineAnswersUndecodableAVPs(t *testing.T, wrap func(diam.Handler) diam.Handler) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	for _, tc := range []struct {
 		name            string
 		code            uint32
@@ -41,8 +44,8 @@ func testStateMachineAnswersUndecodableAVPs(t *testing.T, wrap func(diam.Handler
 		for _, stage := range []string{"CER", "after CER"} {
 			t.Run(tc.name+"/"+stage, func(t *testing.T) {
 				records := logtest.New()
-				stateMachine := mustNewStateMachine(t, testMessageErrorSettings())
-				server := diamtest.NewUnstartedServer(wrap(stateMachine), dict.Default)
+				stateMachine := mustNewStateMachine(t, testMessageErrorSettings(testDict), testDict)
+				server := diamtest.NewUnstartedServer(wrap(stateMachine), testDict)
 				server.Config.Logger = records.Logger()
 				server.Start()
 				defer server.Close()
@@ -57,7 +60,7 @@ func testStateMachineAnswersUndecodableAVPs(t *testing.T, wrap func(diam.Handler
 				t.Logf("TCP peer %s -> %s", conn.LocalAddr(), conn.RemoteAddr())
 				if stage != "CER" {
 					writeValidSMErrorCER(t, conn)
-					cea, err := diam.ReadMessage(conn, dict.Default)
+					cea, err := diam.ReadMessage(conn, testDict)
 					if err != nil || !testResultCode(cea, diam.Success) {
 						t.Fatalf("capability exchange: answer=%v error=%v", cea, err)
 					}
@@ -67,12 +70,12 @@ func testStateMachineAnswersUndecodableAVPs(t *testing.T, wrap func(diam.Handler
 				if stage != "CER" {
 					command = diam.DeviceWatchdog
 				}
-				request := diam.NewMessage(command, flags, 0, 0x11223344, 0x55667788, dict.Default)
+				request := diam.NewMessage(command, flags, 0, 0x11223344, 0x55667788, testDict)
 				request.AddAVP(diam.NewAVP(tc.code, avp.Mbit, 0, datatype.Unknown(tc.payload)))
 				if _, err := request.WriteTo(conn); err != nil {
 					t.Fatal(err)
 				}
-				answer, err := diam.ReadMessage(conn, dict.Default)
+				answer, err := diam.ReadMessage(conn, testDict)
 				if err != nil {
 					t.Fatalf("read payload error answer: %v", err)
 				}
@@ -108,7 +111,7 @@ func testStateMachineAnswersUndecodableAVPs(t *testing.T, wrap func(diam.Handler
 				if stage == "CER" {
 					// RFC 6733 §§5.3 and 5.6.1: a rejected CER admits no peer and
 					// the connection closes.
-					if extra, err := diam.ReadMessage(conn, dict.Default); err == nil {
+					if extra, err := diam.ReadMessage(conn, testDict); err == nil {
 						t.Fatalf("connection stayed open after the rejected CER: %v", extra)
 					} else if !errors.Is(err, io.EOF) {
 						t.Fatalf("read after the rejected CER: %v, want EOF", err)
@@ -117,13 +120,13 @@ func testStateMachineAnswersUndecodableAVPs(t *testing.T, wrap func(diam.Handler
 				}
 				// A following DWR must get the next answer on this same connection.
 				// Correlation IDs detect unexpected responses.
-				dwr := diam.NewMessage(diam.DeviceWatchdog, diam.RequestFlag, 0, 0x12345678, 0x23456789, dict.Default)
+				dwr := diam.NewMessage(diam.DeviceWatchdog, diam.RequestFlag, 0, 0x12345678, 0x23456789, testDict)
 				dwr.AddAVP(diam.NewAVP(avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("peer.example")))
 				dwr.AddAVP(diam.NewAVP(avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("example")))
 				if _, err := dwr.WriteTo(conn); err != nil {
 					t.Fatal(err)
 				}
-				dwa, err := diam.ReadMessage(conn, dict.Default)
+				dwa, err := diam.ReadMessage(conn, testDict)
 				if err != nil {
 					t.Fatalf("read following DWA: %v", err)
 				}
@@ -137,9 +140,11 @@ func testStateMachineAnswersUndecodableAVPs(t *testing.T, wrap func(diam.Handler
 }
 
 func TestStateMachineErrorAnswerDoesNotEchoMalformedRequiredAVP(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	for _, badCode := range []uint32{avp.CCRequestType, avp.CCRequestNumber} {
 		t.Run(fmt.Sprint(badCode), func(t *testing.T) {
-			server := diamtest.NewServer(mustNewStateMachine(t, testMessageErrorSettings()), dict.Default)
+			server := diamtest.NewServer(mustNewStateMachine(t, testMessageErrorSettings(testDict), testDict), testDict)
 			defer server.Close()
 			conn, err := net.DialTimeout("tcp", server.Addr, time.Second)
 			if err != nil {
@@ -151,11 +156,11 @@ func TestStateMachineErrorAnswerDoesNotEchoMalformedRequiredAVP(t *testing.T) {
 			}
 			t.Logf("TCP peer %s -> %s", conn.LocalAddr(), conn.RemoteAddr())
 			writeValidSMErrorCER(t, conn)
-			cea, err := diam.ReadMessage(conn, dict.Default)
+			cea, err := diam.ReadMessage(conn, testDict)
 			if err != nil || !testResultCode(cea, diam.Success) {
 				t.Fatalf("CEA: %v, %v", cea, err)
 			}
-			ccr := diam.NewRequest(diam.CreditControl, diam.CHARGING_CONTROL_APP_ID, dict.Default)
+			ccr := diam.NewRequest(diam.CreditControl, diam.CHARGING_CONTROL_APP_ID, testDict)
 			ccr.Header.CommandFlags |= diam.ProxiableFlag
 			for _, a := range []*diam.AVP{
 				diam.NewAVP(avp.SessionID, avp.Mbit, 0, datatype.UTF8String("session;1")),
@@ -175,7 +180,7 @@ func TestStateMachineErrorAnswerDoesNotEchoMalformedRequiredAVP(t *testing.T) {
 			if _, err := ccr.WriteTo(conn); err != nil {
 				t.Fatal(err)
 			}
-			cca, readErr := diam.ReadMessage(conn, dict.Default)
+			cca, readErr := diam.ReadMessage(conn, testDict)
 			if cca == nil {
 				t.Fatal(readErr)
 			}
@@ -215,6 +220,8 @@ func TestStateMachineErrorAnswerDoesNotEchoMalformedRequiredAVP(t *testing.T) {
 }
 
 func TestStrictClientReceivesPayloadErrorAnswer(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	for _, tc := range []struct {
 		name    string
 		code    uint32
@@ -225,20 +232,20 @@ func TestStrictClientReceivesPayloadErrorAnswer(t *testing.T) {
 		{"5004", avp.HostIPAddress, []byte{255, 255, 1}, diam.InvalidAVPValue},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			server := diamtest.NewServer(mustNewStateMachine(t, testMessageErrorSettings()), dict.Default)
+			server := diamtest.NewServer(mustNewStateMachine(t, testMessageErrorSettings(testDict), testDict), testDict)
 			defer server.Close()
-			cfg := &Settings{OriginHost: "peer.example", OriginRealm: "example", VendorID: 13, ProductName: "test"}
-			clientSM := mustNewStateMachine(t, cfg)
+			cfg := &Settings{OriginHost: "peer.example", OriginRealm: "example", VendorID: 13, ProductName: "test", Dict: testDict}
+			clientSM := mustNewStateMachine(t, cfg, testDict)
 			got := make(chan *diam.Message, 1)
 			clientSM.HandleFunc("DWA", func(_ diam.Conn, m *diam.Message) { got <- m })
-			client := &Client{Handler: clientSM, Dict: dict.Default, AcctApplicationID: []*diam.AVP{diam.NewAVP(avp.AcctApplicationID, avp.Mbit, 0, datatype.Unsigned32(1001))}}
+			client := &Client{Handler: clientSM, Dict: testDict, AcctApplicationID: []*diam.AVP{diam.NewAVP(avp.AcctApplicationID, avp.Mbit, 0, datatype.Unsigned32(1001))}}
 			conn, err := client.Dial(server.Addr)
 			if err != nil {
 				t.Fatal(err)
 			}
 			defer conn.Close()
 			t.Logf("TCP peer %s -> %s", conn.LocalAddr(), conn.RemoteAddr())
-			dwr := diam.NewRequest(diam.DeviceWatchdog, 0, dict.Default)
+			dwr := diam.NewRequest(diam.DeviceWatchdog, 0, testDict)
 			dwr.AddAVP(diam.NewAVP(avp.OriginHost, avp.Mbit, 0, cfg.OriginHost))
 			dwr.AddAVP(diam.NewAVP(avp.OriginRealm, avp.Mbit, 0, cfg.OriginRealm))
 			dwr.AddAVP(diam.NewAVP(tc.code, avp.Mbit, 0, datatype.Unknown(tc.payload)))

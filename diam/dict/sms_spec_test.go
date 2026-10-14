@@ -1,4 +1,4 @@
-package dict
+package dict_test
 
 import (
 	"encoding/json"
@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/gomaja/go-diameter/diam/dict"
 )
 
 type smsRuleSpec struct {
@@ -62,7 +64,7 @@ func loadSMSSpec(t *testing.T, label string) smsSpec {
 	}
 	return s
 }
-func smsCheckRules(t *testing.T, got []*Rule, want []smsRuleSpec) {
+func smsCheckRules(t *testing.T, got []*dict.Rule, want []smsRuleSpec) {
 	t.Helper()
 	var plain []s6aGroupedRuleSpec
 	for _, r := range want {
@@ -79,6 +81,8 @@ func smsCheckRules(t *testing.T, got []*Rule, want []smsRuleSpec) {
 // TS 29.338 V19.3.0 Tables 5.3.3.1/1–2 and 6.3.3.1/1–2.
 // Source clauses in the fixtures pin reused grammars and their full closure.
 func TestSMSApplicationSpec(t *testing.T) {
+	reference := newAllTestParser(t)
+
 	for _, label := range []string{"s6c", "sgd"} {
 		t.Run(label, func(t *testing.T) {
 			s := loadSMSSpec(t, label)
@@ -112,7 +116,7 @@ func TestSMSApplicationSpec(t *testing.T) {
 							w.Rules = *gap.Rules
 						}
 					}
-					a, err := Default.FindAVP(s.Application, w.Code, w.Vendor)
+					a, err := reference.FindAVP(s.Application, w.Code, w.Vendor)
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -143,7 +147,7 @@ func TestSMSApplicationSpec(t *testing.T) {
 			}
 			for _, w := range s.Commands {
 				t.Run(w.Section, func(t *testing.T) {
-					c, err := Default.FindCommand(s.Application, w.Code)
+					c, err := reference.FindCommand(s.Application, w.Code)
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -168,9 +172,11 @@ func TestSMSApplicationSpec(t *testing.T) {
 
 // TS 29.338 V19.3.0 §4.7 and RFC 6733 §5.3.6: advertise supported AVP vendors.
 func TestSMSVendorDeclarations(t *testing.T) {
+	reference := newAllTestParser(t)
+
 	for _, label := range []string{"s6c", "sgd"} {
 		s := loadSMSSpec(t, label)
-		a, err := Default.App(s.Application)
+		a, err := reference.App(s.Application)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -192,9 +198,11 @@ func TestSMSVendorDeclarations(t *testing.T) {
 // Pin every local definition to the independent fixture, including inherited
 // SGd definitions stored in S6c for the bundled application hierarchy.
 func TestSMSLocalDefinitionCoverage(t *testing.T) {
+	reference := newAllTestParser(t)
+
 	for _, label := range []string{"s6c", "sgd"} {
 		s := loadSMSSpec(t, label)
-		a, err := Default.App(s.Application)
+		a, err := reference.App(s.Application)
 		if err != nil {
 			t.Fatal(err)
 		}

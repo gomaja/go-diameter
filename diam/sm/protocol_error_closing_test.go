@@ -10,10 +10,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
-	"github.com/gomaja/go-diameter/diam/dict"
 )
 
 func (p *protocolWire) closed(t *testing.T) {
@@ -25,6 +26,8 @@ func (p *protocolWire) closed(t *testing.T) {
 }
 
 func TestProtocolErrorClosingWire(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	for _, tc := range []struct {
 		name    string
 		message func(*testing.T) *diam.Message
@@ -35,21 +38,21 @@ func TestProtocolErrorClosingWire(t *testing.T) {
 	}{
 		{"B1_pre_CER", func(t *testing.T) *diam.Message { return regressionDWR(t) }, diam.ProtocolHandshakeState, 0, false, "sm: message before CER; closing connection"},
 		{"B3_CER_missing_origin", func(*testing.T) *diam.Message {
-			return diam.NewMessage(diam.CapabilitiesExchange, diam.RequestFlag, 0, 17, 18, dict.Default)
+			return diam.NewMessage(diam.CapabilitiesExchange, diam.RequestFlag, 0, 17, 18, testDict)
 		}, diam.ProtocolCERRejected, 5005, true, "sm: rejected CER; closing connection"},
-		{"B3_CER_no_common_app", func(t *testing.T) *diam.Message { return regressionCER(t, dict.Default, 999999) }, diam.ProtocolCERRejected, 5010, true, "sm: rejected CER; closing connection"},
+		{"B3_CER_no_common_app", func(t *testing.T) *diam.Message { return regressionCER(t, testDict, 999999) }, diam.ProtocolCERRejected, 5010, true, "sm: rejected CER; closing connection"},
 		{"B3_CER_no_common_security", func(t *testing.T) *diam.Message {
-			m := regressionCER(t, dict.Default, 1001)
+			m := regressionCER(t, testDict, 1001)
 			m.AddAVP(diam.NewAVP(avp.InbandSecurityID, avp.Mbit, 0, datatype.Unsigned32(1)))
 			return m
 		}, diam.ProtocolCERRejected, 5017, true, "sm: rejected CER; closing connection"},
 		{"B3_CER_missing_app", func(t *testing.T) *diam.Message {
-			m := regressionCER(t, dict.Default, 1001)
+			m := regressionCER(t, testDict, 1001)
 			m.AVP = m.AVP[:len(m.AVP)-1]
 			return m
 		}, diam.ProtocolCERRejected, 5010, true, "sm: rejected CER; closing connection"},
 		{"B4_CER_header", func(t *testing.T) *diam.Message {
-			m := regressionCER(t, dict.Default, 1001)
+			m := regressionCER(t, testDict, 1001)
 			m.Header.ApplicationID = 9
 			return m
 		}, diam.ProtocolInvalidHeader, 3008, true, "sm: invalid message header"},
@@ -58,7 +61,7 @@ func TestProtocolErrorClosingWire(t *testing.T) {
 			p := newProtocolWire(t, nil, false)
 			h := p.send(t, tc.message(t))
 			if tc.answer {
-				a, err := diam.ReadMessage(p.peer, dict.Default)
+				a, err := diam.ReadMessage(p.peer, testDict)
 				if err != nil || !testResultCode(a, tc.code) || a.Header.HopByHopID != h.HopByHopID || a.Header.EndToEndID != h.EndToEndID {
 					t.Fatalf("answer=%v %v", a, err)
 				}
@@ -87,6 +90,8 @@ func TestProtocolErrorClosingWire(t *testing.T) {
 }
 
 func TestProtocolErrorB13FatalWire(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	for _, admitted := range []bool{false, true} {
 		for _, answer := range []bool{false, true} {
 			for _, tc := range []struct {
@@ -105,7 +110,7 @@ func TestProtocolErrorB13FatalWire(t *testing.T) {
 					wire := h.Serialize()
 					writeSMErrorWire(t, p.peer, wire)
 					if !answer {
-						a, err := diam.ReadMessage(p.peer, dict.Default)
+						a, err := diam.ReadMessage(p.peer, testDict)
 						if err != nil || !testResultCode(a, tc.code) || a.Header.CommandFlags&diam.ErrorFlag != 0 || a.Header.HopByHopID != h.HopByHopID {
 							t.Fatalf("answer=%v %v", a, err)
 						}
@@ -155,6 +160,8 @@ func protocolDPA(request *diam.Message, code uint32) *diam.Message {
 }
 
 func TestProtocolErrorDisconnectWire(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	for _, kind := range []string{"A12_invalid_DPA", "A13_wrong_DPA_ID", "B9_rejected_DPA", "B10_DPA_timeout"} {
 		t.Run(kind, func(t *testing.T) {
 			p := newProtocolWire(t, nil, true)
@@ -164,7 +171,7 @@ func TestProtocolErrorDisconnectWire(t *testing.T) {
 				timeout = 20 * time.Millisecond
 			}
 			go func() { done <- p.sm.Disconnect(p.conn, DisconnectRebooting, timeout) }()
-			dpr, err := diam.ReadMessage(p.peer, dict.Default)
+			dpr, err := diam.ReadMessage(p.peer, testDict)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -225,13 +232,15 @@ func TestProtocolErrorDisconnectWire(t *testing.T) {
 }
 
 func TestProtocolErrorB11WaitReturnsWire(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	p := newProtocolWire(t, func(c *Settings) { c.DPRCloseTimeout = 20 * time.Millisecond }, true)
-	m := diam.NewMessage(diam.DisconnectPeer, diam.RequestFlag, 0, 17, 18, dict.Default)
+	m := diam.NewMessage(diam.DisconnectPeer, diam.RequestFlag, 0, 17, 18, testDict)
 	m.AddAVP(diam.NewAVP(avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("peer.example")))
 	m.AddAVP(diam.NewAVP(avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("example")))
 	m.AddAVP(diam.NewAVP(avp.DisconnectCause, avp.Mbit, 0, datatype.Enumerated(0)))
 	p.send(t, m)
-	if a, err := diam.ReadMessage(p.peer, dict.Default); err != nil || !testResultCode(a, 2001) {
+	if a, err := diam.ReadMessage(p.peer, testDict); err != nil || !testResultCode(a, 2001) {
 		t.Fatalf("DPA=%v %v", a, err)
 	}
 	p.closed(t)
@@ -242,13 +251,15 @@ func TestProtocolErrorB11WaitReturnsWire(t *testing.T) {
 }
 
 func TestProtocolErrorA17DirectOwnershipWire(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	p := newProtocolWire(t, nil, true)
 	request := regressionDWR(t)
 	wire, err := request.Serialize()
 	if err != nil {
 		t.Fatal(err)
 	}
-	decoded, err := diam.ReadMessage(bytes.NewReader(wire), dict.Default)
+	decoded, err := diam.ReadMessage(bytes.NewReader(wire), testDict)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -257,7 +268,7 @@ func TestProtocolErrorA17DirectOwnershipWire(t *testing.T) {
 	if err := p.sm.HandleMessageError(p.conn, decoded, &diam.MessageError{ResultCode: 5004}); err != nil {
 		t.Fatal(err)
 	}
-	if a, err := diam.ReadMessage(p.peer, dict.Default); err != nil || !testResultCode(a, 5004) {
+	if a, err := diam.ReadMessage(p.peer, testDict); err != nil || !testResultCode(a, 5004) {
 		t.Fatalf("answer=%v %v", a, err)
 	}
 	h, _ := diam.DecodeHeader(wire)
@@ -269,11 +280,13 @@ func TestProtocolErrorA17DirectOwnershipWire(t *testing.T) {
 }
 
 func TestProtocolErrorFatalHeaderOverrideWire(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	p := newProtocolWire(t, nil, true)
 	wire := testSMErrorHeader(2, 20, diam.RequestFlag)
 	binary.BigEndian.PutUint32(wire[8:12], 9)
 	writeSMErrorWire(t, p.peer, wire)
-	if a, err := diam.ReadMessage(p.peer, dict.Default); err != nil || !testResultCode(a, 3008) {
+	if a, err := diam.ReadMessage(p.peer, testDict); err != nil || !testResultCode(a, 3008) {
 		t.Fatalf("answer=%v %v", a, err)
 	}
 	p.closed(t)

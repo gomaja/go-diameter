@@ -6,6 +6,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gomaja/go-diameter/diam/dict/rx"
+
+	"github.com/gomaja/go-diameter/diam/dict/gx"
+
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/dict"
@@ -13,9 +17,10 @@ import (
 
 // RFC 8581 §7.4 permits M on SourceID; TS 29.212 V20.0.0 Table 5.4.0.1 clears M inside Load.
 func TestGxSourceIDContext(t *testing.T) {
+	testDict := newTestDictionary(gx.Dictionary(), rx.Dictionary())
 	for _, parent := range []uint32{621, 623, 650} {
 		for _, mBit := range []uint8{0, avp.Mbit} {
-			m := gxCommandMessage(t, 272, false)
+			m := gxCommandMessage(t, 272, false, testDict)
 			group := &GroupedAVP{}
 			if parent == 623 {
 				group.AVP = append(group.AVP, NewAVP(624, 0, 0, datatype.Unsigned64(1)), NewAVP(626, 0, 0, datatype.Enumerated(0)))
@@ -46,28 +51,30 @@ func TestFlagListedRejectsMalformedSet(t *testing.T) {
 // TS 29.212 V20.0.0 §§5.3.138–139 and CR 1665r2; TS 29.214
 // V20.0.0 §5.3.49; RFC 8583 §7.3. Values expose float and 32-bit mistakes.
 func TestGxScalarTypesOnWire(t *testing.T) {
+	testDict := newTestDictionary(gx.Dictionary(), rx.Dictionary())
+
 	for _, app := range []uint32{16777238, 16777236} {
 		for _, code := range []uint32{2852, 2853} {
 			for _, value := range []uint32{0, 1, 1000} {
-				m := NewRequest(272, app, dict.Default)
-				a, err := dict.Default.FindAVP(app, code, 10415)
+				m := NewRequest(272, app, testDict)
+				a, err := testDict.FindAVP(app, code, 10415)
 				if err != nil {
 					t.Fatal(err)
 				}
 				data := datatype.Unsigned32(value)
 				m.AddAVP(NewAVP(code, gxWireFlags(a.Must), 10415, data))
-				assertRefreshWire(t, m, code, gxWireFlags(a.Must), 10415, data)
+				assertRefreshWire(t, m, code, gxWireFlags(a.Must), 10415, data, testDict)
 			}
 		}
 		for _, tc := range []struct{ code, vendor uint32 }{{552, 10415}, {652, 0}} {
-			m := NewRequest(272, app, dict.Default)
-			a, err := dict.Default.FindAVP(app, tc.code, tc.vendor)
+			m := NewRequest(272, app, testDict)
+			a, err := testDict.FindAVP(app, tc.code, tc.vendor)
 			if err != nil {
 				t.Fatal(err)
 			}
 			data := datatype.Unsigned64(0x100000001)
 			m.AddAVP(NewAVP(tc.code, gxWireFlags(a.Must), tc.vendor, data))
-			assertRefreshWire(t, m, tc.code, gxWireFlags(a.Must), tc.vendor, data)
+			assertRefreshWire(t, m, tc.code, gxWireFlags(a.Must), tc.vendor, data, testDict)
 		}
 	}
 }
@@ -75,7 +82,7 @@ func TestGxScalarTypesOnWire(t *testing.T) {
 // A child application can shadow an inherited AVP name with another vendor's
 // identity. Member restrictions must follow the resolved code/vendor pair.
 func TestMemberFlagsUseResolvedIdentity(t *testing.T) {
-	p := dict.New(dict.Base)
+	p := newTestDictionary(dict.Base())
 	if err := p.Load(strings.NewReader(`<diameter><application id="42"><avp name="SourceID" code="70000" vendor-id="777" must="V"><data type="DiameterIdentity"/></avp><avp name="Scope" code="70001" vendor-id="777" must="V"><data type="Grouped"><rule avp="SourceID" must-not="M"/><rule avp="AVP"/></data></avp></application></diameter>`)); err != nil {
 		t.Fatal(err)
 	}
@@ -98,7 +105,7 @@ func TestMemberFlagsUseResolvedIdentity(t *testing.T) {
 }
 
 func TestMemberFlagsUseSameCodeDifferentVendors(t *testing.T) {
-	p := dict.New(dict.Base)
+	p := newTestDictionary(dict.Base())
 	if err := p.Load(strings.NewReader(`<diameter><application id="42"><avp name="SourceID" code="649" vendor-id="777" must="V"><data type="DiameterIdentity"/></avp><avp name="Scope" code="70001" vendor-id="777" must="V"><data type="Grouped"><rule avp="SourceID" must-not="M"/><rule avp="AVP"/></data></avp></application></diameter>`)); err != nil {
 		t.Fatal(err)
 	}
@@ -127,7 +134,7 @@ func TestGxLoadWildcardFlags(t *testing.T) {
 	for _, app := range []uint32{16777238, 0, 16777236} {
 		for _, code := range []uint32{649, 651, 652, 70000} {
 			for _, mBit := range []uint8{0, avp.Mbit} {
-				p := dict.New(dict.Gx, dict.Rx)
+				p := newTestDictionary(gx.Dictionary(), rx.Dictionary())
 				if err := p.RegisterAVP(app, &dict.AVP{Name: "Load-Extension", Code: 70000, Data: dict.Data{TypeName: "Unsigned32"}}); err != nil {
 					t.Fatal(err)
 				}
@@ -173,7 +180,7 @@ func TestCommandMemberProhibitions(t *testing.T) {
 	for _, request := range []bool{false, true} {
 		for _, wildcard := range []bool{false, true} {
 			for _, bit := range []uint8{0, avp.Mbit, avp.Pbit} {
-				p := dict.New()
+				p := newTestDictionary()
 				rule := `<rule avp="Leaf" must-not="M,P"/>`
 				if wildcard {
 					rule = `<rule avp="Leaf"/><rule avp="AVP" must-not="M,P"/>`

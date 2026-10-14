@@ -7,9 +7,12 @@ import (
 	"sync/atomic"
 	"testing"
 	"testing/synctest"
+
+	"github.com/gomaja/go-diameter/diam/dict"
 )
 
 func TestCERRenewalInheritsReadAheadEOF(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
 	for _, mode := range []int{0, 2, -1} {
 		t.Run(fmt.Sprint(mode), func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
@@ -59,15 +62,15 @@ func TestCERRenewalInheritsReadAheadEOF(t *testing.T) {
 				}
 				served := make(chan struct{})
 				go func() { c.serve(); close(served) }()
-				raw.reads <- restartRead{data: cerPayload(t)}
+				raw.reads <- restartRead{data: cerPayload(t, testDict)}
 				<-admitted
-				request, err := NewRequest(DeviceWatchdog, 0, nil).Serialize()
+				request, err := NewRequest(DeviceWatchdog, 0, testDict).Serialize()
 				if err != nil {
 					t.Fatal(err)
 				}
 				// The physical reader can fill its read-ahead buffer, then see
 				// EOF while the retirement hook holds successor publication.
-				data := append(append([]byte(nil), cerPayload(t)...), request...)
+				data := append(append([]byte(nil), cerPayload(t, testDict)...), request...)
 				raw.reads <- restartRead{data: data}
 				<-retiring
 				raw.reads <- restartRead{err: io.EOF}

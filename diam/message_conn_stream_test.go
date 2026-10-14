@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"io"
 	"testing"
+
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
 )
 
 type streamTestWriter struct {
@@ -38,10 +40,12 @@ func (c streamTestConn) WriteStream(p []byte, s uint) (int, error) {
 }
 
 func TestMessageStreamThroughConnWrappers(t *testing.T) {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
 	for _, name := range []string{"writer", "direct", "one", "two", "opaque", "plain"} {
 		for _, retry := range []bool{false, true} {
 			t.Run(name+map[bool]string{false: "", true: "/retry"}[retry], func(t *testing.T) {
-				m, err := ReadMessage(bytes.NewReader(testMessage), nil)
+				m, err := ReadMessage(bytes.NewReader(testMessage), testDict)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -116,10 +120,12 @@ type streamInterceptConn struct {
 func (c streamInterceptConn) Unwrap() Conn { return c.inner }
 
 func TestMessageStreamWrapperIntercepts(t *testing.T) {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
 	inner := &streamTestWriter{}
 	outer := &streamTestWriter{}
 	c := streamInterceptConn{streamTestConn{streamTestWriter: outer}, streamTestConn{streamTestWriter: inner}}
-	m, err := ReadMessage(bytes.NewReader(testMessage), nil)
+	m, err := ReadMessage(bytes.NewReader(testMessage), testDict)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -152,9 +158,11 @@ func (c *countingConn) WriteStream(p []byte, s uint) (int, error) {
 // wrapper that has Unwrap still goes through the wrapper's own WriteStream,
 // with the requested stream, instead of bypassing it to the inner Conn.
 func TestMessageStreamKeepsMiddlewareInPath(t *testing.T) {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
 	sink := &streamTestWriter{}
 	c := &countingConn{Conn: streamTestConn{streamTestWriter: sink}}
-	m, err := ReadMessage(bytes.NewReader(testMessage), nil)
+	m, err := ReadMessage(bytes.NewReader(testMessage), testDict)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -7,6 +7,8 @@ import (
 	"os"
 	"testing"
 
+	"github.com/gomaja/go-diameter/diam/dict/nasreq"
+
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/dict"
@@ -48,17 +50,24 @@ func loadNASREQWireSpec(t *testing.T) nasreqWireSpec {
 	}
 	return s
 }
-func nasreqWireData(t *testing.T, a nasreqWireAVP, lookup map[string]nasreqWireAVP) datatype.Type {
+func nasreqWireData(t *testing.T, a nasreqWireAVP, lookup map[string]nasreqWireAVP, parsers ...*dict.Parser) datatype.Type {
+	var testDict *dict.Parser
+	if len(parsers) > 0 {
+		testDict = parsers[0]
+	} else {
+		testDict = newTestDictionary(nasreq.Dictionary())
+	}
+
 	t.Helper()
 	if a.Type == "QoSFilterRule" {
 		return datatype.QoSFilterRule("tag in ip from any to any DSCP 0")
 	}
 	if a.Type != "Grouped" {
-		def, err := dict.Default.FindAVP(1, a.Code, a.Vendor)
+		def, err := testDict.FindAVP(1, a.Code, a.Vendor)
 		if err != nil {
 			t.Fatal(err)
 		}
-		return gxSampleData(t, def, 0)
+		return gxSampleData(t, def, 0, testDict)
 	}
 	g := &GroupedAVP{}
 	for _, rule := range a.Rules {
@@ -75,7 +84,7 @@ func nasreqWireData(t *testing.T, a nasreqWireAVP, lookup map[string]nasreqWireA
 		if !ok {
 			t.Fatalf("missing independent fixture for %s child %s", a.Name, rule.Name)
 		}
-		g.AVP = append(g.AVP, NewAVP(child.Code, gxWireFlags(child.Must), child.Vendor, nasreqWireData(t, child, lookup)))
+		g.AVP = append(g.AVP, NewAVP(child.Code, gxWireFlags(child.Must), child.Vendor, nasreqWireData(t, child, lookup, testDict)))
 	}
 	return g
 }
@@ -83,6 +92,8 @@ func nasreqWireData(t *testing.T, a nasreqWireAVP, lookup map[string]nasreqWireA
 // RFC 7155 §§4.2–4.6 and Verified Errata 6119: every defined AVP is
 // serialized, decoded, and compared with specification-derived wire flags.
 func TestNASREQAVPWireRoundTrip(t *testing.T) {
+	testDict := newTestDictionary(nasreq.Dictionary())
+
 	s := loadNASREQWireSpec(t)
 	lookup := map[string]nasreqWireAVP{}
 	for _, a := range s.AVPs {
@@ -90,32 +101,39 @@ func TestNASREQAVPWireRoundTrip(t *testing.T) {
 	}
 	for _, want := range append(s.AVPs, s.Supplemental...) {
 		t.Run(want.Name, func(t *testing.T) {
-			def, err := dict.Default.FindAVP(1, want.Code, want.Vendor)
+			def, err := testDict.FindAVP(1, want.Code, want.Vendor)
 			if err != nil {
 				t.Fatal(err)
 			}
-			data := nasreqWireData(t, want, lookup)
-			m := NewRequest(265, 1, dict.Default)
+			data := nasreqWireData(t, want, lookup, testDict)
+			m := NewRequest(265, 1, testDict)
 			if _, err := m.NewAVPByName(def.Name, gxWireFlags(def.Must), data); err != nil {
 				t.Fatal(err)
 			}
-			assertRefreshWire(t, m, want.Code, gxWireFlags(want.Must), want.Vendor, data)
+			assertRefreshWire(t, m, want.Code, gxWireFlags(want.Must), want.Vendor, data, testDict)
 		})
 	}
 }
 
-func nasreqCommandMessage(t *testing.T, c nasreqWireCommand) *Message {
+func nasreqCommandMessage(t *testing.T, c nasreqWireCommand, parsers ...*dict.Parser) *Message {
+	var testDict *dict.Parser
+	if len(parsers) > 0 {
+		testDict = parsers[0]
+	} else {
+		testDict = newTestDictionary(nasreq.Dictionary())
+	}
+
 	t.Helper()
 	flags := uint8(ProxiableFlag)
 	if c.Request {
 		flags |= RequestFlag
 	}
-	m := NewMessage(c.Code, flags, 1, 0x12345678, 0x87654321, dict.Default)
+	m := NewMessage(c.Code, flags, 1, 0x12345678, 0x87654321, testDict)
 	for _, r := range c.Rules {
 		if r.Min == 0 {
 			continue
 		}
-		def, err := dict.Default.FindAVPByName(1, r.Name)
+		def, err := testDict.FindAVPByName(1, r.Name)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -128,7 +146,7 @@ func nasreqCommandMessage(t *testing.T, c nasreqWireCommand) *Message {
 		case "Result-Code":
 			data = datatype.Unsigned32(2001)
 		default:
-			data = gxSampleData(t, def, 0)
+			data = gxSampleData(t, def, 0, testDict)
 		}
 		m.AddAVP(NewAVP(def.Code, gxWireFlags(def.Must), def.VendorID, data))
 	}
@@ -138,9 +156,11 @@ func nasreqCommandMessage(t *testing.T, c nasreqWireCommand) *Message {
 // RFC 7155 §§3.1–3.10: every command has PXY, fixed Session-Id, required
 // members, and a repeatable extension point.
 func TestNASREQCommandWireRoundTrip(t *testing.T) {
+	testDict := newTestDictionary(nasreq.Dictionary())
+
 	for _, c := range loadNASREQWireSpec(t).Commands {
 		t.Run(c.Section, func(t *testing.T) {
-			m := nasreqCommandMessage(t, c)
+			m := nasreqCommandMessage(t, c, testDict)
 			if err := m.Validate(); err != nil {
 				t.Fatalf("minimal command: %v", err)
 			}
@@ -152,7 +172,7 @@ func TestNASREQCommandWireRoundTrip(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			got, err := ReadMessage(bytes.NewReader(wire), dict.Default)
+			got, err := ReadMessage(bytes.NewReader(wire), testDict)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -183,6 +203,8 @@ func TestNASREQCommandWireRoundTrip(t *testing.T) {
 // 4.3.5 separately requires it when CHAP-Algorithm is MD5 (5). The no-response
 // case below asserts grammar acceptance only, not a compliant MD5 sender.
 func TestNASREQCHAPAuthBoundaries(t *testing.T) {
+	testDict := newTestDictionary(nasreq.Dictionary())
+
 	for _, tc := range []struct {
 		name         string
 		withResponse bool
@@ -197,7 +219,7 @@ func TestNASREQCHAPAuthBoundaries(t *testing.T) {
 				g.AVP = append(g.AVP, NewAVP(405, avp.Mbit, 0, datatype.OctetString("0123456789abcdef")))
 			}
 			g.AVP = append(g.AVP, NewAVP(avp.HostIPAddress, avp.Mbit, 0, datatype.Address{Family: 1, Value: []byte{192, 0, 2, 1}}))
-			m := nasreqCommandMessage(t, loadNASREQWireSpec(t).Commands[0])
+			m := nasreqCommandMessage(t, loadNASREQWireSpec(t).Commands[0], testDict)
 			m.AddAVP(NewAVP(402, avp.Mbit, 0, g))
 			m.AddAVP(NewAVP(60, avp.Mbit, 0, datatype.OctetString("challenge")))
 			if err := m.ValidateOutgoing(); err != nil {
@@ -207,7 +229,7 @@ func TestNASREQCHAPAuthBoundaries(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			decoded, err := ReadMessage(bytes.NewReader(wire), dict.Default)
+			decoded, err := ReadMessage(bytes.NewReader(wire), testDict)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -221,11 +243,13 @@ func TestNASREQCHAPAuthBoundaries(t *testing.T) {
 // RFC 7155 supplies no Diameter M-bit rule for these four RADIUS AVPs.
 // Both choices are allowed; RFC 6733 §4.1 still prohibits a vendor-zero V bit.
 func TestNASREQSupplementalOutgoingFlags(t *testing.T) {
+	testDict := newTestDictionary(nasreq.Dictionary())
+
 	for _, a := range loadNASREQWireSpec(t).Supplemental {
 		for _, flags := range []uint8{0, avp.Mbit} {
 			t.Run(fmt.Sprintf("%s/M=%t", a.Name, flags&avp.Mbit != 0), func(t *testing.T) {
-				m := nasreqCommandMessage(t, loadNASREQWireSpec(t).Commands[0])
-				value := NewAVP(a.Code, flags, 0, nasreqWireData(t, a, nil))
+				m := nasreqCommandMessage(t, loadNASREQWireSpec(t).Commands[0], testDict)
+				value := NewAVP(a.Code, flags, 0, nasreqWireData(t, a, nil, testDict))
 				m.AddAVP(value)
 				if err := m.ValidateOutgoing(); err != nil {
 					t.Fatalf("permitted M flag: %v", err)
@@ -234,7 +258,7 @@ func TestNASREQSupplementalOutgoingFlags(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				decoded, err := ReadMessage(bytes.NewReader(wire), dict.Default)
+				decoded, err := ReadMessage(bytes.NewReader(wire), testDict)
 				if err != nil {
 					t.Fatal(err)
 				}

@@ -1,242 +1,53 @@
-package dict
+package dict_test
 
 import (
 	"encoding/xml"
-	"fmt"
-	"go/ast"
-	"go/parser"
-	"go/token"
-	"maps"
-	"path"
+	"errors"
+	"os"
 	"slices"
-	"sort"
-	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/gomaja/go-diameter/diam/dict"
+	"github.com/gomaja/go-diameter/diam/dict/all"
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+	"github.com/gomaja/go-diameter/diam/dict/cx"
+	"github.com/gomaja/go-diameter/diam/dict/nasreq"
+	"github.com/gomaja/go-diameter/diam/dict/rorf"
 )
 
-// dumpSnapshot renders every index of s, one sorted line per entry, so two
-// Snapshots can be compared by content.
-func dumpSnapshot(s *Snapshot) []string {
-	vendor := func(v uint32) string {
-		return strconv.FormatUint(uint64(v), 10)
+func TestApplicationSelectionsMatchManifest(t *testing.T) {
+	var expected []string
+	for _, selection := range applicationSelections() {
+		expected = append(expected, selection.name)
 	}
-	rules := func(rs []*Rule) string {
-		var b []string
-		for _, r := range rs {
-			b = append(b, fmt.Sprintf("%s/%t/%d/%d/%t/%t", r.AVP, r.Required, r.Min, r.Max, r.MaxSet, r.Fixed))
-		}
-		return strings.Join(b, ",")
+	if !slices.IsSorted(expected) {
+		t.Fatal("application fixture is not in canonical filename order")
 	}
-	sig := func(a *AVP) string {
-		var enum []string
-		for _, e := range a.Data.Enum {
-			enum = append(enum, fmt.Sprintf("%d=%s", e.Code, e.Name))
-		}
-		return fmt.Sprintf("%s|%d|%d|%s(%d)|%s|%s|%s|%s|[%s]|[%s]", a.Name, a.Code, a.VendorID, a.Data.TypeName,
-			a.Data.Type, a.Must, a.May, a.MustNot, a.MayEncrypt, strings.Join(enum, ","), rules(a.Data.Rule))
+	if actual := sourceNames(t); !slices.Equal(actual, expected) {
+		t.Fatalf("manifest=%v, want %v", actual, expected)
 	}
-	var lines []string
-	for i, app := range s.Apps() {
-		lines = append(lines, fmt.Sprintf("APPS %02d %d %s %s", i, app.ID, app.Type, app.Name))
-	}
-	for k, app := range s.appcode {
-		lines = append(lines, fmt.Sprintf("APPCODE %d -> %d %s %s", k, app.ID, app.Type, app.Name))
-	}
-	for k, app := range s.apptype {
-		lines = append(lines, fmt.Sprintf("APPTYPE %d %s -> %d %s %s", k.appID, k.typ, app.ID, app.Type, app.Name))
-	}
-	for k, c := range s.command {
-		lines = append(lines, fmt.Sprintf("CMD %d %d -> %s %s req[%s] ans[%s]", k.appID, k.code, c.Name, c.Short,
-			rules(c.Request.Rule), rules(c.Answer.Rule)))
-	}
-	for k, a := range s.avpcode {
-		lines = append(lines, fmt.Sprintf("CODE %d %d %s -> %s", k.appID, k.code, vendor(k.vendorID), sig(a)))
-	}
-	for k, a := range s.avpname {
-		lines = append(lines, fmt.Sprintf("NAME %d %s -> %s", k.appID, k.name, sig(a)))
-	}
-	sort.Strings(lines)
-	return lines
-}
-
-func diffDumps(t *testing.T, label string, have, want []string) {
-	t.Helper()
-	if slices.Equal(have, want) {
-		return
-	}
-	haveSet := make(map[string]bool, len(have))
-	for _, l := range have {
-		haveSet[l] = true
-	}
-	wantSet := make(map[string]bool, len(want))
-	for _, l := range want {
-		wantSet[l] = true
-	}
-	n := 0
-	for _, l := range want {
-		if !haveSet[l] && n < 20 {
-			t.Errorf("%s: missing %s", label, l)
-			n++
-		}
-	}
-	for _, l := range have {
-		if !wantSet[l] && n < 40 {
-			t.Errorf("%s: unexpected %s", label, l)
-			n++
-		}
-	}
-	t.Fatalf("%s: %d entries, want %d", label, len(have), len(want))
-}
-
-// bundledConstants returns the Bundled constants declared in bundled.go,
-// by value, with their doc comments.
-func bundledConstants(t *testing.T) map[Bundled]string {
-	t.Helper()
-	f, err := parser.ParseFile(token.NewFileSet(), "bundled.go", nil, parser.ParseComments)
+	names, err := dict.SourceNamesForTesting(all.Dictionary())
 	if err != nil {
 		t.Fatal(err)
 	}
-	consts := make(map[Bundled]string)
-	for _, decl := range f.Decls {
-		gen, ok := decl.(*ast.GenDecl)
-		if !ok || gen.Tok != token.CONST {
-			continue
-		}
-		for _, spec := range gen.Specs {
-			vs := spec.(*ast.ValueSpec)
-			if id, ok := vs.Type.(*ast.Ident); !ok || id.Name != "Bundled" {
-				continue
-			}
-			for i, name := range vs.Names {
-				lit := vs.Values[i].(*ast.BasicLit)
-				value, err := strconv.Unquote(lit.Value)
-				if err != nil {
-					t.Fatal(err)
-				}
-				if vs.Doc == nil {
-					t.Errorf("%s has no doc comment", name.Name)
-					continue
-				}
-				consts[Bundled(value)] = name.Name + " " + vs.Doc.Text()
-			}
-		}
-	}
-	return consts
-}
-
-// TestBundledConstants keeps the named Bundled values and the embedded XML
-// files in step: a file without a name, or a name without a file, fails.
-func TestBundledConstants(t *testing.T) {
-	consts := bundledConstants(t)
-	all := AllBundled()
-	if !slices.IsSorted(all) {
-		t.Errorf("AllBundled() = %v, not in file name order", all)
-	}
-	for _, b := range all {
-		if _, named := consts[b]; !named {
-			t.Errorf("embedded dictionary %s has no Bundled constant", b)
-		}
-		if path.Ext(string(b)) != ".xml" {
-			t.Errorf("embedded dictionary %s is not an XML file", b)
-		}
-	}
-	for b := range consts {
-		if !slices.Contains(all, b) {
-			t.Errorf("Bundled constant %s has no embedded file", b)
-		}
-	}
-	if len(all) == 0 {
-		t.Fatal("no bundled dictionaries")
+	if !slices.Equal(names, expected) {
+		t.Fatalf("all selection=%v, want %v", names, expected)
 	}
 }
 
-// bundledApps inspects declarations without building an incomplete dictionary
-// whose Grouped rules may require the bundle's documented dependencies.
-func bundledApps(t *testing.T, b Bundled) []*App {
-	t.Helper()
-	data, err := bundledFS.ReadFile(path.Join("bundled", string(b)))
-	if err != nil {
-		t.Fatal(err)
-	}
-	f, err := parseFile(strings.NewReader(string(data)))
-	if err != nil {
-		t.Fatal(err)
-	}
-	return f.App
-}
-
-// TestBundledDependencies derives the exact provider set from the XML rather
-// than from the table or prose. Resolve each rule at its nearest application,
-// using file name order for definitions shared by multiple bundles.
-func TestBundledDependencies(t *testing.T) {
-	all := AllBundled()
-	apps := make(map[Bundled][]*App)
-	providers := make(map[appNameIdx]Bundled)
-	for _, b := range all {
-		apps[b] = bundledApps(t, b)
-		for _, app := range apps[b] {
-			for _, avp := range app.AVP {
-				providers[appNameIdx{app.ID, avp.Name}] = b
+func TestApplicationDependencyClosures(t *testing.T) {
+	for _, selection := range applicationSelections() {
+		t.Run(selection.name, func(t *testing.T) {
+			names, err := dict.SourceNamesForTesting(selection.dictionary)
+			if err != nil {
+				t.Fatal(err)
 			}
-		}
-	}
-	if len(bundledDependencies) != len(all) {
-		t.Errorf("dependency entries = %d, want %d", len(bundledDependencies), len(all))
-	}
-	for b := range bundledDependencies {
-		if !slices.Contains(all, b) {
-			t.Errorf("dependency entry for unknown bundle %s", b)
-		}
-	}
-	for _, b := range all {
-		t.Run(string(b), func(t *testing.T) {
-			want := make(map[Bundled]bool)
-			for _, app := range apps[b] {
-				ancestors := Default.Snapshot().ancestorApps(app.ID)
-				scope := append([]uint32{app.ID}, ancestors...)
-				var rules []*Rule
-				for _, avp := range app.AVP {
-					rules = append(rules, avp.Data.Rule...)
-				}
-				for _, cmd := range app.Command {
-					rules = append(rules, cmd.Request.Rule...)
-					rules = append(rules, cmd.Answer.Rule...)
-				}
-				for _, rule := range rules {
-					if rule.AVP == "AVP" {
-						continue
-					}
-					var provider Bundled
-					for _, id := range scope {
-						if provider = providers[appNameIdx{id, rule.AVP}]; provider != "" {
-							break
-						}
-					}
-					if provider == "" {
-						t.Fatalf("app %d: no provider for %s", app.ID, rule.AVP)
-					}
-					if provider != b {
-						want[provider] = true
-					}
-				}
+			if !slices.Equal(names, selection.sources) {
+				t.Fatalf("sources=%v, want %v", names, selection.sources)
 			}
-			have := make(map[Bundled]bool)
-			deps, ok := bundledDependencies[b]
-			if !ok {
-				t.Fatal("missing dependency entry")
-			}
-			for _, d := range deps {
-				if have[d] {
-					t.Errorf("duplicate dependency %s", d)
-				}
-				have[d] = true
-			}
-			if !maps.Equal(have, want) {
-				t.Errorf("declared dependencies %v, XML rules need %v", slices.Sorted(maps.Keys(have)), slices.Sorted(maps.Keys(want)))
-			}
-			p := New(b)
-			for _, app := range apps[b] {
+			p := newTestParser(t, selection.dictionary)
+			for _, app := range sourceApps(t, selection.name) {
 				for _, missing := range unresolvedRules(p.Snapshot(), app) {
 					t.Error(missing)
 				}
@@ -245,147 +56,277 @@ func TestBundledDependencies(t *testing.T) {
 	}
 }
 
-// unresolvedRules lists the rules of app's commands and of the Grouped AVPs
-// they reach that do not resolve in s's lookup scope for app.
-func unresolvedRules(s *Snapshot, app *App) []string {
+func unresolvedRules(s *dict.Snapshot, app *dict.App) []string {
 	visited := make(map[string]bool)
 	var missing []string
-	var check func(string, []*Rule)
-	check = func(owner string, rules []*Rule) {
-		for _, rule := range rules {
-			if rule.AVP == "AVP" { // Diameter's arbitrary AVP wildcard.
+	var check func(string, []*dict.Rule)
+	check = func(owner string, rules []*dict.Rule) {
+		for _, r := range rules {
+			if r.AVP == "AVP" {
 				continue
 			}
-			avp, err := s.FindAVPByName(app.ID, rule.AVP)
+			a, err := s.FindAVPByName(app.ID, r.AVP)
 			if err != nil {
-				missing = append(missing, fmt.Sprintf("app %d: unresolved AVP %q (via %s)", app.ID, rule.AVP, owner))
+				missing = append(missing, owner+": unresolved "+r.AVP)
 				continue
 			}
-			if avp.Data.TypeName == "Grouped" && !visited[avp.Name] {
-				visited[avp.Name] = true
-				check(owner+"/"+avp.Name, avp.Data.Rule)
+			if a.Data.TypeName == "Grouped" && !visited[a.Name] {
+				visited[a.Name] = true
+				check(owner+"/"+a.Name, a.Data.Rule)
 			}
 		}
 	}
-	for _, cmd := range app.Command {
-		check(cmd.Name+" request", cmd.Request.Rule)
-		check(cmd.Name+" answer", cmd.Answer.Rule)
+	for _, c := range app.Command {
+		check(c.Name+" request", c.Request.Rule)
+		check(c.Name+" answer", c.Answer.Rule)
 	}
-	for _, avp := range app.AVP {
-		if avp.Data.TypeName == "Grouped" && !visited[avp.Name] {
-			visited[avp.Name] = true
-			check(avp.Name, avp.Data.Rule)
+	for _, a := range app.AVP {
+		if a.Data.TypeName == "Grouped" && !visited[a.Name] {
+			visited[a.Name] = true
+			check(a.Name, a.Data.Rule)
 		}
 	}
 	return missing
 }
 
-// TestDefaultMatchesBundledFiles compares Default with Parsers loading the
-// same XML files from disk in one atomic load, including mutual dependencies.
-func TestDefaultMatchesBundledFiles(t *testing.T) {
+func TestAllMatchesManifestFiles(t *testing.T) {
+	reference := newAllTestParser(t)
+
 	var files []string
-	for _, b := range AllBundled() {
-		files = append(files, path.Join("bundled", string(b)))
+	for _, name := range sourceNames(t) {
+		files = append(files, sourcePath(t, name))
 	}
-	together, err := NewParser(files...)
+	together, err := dict.NewParser(files...)
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := dumpSnapshot(Default.Snapshot())
-	diffDumps(t, "NewParser(files...)", dumpSnapshot(together.Snapshot()), want)
-	diffDumps(t, "New(AllBundled()...)", dumpSnapshot(New(AllBundled()...).Snapshot()), want)
-	if !Default.Strict() || Default.MaxGroupedDepth() != DefaultMaxGroupedDepth {
-		t.Fatalf("Default policy: strict %t, depth %d", Default.Strict(), Default.MaxGroupedDepth())
+	diffDumps(t, "all versus files", dumpSnapshot(reference.Snapshot()), dumpSnapshot(together.Snapshot()))
+	if !reference.Strict() || reference.MaxGroupedDepth() != dict.DefaultMaxGroupedDepth {
+		t.Fatal("unexpected all policy")
 	}
 }
 
 func TestNewSelectsOnlyTheGivenDictionariesAndDependencies(t *testing.T) {
-	const cx = 16777216
-	p := New(Base, NASREQ, Cx)
+	const cxApp = 16777216
+	p := newTestParser(t, dict.Base(), nasreq.Dictionary(), cx.Dictionary())
 	var apps []uint32
 	for _, app := range p.Apps() {
 		apps = append(apps, app.ID)
 	}
-	if want := []uint32{0, 3, 1, cx}; !slices.Equal(apps, want) {
-		t.Fatalf("applications = %v, want %v", apps, want)
+	if want := []uint32{0, 3, 1, cxApp}; !slices.Equal(apps, want) {
+		t.Fatalf("applications=%v, want %v", apps, want)
 	}
 	if _, err := p.App(4); err == nil {
-		t.Error("application 4 is supported without CreditControl or RoRf")
+		t.Error("unselected Credit-Control supported")
 	}
-	if _, err := p.FindCommand(cx, 300); err != nil {
-		t.Errorf("Cx UAR: %v", err)
+	if _, err := p.FindCommand(cxApp, 300); err != nil {
+		t.Error(err)
 	}
-	if avp, err := p.FindAVP(cx, 601, 10415); err != nil || avp.Name != "Public-Identity" {
-		t.Errorf("Cx Public-Identity = %v, %v", avp, err)
-	}
-	if avp, err := p.FindAVP(cx, 263, 0); err != nil || avp.Name != "Session-Id" {
-		t.Errorf("base Session-Id in Cx = %v, %v", avp, err)
-	}
-	// Unselected dictionaries contribute neither applications nor definitions.
 	for _, tc := range []struct {
-		app, code, vendor uint32
-	}{
-		{4, 461, 0},             // Service-Context-Id, CreditControl
-		{16777238, 1001, 10415}, // Charging-Rule-Install, Gx
-		{16777251, 1407, 10415}, // Visited-PLMN-Id, S6a
-	} {
-		if avp, err := p.FindAVP(tc.app, tc.code, tc.vendor); err == nil {
-			t.Errorf("app %d code %d vendor %d resolves to %s", tc.app, tc.code, tc.vendor, avp.Name)
+		code, vendor uint32
+		name         string
+	}{{601, 10415, "Public-Identity"}, {263, 0, "Session-Id"}} {
+		a, err := p.FindAVP(cxApp, tc.code, tc.vendor)
+		if err != nil || a.Name != tc.name {
+			t.Errorf("Cx %s=%v,%v", tc.name, a, err)
 		}
 	}
-	for idx, avp := range p.Snapshot().avpcode {
-		if !slices.Contains([]uint32{0, 3, 1, cx}, avp.App.ID) {
-			t.Errorf("index %v holds %s of application %d", idx, avp.Name, avp.App.ID)
+	for _, tc := range []struct{ app, code, vendor uint32 }{{4, 461, 0}, {16777238, 1001, 10415}, {16777251, 1407, 10415}} {
+		if a, err := p.FindAVP(tc.app, tc.code, tc.vendor); err == nil {
+			t.Errorf("unselected app %d resolves %s", tc.app, a.Name)
+		}
+	}
+	for idx, a := range dict.CodeIndexForTesting(p.Snapshot()) {
+		if !slices.Contains([]uint32{0, 3, 1, cxApp}, a.App.ID) {
+			t.Errorf("index %v holds %s of unselected app %d", idx, a.Name, a.App.ID)
 		}
 	}
 }
-
 func TestNewIgnoresOrderAndDuplicates(t *testing.T) {
-	want := dumpSnapshot(New(Base, NASREQ, CreditControl, RoRf).Snapshot())
-	diffDumps(t, "reordered", dumpSnapshot(New(RoRf, Base, NASREQ, CreditControl, RoRf, Base).Snapshot()), want)
+	want := dumpSnapshot(newTestParser(t, dict.Base(), nasreq.Dictionary(), creditcontrol.Dictionary(), rorf.Dictionary()).Snapshot())
+	diffDumps(t, "reordered", dumpSnapshot(newTestParser(t, rorf.Dictionary(), dict.Base(), nasreq.Dictionary(), creditcontrol.Dictionary(), rorf.Dictionary(), dict.Base()).Snapshot()), want)
+	names, err := dict.SourceNamesForTesting(rorf.Dictionary(), creditcontrol.Dictionary(), rorf.Dictionary(), dict.Base())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"base.xml", "credit_control.xml", "network_access_server.xml", "tgpp_ro_rf.xml"}; !slices.Equal(names, want) {
+		t.Fatalf("deduplicated sources=%v, want %v", names, want)
+	}
 }
-
 func TestNewWithoutDictionaries(t *testing.T) {
-	p := New()
+	p := newTestParser(t)
 	if apps := p.Apps(); len(apps) != 0 {
-		t.Fatalf("Apps() = %v", apps)
+		t.Fatalf("Apps=%v", apps)
 	}
-	if !p.Strict() || p.MaxGroupedDepth() != DefaultMaxGroupedDepth {
-		t.Fatalf("policy: strict %t, depth %d", p.Strict(), p.MaxGroupedDepth())
+	if !p.Strict() || p.MaxGroupedDepth() != dict.DefaultMaxGroupedDepth {
+		t.Fatal("unexpected empty policy")
 	}
-	if avp, err := p.FindAVP(0, 263, 0); err == nil || avp != nil {
-		t.Fatalf("FindAVP = %v, %v", avp, err)
+	if a, err := p.FindAVP(0, 263, 0); err == nil || a != nil {
+		t.Fatalf("FindAVP=%v,%v", a, err)
 	}
 }
-
-func TestNewPanicsOnUnknownDictionary(t *testing.T) {
-	defer func() {
-		if r := recover(); r == nil || !strings.Contains(fmt.Sprint(r), "not a bundled dictionary") {
-			t.Fatalf("recover() = %v", r)
-		}
-	}()
-	New(Base, Bundled("missing.xml"))
+func TestNewReportsInvalidDictionary(t *testing.T) {
+	p, err := dict.New(dict.Base(), dict.Dictionary{})
+	if p != nil || err == nil {
+		t.Fatalf("New invalid=%v,%v", p, err)
+	}
+	if p, err := dict.New(dict.Embedded("missing.xml", "invalid")); p != nil || err == nil {
+		t.Fatalf("New malformed=%v,%v", p, err)
+	}
+	if p, err := dict.New(dict.Embedded("base.xml", "<diameter/>"), dict.Base()); p != nil || !errors.Is(err, dict.ErrDictionaryConflict) {
+		t.Fatalf("New conflicting=%v,%v", p, err)
+	}
 }
 
 // RFC 6733 §§4.1 and 4.5 reserve P; the base AVP table has no P column.
-func TestBundledBaseAVPFlagRules(t *testing.T) {
-	base := New(Base)
-	for _, b := range AllBundled() {
-		data, err := bundledFS.ReadFile("bundled/" + string(b))
+func TestShippedBaseAVPFlagRules(t *testing.T) {
+	base := newTestParser(t, dict.Base())
+	for _, name := range sourceNames(t) {
+		data, err := os.ReadFile(sourcePath(t, name))
 		if err != nil {
 			t.Fatal(err)
 		}
-		var f File
-		if err := xml.Unmarshal(data, &f); err != nil {
+		var file dict.File
+		if err := xml.Unmarshal(data, &file); err != nil {
 			t.Fatal(err)
 		}
-		for _, app := range f.App {
+		for _, app := range file.App {
 			for _, a := range app.AVP {
 				_, baseErr := base.FindAVP(0, a.Code, a.VendorID)
 				if baseErr == nil && (strings.Contains(a.Must, "P") || strings.Contains(a.MustNot, "P")) {
-					t.Errorf("%s: %s has obsolete P constraint", b, a.Name)
+					t.Errorf("%s: %s has obsolete P constraint", name, a.Name)
 				}
 			}
 		}
 	}
+}
+
+// Derive prerequisite providers from the raw XML declarations independently of
+// the public descriptors. A rule resolves at the nearest declared application;
+// canonical source order chooses providers of shared definitions.
+func TestApplicationDependenciesMatchXMLProviders(t *testing.T) {
+	type appName struct {
+		app  uint32
+		name string
+	}
+	sources := sourceNames(t)
+	apps := make(map[string][]*dict.App)
+	providers := make(map[appName]string)
+	parents := make(map[uint32][]uint32)
+	for _, name := range sources {
+		apps[name] = sourceApps(t, name)
+		for _, app := range apps[name] {
+			for _, parent := range app.Inherits {
+				if !slices.Contains(parents[app.ID], parent) {
+					parents[app.ID] = append(parents[app.ID], parent)
+				}
+			}
+			for _, a := range app.AVP {
+				providers[appName{app.ID, a.Name}] = name
+			}
+		}
+	}
+	scope := func(app uint32) []uint32 {
+		ordered := []uint32{app}
+		seen := map[uint32]bool{app: true}
+		for i := 0; i < len(ordered); i++ {
+			for _, parent := range parents[ordered[i]] {
+				if parent != 0 && !seen[parent] {
+					seen[parent] = true
+					ordered = append(ordered, parent)
+				}
+			}
+		}
+		if app != 0 {
+			ordered = append(ordered, 0)
+		}
+		return ordered
+	}
+	required := make(map[string][]string)
+	for _, name := range sources {
+		for _, app := range apps[name] {
+			var rules []*dict.Rule
+			for _, a := range app.AVP {
+				rules = append(rules, a.Data.Rule...)
+			}
+			for _, c := range app.Command {
+				rules = append(rules, c.Request.Rule...)
+				rules = append(rules, c.Answer.Rule...)
+			}
+			for _, rule := range rules {
+				if rule.AVP == "AVP" {
+					continue
+				}
+				provider := ""
+				for _, id := range scope(app.ID) {
+					if provider = providers[appName{id, rule.AVP}]; provider != "" {
+						break
+					}
+				}
+				if provider == "" {
+					t.Fatalf("source %s app %d: no provider for %s", name, app.ID, rule.AVP)
+				}
+				if provider != name && !slices.Contains(required[name], provider) {
+					required[name] = append(required[name], provider)
+				}
+			}
+		}
+	}
+	for _, selection := range applicationSelections() {
+		t.Run(selection.name, func(t *testing.T) {
+			reached := map[string]bool{}
+			pending := []string{selection.name}
+			for len(pending) > 0 {
+				name := pending[len(pending)-1]
+				pending = pending[:len(pending)-1]
+				if !reached[name] {
+					reached[name] = true
+					pending = append(pending, required[name]...)
+				}
+			}
+			var expected []string
+			for _, name := range sources {
+				if reached[name] {
+					expected = append(expected, name)
+				}
+			}
+			actual, err := dict.SourceNamesForTesting(selection.dictionary)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !slices.Equal(actual, expected) {
+				t.Fatalf("descriptor sources=%v, XML rule providers require %v", actual, expected)
+			}
+		})
+	}
+}
+
+func TestShippedParentAppIDsAcyclic(t *testing.T) {
+	parents := make(map[uint32][]uint32)
+	for _, name := range sourceNames(t) {
+		for _, app := range sourceApps(t, name) {
+			parents[app.ID] = append(parents[app.ID], app.Inherits...)
+		}
+	}
+	active, complete := make(map[uint32]bool), make(map[uint32]bool)
+	var visit func(uint32)
+	visit = func(id uint32) {
+		if active[id] {
+			t.Fatalf("shipped parent graph cycles through application %d", id)
+		}
+		if complete[id] {
+			return
+		}
+		active[id] = true
+		for _, parent := range parents[id] {
+			visit(parent)
+		}
+		active[id] = false
+		complete[id] = true
+	}
+	for id := range parents {
+		visit(id)
+	}
+	// Construction exercises the parser's own parent validation as well.
+	_ = newTestParser(t, all.Dictionary())
 }

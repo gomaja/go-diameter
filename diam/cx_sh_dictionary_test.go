@@ -9,6 +9,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/cx"
+	"github.com/gomaja/go-diameter/diam/dict/sh"
+
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/dict"
@@ -39,6 +42,8 @@ func TestCxShGeneratedConstants(t *testing.T) {
 }
 
 func TestCxShCommandRoundTrip(t *testing.T) {
+	testDict := newTestDictionary(cx.Dictionary(), sh.Dictionary())
+
 	for code := uint32(300); code <= 309; code++ {
 		app := uint32(16777216)
 		if code >= 306 {
@@ -47,7 +52,7 @@ func TestCxShCommandRoundTrip(t *testing.T) {
 		for _, request := range []bool{true, false} {
 			for _, full := range []bool{false, true} {
 				t.Run(fmt.Sprintf("%d/request=%t/full=%t", code, request, full), func(t *testing.T) {
-					msg := cxShMessage(t, app, code, request, full)
+					msg := cxShMessage(t, app, code, request, full, testDict)
 					if err := msg.Validate(); err != nil {
 						t.Fatal(err)
 					}
@@ -55,7 +60,7 @@ func TestCxShCommandRoundTrip(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					got, err := ReadMessage(bytes.NewReader(wire), dict.Default)
+					got, err := ReadMessage(bytes.NewReader(wire), testDict)
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -70,7 +75,7 @@ func TestCxShCommandRoundTrip(t *testing.T) {
 					}
 					done := make(chan error, 1)
 					go func() { _, e := msg.WriteTo(left); done <- e }()
-					got, err = ReadMessage(right, dict.Default)
+					got, err = ReadMessage(right, testDict)
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -122,8 +127,10 @@ func cxShCheckDecoded(t *testing.T, want, got *Message, wire []byte) {
 
 // Every local AVP is exercised, including groups not named in a command CCF.
 func TestCxShAVPRoundTrip(t *testing.T) {
+	testDict := newTestDictionary(cx.Dictionary(), sh.Dictionary())
+
 	for _, appID := range []uint32{16777216, 16777217} {
-		app, err := dict.Default.App(appID)
+		app, err := testDict.App(appID)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -133,7 +140,7 @@ func TestCxShAVPRoundTrip(t *testing.T) {
 				if appID == 16777217 {
 					code = 306
 				}
-				msg := cxShMessage(t, appID, code, true, false)
+				msg := cxShMessage(t, appID, code, true, false, testDict)
 				found := false
 				for _, a := range msg.AVP {
 					if a.Code == d.Code && a.VendorID == d.VendorID {
@@ -141,13 +148,13 @@ func TestCxShAVPRoundTrip(t *testing.T) {
 					}
 				}
 				if !found {
-					msg.AddAVP(cxShAVP(t, appID, d.Name, true))
+					msg.AddAVP(cxShAVP(t, appID, d.Name, true, testDict))
 				}
 				wire, err := msg.Serialize()
 				if err != nil {
 					t.Fatal(err)
 				}
-				got, err := ReadMessage(bytes.NewReader(wire), dict.Default)
+				got, err := ReadMessage(bytes.NewReader(wire), testDict)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -159,6 +166,11 @@ func TestCxShAVPRoundTrip(t *testing.T) {
 
 // CCF cardinality and fixed-prefix enforcement, including mandatory groups.
 func TestCxShInvalidCommands(t *testing.T) {
+	testDict :=
+
+		// Result-Code is chosen for a successful answer, but is optional in the CCF.
+
+		newTestDictionary(cx.Dictionary(), sh.Dictionary())
 	for code := uint32(300); code <= 309; code++ {
 		app := uint32(16777216)
 		if code >= 306 {
@@ -166,9 +178,9 @@ func TestCxShInvalidCommands(t *testing.T) {
 		}
 		for _, request := range []bool{true, false} {
 			t.Run(fmt.Sprintf("%d/%t", code, request), func(t *testing.T) {
-				msg := cxShMessage(t, app, code, request, false)
+				msg := cxShMessage(t, app, code, request, false, testDict)
 				for i, a := range msg.AVP {
-					// Result-Code is chosen for a successful answer, but is optional in the CCF.
+
 					if a.Code == avp.ResultCode && a.VendorID == 0 {
 						continue
 					}
@@ -203,18 +215,26 @@ func TestCxShInvalidCommands(t *testing.T) {
 
 // TS 29.329 V19.1.0 §§6.1.1, 6.1.3, 6.1.5: *{Data-Reference} is 1+.
 func TestShRepeatedDataReferences(t *testing.T) {
+	testDict := newTestDictionary(cx.Dictionary(), sh.Dictionary())
 	for _, code := range []uint32{306, 307, 308} {
-		msg := cxShMessage(t, 16777217, code, true, false)
-		msg.AddAVP(cxShAVP(t, 16777217, "Data-Reference", false))
+		msg := cxShMessage(t, 16777217, code, true, false, testDict)
+		msg.AddAVP(cxShAVP(t, 16777217, "Data-Reference", false, testDict))
 		if err := msg.Validate(); err != nil {
 			t.Fatal(err)
 		}
 	}
 }
 
-func cxShMessage(t testing.TB, app, code uint32, request, full bool) *Message {
+func cxShMessage(t testing.TB, app, code uint32, request, full bool, parsers ...*dict.Parser) *Message {
+	var testDict *dict.Parser
+	if len(parsers) > 0 {
+		testDict = parsers[0]
+	} else {
+		testDict = newTestDictionary(cx.Dictionary(), sh.Dictionary())
+	}
+
 	t.Helper()
-	cmd, err := dict.Default.FindCommand(app, code)
+	cmd, err := testDict.FindCommand(app, code)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -224,21 +244,28 @@ func cxShMessage(t testing.TB, app, code uint32, request, full bool) *Message {
 		flags |= RequestFlag
 		rules = cmd.Request.Rule
 	}
-	msg := NewMessage(code, flags, app, 0x12345678, 0x87654321, dict.Default)
+	msg := NewMessage(code, flags, app, 0x12345678, 0x87654321, testDict)
 	for _, r := range rules {
 		if r.AVP == "AVP" || r.AVP == "Experimental-Result" || r.AVP == "Failed-AVP" {
 			continue
 		}
 		if r.Required || full || (!request && r.AVP == "Result-Code") {
-			msg.AddAVP(cxShAVP(t, app, r.AVP, full))
+			msg.AddAVP(cxShAVP(t, app, r.AVP, full, testDict))
 		}
 	}
 	return msg
 }
 
-func cxShAVP(t testing.TB, app uint32, name string, full bool) *AVP {
+func cxShAVP(t testing.TB, app uint32, name string, full bool, parsers ...*dict.Parser) *AVP {
+	var testDict *dict.Parser
+	if len(parsers) > 0 {
+		testDict = parsers[0]
+	} else {
+		testDict = newTestDictionary(cx.Dictionary(), sh.Dictionary())
+	}
+
 	t.Helper()
-	d, err := dict.Default.FindAVPByName(app, name)
+	d, err := testDict.FindAVPByName(app, name)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -258,11 +285,11 @@ func cxShAVP(t testing.TB, app uint32, name string, full bool) *AVP {
 			g.AddAVP(NewAVP(avp.VendorID, avp.Mbit, 0, datatype.Unsigned32(10415)))
 			g.AddAVP(NewAVP(avp.AuthApplicationID, avp.Mbit, 0, datatype.Unsigned32(app)))
 		case "User-Identity":
-			g.AddAVP(cxShAVP(t, app, "Public-Identity", false))
+			g.AddAVP(cxShAVP(t, app, "Public-Identity", false, testDict))
 		default:
 			for _, r := range d.Data.Rule {
 				if r.AVP != "AVP" && (r.Required || full) {
-					g.AddAVP(cxShAVP(t, app, r.AVP, full))
+					g.AddAVP(cxShAVP(t, app, r.AVP, full, testDict))
 				}
 			}
 		}
@@ -303,13 +330,15 @@ func cxShAVP(t testing.TB, app uint32, name string, full bool) *AVP {
 }
 
 func FuzzCxShDictionaryMessages(f *testing.F) {
+	testDict := newTestDictionary(cx.Dictionary(), sh.Dictionary())
+
 	for code := uint32(300); code <= 309; code++ {
 		app := uint32(16777216)
 		if code >= 306 {
 			app = 16777217
 		}
 		for _, request := range []bool{true, false} {
-			wire, err := cxShMessage(f, app, code, request, true).Serialize()
+			wire, err := cxShMessage(f, app, code, request, true, testDict).Serialize()
 			if err != nil {
 				f.Fatal(err)
 			}
@@ -317,7 +346,7 @@ func FuzzCxShDictionaryMessages(f *testing.F) {
 		}
 	}
 	f.Fuzz(func(t *testing.T, wire []byte) {
-		msg, err := ReadMessage(bytes.NewReader(wire), dict.Default)
+		msg, err := ReadMessage(bytes.NewReader(wire), testDict)
 		if err != nil || msg.DecodeErr != nil {
 			return
 		}
@@ -328,7 +357,7 @@ func FuzzCxShDictionaryMessages(f *testing.F) {
 		if err != nil {
 			return
 		}
-		again, err := ReadMessage(bytes.NewReader(encoded), dict.Default)
+		again, err := ReadMessage(bytes.NewReader(encoded), testDict)
 		if err != nil {
 			t.Fatal(err)
 		}

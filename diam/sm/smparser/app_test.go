@@ -14,11 +14,13 @@ import (
 )
 
 func TestUnexpectedAVP_BadCode(t *testing.T) {
+	testDict := newParserTestDictionary(dict.Base())
+
 	a := diam.NewAVP(0, 0, 0, datatype.Unsigned32(0))
 	app := &Application{
 		AcctApplicationID: []*diam.AVP{a},
 	}
-	failedAVP, err := app.Parse(dict.Default, Client)
+	failedAVP, err := app.Parse(testDict, Client)
 	if err == nil {
 		t.Fatal("Unexpected application parsed successfully")
 	}
@@ -28,11 +30,13 @@ func TestUnexpectedAVP_BadCode(t *testing.T) {
 }
 
 func TestUnexpectedAVP_BadData(t *testing.T) {
+	testDict := newParserTestDictionary(dict.Base())
+
 	a := diam.NewAVP(avp.AcctApplicationID, 0, 0, datatype.OctetString("x"))
 	app := &Application{
 		AcctApplicationID: []*diam.AVP{a},
 	}
-	failedAVP, err := app.Parse(dict.Default, Client)
+	failedAVP, err := app.Parse(testDict, Client)
 	if err == nil {
 		t.Fatal("Unexpected application parsed successfully")
 	}
@@ -42,11 +46,13 @@ func TestUnexpectedAVP_BadData(t *testing.T) {
 }
 
 func TestUnexpectedAVP_BadGroup(t *testing.T) {
+	testDict := newParserTestDictionary(dict.Base())
+
 	a := diam.NewAVP(avp.AcctApplicationID, 0, 0, datatype.Unsigned32(0))
 	app := &Application{
 		VendorSpecificApplicationID: []*diam.AVP{a},
 	}
-	failedAVP, err := app.Parse(dict.Default, Client)
+	failedAVP, err := app.Parse(testDict, Client)
 	if err == nil {
 		t.Fatal("Unexpected application parsed successfully")
 	}

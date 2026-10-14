@@ -6,6 +6,8 @@ import (
 	"net/netip"
 	"testing"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
@@ -24,8 +26,10 @@ func fixtureSettings() base.Settings {
 }
 
 func TestBuildBaseRequests(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	cfg := fixtureSettings()
-	cer, err := base.BuildCER(dict.Default, cfg)
+	cer, err := base.BuildCER(testDict, cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -37,7 +41,7 @@ func TestBuildBaseRequests(t *testing.T) {
 	if _, err := parsed.Parse(cer, base.ParseOptions{Role: base.Server}); err != nil {
 		t.Fatal(err)
 	}
-	dwr, err := base.BuildDWR(dict.Default, cfg, 333)
+	dwr, err := base.BuildDWR(testDict, cfg, 333)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,7 +50,7 @@ func TestBuildBaseRequests(t *testing.T) {
 	if err != nil || state.Data != datatype.Unsigned32(333) {
 		t.Fatalf("DWR state = %v, error = %v", state, err)
 	}
-	dpr, err := base.BuildDPR(dict.Default, cfg, 1)
+	dpr, err := base.BuildDPR(testDict, cfg, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -57,9 +61,11 @@ func TestBuildBaseRequests(t *testing.T) {
 }
 
 func TestBuildBaseAnswersPreservesRequestIDs(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	cfg := fixtureSettings()
 	for _, command := range []uint32{diam.CapabilitiesExchange, diam.DeviceWatchdog, diam.DisconnectPeer} {
-		request := diam.NewMessage(command, diam.RequestFlag|diam.RetransmittedFlag, 0, 0x11223344, 0x55667788, dict.Default)
+		request := diam.NewMessage(command, diam.RequestFlag|diam.RetransmittedFlag, 0, 0x11223344, 0x55667788, testDict)
 		var answer *diam.Message
 		var err error
 		switch command {
@@ -81,13 +87,15 @@ func TestBuildBaseAnswersPreservesRequestIDs(t *testing.T) {
 }
 
 func TestCapabilityBuilderOutgoingFlags(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	cfg := fixtureSettings()
 	cfg.FirmwareRevision = 1
 	// A vendor-specific application makes the builders emit a
 	// Vendor-Specific-Application-Id derived from the dictionary.
 	cfg.AcctApplicationID = nil
 	cfg.Applications = []base.LocalApplication{{ID: diam.TGPP_S6A_APP_ID, AppType: "auth", Vendor: 10415}}
-	cer, err := base.BuildCER(dict.Default, cfg)
+	cer, err := base.BuildCER(testDict, cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,8 +132,10 @@ func TestCapabilityBuilderOutgoingFlags(t *testing.T) {
 }
 
 func TestBuildProtocolAndPermanentErrorAnswers(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	cfg := fixtureSettings()
-	request := diam.NewMessage(diam.DeviceWatchdog, diam.RequestFlag|diam.RetransmittedFlag, 0, 1, 2, dict.Default)
+	request := diam.NewMessage(diam.DeviceWatchdog, diam.RequestFlag|diam.RetransmittedFlag, 0, 1, 2, testDict)
 	protocol, err := base.BuildErrorAnswer(request, cfg, diam.CommandUnsupported, nil, true)
 	if err != nil {
 		t.Fatal(err)
@@ -148,6 +158,8 @@ func TestBuildProtocolAndPermanentErrorAnswers(t *testing.T) {
 }
 
 func TestBuildErrorCEAResolvesAddressesAtBuildTime(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	cfg := fixtureSettings()
 	cfg.HostIPAddresses = nil
 	called := false
@@ -155,7 +167,7 @@ func TestBuildErrorCEAResolvesAddressesAtBuildTime(t *testing.T) {
 		called = true
 		return []datatype.Address{datatype.AddressFromIP(netip.MustParseAddr("127.0.0.3"))}, nil
 	}
-	request := diam.NewMessage(diam.CapabilitiesExchange, diam.RequestFlag, 0, 5, 6, dict.Default)
+	request := diam.NewMessage(diam.CapabilitiesExchange, diam.RequestFlag, 0, 5, 6, testDict)
 	answer, err := base.BuildErrorAnswer(request, cfg, diam.AVPUnsupported, nil, false)
 	if err != nil {
 		t.Fatal(err)
@@ -170,7 +182,9 @@ func TestBuildErrorCEAResolvesAddressesAtBuildTime(t *testing.T) {
 }
 
 func TestBuildErrorAnswerDoesNotReuseUndecodedSessionID(t *testing.T) {
-	request := diam.NewRequest(diam.CreditControl, diam.CHARGING_CONTROL_APP_ID, dict.Default)
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
+	request := diam.NewRequest(diam.CreditControl, diam.CHARGING_CONTROL_APP_ID, testDict)
 	request.Header.CommandFlags |= diam.ProxiableFlag
 	malformed := diam.NewAVP(avp.SessionID, avp.Mbit, 0, datatype.Unknown([]byte("undecoded")))
 	request.AddAVP(malformed)
@@ -184,13 +198,15 @@ func TestBuildErrorAnswerDoesNotReuseUndecodedSessionID(t *testing.T) {
 }
 
 func TestCapabilityBuildersRejectInvalidAddresses(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	for _, addr := range []datatype.Address{{}, {Family: datatype.AddressFamilyIPv4, Value: make([]byte, 16)}, {Value: []byte{192, 0, 2, 1}}} {
 		cfg := fixtureSettings()
 		cfg.HostIPAddresses = append(cfg.HostIPAddresses, addr)
-		if m, err := base.BuildCER(dict.Default, cfg); err == nil || m != nil {
+		if m, err := base.BuildCER(testDict, cfg); err == nil || m != nil {
 			t.Errorf("BuildCER accepted invalid Address %v", addr)
 		}
-		request := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
+		request := diam.NewRequest(diam.CapabilitiesExchange, 0, testDict)
 		for _, code := range []uint32{diam.Success, diam.NoCommonApplication} {
 			if m, err := base.BuildCEA(request, cfg, code); err == nil || m != nil {
 				t.Errorf("BuildCEA(%d) accepted invalid Address %v", code, addr)
@@ -200,10 +216,12 @@ func TestCapabilityBuildersRejectInvalidAddresses(t *testing.T) {
 }
 
 func TestCapabilityBuildersPreserveMappedFamily(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	cfg := fixtureSettings()
 	address := datatype.Address{Family: datatype.AddressFamilyIPv6, Value: netip.MustParseAddr("::ffff:192.0.2.1").AsSlice()}
 	cfg.HostIPAddresses = []datatype.Address{address}
-	request, err := base.BuildCER(dict.Default, cfg)
+	request, err := base.BuildCER(testDict, cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -242,9 +260,11 @@ func validateBuiltMessage(t *testing.T, m *diam.Message) {
 }
 
 func TestBuildCEAResultCodeFlags(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	for _, result := range []uint32{diam.Success, 2999, 3000, diam.UnknownPeer, 3999, 4000, 4999, 5000, diam.NoCommonApplication, diam.NoCommonSecurity, 5999} {
 		t.Run(fmt.Sprint(result), func(t *testing.T) {
-			request := diam.NewMessage(diam.CapabilitiesExchange, diam.RequestFlag|diam.RetransmittedFlag, 0, 7, 9, dict.Default)
+			request := diam.NewMessage(diam.CapabilitiesExchange, diam.RequestFlag|diam.RetransmittedFlag, 0, 7, 9, testDict)
 			cfg := fixtureSettings()
 			answer, err := base.BuildCEA(request, cfg, result)
 			if err != nil {
@@ -254,7 +274,7 @@ func TestBuildCEAResultCodeFlags(t *testing.T) {
 			if _, err := answer.WriteTo(&wire); err != nil {
 				t.Fatal(err)
 			}
-			answer, err = diam.ReadMessage(&wire, dict.Default)
+			answer, err = diam.ReadMessage(&wire, testDict)
 			if err != nil {
 				t.Fatal(err)
 			}

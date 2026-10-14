@@ -1,28 +1,34 @@
-package dict
+package dict_test
 
 import (
 	"bytes"
 	"errors"
+	"os"
 	"testing"
+
+	"github.com/gomaja/go-diameter/diam/dict"
+	"github.com/gomaja/go-diameter/diam/dict/cx"
+	"github.com/gomaja/go-diameter/diam/dict/nasreq"
+	"github.com/gomaja/go-diameter/diam/dict/sh"
 )
 
 func TestCxShScopeWithoutDeclaredSh(t *testing.T) {
-	p := New(Base, NASREQ, Cx)
-	if _, err := p.App(16777217); !errors.Is(err, ErrApplicationUnsupported) {
+	p := newTestParser(t, dict.Base(), nasreq.Dictionary(), cx.Dictionary())
+	if _, err := p.App(16777217); !errors.Is(err, dict.ErrApplicationUnsupported) {
 		t.Fatalf("Sh must remain undeclared: %v", err)
 	}
 	for _, code := range []uint32{621, 622, 623, 624, 625, 626, 648, 649, 650, 651, 652} {
 		if _, err := p.FindAVP(16777216, code, 10415); err != nil {
 			t.Fatal(err)
 		}
-		if got, err := p.FindAVP(16777217, code, 10415); got != nil || !errors.Is(err, ErrNotFound) {
+		if got, err := p.FindAVP(16777217, code, 10415); got != nil || !errors.Is(err, dict.ErrNotFound) {
 			t.Errorf("undeclared Sh inherited Cx code %d: %v, %v", code, got, err)
 		}
 	}
 }
 
 func TestCxShScopeSnapshotSurvivesRegistration(t *testing.T) {
-	p := New(Base, NASREQ, Cx, Sh)
+	p := newTestParser(t, dict.Base(), nasreq.Dictionary(), cx.Dictionary(), sh.Dictionary())
 	before := p.Snapshot()
 	mustRegister(t, p, 16777217, vendorAVP("Test-Unrelated-Sh", 70000, "UTF8String"))
 	after := p.Snapshot()
@@ -35,7 +41,7 @@ func TestCxShScopeSnapshotSurvivesRegistration(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			for _, s := range []*Snapshot{before, after} {
+			for _, s := range []*dict.Snapshot{before, after} {
 				if got, err := s.FindAVP(app, code, 10415); err != nil || got != want {
 					t.Errorf("app %d code %d changed across registration: %v, %v; want %s", app, code, got, err, want.Name)
 				}
@@ -51,10 +57,10 @@ func TestCxShScopeSnapshotSurvivesRegistration(t *testing.T) {
 // RegisterAVP never assigns a code-only slot (RFC 6733 §4.1).
 // A Sh registration remains vendor scoped after Cx is loaded.
 func TestCxShScopeDoesNotPromoteRegistration(t *testing.T) {
-	p := New(Base, NASREQ)
-	mustRegister(t, p, 16777217, &AVP{
+	p := newTestParser(t, dict.Base(), nasreq.Dictionary())
+	mustRegister(t, p, 16777217, &dict.AVP{
 		Name: "Primary-Charging-Collection-Function-Name", Code: 621, VendorID: 10415,
-		Must: "V", Data: Data{TypeName: "UTF8String"},
+		Must: "V", Data: dict.Data{TypeName: "UTF8String"},
 	})
 	before := p.Snapshot()
 	registered, err := before.FindAVP(16777217, 621, 10415)
@@ -65,7 +71,7 @@ func TestCxShScopeDoesNotPromoteRegistration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	data, err := bundledFS.ReadFile("bundled/" + string(Cx))
+	data, err := os.ReadFile(sourcePath(t, "tgpp_cx.xml"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -81,23 +87,23 @@ func TestCxShScopeDoesNotPromoteRegistration(t *testing.T) {
 	if got, err := before.FindAVP(16777217, uint32(621), 0); err != nil || got != originalIETF {
 		t.Errorf("earlier Snapshot changed after loading Cx: %v, %v", got, err)
 	}
-	if _, err := p.App(16777217); !errors.Is(err, ErrApplicationUnsupported) {
+	if _, err := p.App(16777217); !errors.Is(err, dict.ErrApplicationUnsupported) {
 		t.Errorf("registration must not declare Sh: %v", err)
 	}
 	assertNoWildcardRegistrations(t, p.Snapshot())
 }
 
 func TestCxShScopeAfterIdenticalRegistrationThenLoad(t *testing.T) {
-	definition, err := New(Base, NASREQ, Cx).FindAVP(16777216, 621, 10415)
+	definition, err := newTestParser(t, dict.Base(), nasreq.Dictionary(), cx.Dictionary()).FindAVP(16777216, 621, 10415)
 	if err != nil {
 		t.Fatal(err)
 	}
-	cx, err := bundledFS.ReadFile("bundled/" + string(Cx))
+	cx, err := os.ReadFile(sourcePath(t, "tgpp_cx.xml"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, app := range []uint32{16777216, 16777217} {
-		p := New(Base, NASREQ)
+		p := newTestParser(t, dict.Base(), nasreq.Dictionary())
 		mustRegister(t, p, app, definition)
 		registered, err := p.FindAVP(app, 621, 10415)
 		if err != nil {

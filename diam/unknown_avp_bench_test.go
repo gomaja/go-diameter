@@ -4,9 +4,10 @@ import (
 	"bytes"
 	"testing"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
-	"github.com/gomaja/go-diameter/diam/dict"
 )
 
 // A peer can send any number of unrecognized vendor AVPs (RFC 6733 §4.1).
@@ -20,7 +21,9 @@ func BenchmarkReadMessageUnknownMandatoryAVPs(b *testing.B) {
 }
 
 func benchmarkReadMessageUnknownAVPs(b *testing.B, flags uint8) {
-	m := NewRequest(272, 4, dict.Default)
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
+	m := NewRequest(272, 4, testDict)
 	m.AddAVP(NewAVP(avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("peer.example")))
 	for code := uint32(70001); code <= 70010; code++ {
 		m.AddAVP(NewAVP(code, flags, 10415, datatype.OctetString("payload!")))
@@ -33,7 +36,7 @@ func benchmarkReadMessageUnknownAVPs(b *testing.B, flags uint8) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		got, err := ReadMessage(bytes.NewReader(wire), dict.Default)
+		got, err := ReadMessage(bytes.NewReader(wire), testDict)
 		if err != nil {
 			b.Fatal(err)
 		}

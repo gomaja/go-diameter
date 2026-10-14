@@ -1,9 +1,13 @@
-package dict
+package dict_test
 
 import (
 	"encoding/json"
 	"os"
 	"testing"
+
+	"github.com/gomaja/go-diameter/diam/dict"
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+	"github.com/gomaja/go-diameter/diam/dict/rorf"
 )
 
 func loadOneM2MSpec(t *testing.T) []rxAVPSpec {
@@ -30,9 +34,11 @@ func loadOneM2MSpec(t *testing.T) []rxAVPSpec {
 // oneM2M TS-0004 V5.2.0 Table A.4-1, §§A.5.1–A.5.32;
 // TS 32.299 V19.0.0 §7.5 imports the AVPs into both charging applications.
 func TestOneM2MAVPSpec(t *testing.T) {
+	reference := newAllTestParser(t)
+
 	for _, want := range loadOneM2MSpec(t) {
 		t.Run(want.Name, func(t *testing.T) {
-			for _, dictionary := range []*Parser{Default, New(RoRf), New(CreditControl)} {
+			for _, dictionary := range []*dict.Parser{reference, newTestParser(t, rorf.Dictionary()), newTestParser(t, creditcontrol.Dictionary())} {
 				for _, app := range []uint32{3, 4} {
 					a, err := dictionary.FindAVP(app, want.Code, want.Vendor)
 					if err != nil {
@@ -52,6 +58,8 @@ func TestOneM2MAVPSpec(t *testing.T) {
 // Table slips remain recorded, even though the introducing CRs resolve the
 // implementation choice in favour of each AVP's explicit defining clause.
 func TestRoRfResolvedTableSlips(t *testing.T) {
+	reference := newAllTestParser(t)
+
 	b, err := os.ReadFile("testdata/rorf_spec.json")
 	if err != nil {
 		t.Fatal(err)
@@ -70,7 +78,7 @@ func TestRoRfResolvedTableSlips(t *testing.T) {
 		t.Fatalf("table-slip count %d, want 3", len(s.Conflicts))
 	}
 	for _, c := range s.Conflicts {
-		a, err := Default.FindAVPByName(4, c.Name)
+		a, err := reference.FindAVPByName(4, c.Name)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -82,8 +90,10 @@ func TestRoRfResolvedTableSlips(t *testing.T) {
 
 // oneM2M TS-0004 V5.2.0 §A.5.17 reserves ranges without assigning values.
 func TestOneM2MProtocolReservedRanges(t *testing.T) {
+	reference := newAllTestParser(t)
+
 	for _, value := range []int32{4, 99, 100, 199} {
-		if e, err := Default.Enum(4, 1013, 45687, value); err == nil {
+		if e, err := reference.Enum(4, 1013, 45687, value); err == nil {
 			t.Errorf("range boundary %d became enumerator %s", value, e.Name)
 		}
 	}

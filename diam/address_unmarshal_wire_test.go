@@ -11,13 +11,16 @@ import (
 
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
+	"github.com/gomaja/go-diameter/diam/dict"
 )
 
 func TestUnmarshalRawAVPData(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	for _, data := range []datatype.Type{datatype.Unknown{0, 1, 1, 2, 3}, datatype.Address{}, nil} {
 		for _, typ := range []reflect.Type{reflect.TypeFor[AVP](), reflect.TypeFor[*AVP](), reflect.TypeFor[[]AVP](), reflect.TypeFor[[]*AVP]()} {
 			t.Run(fmt.Sprintf("%T/%s", data, typ), func(t *testing.T) {
-				m := NewRequest(CapabilitiesExchange, 0, nil)
+				m := NewRequest(CapabilitiesExchange, 0, testDict)
 				a := &AVP{Code: avp.HostIPAddress, Flags: avp.Mbit, Data: data}
 				m.AVP = []*AVP{a, a}
 				dst := addressReviewDestination(typ)
@@ -46,6 +49,8 @@ func TestUnmarshalRawAVPData(t *testing.T) {
 }
 
 func TestUnmarshalAVPPointerIdentity(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	for _, tc := range []struct {
 		code uint32
 		name string
@@ -57,7 +62,7 @@ func TestUnmarshalAVPPointerIdentity(t *testing.T) {
 		{avp.ProxyInfo, "Proxy-Info", &GroupedAVP{}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			m := NewRequest(CapabilitiesExchange, 0, nil)
+			m := NewRequest(CapabilitiesExchange, 0, testDict)
 			a := NewAVP(tc.code, avp.Mbit, 0, tc.data)
 			m.AddAVP(a)
 			for _, typ := range []reflect.Type{reflect.TypeFor[*AVP](), reflect.TypeFor[[]*AVP](), reflect.TypeFor[AVP](), reflect.TypeFor[[]AVP]()} {
@@ -97,12 +102,14 @@ type addressStreamWriter struct{ bytes.Buffer }
 func (w *addressStreamWriter) WriteStream(b []byte, _ uint) (int, error) { return w.Write(b) }
 
 func TestMessageRejectsInvalidAddressOnWire(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	for _, addr := range []datatype.Address{{}, {Family: 65535}, {Family: datatype.AddressFamilyIPv4, Value: make([]byte, 16)}, {Family: datatype.AddressFamilyIPv6, Value: make([]byte, 4)}} {
 		for _, depth := range []int{0, 1, 3} {
 			for _, insert := range []bool{false, true} {
 				for _, method := range []string{"Serialize", "SerializeTo", "WriteTo", "WriteToStream", "WriteToWithRetry", "WriteToStreamWithRetry"} {
 					t.Run(fmt.Sprintf("%d/%d/%d/%t/%s", addr.Family, len(addr.Value), depth, insert, method), func(t *testing.T) {
-						m := NewRequest(CapabilitiesExchange, 0, nil)
+						m := NewRequest(CapabilitiesExchange, 0, testDict)
 						a := NewAVP(avp.HostIPAddress, avp.Mbit, 0, addr)
 						for range depth {
 							a = NewAVP(avp.ProxyInfo, avp.Mbit, 0, &GroupedAVP{AVP: []*AVP{a}})
@@ -142,12 +149,14 @@ func TestMessageRejectsInvalidAddressOnWire(t *testing.T) {
 }
 
 func TestNewAVPNormalizesAddressPointer(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	addr := datatype.AddressFromIP(netip.MustParseAddr("192.0.2.1"))
 	a := NewAVP(avp.HostIPAddress, 0, 0, &addr)
 	if _, ok := a.Data.(datatype.Address); !ok {
 		t.Fatalf("NewAVP retained %T", a.Data)
 	}
-	m := NewRequest(CapabilitiesExchange, 0, nil)
+	m := NewRequest(CapabilitiesExchange, 0, testDict)
 	m.AddAVP(a)
 	if !strings.Contains(m.PrettyDump(), "192.0.2.1") {
 		t.Fatal("missing Address value")
@@ -162,6 +171,8 @@ type unexpectedDumpData struct {
 func (d unexpectedDumpData) Type() datatype.TypeID { return d.typ }
 func (d unexpectedDumpData) String() string        { return "unexpected data" }
 func TestPrettyDumpUnexpectedData(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	addr := datatype.AddressFromIP(netip.MustParseAddr("192.0.2.1"))
 	data := []datatype.Type{&addr, (*datatype.Address)(nil), (*GroupedAVP)(nil), nil}
 	for _, typ := range datatype.Available {
@@ -170,7 +181,7 @@ func TestPrettyDumpUnexpectedData(t *testing.T) {
 	data = append(data, unexpectedDumpData{typ: GroupedAVPType})
 	for _, d := range data {
 		t.Run(fmt.Sprintf("%T/%v", d, d), func(t *testing.T) {
-			m := NewRequest(CapabilitiesExchange, 0, nil)
+			m := NewRequest(CapabilitiesExchange, 0, testDict)
 			m.AVP = []*AVP{{Code: avp.HostIPAddress, Data: d}}
 			if m.PrettyDump() == "" {
 				t.Fatal("empty dump")
@@ -180,9 +191,11 @@ func TestPrettyDumpUnexpectedData(t *testing.T) {
 }
 
 func BenchmarkWriteToNoAddress(b *testing.B) {
+	testDict := newTestDictionary(dict.Base())
+
 	for _, count := range []int{1, 16, 64} {
 		b.Run(fmt.Sprint(count), func(b *testing.B) {
-			m := NewRequest(DeviceWatchdog, 0, nil)
+			m := NewRequest(DeviceWatchdog, 0, testDict)
 			for range count {
 				m.AddAVP(NewAVP(avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("peer.example.net")))
 			}
@@ -198,12 +211,14 @@ func BenchmarkWriteToNoAddress(b *testing.B) {
 }
 
 func TestMessageAddressPointersOnWire(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	valid := datatype.AddressFromIP(netip.MustParseAddr("192.0.2.1"))
 	invalid := datatype.Address{}
 	for _, ptr := range []*datatype.Address{nil, &invalid, &valid} {
 		for _, normalize := range []bool{false, true} {
 			for _, depth := range []int{0, 2} {
-				m := NewRequest(CapabilitiesExchange, 0, nil)
+				m := NewRequest(CapabilitiesExchange, 0, testDict)
 				a := &AVP{Code: avp.HostIPAddress, Data: ptr}
 				if normalize {
 					a = NewAVP(avp.HostIPAddress, 0, 0, ptr)
@@ -221,7 +236,7 @@ func TestMessageAddressPointersOnWire(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					decoded, err := ReadMessage(bytes.NewReader(wire), nil)
+					decoded, err := ReadMessage(bytes.NewReader(wire), testDict)
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -239,9 +254,11 @@ func TestMessageAddressPointersOnWire(t *testing.T) {
 }
 
 func TestUnmarshalRawAVPUnexportedField(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	for _, typ := range []reflect.Type{reflect.TypeFor[AVP](), reflect.TypeFor[*AVP](), reflect.TypeFor[[]AVP](), reflect.TypeFor[[]*AVP]()} {
 		dst := reflect.New(reflect.StructOf([]reflect.StructField{{Name: "host", PkgPath: "diam", Type: typ, Tag: `avp:"Host-IP-Address"`}}))
-		m := NewRequest(CapabilitiesExchange, 0, nil)
+		m := NewRequest(CapabilitiesExchange, 0, testDict)
 		m.AddAVP(NewAVP(avp.HostIPAddress, 0, 0, datatype.Unknown{0, 1, 1, 2, 3}))
 		if err := m.Unmarshal(dst.Interface()); err == nil {
 			t.Fatalf("accepted unexported %s field", typ)

@@ -7,6 +7,8 @@ import (
 	"testing/synctest"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/diamtest"
 	"github.com/gomaja/go-diameter/diam/dict"
@@ -27,12 +29,15 @@ func TestDefaultHandshakeTimeout(t *testing.T) {
 }
 
 func TestHandshakeTimerStopsOnSuccessAndClose(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings2 := cloneTestSettings(serverSettings2, testDict)
+
 	for _, success := range []bool{false, true} {
 		t.Run(map[bool]string{false: "close", true: "success"}[success], func(t *testing.T) {
 			settings := *serverSettings2
 			settings.HandshakeTimeout = time.Hour
-			sm := mustNewStateMachine(t, &settings)
-			c := &messageErrorCaptureConn{ctx: context.Background()}
+			sm := mustNewStateMachine(t, &settings, testDict)
+			c := &messageErrorCaptureConn{dictionary: testDict, ctx: context.Background()}
 			cleanup := sm.HandleAccept(c)
 			defer cleanup()
 			value, ok := sm.accepted.Load(c)
@@ -41,7 +46,7 @@ func TestHandshakeTimerStopsOnSuccessAndClose(t *testing.T) {
 			}
 			state := value.(*acceptedHandshake)
 			if success {
-				handleCER(sm)(c, regressionCER(t, dict.Default, 1001))
+				handleCER(sm)(c, regressionCER(t, testDict, 1001))
 			} else {
 				cleanup()
 			}
@@ -53,9 +58,12 @@ func TestHandshakeTimerStopsOnSuccessAndClose(t *testing.T) {
 }
 
 func TestAcceptedConnectionCleanupReleasesTimer(t *testing.T) {
-	sm := mustNewStateMachine(t, serverSettings)
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings := cloneTestSettings(serverSettings, testDict)
+
+	sm := mustNewStateMachine(t, serverSettings, testDict)
 	opened := make(chan diam.Conn, 1)
-	srv := diamtest.NewUnstartedServer(sm, dict.Default)
+	srv := diamtest.NewUnstartedServer(sm, testDict)
 	srv.Config.OnNewConnection = func(c diam.Conn) { opened <- c }
 	srv.Start()
 	defer srv.Close()
@@ -92,10 +100,13 @@ func TestAcceptedConnectionCleanupReleasesTimer(t *testing.T) {
 }
 
 func TestNegativeHandshakeTimeoutCreatesNoTimer(t *testing.T) {
+	testDict := newSMTestDictionary(dict.Base())
+	serverSettings := cloneTestSettings(serverSettings, testDict)
+
 	settings := *serverSettings
 	settings.HandshakeTimeout = -1
-	sm := mustNewStateMachine(t, &settings)
-	c := newErrWriteConn()
+	sm := mustNewStateMachine(t, &settings, testDict)
+	c := newErrWriteConn(testDict)
 	cleanup := sm.HandleAccept(c)
 	defer cleanup()
 	value, ok := sm.accepted.Load(c)

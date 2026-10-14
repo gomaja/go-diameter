@@ -12,19 +12,25 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/diamtest"
-	"github.com/gomaja/go-diameter/diam/dict"
 	"github.com/gomaja/go-diameter/diam/internal/base"
 	"github.com/gomaja/go-diameter/diam/sm/smpeer"
 )
 
 func TestClientCancellationRejectsLateCEA(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	clientSettings := cloneTestSettings(
+		clientSettings,
+		testDict)
+
 	cli := newLivenessClient(t)
 	var called atomic.Bool
 	cfg := *clientSettings
 	cfg.OnHandshake = func(diam.Conn, *smpeer.Metadata) { called.Store(true) }
-	cli.Handler = mustNewStateMachine(t, &cfg)
+	cli.Handler = mustNewStateMachine(t, &cfg, testDict)
 	c := newHandshakeConn()
 	closing, release := make(chan struct{}), make(chan struct{})
 	unblock := sync.OnceFunc(func() { close(release) })
@@ -47,7 +53,7 @@ func TestClientCancellationRejectsLateCEA(t *testing.T) {
 	select {
 	case b := <-c.writes:
 		var err error
-		cer, err = diam.ReadMessage(bytes.NewReader(b), dict.Default)
+		cer, err = diam.ReadMessage(bytes.NewReader(b), testDict)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -122,9 +128,14 @@ func TestClientRetransmitTimerStartsAfterWrite(t *testing.T) {
 }
 
 func TestClientLegacyTLSHandshakeErrors(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings := cloneTestSettings(
+		serverSettings,
+		testDict)
+
 	for _, method := range []string{"DialTLS", "DialNetworkTLS", "DialTLSTimeout", "DialTLSExt"} {
 		t.Run(method, func(t *testing.T) {
-			srv := diamtest.NewUnstartedServer(mustNewStateMachine(t, serverSettings), dict.Default)
+			srv := diamtest.NewUnstartedServer(mustNewStateMachine(t, serverSettings, testDict), testDict)
 			srv.StartTLS()
 			defer srv.Close()
 			cli := newLivenessClient(t)

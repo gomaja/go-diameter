@@ -11,9 +11,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/diamtest"
-	"github.com/gomaja/go-diameter/diam/dict"
 	"github.com/gomaja/go-diameter/diam/internal/logtest"
 	"github.com/gomaja/go-diameter/diam/sm/smpeer"
 )
@@ -27,12 +28,14 @@ func TestPreHookCloseTCPInEveryWiring(t *testing.T) {
 // RFC 6733 §§5.3, 5.5 and 5.6.1: local rejection cannot advance the
 // handshake or produce a watchdog answer on the closed transport.
 func testPreHookCloseInEveryWiring(t *testing.T, network string, dial func(string) (net.Conn, error)) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	for _, wiring := range []string{"direct", "unwrap", "nested", "opaque", "mux"} {
 		for _, mode := range []int{0, 1, -1} {
 			for _, hook := range []string{"CER", "DWR"} {
 				t.Run(fmt.Sprintf("%s/%d/%s", wiring, mode, hook), func(t *testing.T) {
 					logs := logtest.New()
-					cfg := testMessageErrorSettings()
+					cfg := testMessageErrorSettings(testDict)
 					var cea, dwa, handshake atomic.Int32
 					cfg.OnCEA = func(diam.Conn, *diam.Message) { cea.Add(1) }
 					cfg.OnDWA = func(diam.Conn, *diam.Message) { dwa.Add(1) }
@@ -44,7 +47,7 @@ func testPreHookCloseInEveryWiring(t *testing.T, network string, dial func(strin
 					} else {
 						cfg.OnDWR = closeHook
 					}
-					sm := mustNewStateMachine(t, cfg)
+					sm := mustNewStateMachine(t, cfg, testDict)
 					h := admissionWiring(wiring, sm)
 					if wiring == "unwrap" {
 						h = plainHandlerWrapper{sm}
@@ -52,7 +55,7 @@ func testPreHookCloseInEveryWiring(t *testing.T, network string, dial func(strin
 					if wiring == "nested" {
 						h = plainHandlerWrapper{plainHandlerWrapper{sm}}
 					}
-					srv := diamtest.NewUnstartedServerNetwork(network, h, dict.Default)
+					srv := diamtest.NewUnstartedServerNetwork(network, h, testDict)
 					srv.Config.Logger = logs.Logger()
 					srv.Config.MaxConcurrentHandlers = mode
 					srv.Start()
@@ -65,11 +68,11 @@ func testPreHookCloseInEveryWiring(t *testing.T, network string, dial func(strin
 					if err := c.SetDeadline(time.Now().Add(5 * time.Second)); err != nil {
 						t.Fatal(err)
 					}
-					if _, err := regressionCER(t, dict.Default, 1001).WriteTo(c); err != nil {
+					if _, err := regressionCER(t, testDict, 1001).WriteTo(c); err != nil {
 						t.Fatal(err)
 					}
 					if hook == "DWR" {
-						answer, err := diam.ReadMessage(c, dict.Default)
+						answer, err := diam.ReadMessage(c, testDict)
 						if err != nil || !testResultCode(answer, diam.Success) {
 							t.Fatalf("CEA=%v err=%v", answer, err)
 						}
@@ -114,13 +117,15 @@ func testPreHookCloseInEveryWiring(t *testing.T, network string, dial func(strin
 }
 
 func TestPreHookCloseDoesNotAdmit(t *testing.T) {
-	cfg := testMessageErrorSettings()
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
+	cfg := testMessageErrorSettings(testDict)
 	cfg.OnCER = func(c diam.Conn, _ *diam.Message) { c.Close() }
-	sm := mustNewStateMachine(t, cfg)
+	sm := mustNewStateMachine(t, cfg, testDict)
 	c := newHandshakeConn()
 	cleanup := sm.HandleAccept(c)
 	defer cleanup()
-	sm.ServeDIAM(c, regressionCER(t, dict.Default, 1001))
+	sm.ServeDIAM(c, regressionCER(t, testDict, 1001))
 	value, _ := sm.accepted.Load(c)
 	state := value.(*acceptedHandshake)
 	state.mu.Lock()
@@ -180,11 +185,13 @@ func TestChainPreHook(t *testing.T) {
 }
 
 func TestPreHookHandshakeTimeoutInEveryWiring(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	for _, wiring := range stateMachineWrappers {
 		for _, mode := range []int{0, 1, -1} {
 			t.Run(fmt.Sprintf("%s/%d", wiring.name, mode), func(t *testing.T) {
 				logs := logtest.New()
-				cfg := testMessageErrorSettings()
+				cfg := testMessageErrorSettings(testDict)
 				cfg.HandshakeTimeout = time.Hour
 				entered := make(chan diam.Conn, 1)
 				release := make(chan struct{})
@@ -204,8 +211,8 @@ func TestPreHookHandshakeTimeoutInEveryWiring(t *testing.T) {
 				var cea, handshake atomic.Int32
 				cfg.OnCEA = func(diam.Conn, *diam.Message) { cea.Add(1) }
 				cfg.OnHandshake = func(diam.Conn, *smpeer.Metadata) { handshake.Add(1) }
-				sm = mustNewStateMachine(t, cfg)
-				srv := diamtest.NewUnstartedServer(wiring.wrap(sm), dict.Default)
+				sm = mustNewStateMachine(t, cfg, testDict)
+				srv := diamtest.NewUnstartedServer(wiring.wrap(sm), testDict)
 				srv.Config.Logger = logs.Logger()
 				srv.Config.MaxConcurrentHandlers = mode
 				srv.Start()
@@ -222,7 +229,7 @@ func TestPreHookHandshakeTimeoutInEveryWiring(t *testing.T) {
 				if err := c.SetDeadline(time.Now().Add(5 * time.Second)); err != nil {
 					t.Fatal(err)
 				}
-				if _, err := regressionCER(t, dict.Default, 1001).WriteTo(c); err != nil {
+				if _, err := regressionCER(t, testDict, 1001).WriteTo(c); err != nil {
 					t.Fatal(err)
 				}
 				var peer diam.Conn

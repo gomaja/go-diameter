@@ -186,12 +186,12 @@ Rx normalization and specification discrepancies:
   Verified Erratum 4803's corrected `Diameter Header` literal.
 
 The Rx tests compare the effective application 16777236 view from
-`dict.Default`, including all source-pinned reused descendants, exact flags,
+a fresh parser explicitly selecting the tested applications, including all source-pinned reused descendants, exact flags,
 encryption where specified, enum values, ordered members, cardinalities,
 fixed positions and P bits. The wire tests cover 148 distinct AVPs and all
 eight commands, required/optional member boundaries, the two-Codec-Data
 limit, and Load's parent-scoped M-bit rule. The RAT-Type regression checks
-both the selected bundle with its dependencies and the full default view.
+both the selected bundle with its dependencies and the full `all.Dictionary()` view.
 
 RFC Editor and Datatracker relationship records agree on the current
 Diameter sources: RFC 6733 with 7075/8553, RFC 7155, RFC 8506, RFC 7683 with
@@ -272,7 +272,7 @@ Sy-specific interpretation and scope:
 - Encryption metadata is compared only where the defining source supplies
   it. Sy Table 5.3.0.1 and the current RFC flag tables do not supply an
   encryption column; the fixture does not invent one.
-- Tests compare `dict.Default`, including inheritance, and round-trip all
+- Tests compare a fresh parser explicitly selecting the tested applications, including inheritance, and round-trip all
   29 Sy and reused definitions, all named grouped members, enum values,
   and all six commands. Command boundaries, Load member flags, feature
   flags and Sy's CER vendor advertisement have separate regressions.
@@ -375,7 +375,7 @@ Specification discrepancies are resolved as follows:
   source M-clear MME-Realm and MME number, and explicitly clears SGSN-Number and
   External-Identifier. External-Identifier retains source M,V in S6c.
 
-`sms_spec_test.go` compares the effective `dict.Default` view, all ordered
+`sms_spec_test.go` compares the effective a fresh parser explicitly selecting the tested applications view, all ordered
 rules, fixed positions, cardinalities, exact AVP and member flag sets,
 exact enumeration labels and values, PXY, recursive closure and vendor declarations.
 `sms_wire_spec_test.go` exercises all 221 application/definition combinations,
@@ -535,7 +535,7 @@ SWx interpretation and normalization:
   DIAMETER_INVALID_HDR_BITS (3008). No correcting CR was found in the
   accessible history.
 
-Tests compare the effective `dict.Default` application, exact flag sets,
+Tests compare the effective a fresh parser explicitly selecting the tested applications application, exact flag sets,
 identities, types, enums, ordered rules, fixed positions and cardinalities.
 Wire tests round-trip all 169 AVPs and eight command bodies, exercise
 Grouped and command boundaries, and verify answer-scoped feature flags.
@@ -829,11 +829,11 @@ Failed-AVP's `1* { AVP }`. Vendor-Specific-Application-Id and
 Experimental-Result have no extension point. RFC 8581 updates both overload
 grammars and adds PEER_REPORT; RFC 8583 Load retains its extension point.
 All named descendants have source entries with exact flags. Tests resolve
-both effective views through `dict.Default`, including name/code lookups,
+both effective views through a fresh parser explicitly selecting the tested applications, including name/code lookups,
 source identity, cardinality, fixed positions, enum values and PXY constraints.
 Wire tests cover every base AVP, every enum value and all command bodies in
 both applications, with explicit extension and cardinality cases. The CER
-test pins vendor advertisements for all 14 bundled applications.
+test pins vendor advertisements for all 14 dictionary sources.
 
 Verified RFC 6733 Erratum 4803 supplies the `Diameter Header` / `AVP Header`
 CCF literals; 4808 clarifies the single Failed-AVP and Vendor-Id cardinalities.
@@ -936,7 +936,7 @@ only to preserve established identifier spellings, not to supply specification
 values. Word paragraph tabs and line breaks are preserved when extracting CCF;
 multiple members in one paragraph are split before parsing cardinalities.
 Exact flag sets, enum labels/values, rule order, fixed positions and member
-prohibitions are compared against `dict.Default`. Enum labels use the same
+prohibitions are compared against a fresh parser explicitly selecting the tested applications. Enum labels use the same
 typographic normalization as the cross-application enumeration test.
 
 Additional defining sources are the

@@ -3,6 +3,8 @@ package sm
 import (
 	"testing"
 
+	"github.com/gomaja/go-diameter/diam/dict/swx"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
@@ -12,7 +14,12 @@ import (
 // TS 29.273 V19.2.0 Table 8.2.3.0/1 and §5.2.3.24 use 3GPP and ETSI AVPs;
 // RFC 6733 §5.3.6 defines Supported-Vendor-Id.
 func TestSWxSupportedVendors(t *testing.T) {
-	for _, dictionary := range []*dict.Parser{dict.New(dict.SWx), dict.Default} {
+	testDict := newSMTestDictionary(swx.Dictionary())
+	serverSettings := cloneTestSettings(serverSettings,
+		testDict,
+	)
+
+	for _, dictionary := range []*dict.Parser{newTestDictionary(swx.Dictionary()), testDict} {
 		settings := *serverSettings
 		settings.Dict = dictionary
 		settings.HostIPAddresses = []datatype.Address{localhostAddress}
@@ -20,7 +27,7 @@ func TestSWxSupportedVendors(t *testing.T) {
 		client := &Client{Handler: handler, Dict: dictionary,
 			VendorSpecificApplicationID: []*diam.AVP{smVendorApp(16777265, 10415)},
 		}
-		if dictionary == dict.Default {
+		if dictionary == testDict {
 			client.VendorSpecificApplicationID = nil
 		}
 		request, err := client.makeCER(settings.HostIPAddresses)
@@ -29,7 +36,7 @@ func TestSWxSupportedVendors(t *testing.T) {
 		}
 		got := readSMCapabilities(t, request, dictionary)
 		want := []uint32{10415, 13019}
-		if dictionary == dict.Default {
+		if dictionary == testDict {
 			want = []uint32{5535, 10415, 13019, 45687}
 		}
 		checkSMVendors(t, got.supported, want)

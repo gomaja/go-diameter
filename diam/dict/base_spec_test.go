@@ -1,10 +1,12 @@
-package dict
+package dict_test
 
 import (
 	"encoding/json"
 	"fmt"
 	"os"
 	"testing"
+
+	"github.com/gomaja/go-diameter/diam/dict"
 )
 
 type baseSpec struct {
@@ -36,6 +38,8 @@ func loadBaseSpec(t *testing.T) baseSpec {
 // RFC 6733 §4.5 and the companion flag tables cited by each fixture row.
 // Both application views must resolve every named descendant to its source.
 func TestBaseAVPSpec(t *testing.T) {
+	reference := newAllTestParser(t)
+
 	s := loadBaseSpec(t)
 	names := map[string]bool{}
 	groups, enums, values := 0, 0, 0
@@ -58,7 +62,7 @@ func TestBaseAVPSpec(t *testing.T) {
 	for _, app := range []uint32{0, 3} {
 		for _, want := range s.AVPs {
 			t.Run(fmt.Sprintf("%d/%s", app, want.Name), func(t *testing.T) {
-				got, err := Default.FindAVP(app, want.Code, want.Vendor)
+				got, err := reference.FindAVP(app, want.Code, want.Vendor)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -71,7 +75,7 @@ func TestBaseAVPSpec(t *testing.T) {
 						t.Errorf("uncovered descendant %s", r.Name)
 					}
 				}
-				byName, err := Default.FindAVPByName(app, want.Name)
+				byName, err := reference.FindAVPByName(app, want.Name)
 				if err != nil || byName != got {
 					t.Fatalf("name/code lookups disagree: %v", err)
 				}
@@ -81,7 +85,7 @@ func TestBaseAVPSpec(t *testing.T) {
 			})
 		}
 	}
-	app, err := Default.App(0)
+	app, err := reference.App(0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,7 +94,7 @@ func TestBaseAVPSpec(t *testing.T) {
 	}
 	// The base-only bundle contributes no local accounting definitions.
 	// RoRf adds application-3 command extensions when selected.
-	acct, err := New(Base).App(3)
+	acct, err := newTestParser(t, dict.Base()).App(3)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,10 +105,12 @@ func TestBaseAVPSpec(t *testing.T) {
 
 // RFC 6733 §§5.3–5.5, 8.3–8.5, 9.7; Verified Errata 4803, 4808, 4887.
 func TestBaseCommandSpec(t *testing.T) {
+	reference := newAllTestParser(t)
+
 	for _, app := range []uint32{0, 3} {
 		for _, want := range loadBaseSpec(t).Commands {
 			t.Run(fmt.Sprintf("%d/%d/%t", app, want.Code, want.Request), func(t *testing.T) {
-				c, err := Default.FindCommand(app, want.Code)
+				c, err := reference.FindCommand(app, want.Code)
 				if err != nil {
 					t.Fatal(err)
 				}

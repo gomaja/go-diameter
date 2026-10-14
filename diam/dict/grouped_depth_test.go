@@ -1,24 +1,28 @@
-package dict
+package dict_test
 
 import (
 	"fmt"
 	"strings"
 	"testing"
+
+	"github.com/gomaja/go-diameter/diam/dict"
 )
 
-// TestDefaultGroupedNestingWithinLimit keeps DefaultMaxGroupedDepth above the
+// TestShippedGroupedNestingWithinLimit keeps DefaultMaxGroupedDepth above the
 // deepest Grouped nesting that the named rules of the shipped command
 // grammars allow, so the decoder's nesting limit does not reject a message
 // built from them. A cycle through named Grouped rules fails too. The
 // *[ AVP ] wildcard admits arbitrary nesting and is not followed.
-func TestDefaultGroupedNestingWithinLimit(t *testing.T) {
+func TestShippedGroupedNestingWithinLimit(t *testing.T) {
+	reference := newAllTestParser(t)
+
 	deepest, deepestPath := 0, ""
-	for _, app := range Default.Apps() {
+	for _, app := range reference.Apps() {
 		// chain memoizes the deepest Grouped chain below each AVP, itself first.
 		chain := make(map[string][]string)
 		onPath := make(map[string]bool)
-		var measure func(avp *AVP, path []string) []string
-		measure = func(avp *AVP, path []string) []string {
+		var measure func(avp *dict.AVP, path []string) []string
+		measure = func(avp *dict.AVP, path []string) []string {
 			if onPath[avp.Name] {
 				t.Errorf("app %d: Grouped rule cycle: %s > %s", app.ID, strings.Join(path, " > "), avp.Name)
 				return nil
@@ -32,7 +36,7 @@ func TestDefaultGroupedNestingWithinLimit(t *testing.T) {
 				if rule.AVP == "AVP" { // Diameter's arbitrary AVP wildcard.
 					continue
 				}
-				child, err := Default.FindAVPByName(app.ID, rule.AVP)
+				child, err := reference.FindAVPByName(app.ID, rule.AVP)
 				if err != nil || child == nil || child.Data.TypeName != "Grouped" {
 					continue
 				}
@@ -46,9 +50,9 @@ func TestDefaultGroupedNestingWithinLimit(t *testing.T) {
 			return c
 		}
 		for _, cmd := range app.Command {
-			for _, rules := range [][]*Rule{cmd.Request.Rule, cmd.Answer.Rule} {
+			for _, rules := range [][]*dict.Rule{cmd.Request.Rule, cmd.Answer.Rule} {
 				for _, rule := range rules {
-					avp, err := Default.FindAVPByName(app.ID, rule.AVP)
+					avp, err := reference.FindAVPByName(app.ID, rule.AVP)
 					if err != nil || avp == nil || avp.Data.TypeName != "Grouped" {
 						continue
 					}
@@ -64,8 +68,8 @@ func TestDefaultGroupedNestingWithinLimit(t *testing.T) {
 	if deepest == 0 {
 		t.Fatal("found no Grouped AVPs in the command grammars")
 	}
-	if deepest*2 > DefaultMaxGroupedDepth {
+	if deepest*2 > dict.DefaultMaxGroupedDepth {
 		t.Fatalf("grammar nests %d levels; DefaultMaxGroupedDepth %d leaves less than 2x headroom",
-			deepest, DefaultMaxGroupedDepth)
+			deepest, dict.DefaultMaxGroupedDepth)
 	}
 }

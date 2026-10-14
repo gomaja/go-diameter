@@ -15,6 +15,8 @@ import (
 	"testing/synctest"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam/internal/logtest"
 
 	"github.com/gomaja/go-diameter/diam/avp"
@@ -27,14 +29,16 @@ import (
 )
 
 func TestAcceptedRetiredMessagesDoNotDispatch(t *testing.T) {
-	cfg := *testMessageErrorSettings()
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
+	cfg := *testMessageErrorSettings(testDict)
 	calls := 0
 	cfg.OnDWR = func(diam.Conn, *diam.Message) { calls++ }
-	sm := mustNewStateMachine(t, &cfg)
+	sm := mustNewStateMachine(t, &cfg, testDict)
 	c := &retiredHandshakeConn{handshakeConn: newHandshakeConn()}
 	cleanup := sm.HandleAccept(c)
 	defer cleanup()
-	sm.ServeDIAM(c, regressionCER(t, dict.Default, 1001))
+	sm.ServeDIAM(c, regressionCER(t, testDict, 1001))
 	<-c.writes
 	c.closed.Store(true)
 	c.reason = diam.SCTPAssociationRestart
@@ -192,7 +196,9 @@ func TestAcceptedRetirementDuringWatchdogRegistration(t *testing.T) {
 }
 
 func TestAcceptedCERRenewalEligibility(t *testing.T) {
-	sm := mustNewStateMachine(t, testMessageErrorSettings())
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
+	sm := mustNewStateMachine(t, testMessageErrorSettings(testDict), testDict)
 	c := newHandshakeConn()
 	if sm.CanRenewAcceptedCER(c) {
 		t.Fatal("unaccepted connection eligible")
@@ -202,7 +208,7 @@ func TestAcceptedCERRenewalEligibility(t *testing.T) {
 	if sm.CanRenewAcceptedCER(c) {
 		t.Fatal("pre-CER connection eligible")
 	}
-	sm.ServeDIAM(c, regressionCER(t, dict.Default, 1001))
+	sm.ServeDIAM(c, regressionCER(t, testDict, 1001))
 	<-c.writes
 	if !sm.CanRenewAcceptedCER(c) {
 		t.Fatal("admitted accepted connection ineligible")
@@ -269,12 +275,14 @@ type acceptedRestartPair struct {
 }
 
 func newAcceptedRestartServer(t *testing.T, cfg *Settings, mode int) (*StateMachine, *acceptedRestartTransport, net.Conn, <-chan diam.Conn, <-chan acceptedRestartPair) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	t.Helper()
 	handshakes := make(chan diam.Conn, 4)
 	cfg.OnHandshake = func(c diam.Conn, _ *smpeer.Metadata) { handshakes <- c }
-	sm := mustNewStateMachine(t, cfg)
+	sm := mustNewStateMachine(t, cfg, testDict)
 	restarts := make(chan acceptedRestartPair, 4)
-	server := &diam.Server{Handler: sm, Dict: dict.Default, MaxConcurrentHandlers: mode, OnConnectionRestart: func(old, next diam.Conn, reason diam.RetirementReason) {
+	server := &diam.Server{Handler: sm, Dict: testDict, MaxConcurrentHandlers: mode, OnConnectionRestart: func(old, next diam.Conn, reason diam.RetirementReason) {
 		restarts <- acceptedRestartPair{old, next, reason}
 	}}
 	listener := &watchdogPipeListener{accepted: make(chan net.Conn, 1), closed: make(chan struct{})}
@@ -294,16 +302,20 @@ func newAcceptedRestartServer(t *testing.T, cfg *Settings, mode int) (*StateMach
 	return sm, transport, peer, handshakes, restarts
 }
 func acceptedRestartCEA(t *testing.T, peer net.Conn, want uint32) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	t.Helper()
 	_ = peer.SetReadDeadline(time.Now().Add(time.Second))
-	m, err := diam.ReadMessage(peer, dict.Default)
+	m, err := diam.ReadMessage(peer, testDict)
 	if err != nil || m.Header.CommandCode != diam.CapabilitiesExchange || !testResultCode(m, want) {
 		t.Fatalf("CEA=%v,%v want%d", m, err, want)
 	}
 }
 func acceptedRestartCER(t *testing.T, host string, app uint32, state uint32) *diam.Message {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	t.Helper()
-	m := regressionCER(t, dict.Default, app)
+	m := regressionCER(t, testDict, app)
 	a, err := m.FindAVP(avp.OriginHost, 0)
 	if err != nil {
 		t.Fatal(err)
@@ -314,6 +326,9 @@ func acceptedRestartCER(t *testing.T, host string, app uint32, state uint32) *di
 }
 
 func TestAcceptedRestartFreshHandshake(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings2 := cloneTestSettings(serverSettings2, testDict)
+
 	for _, mode := range []int{0, 1, 2, -1} {
 		t.Run(fmt.Sprint(mode), func(t *testing.T) {
 			cfg := *serverSettings2
@@ -348,7 +363,7 @@ func TestAcceptedRestartFreshHandshake(t *testing.T) {
 				t.Fatal("old Close closed replacement")
 			}
 			transport.message(t, regressionDWR(t))
-			m, err := diam.ReadMessage(peer, dict.Default)
+			m, err := diam.ReadMessage(peer, testDict)
 			if err != nil || m.Header.CommandCode != diam.DeviceWatchdog || !testResultCode(m, diam.Success) {
 				t.Fatalf("replacement DWA=%v,%v", m, err)
 			}
@@ -357,6 +372,10 @@ func TestAcceptedRestartFreshHandshake(t *testing.T) {
 }
 
 func TestAcceptedRestartBeforeInitialCERStartsFreshTimer(t *testing.T) {
+	testDict := newSMTestDictionary(
+		dict.Base())
+	serverSettings2 := cloneTestSettings(serverSettings2, testDict)
+
 	synctest.Test(t, func(t *testing.T) {
 		cfg := *serverSettings2
 		cfg.HandshakeTimeout = 10 * time.Millisecond
@@ -386,6 +405,9 @@ func TestAcceptedCERRenewalPolicyOnWire(t *testing.T) {
 }
 
 func testAcceptedCERRenewalPolicyOnWire(t *testing.T, network string) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings2 := cloneTestSettings(serverSettings2, testDict)
+
 	t.Helper()
 	for _, enabled := range []bool{false, true} {
 		t.Run(fmt.Sprintf("%s/%v", network, enabled), func(t *testing.T) {
@@ -394,8 +416,8 @@ func testAcceptedCERRenewalPolicyOnWire(t *testing.T, network string) {
 			cers := make(chan diam.Conn, 4)
 			cfg.OnHandshake = func(c diam.Conn, _ *smpeer.Metadata) { handshakes <- c }
 			cfg.OnCER = func(c diam.Conn, _ *diam.Message) { cers <- c }
-			sm := mustNewStateMachine(t, &cfg)
-			server := diamtest.NewUnstartedServerNetwork(network, sm, dict.Default)
+			sm := mustNewStateMachine(t, &cfg, testDict)
+			server := diamtest.NewUnstartedServerNetwork(network, sm, testDict)
 			server.Config.RenewAcceptedCER = enabled
 			server.Config.MaxConcurrentHandlers = 2
 			server.Start()
@@ -403,7 +425,7 @@ func testAcceptedCERRenewalPolicyOnWire(t *testing.T, network string) {
 			answers := make(chan *diam.Message, 4)
 			mux := diam.NewServeMux()
 			mux.HandleFunc("ALL", func(_ diam.Conn, m *diam.Message) { answers <- m })
-			peer, err := diam.DialNetworkTimeout(network, server.Addr, mux, dict.Default, time.Second)
+			peer, err := diam.DialNetworkTimeout(network, server.Addr, mux, testDict, time.Second)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -469,11 +491,14 @@ func testAcceptedCERRenewalPolicyOnWire(t *testing.T, network string) {
 }
 
 func TestAcceptedCERRenewalRejectsInvalidCapabilities(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings2 := cloneTestSettings(serverSettings2, testDict)
+
 	cfg := *serverSettings2
 	handshakes := make(chan diam.Conn, 2)
 	cfg.OnHandshake = func(c diam.Conn, _ *smpeer.Metadata) { handshakes <- c }
-	sm := mustNewStateMachine(t, &cfg)
-	server := diamtest.NewUnstartedServer(sm, dict.Default)
+	sm := mustNewStateMachine(t, &cfg, testDict)
+	server := diamtest.NewUnstartedServer(sm, testDict)
 	server.Config.RenewAcceptedCER = true
 	server.Start()
 	defer server.Close()
@@ -505,13 +530,16 @@ func TestAcceptedCERRenewalRejectsInvalidCapabilities(t *testing.T) {
 }
 
 func TestAcceptedIncomingDPRDisablesCERRenewal(t *testing.T) {
-	sm := mustNewStateMachine(t, testMessageErrorSettings())
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	clientSettings := cloneTestSettings(clientSettings, testDict)
+
+	sm := mustNewStateMachine(t, testMessageErrorSettings(testDict), testDict)
 	c := newHandshakeConn()
 	cleanup := sm.HandleAccept(c)
 	defer cleanup()
-	sm.ServeDIAM(c, regressionCER(t, dict.Default, 1001))
+	sm.ServeDIAM(c, regressionCER(t, testDict, 1001))
 	<-c.writes
-	dpr := diam.NewRequest(diam.DisconnectPeer, 0, dict.Default)
+	dpr := diam.NewRequest(diam.DisconnectPeer, 0, testDict)
 	mustSMClientAVP(t, dpr, avp.OriginHost, avp.Mbit, 0, clientSettings.OriginHost)
 	mustSMClientAVP(t, dpr, avp.OriginRealm, avp.Mbit, 0, clientSettings.OriginRealm)
 	mustSMClientAVP(t, dpr, avp.DisconnectCause, avp.Mbit, 0, datatype.Enumerated(0))
@@ -537,8 +565,12 @@ func (c *retirementDisconnectConn) Write(b []byte) (int, error) {
 func (c *retirementDisconnectConn) WriteStream(b []byte, _ uint) (int, error) { return c.Write(b) }
 
 func TestAcceptedRetirementDisconnectDuringWrite(t *testing.T) {
-	sm := mustNewStateMachine(t, serverSettings)
-	c := &retirementDisconnectConn{blockingDisconnectConn: &blockingDisconnectConn{closed: make(chan struct{})}, entered: make(chan struct{})}
+	testDict := newSMTestDictionary(
+		dict.Base())
+	serverSettings := cloneTestSettings(serverSettings, testDict)
+
+	sm := mustNewStateMachine(t, serverSettings, testDict)
+	c := &retirementDisconnectConn{blockingDisconnectConn: &blockingDisconnectConn{dictionary: testDict, closed: make(chan struct{})}, entered: make(chan struct{})}
 	cleanup := sm.HandleAccept(c)
 	defer cleanup()
 	result := make(chan error, 1)
@@ -588,7 +620,9 @@ func TestAcceptedRetirementSuppressesDWACredit(t *testing.T) {
 }
 
 func TestAcceptedRetiredHandshakeCannotPublish(t *testing.T) {
-	sm := mustNewStateMachine(t, testMessageErrorSettings())
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
+	sm := mustNewStateMachine(t, testMessageErrorSettings(testDict), testDict)
 	c := newHandshakeConn()
 	cleanup := sm.HandleAccept(c)
 	defer cleanup()
@@ -596,7 +630,7 @@ func TestAcceptedRetiredHandshakeCannotPublish(t *testing.T) {
 	if sm.completeAcceptedHandshake(c) {
 		t.Fatal("retired handshake published admission")
 	}
-	handleCER(sm).ServeDIAM(c, regressionCER(t, dict.Default, 1001))
+	handleCER(sm).ServeDIAM(c, regressionCER(t, testDict, 1001))
 	if _, ok := smpeer.FromContext(c.Context()); ok {
 		t.Fatal("retired CER published metadata")
 	}
@@ -619,15 +653,17 @@ func TestAcceptedRetiredAcceptanceCannotRegister(t *testing.T) {
 }
 
 func TestAcceptedRepeatedCERLogsIgnoredPolicy(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	records := logtest.New()
-	cfg := *testMessageErrorSettings()
-	sm := mustNewStateMachine(t, &cfg)
+	cfg := *testMessageErrorSettings(testDict)
+	sm := mustNewStateMachine(t, &cfg, testDict)
 	c := loggerHandshakeConn{newHandshakeConn(), records.Logger()}
 	cleanup := sm.HandleAccept(c)
 	defer cleanup()
-	sm.ServeDIAM(c, regressionCER(t, dict.Default, 1001))
+	sm.ServeDIAM(c, regressionCER(t, testDict, 1001))
 	<-c.writes
-	sm.ServeDIAM(c, regressionCER(t, dict.Default, 1001))
+	sm.ServeDIAM(c, regressionCER(t, testDict, 1001))
 	found := false
 	for _, r := range records.Records() {
 		if r.Level == slog.LevelWarn && strings.Contains(r.Message, "ignoring CER on admitted connection") {
@@ -645,6 +681,8 @@ func TestAcceptedRepeatedCERLogsIgnoredPolicy(t *testing.T) {
 }
 
 func TestAcceptedRetirementReleasesDisconnectWithBlockedObserver(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	cfg := newAcceptedWatchdogSettings()
 	cfg.WatchdogInterval = time.Hour
 	entered, release := make(chan struct{}), make(chan struct{})
@@ -659,7 +697,7 @@ func TestAcceptedRetirementReleasesDisconnectWithBlockedObserver(t *testing.T) {
 	// Finish the first CER's admission before the synthetic observer can
 	// hold the watchdog mutex during its deferred startup.
 	transport.message(t, regressionDWR(t))
-	dwa, err := diam.ReadMessage(peer, dict.Default)
+	dwa, err := diam.ReadMessage(peer, testDict)
 	if err != nil || dwa.Header.CommandCode != diam.DeviceWatchdog || !testResultCode(dwa, diam.Success) {
 		t.Fatalf("initial admission DWA=%v,%v", dwa, err)
 	}
@@ -744,14 +782,18 @@ func (h *acceptedDPRGateHandler) ServeDIAM(c diam.Conn, m *diam.Message) {
 }
 
 func TestAcceptedDPRAdmissionPrecedesCERRenewal(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings2 := cloneTestSettings(serverSettings2, testDict)
+	clientSettings := cloneTestSettings(clientSettings, testDict)
+
 	cfg := *serverSettings2
 	cfg.HandshakeTimeout = -1
 	handshakes := make(chan diam.Conn, 2)
 	cfg.OnHandshake = func(c diam.Conn, _ *smpeer.Metadata) { handshakes <- c }
-	sm := mustNewStateMachine(t, &cfg)
+	sm := mustNewStateMachine(t, &cfg, testDict)
 	handler := &acceptedDPRGateHandler{StateMachine: sm}
 	restarts := make(chan struct{}, 1)
-	server := &diam.Server{Handler: handler, Dict: dict.Default, MaxConcurrentHandlers: 2, RenewAcceptedCER: true, OnConnectionRestart: func(diam.Conn, diam.Conn, diam.RetirementReason) { restarts <- struct{}{} }}
+	server := &diam.Server{Handler: handler, Dict: testDict, MaxConcurrentHandlers: 2, RenewAcceptedCER: true, OnConnectionRestart: func(diam.Conn, diam.Conn, diam.RetirementReason) { restarts <- struct{}{} }}
 	listener := &watchdogPipeListener{accepted: make(chan net.Conn, 1), closed: make(chan struct{})}
 	local, peer := net.Pipe()
 	transport := &acceptedRestartTransport{Conn: local, reads: make(chan acceptedRestartRead, 8), closed: make(chan struct{})}
@@ -772,7 +814,7 @@ func TestAcceptedDPRAdmissionPrecedesCERRenewal(t *testing.T) {
 	transport.message(t, acceptedRestartCER(t, "first.example", 1001, 111))
 	acceptedRestartCEA(t, peer, diam.Success)
 	old = (<-handshakes).(*acceptedDPRGateConn)
-	dpr := diam.NewRequest(diam.DisconnectPeer, 0, dict.Default)
+	dpr := diam.NewRequest(diam.DisconnectPeer, 0, testDict)
 	mustSMClientAVP(t, dpr, avp.OriginHost, avp.Mbit, 0, clientSettings.OriginHost)
 	mustSMClientAVP(t, dpr, avp.OriginRealm, avp.Mbit, 0, clientSettings.OriginRealm)
 	mustSMClientAVP(t, dpr, avp.DisconnectCause, avp.Mbit, 0, datatype.Enumerated(0))
@@ -786,12 +828,12 @@ func TestAcceptedDPRAdmissionPrecedesCERRenewal(t *testing.T) {
 	}
 	unblock.Do(func() { close(old.release) })
 	_ = peer.SetReadDeadline(time.Now().Add(time.Second))
-	answer, err := diam.ReadMessage(peer, dict.Default)
+	answer, err := diam.ReadMessage(peer, testDict)
 	if err != nil || answer.Header.CommandCode != diam.DisconnectPeer || !testResultCode(answer, diam.Success) {
 		t.Fatalf("DPA=%v,%v", answer, err)
 	}
 	transport.message(t, regressionDWR(t))
-	answer, err = diam.ReadMessage(peer, dict.Default)
+	answer, err = diam.ReadMessage(peer, testDict)
 	if err != nil || answer.Header.CommandCode != diam.DeviceWatchdog {
 		t.Fatalf("Closing CER produced unexpected answer %v,%v", answer, err)
 	}
@@ -807,11 +849,13 @@ func TestAcceptedDPRAdmissionPrecedesCERRenewal(t *testing.T) {
 }
 
 func TestAcceptedRetiredMessageErrorDoesNotAnswer(t *testing.T) {
-	sm := mustNewStateMachine(t, testMessageErrorSettings())
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
+	sm := mustNewStateMachine(t, testMessageErrorSettings(testDict), testDict)
 	c := newHandshakeConn()
 	cleanup := sm.HandleAccept(c)
 	defer cleanup()
-	sm.ServeDIAM(c, regressionCER(t, dict.Default, 1001))
+	sm.ServeDIAM(c, regressionCER(t, testDict, 1001))
 	<-c.writes
 	c.closed.Store(true)
 	if err := sm.HandleMessageError(c, regressionDWR(t), &diam.MessageError{ResultCode: diam.InvalidAVPValue}); err != nil {
@@ -873,6 +917,9 @@ func TestAcceptedRestartWatchdogStates(t *testing.T) {
 }
 
 func TestAcceptedRestartOldDPAIsNotNewDisconnectAnswer(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings2 := cloneTestSettings(serverSettings2, testDict)
+
 	cfg := *serverSettings2
 	sm, transport, peer, handshakes, _ := newAcceptedRestartServer(t, &cfg, 2)
 	transport.message(t, acceptedRestartCER(t, "first.example", 1001, 111))
@@ -880,7 +927,7 @@ func TestAcceptedRestartOldDPAIsNotNewDisconnectAnswer(t *testing.T) {
 	old := <-handshakes
 	oldResult := make(chan error, 1)
 	go func() { oldResult <- sm.Disconnect(old, DisconnectBusy, time.Hour) }()
-	oldDPR, err := diam.ReadMessage(peer, dict.Default)
+	oldDPR, err := diam.ReadMessage(peer, testDict)
 	if err != nil || oldDPR.Header.CommandCode != diam.DisconnectPeer {
 		t.Fatalf("old DPR=%v,%v", oldDPR, err)
 	}
@@ -896,7 +943,7 @@ func TestAcceptedRestartOldDPAIsNotNewDisconnectAnswer(t *testing.T) {
 	}
 	nextResult := make(chan error, 1)
 	go func() { nextResult <- sm.Disconnect(next, DisconnectBusy, time.Hour) }()
-	nextDPR, err := diam.ReadMessage(peer, dict.Default)
+	nextDPR, err := diam.ReadMessage(peer, testDict)
 	if err != nil || nextDPR.Header.CommandCode != diam.DisconnectPeer {
 		t.Fatalf("new DPR=%v,%v", nextDPR, err)
 	}
@@ -905,7 +952,7 @@ func TestAcceptedRestartOldDPAIsNotNewDisconnectAnswer(t *testing.T) {
 	}
 	transport.message(t, acceptedDWA(t, oldDPR, diam.Success))
 	transport.message(t, regressionDWR(t))
-	answer, err := diam.ReadMessage(peer, dict.Default)
+	answer, err := diam.ReadMessage(peer, testDict)
 	if err != nil || answer.Header.CommandCode != diam.DeviceWatchdog {
 		t.Fatalf("post-oldDPA answer=%v,%v", answer, err)
 	}
@@ -934,30 +981,34 @@ func (c *retiredHandshakeConn) Generation() uint64                      { return
 func (c *retiredHandshakeConn) RetirementReason() diam.RetirementReason { return c.reason }
 
 func TestAcceptedRetiredBusinessAnswerDoesNotDispatch(t *testing.T) {
-	sm := mustNewStateMachine(t, testMessageErrorSettings())
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
+	sm := mustNewStateMachine(t, testMessageErrorSettings(testDict), testDict)
 	c := &retiredHandshakeConn{handshakeConn: newHandshakeConn()}
 	cleanup := sm.HandleAccept(c)
 	defer cleanup()
-	sm.ServeDIAM(c, regressionCER(t, dict.Default, 1001))
+	sm.ServeDIAM(c, regressionCER(t, testDict, 1001))
 	<-c.writes
 	calls := 0
 	sm.Handle("ALL", diam.HandlerFunc(func(diam.Conn, *diam.Message) { calls++ }))
 	c.closed.Store(true)
 	c.reason = diam.SCTPAssociationRestart
-	sm.ServeDIAM(c, diam.NewRequest(999, 1001, dict.Default).Answer(diam.Success))
+	sm.ServeDIAM(c, diam.NewRequest(999, 1001, testDict).Answer(diam.Success))
 	if calls != 0 {
 		t.Fatalf("retired generation delivered %d business answers", calls)
 	}
 }
 
 func TestDecodedBusinessAnswerDispatchByRetirement(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	for _, reason := range []diam.RetirementReason{0, diam.SCTPAssociationRestart, diam.AcceptedCERRenewal} {
 		t.Run(fmt.Sprint(reason), func(t *testing.T) {
-			sm := mustNewStateMachine(t, testMessageErrorSettings())
+			sm := mustNewStateMachine(t, testMessageErrorSettings(testDict), testDict)
 			c := &retiredHandshakeConn{handshakeConn: newHandshakeConn()}
 			cleanup := sm.HandleAccept(c)
 			defer cleanup()
-			sm.ServeDIAM(c, regressionCER(t, dict.Default, 1001))
+			sm.ServeDIAM(c, regressionCER(t, testDict, 1001))
 			<-c.writes
 			calls := 0
 			sm.Handle("ALL", diam.HandlerFunc(func(diam.Conn, *diam.Message) { calls++ }))
@@ -965,7 +1016,7 @@ func TestDecodedBusinessAnswerDispatchByRetirement(t *testing.T) {
 			// its generation. Only renewal cancels its application delivery.
 			c.closed.Store(true)
 			c.reason = reason
-			sm.ServeDIAM(c, diam.NewRequest(999, 1001, dict.Default).Answer(diam.Success))
+			sm.ServeDIAM(c, diam.NewRequest(999, 1001, testDict).Answer(diam.Success))
 			want := 0
 			if reason == 0 {
 				want = 1

@@ -3,6 +3,9 @@ package diam
 import (
 	"testing"
 
+	"github.com/gomaja/go-diameter/diam/dict/s6a"
+	"github.com/gomaja/go-diameter/diam/dict/sh"
+
 	"github.com/gomaja/go-diameter/diam/dict"
 )
 
@@ -47,7 +50,7 @@ func TestServeMuxHandlerIndexFirst(t *testing.T) {
 	called := ""
 	mux.Handle("ALL", HandlerFunc(func(Conn, *Message) { called = "all" }))
 	mux.HandleIdx(CommandIndex{999999, 999999, true}, HandlerFunc(func(Conn, *Message) { called = "index" }))
-	m := NewRequest(999999, 999999, dict.New(dict.Base))
+	m := NewRequest(999999, 999999, newTestDictionary(dict.Base()))
 	mux.ServeDIAM(nil, m)
 	if called != "index" {
 		t.Fatalf("unknown command route=%q", called)
@@ -59,7 +62,7 @@ func TestServeMuxHandlerIndexFirst(t *testing.T) {
 }
 
 func TestServeMuxShortNameAcrossApplications(t *testing.T) {
-	dp := dict.New(dict.S6a, dict.Sh)
+	dp := newTestDictionary(s6a.Dictionary(), sh.Dictionary())
 	mux := NewServeMux()
 	called := ""
 	mux.Handle("PUR", HandlerFunc(func(Conn, *Message) { called = "name" }))

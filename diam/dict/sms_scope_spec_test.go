@@ -1,4 +1,4 @@
-package dict
+package dict_test
 
 import (
 	"fmt"
@@ -9,6 +9,8 @@ import (
 // overrides it: TS 29.338 V19.3.0 Tables 5.3.3.1/2 and 6.3.3.1/2;
 // TS 29.272 V19.6.0 Table 7.3.1/2; TS 29.273 V19.2.0 Table 8.2.3.0/2.
 func TestSMSApplicationFlagScope(t *testing.T) {
+	reference := newAllTestParser(t)
+
 	for _, tc := range []struct {
 		name string
 		code uint32
@@ -33,7 +35,7 @@ func TestSMSApplicationFlagScope(t *testing.T) {
 	} {
 		for i, app := range []uint32{16777312, 16777313, 16777251, 16777265} {
 			t.Run(fmt.Sprintf("%d/%s", app, tc.name), func(t *testing.T) {
-				a, err := Default.FindAVP(app, tc.code, 10415)
+				a, err := reference.FindAVP(app, tc.code, 10415)
 				if err != nil {
 					t.Fatal(err)
 				}

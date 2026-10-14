@@ -1,12 +1,24 @@
-package dict
+package dict_test
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/gomaja/go-diameter/diam/dict"
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+	"github.com/gomaja/go-diameter/diam/dict/nasreq"
+	"github.com/gomaja/go-diameter/diam/dict/rorf"
+	"github.com/gomaja/go-diameter/diam/dict/s13"
+	"github.com/gomaja/go-diameter/diam/dict/s6a"
+	"github.com/gomaja/go-diameter/diam/dict/s6c"
+)
 
 // TS 29.173 V19.0.0 §§6.4.5, 6.4.13–6.4.14 define the inherited
 // node identities. TS 29.272 V19.6.0 Table 7.3.1/2 reuses Supported-Features
 // and Feature-List-ID. Identical definitions resolve to their Ro/Rf owner.
 func TestS6aRefreshInheritedAVPs(t *testing.T) {
-	for _, d := range []*Parser{Default, New(S6a, S6c, CreditControl, RoRf, NASREQ, Base)} {
+	reference := newAllTestParser(t)
+
+	for _, d := range []*dict.Parser{reference, newTestParser(t, s6a.Dictionary(), s6c.Dictionary(), creditcontrol.Dictionary(), rorf.Dictionary(), nasreq.Dictionary(), dict.Base())} {
 		for _, tc := range []struct {
 			name string
 			code uint32
@@ -49,7 +61,7 @@ func TestS6aRefreshInheritedTimeAVPs(t *testing.T) {
 		{"Day-Of-Week-Mask", 563},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			d := New(S6a)
+			d := newTestParser(t, s6a.Dictionary())
 			a, err := d.FindAVPByName(16777251, tc.name)
 			if err != nil {
 				t.Fatal(err)
@@ -66,7 +78,7 @@ func TestS6aRefreshInheritedTimeAVPs(t *testing.T) {
 
 // TS 29.272 V19.6.0 Table 7.3.1/2 applies the same M-bit policy to S13/S13'.
 func TestS13RefreshDRMP(t *testing.T) {
-	d := New(Base, S13)
+	d := newTestParser(t, dict.Base(), s13.Dictionary())
 	a, err := d.FindAVPByName(16777252, "DRMP")
 	if err != nil {
 		t.Fatal(err)
@@ -87,12 +99,14 @@ func TestS13RefreshDRMP(t *testing.T) {
 
 // TS 29.229 V19.1.0 §6.3.29; reused by TS 29.272 V19.6.0 Table 7.3.1/2.
 func TestS6aRefreshSupportedFeaturesGrammar(t *testing.T) {
+	reference := newAllTestParser(t)
+
 	for _, appID := range []uint32{16777251, 4, 16777236} {
-		a, err := Default.FindAVPByName(appID, "Supported-Features")
+		a, err := reference.FindAVPByName(appID, "Supported-Features")
 		if err != nil {
 			t.Fatal(err)
 		}
-		want := []Rule{
+		want := []dict.Rule{
 			{AVP: "Vendor-Id", Required: true, Max: 1, MaxSet: true},
 			{AVP: "Feature-List-ID", Required: true, Max: 1, MaxSet: true},
 			{AVP: "Feature-List", Required: true, Max: 1, MaxSet: true},

@@ -5,6 +5,8 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/dict"
@@ -37,7 +39,9 @@ func TestMessageAVPAPIsHaveTypedSignatures(t *testing.T) {
 
 // RFC 6733 §4.1: name resolution supplies the definition's code and vendor.
 func TestNewAVPByNameDerivesVendor(t *testing.T) {
-	m := NewRequest(272, 4, dict.Default)
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
+	m := NewRequest(272, 4, testDict)
 	method := reflect.ValueOf(m).MethodByName("NewAVPByName")
 	if !method.IsValid() {
 		t.Fatal("Message.NewAVPByName is absent")
@@ -76,7 +80,9 @@ func TestNewAVPByNameDerivesVendor(t *testing.T) {
 }
 
 func TestMessageFindMissesDistinguishDictionaryFromMessage(t *testing.T) {
-	m := NewRequest(272, 4, dict.Default)
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
+	m := NewRequest(272, 4, testDict)
 	if got, err := m.FindAVP(9, 10415); got != nil || !errors.Is(err, ErrAVPNotFound) || errors.Is(err, dict.ErrNotFound) {
 		t.Errorf("FindAVP miss = %v, %v", got, err)
 	}

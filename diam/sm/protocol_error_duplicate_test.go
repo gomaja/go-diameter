@@ -6,9 +6,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/diamtest"
-	"github.com/gomaja/go-diameter/diam/dict"
 	"github.com/gomaja/go-diameter/diam/internal/logtest"
 	"github.com/gomaja/go-diameter/diam/sm/smpeer"
 )
@@ -58,19 +59,21 @@ func (h *protocolDuplicateHandler) ServeDIAM(c diam.Conn, m *diam.Message) {
 }
 
 func TestProtocolErrorDuplicateDPAWhileResultPending(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	events := make(chan diam.ProtocolErrorEvent, 4)
 	handshake := make(chan diam.Conn, 1)
 	release := make(chan struct{})
 	var once sync.Once
 	unblock := func() { once.Do(func() { close(release) }) }
 	defer unblock()
-	cfg := testMessageErrorSettings()
+	cfg := testMessageErrorSettings(testDict)
 	cfg.OnProtocolError = func(event diam.ProtocolErrorEvent) { events <- event }
 	cfg.OnHandshake = func(c diam.Conn, _ *smpeer.Metadata) { handshake <- c }
-	machine := mustNewStateMachine(t, cfg)
+	machine := mustNewStateMachine(t, cfg, testDict)
 	handler := &protocolDuplicateHandler{StateMachine: machine, written: make(chan struct{}), release: release, dispatched: make(chan diam.Header, 2)}
 	logs := logtest.New()
-	server := diamtest.NewUnstartedServer(handler, dict.Default)
+	server := diamtest.NewUnstartedServer(handler, testDict)
 	server.Config.Logger = logs.Logger()
 	server.Start()
 	t.Cleanup(server.Close)
@@ -83,14 +86,14 @@ func TestProtocolErrorDuplicateDPAWhileResultPending(t *testing.T) {
 		t.Fatal(err)
 	}
 	writeValidSMErrorCER(t, peer)
-	cea, err := diam.ReadMessage(peer, dict.Default)
+	cea, err := diam.ReadMessage(peer, testDict)
 	if err != nil || !testResultCode(cea, diam.Success) {
 		t.Fatalf("CEA = %v, %v", cea, err)
 	}
 	c := protocolGenerationAwait(t, handshake)
 	disconnected := make(chan error, 1)
 	go func() { disconnected <- machine.Disconnect(c, DisconnectRebooting, time.Hour) }()
-	dpr, err := diam.ReadMessage(peer, dict.Default)
+	dpr, err := diam.ReadMessage(peer, testDict)
 	if err != nil || dpr.Header.CommandCode != diam.DisconnectPeer || dpr.Header.CommandFlags&diam.RequestFlag == 0 {
 		t.Fatalf("DPR = %v, %v", dpr, err)
 	}

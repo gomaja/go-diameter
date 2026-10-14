@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
@@ -53,6 +55,10 @@ func TestClientOverrideControlsConnectionApplications(t *testing.T) {
 }
 
 func testClientOverrideControlsConnectionApplications(t *testing.T, validateRequests bool) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings := cloneTestSettings(serverSettings, testDict)
+	clientSettings := cloneTestSettings(clientSettings, testDict)
+
 	t.Helper()
 	const customApp = 16777999
 	application := diam.NewAVP(avp.AuthApplicationID, avp.Mbit, 0, datatype.Unsigned32(customApp))
@@ -62,13 +68,13 @@ func testClientOverrideControlsConnectionApplications(t *testing.T, validateRequ
 	serverSM := mustNew(&serverCfg)
 	serverHandshakes := testHandshakeNotifications(serverSM)
 	serverAnswers := capabilityAnswerHandler(serverSM)
-	server := diamtest.NewServer(serverSM, dict.Default)
+	server := diamtest.NewServer(serverSM, testDict)
 	defer server.Close()
 	clientCfg := *clientSettings
 	clientCfg.ValidateRequests = validateRequests
 	clientSM := mustNew(&clientCfg)
 	clientAnswers := capabilityAnswerHandler(clientSM)
-	client := &Client{Handler: clientSM, AuthApplicationID: []*diam.AVP{application}}
+	client := &Client{Handler: clientSM, AuthApplicationID: []*diam.AVP{application}, Dict: testDict}
 	conn, err := client.Dial(server.Addr)
 	if err != nil {
 		t.Fatal(err)
@@ -86,7 +92,7 @@ func testClientOverrideControlsConnectionApplications(t *testing.T, validateRequ
 	for _, tc := range []struct {
 		app, result uint32
 	}{{customApp, diam.CommandUnsupported}, {4, diam.ApplicationUnsupported}} {
-		request := diam.NewMessage(0xfedc, diam.RequestFlag, tc.app, 3, 4, dict.Default)
+		request := diam.NewMessage(0xfedc, diam.RequestFlag, tc.app, 3, 4, testDict)
 		if _, err := request.WriteTo(serverConn); err != nil {
 			t.Fatal(err)
 		}
@@ -95,7 +101,7 @@ func testClientOverrideControlsConnectionApplications(t *testing.T, validateRequ
 	for _, tc := range []struct {
 		app, result uint32
 	}{{customApp, diam.CommandUnsupported}, {4, diam.ApplicationUnsupported}} {
-		request := diam.NewMessage(0xfedc, diam.RequestFlag, tc.app, 1, 2, dict.Default)
+		request := diam.NewMessage(0xfedc, diam.RequestFlag, tc.app, 1, 2, testDict)
 		if _, err := request.WriteTo(conn); err != nil {
 			t.Fatal(err)
 		}
@@ -135,8 +141,10 @@ func awaitCapabilityAnswer(t *testing.T, answers <-chan *diam.Message, request *
 }
 
 func testUnsupportedCommandAnswerTCP(t *testing.T, command, appID, want uint32) {
-	sm := mustNewStateMachine(t, testMessageErrorSettings())
-	srv := diamtest.NewServer(sm, dict.Default)
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
+	sm := mustNewStateMachine(t, testMessageErrorSettings(testDict), testDict)
+	srv := diamtest.NewServer(sm, testDict)
 	defer srv.Close()
 	conn, err := net.DialTimeout("tcp", srv.Addr, time.Second)
 	if err != nil {
@@ -144,14 +152,14 @@ func testUnsupportedCommandAnswerTCP(t *testing.T, command, appID, want uint32) 
 	}
 	defer func() { _ = conn.Close() }()
 	completeUnsupportedTestCER(t, conn)
-	request := diam.NewMessage(command, diam.RequestFlag|diam.ProxiableFlag|diam.RetransmittedFlag, appID, 0x1234, 0x5678, dict.Default)
+	request := diam.NewMessage(command, diam.RequestFlag|diam.ProxiableFlag|diam.RetransmittedFlag, appID, 0x1234, 0x5678, testDict)
 	if _, err := request.WriteTo(conn); err != nil {
 		t.Fatal(err)
 	}
 	if err := conn.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
 		t.Fatal(err)
 	}
-	answer, err := diam.ReadMessage(conn, dict.Default)
+	answer, err := diam.ReadMessage(conn, testDict)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -164,17 +172,19 @@ func testUnsupportedCommandAnswerTCP(t *testing.T, command, appID, want uint32) 
 	if !testResultCode(answer, want) {
 		t.Fatalf("answer result code, want %d: %v", want, answer)
 	}
-	if got := answer.AVP[0].Data; got != testMessageErrorSettings().OriginHost {
+	if got := answer.AVP[0].Data; got != testMessageErrorSettings(testDict).OriginHost {
 		t.Fatalf("Origin-Host = %v", got)
 	}
-	if got := answer.AVP[1].Data; got != testMessageErrorSettings().OriginRealm {
+	if got := answer.AVP[1].Data; got != testMessageErrorSettings(testDict).OriginRealm {
 		t.Fatalf("Origin-Realm = %v", got)
 	}
 }
 
 func TestUnsupportedCommandNeverAnswersAnswer(t *testing.T) {
-	sm := mustNewStateMachine(t, testMessageErrorSettings())
-	srv := diamtest.NewServer(sm, dict.Default)
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
+	sm := mustNewStateMachine(t, testMessageErrorSettings(testDict), testDict)
+	srv := diamtest.NewServer(sm, testDict)
 	defer srv.Close()
 	conn, err := net.DialTimeout("tcp", srv.Addr, time.Second)
 	if err != nil {
@@ -182,14 +192,14 @@ func TestUnsupportedCommandNeverAnswersAnswer(t *testing.T) {
 	}
 	defer func() { _ = conn.Close() }()
 	completeUnsupportedTestCER(t, conn)
-	answer := diam.NewMessage(0xfedc, 0, 0, 0x1234, 0x5678, dict.Default)
+	answer := diam.NewMessage(0xfedc, 0, 0, 0x1234, 0x5678, testDict)
 	if _, err := answer.WriteTo(conn); err != nil {
 		t.Fatal(err)
 	}
 	if err := conn.SetReadDeadline(time.Now().Add(150 * time.Millisecond)); err != nil {
 		t.Fatal(err)
 	}
-	_, err = diam.ReadMessage(conn, dict.Default)
+	_, err = diam.ReadMessage(conn, testDict)
 	var nerr net.Error
 	if !errors.As(err, &nerr) || !nerr.Timeout() {
 		t.Fatalf("read = %v, want timeout", err)
@@ -197,10 +207,12 @@ func TestUnsupportedCommandNeverAnswersAnswer(t *testing.T) {
 }
 
 func TestUnsupportedCommandHonorsAllHandler(t *testing.T) {
-	sm := mustNewStateMachine(t, testMessageErrorSettings())
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
+	sm := mustNewStateMachine(t, testMessageErrorSettings(testDict), testDict)
 	seen := make(chan struct{}, 1)
 	sm.HandleFunc("ALL", func(_ diam.Conn, _ *diam.Message) { seen <- struct{}{} })
-	srv := diamtest.NewServer(sm, dict.Default)
+	srv := diamtest.NewServer(sm, testDict)
 	defer srv.Close()
 	conn, err := net.DialTimeout("tcp", srv.Addr, time.Second)
 	if err != nil {
@@ -211,10 +223,10 @@ func TestUnsupportedCommandHonorsAllHandler(t *testing.T) {
 	if err := conn.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := diam.ReadMessage(conn, dict.Default); err != nil {
+	if _, err := diam.ReadMessage(conn, testDict); err != nil {
 		t.Fatalf("read CEA: %v", err)
 	}
-	request := diam.NewMessage(0xfedc, diam.RequestFlag, 0, 1, 2, dict.Default)
+	request := diam.NewMessage(0xfedc, diam.RequestFlag, 0, 1, 2, testDict)
 	if _, err := request.WriteTo(conn); err != nil {
 		t.Fatal(err)
 	}
@@ -226,7 +238,7 @@ func TestUnsupportedCommandHonorsAllHandler(t *testing.T) {
 	if err := conn.SetReadDeadline(time.Now().Add(150 * time.Millisecond)); err != nil {
 		t.Fatal(err)
 	}
-	_, err = diam.ReadMessage(conn, dict.Default)
+	_, err = diam.ReadMessage(conn, testDict)
 	var nerr net.Error
 	if !errors.As(err, &nerr) || !nerr.Timeout() {
 		t.Fatalf("read = %v, want timeout", err)
@@ -238,9 +250,11 @@ func TestUnsupportedCommandHonorsAllHandler(t *testing.T) {
 // request is answered with 3001 and reported, and an unhandled answer is
 // reported rather than dropped silently.
 func TestUnsupportedCommandStillReported(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	records := logtest.New()
-	sm := mustNewStateMachine(t, testMessageErrorSettings())
-	srv := diamtest.NewUnstartedServer(sm, dict.Default)
+	sm := mustNewStateMachine(t, testMessageErrorSettings(testDict), testDict)
+	srv := diamtest.NewUnstartedServer(sm, testDict)
 	srv.Config.Logger = records.Logger()
 	srv.Start()
 	defer srv.Close()
@@ -259,7 +273,7 @@ func TestUnsupportedCommandStillReported(t *testing.T) {
 		}
 	}
 
-	request := diam.NewMessage(0xfedc, diam.RequestFlag, 0, 1, 2, dict.Default)
+	request := diam.NewMessage(0xfedc, diam.RequestFlag, 0, 1, 2, testDict)
 	if _, err := request.WriteTo(conn); err != nil {
 		t.Fatal(err)
 	}
@@ -267,10 +281,10 @@ func TestUnsupportedCommandStillReported(t *testing.T) {
 	if err := conn.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
 		t.Fatal(err)
 	}
-	if answer, err := diam.ReadMessage(conn, dict.Default); err != nil || !testResultCode(answer, diam.CommandUnsupported) {
+	if answer, err := diam.ReadMessage(conn, testDict); err != nil || !testResultCode(answer, diam.CommandUnsupported) {
 		t.Fatalf("want 3001 answer, got %v, %v", answer, err)
 	}
-	answer := diam.NewMessage(0xfedc, 0, 0, 3, 4, dict.Default)
+	answer := diam.NewMessage(0xfedc, 0, 0, 3, 4, testDict)
 	if _, err := answer.WriteTo(conn); err != nil {
 		t.Fatal(err)
 	}
@@ -278,12 +292,14 @@ func TestUnsupportedCommandStillReported(t *testing.T) {
 }
 
 func completeUnsupportedTestCER(t *testing.T, conn net.Conn) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	t.Helper()
 	writeValidSMErrorCER(t, conn)
 	if err := conn.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
 		t.Fatal(err)
 	}
-	answer, err := diam.ReadMessage(conn, dict.Default)
+	answer, err := diam.ReadMessage(conn, testDict)
 	if err != nil || !testResultCode(answer, diam.Success) {
 		t.Fatalf("CER answer = %v, %v", answer, err)
 	}
@@ -294,9 +310,11 @@ func completeUnsupportedTestCER(t *testing.T, conn net.Conn) {
 // advertises, not from the dictionary that decoded the message (RFC 6733
 // §7.1.3). An unknown command in an advertised application stays 3001.
 func TestValidateRequestsUsesAdvertisedApplications(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	baseOnly := func(t *testing.T) *dict.Parser {
 		t.Helper()
-		p := dict.New(dict.Base)
+		p := newTestDictionary(dict.Base())
 		return p
 	}
 	relay := func(t *testing.T) *dict.Parser {
@@ -312,16 +330,16 @@ func TestValidateRequestsUsesAdvertisedApplications(t *testing.T) {
 		advertised, onWire func(*testing.T) *dict.Parser
 		appID, want        uint32
 	}{
-		{"advertised, unknown to the decoding dictionary", func(*testing.T) *dict.Parser { return dict.Default }, baseOnly, diam.CHARGING_CONTROL_APP_ID, diam.CommandUnsupported},
+		{"advertised, unknown to the decoding dictionary", func(*testing.T) *dict.Parser { return testDict }, baseOnly, diam.CHARGING_CONTROL_APP_ID, diam.CommandUnsupported},
 		{"relay advertised", relay, baseOnly, 77, diam.CommandUnsupported},
-		{"known to the decoding dictionary, not advertised", baseOnly, func(*testing.T) *dict.Parser { return dict.Default }, diam.CHARGING_CONTROL_APP_ID, diam.ApplicationUnsupported},
+		{"known to the decoding dictionary, not advertised", baseOnly, func(*testing.T) *dict.Parser { return testDict }, diam.CHARGING_CONTROL_APP_ID, diam.ApplicationUnsupported},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			settings := testMessageErrorSettings()
+			settings := testMessageErrorSettings(testDict)
 			settings.Dict = tc.advertised(t)
 			settings.ValidateRequests = true
 			wire := tc.onWire(t)
-			srv := diamtest.NewServer(mustNewStateMachine(t, settings), wire)
+			srv := diamtest.NewServer(mustNewStateMachine(t, settings, testDict), wire)
 			defer srv.Close()
 			conn, err := net.DialTimeout("tcp", srv.Addr, time.Second)
 			if err != nil {
@@ -364,11 +382,13 @@ func TestValidateRequestsUsesAdvertisedApplications(t *testing.T) {
 // rejected with 3008 because its header has a non-zero Application-Id
 // also closes the connection (RFC 6733 §§2.5, 5.3, 7.1.3).
 func TestValidateRequestsClosesCERForUnsupportedApplication(t *testing.T) {
-	baseOnly := dict.New(dict.Base)
-	settings := testMessageErrorSettings()
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
+	baseOnly := newTestDictionary(dict.Base())
+	settings := testMessageErrorSettings(testDict)
 	settings.Dict = baseOnly
 	settings.ValidateRequests = true
-	srv := diamtest.NewServer(mustNewStateMachine(t, settings), dict.Default)
+	srv := diamtest.NewServer(mustNewStateMachine(t, settings, testDict), testDict)
 	defer srv.Close()
 	conn, err := net.DialTimeout("tcp", srv.Addr, time.Second)
 	if err != nil {
@@ -378,7 +398,7 @@ func TestValidateRequestsClosesCERForUnsupportedApplication(t *testing.T) {
 	if err := conn.SetDeadline(time.Now().Add(2 * time.Second)); err != nil {
 		t.Fatal(err)
 	}
-	cer := diam.NewMessage(diam.CapabilitiesExchange, diam.RequestFlag, diam.CHARGING_CONTROL_APP_ID, 0x1234, 0x5678, dict.Default)
+	cer := diam.NewMessage(diam.CapabilitiesExchange, diam.RequestFlag, diam.CHARGING_CONTROL_APP_ID, 0x1234, 0x5678, testDict)
 	mustSMClientAVP(t, cer, avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("peer.example"))
 	mustSMClientAVP(t, cer, avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("example"))
 	mustSMClientAVP(t, cer, avp.HostIPAddress, avp.Mbit, 0, datatype.AddressFromIP(netip.MustParseAddr("127.0.0.1")))
@@ -388,14 +408,14 @@ func TestValidateRequestsClosesCERForUnsupportedApplication(t *testing.T) {
 	if _, err := cer.WriteTo(conn); err != nil {
 		t.Fatal(err)
 	}
-	answer, err := diam.ReadMessage(conn, dict.Default)
+	answer, err := diam.ReadMessage(conn, testDict)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if answer.Header.CommandFlags&diam.ErrorFlag == 0 || !testResultCode(answer, diam.InvalidHDRBits) {
 		t.Fatalf("want E-bit 3008: %v", answer)
 	}
-	if extra, err := diam.ReadMessage(conn, dict.Default); err == nil {
+	if extra, err := diam.ReadMessage(conn, testDict); err == nil {
 		t.Fatalf("connection stayed open after the rejected CER: %v", extra)
 	} else if !errors.Is(err, io.EOF) {
 		t.Fatalf("read after the rejected CER: %v, want EOF", err)

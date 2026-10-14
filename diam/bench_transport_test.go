@@ -15,6 +15,8 @@ import (
 )
 
 func benchmarkDiamTransport(b *testing.B, network string) {
+	testDict := newTestDictionary(dict.Base())
+
 	done := make(chan struct{}, 1)
 	mux := NewServeMux()
 	mux.HandleFunc("ALL", func(c Conn, m *Message) {
@@ -52,7 +54,7 @@ func benchmarkDiamTransport(b *testing.B, network string) {
 		}
 	}()
 
-	msg := NewRequest(257, 0, dict.Default)
+	msg := NewRequest(257, 0, testDict)
 	mustBenchmarkAVP(b, msg, avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("bench.host"))
 	mustBenchmarkAVP(b, msg, avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("bench.realm"))
 	mustBenchmarkAVP(b, msg, avp.HostIPAddress, avp.Mbit, 0, datatype.AddressFromIP(netip.MustParseAddr("127.0.0.1")))

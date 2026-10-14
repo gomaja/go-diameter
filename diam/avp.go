@@ -28,8 +28,8 @@ var (
 )
 
 // decodingSnapshot returns the dictionary state a decode uses throughout:
-// d's current Snapshot, or dict.Default's when d is nil, as for
-// Message.Dictionary. Resolving every AVP of a message against one Snapshot
+// d's current Snapshot, or the initially base-only dict.Default's when d is
+// nil, as for Message.Dictionary. Resolving every AVP of a message against one Snapshot
 // means a dictionary change made meanwhile applies to the whole message or
 // to none of it.
 func decodingSnapshot(d *dict.Parser) *dict.Snapshot {
@@ -84,7 +84,8 @@ func newAVPWithFlags(code uint32, flags uint8, vendor uint32, data datatype.Type
 // AVP as level 1. A Grouped AVP nested deeper keeps its payload undecoded as
 // datatype.Unknown and a DecodeError is returned, as for any Grouped AVP
 // whose members fail to decode. The AVP and its members are resolved against
-// one dict.Snapshot of dictionary; a nil dictionary means dict.Default.
+// one dict.Snapshot of dictionary; a nil dictionary means the shared,
+// initially base-only dict.Default.
 func DecodeAVP(data []byte, application uint32, dictionary *dict.Parser) (*AVP, error) {
 	return decodeAVP(data, application, decodingSnapshot(dictionary), 0, false)
 }

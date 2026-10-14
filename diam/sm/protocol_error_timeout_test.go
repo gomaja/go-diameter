@@ -8,9 +8,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/diamtest"
-	"github.com/gomaja/go-diameter/diam/dict"
 	"github.com/gomaja/go-diameter/diam/internal/logtest"
 )
 
@@ -38,6 +39,8 @@ func (h protocolTimeoutLog) WithGroup(group string) slog.Handler {
 }
 
 func TestProtocolErrorB6CERLosesTimeoutWire(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	logs := logtest.New()
 	timerEntered, releaseTimer := make(chan struct{}), make(chan struct{})
 	cerEntered, releaseCER := make(chan struct{}), make(chan struct{})
@@ -45,13 +48,13 @@ func TestProtocolErrorB6CERLosesTimeoutWire(t *testing.T) {
 	unblockTimer := func() { timerOnce.Do(func() { close(releaseTimer) }) }
 	unblockCER := func() { cerOnce.Do(func() { close(releaseCER) }) }
 	events := make(chan diam.ProtocolErrorEvent, 2)
-	cfg := testMessageErrorSettings()
+	cfg := testMessageErrorSettings(testDict)
 	cfg.HandshakeTimeout = 30 * time.Millisecond
 	cfg.OnCER = func(diam.Conn, *diam.Message) { close(cerEntered); <-releaseCER }
 	cfg.OnProtocolError = func(e diam.ProtocolErrorEvent) { events <- e }
-	sm := mustNewStateMachine(t, cfg)
+	sm := mustNewStateMachine(t, cfg, testDict)
 	opened := make(chan diam.Conn, 1)
-	srv := diamtest.NewUnstartedServer(sm, dict.Default)
+	srv := diamtest.NewUnstartedServer(sm, testDict)
 	srv.Config.Logger = slog.New(protocolTimeoutLog{logs.Logger().Handler(), timerEntered, releaseTimer})
 	srv.Config.OnNewConnection = func(c diam.Conn) { opened <- c }
 	srv.Start()
@@ -67,7 +70,7 @@ func TestProtocolErrorB6CERLosesTimeoutWire(t *testing.T) {
 		t.Fatal(err)
 	}
 	c := <-opened
-	m := regressionCER(t, dict.Default, 1001)
+	m := regressionCER(t, testDict, 1001)
 	wire, err := m.Serialize()
 	if err != nil {
 		t.Fatal(err)
@@ -98,12 +101,14 @@ func TestProtocolErrorB6CERLosesTimeoutWire(t *testing.T) {
 }
 
 func TestProtocolErrorB12AcceptedWatchdogTimeoutWire(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	p := newProtocolWire(t, func(c *Settings) {
 		c.EnableWatchdog = true
 		c.WatchdogInterval = 15 * time.Millisecond
 		c.watchdogTiming = &watchdogTiming{floor: time.Millisecond}
 	}, true)
-	dwr, err := diam.ReadMessage(p.peer, dict.Default)
+	dwr, err := diam.ReadMessage(p.peer, testDict)
 	if err != nil || dwr.Header.CommandCode != diam.DeviceWatchdog || dwr.Header.CommandFlags&diam.RequestFlag == 0 {
 		t.Fatalf("DWR=%v %v", dwr, err)
 	}

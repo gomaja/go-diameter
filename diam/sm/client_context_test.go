@@ -14,10 +14,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/diamtest"
-	"github.com/gomaja/go-diameter/diam/dict"
 	"github.com/gomaja/go-diameter/diam/sm/smpeer"
 )
 
@@ -35,9 +36,13 @@ func (l sourceListener) Accept() (net.Conn, error) {
 }
 
 func TestClientTLSLocalAddress(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings := cloneTestSettings(serverSettings,
+		testDict)
+
 	for _, method := range []string{"DialNetworkTLS", "DialTLSExt"} {
 		t.Run(method, func(t *testing.T) {
-			srv := diamtest.NewUnstartedServer(mustNewStateMachine(t, serverSettings), dict.Default)
+			srv := diamtest.NewUnstartedServer(mustNewStateMachine(t, serverSettings, testDict), testDict)
 			source := make(chan net.Addr, 1)
 			srv.Listener = sourceListener{srv.Listener, source}
 			srv.StartTLS()
@@ -73,6 +78,8 @@ func TestClientTLSLocalAddress(t *testing.T) {
 func TestClientDialContextCancelCER(t *testing.T) { testClientDialContextCancelCER(t, "tcp") }
 
 func testClientDialContextCancelCER(t *testing.T, network string) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	before := runtime.NumGoroutine()
 	ln, err := diam.MultistreamListen(network, "127.0.0.1:0")
 	if err != nil {
@@ -102,7 +109,7 @@ func testClientDialContextCancelCER(t *testing.T, network string) {
 	if err := peer.SetDeadline(time.Now().Add(3 * time.Second)); err != nil {
 		t.Fatal(err)
 	}
-	m, err := diam.ReadMessage(peer, dict.Default)
+	m, err := diam.ReadMessage(peer, testDict)
 	if err != nil || m.Header.CommandCode != diam.CapabilitiesExchange {
 		t.Fatalf("CER = %v, %v", m, err)
 	}
@@ -235,12 +242,18 @@ func TestClientDialContextSurvivesCancellation(t *testing.T) {
 }
 
 func testClientDialContextSurvivesCancellation(t *testing.T, network string) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings := cloneTestSettings(serverSettings,
+		testDict)
+	clientSettings := cloneTestSettings(clientSettings,
+		testDict)
+
 	for _, secure := range []bool{false, true} {
 		t.Run(map[bool]string{false: "tcp", true: "tls"}[secure], func(t *testing.T) {
 			received := make(chan struct{}, 1)
-			serverSM := mustNewStateMachine(t, serverSettings)
+			serverSM := mustNewStateMachine(t, serverSettings, testDict)
 			serverSM.HandleFunc("DWA", func(diam.Conn, *diam.Message) { received <- struct{}{} })
-			srv := diamtest.NewUnstartedServerNetwork(network, serverSM, dict.Default)
+			srv := diamtest.NewUnstartedServerNetwork(network, serverSM, testDict)
 			if secure {
 				srv.StartTLS()
 			} else {
@@ -270,7 +283,7 @@ func testClientDialContextSurvivesCancellation(t *testing.T, network string) {
 			case <-time.After(20 * time.Millisecond):
 			}
 			// A valid post-handshake message must reach the peer after cancellation.
-			m := diam.NewRequest(diam.DeviceWatchdog, 0, dict.Default).Answer(diam.Success)
+			m := diam.NewRequest(diam.DeviceWatchdog, 0, testDict).Answer(diam.Success)
 			mustSMClientAVP(t, m, avp.OriginHost, avp.Mbit, 0, clientSettings.OriginHost)
 			mustSMClientAVP(t, m, avp.OriginRealm, avp.Mbit, 0, clientSettings.OriginRealm)
 			if _, err := m.WriteTo(c); err != nil {
@@ -286,10 +299,12 @@ func testClientDialContextSurvivesCancellation(t *testing.T, network string) {
 }
 
 func TestClientDialTLSContextCancelCER(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	received := make(chan diam.Conn, 1)
 	mux := diam.NewServeMux()
 	mux.HandleFunc("CER", func(c diam.Conn, _ *diam.Message) { received <- c })
-	srv := diamtest.NewUnstartedServer(mux, dict.Default)
+	srv := diamtest.NewUnstartedServer(mux, testDict)
 	srv.StartTLS()
 	defer srv.Close()
 	cli := newLivenessClient(t)
@@ -333,13 +348,17 @@ func TestClientDialTLSContextCancelCER(t *testing.T) {
 }
 
 func TestClientDialTimeoutOnlyBoundsConnect(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings := cloneTestSettings(serverSettings,
+		testDict)
+
 	for _, method := range []string{"DialTimeout", "DialExt", "DialTLSTimeout", "DialTLSExt"} {
 		t.Run(method, func(t *testing.T) {
 			received, release := make(chan struct{}), make(chan struct{})
-			serverSM := mustNewStateMachine(t, serverSettings)
+			serverSM := mustNewStateMachine(t, serverSettings, testDict)
 			mux := diam.NewServeMux()
 			mux.HandleFunc("CER", func(c diam.Conn, m *diam.Message) { close(received); <-release; handleCER(serverSM)(c, m) })
-			srv := diamtest.NewUnstartedServer(mux, dict.Default)
+			srv := diamtest.NewUnstartedServer(mux, testDict)
 			if method == "DialTLSTimeout" || method == "DialTLSExt" {
 				srv.StartTLS()
 			} else {
@@ -396,10 +415,12 @@ func TestClientDialTimeoutOnlyBoundsConnect(t *testing.T) {
 }
 
 func TestClientDialContextCancelRetransmission(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	received := make(chan struct{}, 8)
 	mux := diam.NewServeMux()
 	mux.HandleFunc("CER", func(diam.Conn, *diam.Message) { received <- struct{}{} })
-	srv := diamtest.NewServer(mux, dict.Default)
+	srv := diamtest.NewServer(mux, testDict)
 	defer srv.Close()
 	cli := newLivenessClient(t)
 	cli.RetransmitInterval = 20 * time.Millisecond
@@ -485,6 +506,12 @@ func closeDialTest(t *testing.T, c io.Closer) {
 }
 
 func TestClientDialContextCancelsDuringHandshakeCallback(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings := cloneTestSettings(serverSettings,
+		testDict)
+	clientSettings := cloneTestSettings(clientSettings,
+		testDict)
+
 	entered := make(chan diam.Conn, 1)
 	release := make(chan struct{})
 	var once sync.Once
@@ -493,9 +520,9 @@ func TestClientDialContextCancelsDuringHandshakeCallback(t *testing.T) {
 	cfg := *clientSettings
 	cfg.OnHandshake = func(c diam.Conn, _ *smpeer.Metadata) { entered <- c; <-release }
 	cli := newLivenessClient(t)
-	cli.Handler = mustNewStateMachine(t, &cfg)
+	cli.Handler = mustNewStateMachine(t, &cfg, testDict)
 	cli.RetransmitInterval = 2 * time.Second
-	srv := diamtest.NewServer(mustNewStateMachine(t, serverSettings), dict.Default)
+	srv := diamtest.NewServer(mustNewStateMachine(t, serverSettings, testDict), testDict)
 	defer srv.Close()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

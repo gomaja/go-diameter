@@ -93,11 +93,13 @@ func protocolDiscoveryPanicRecord(t *testing.T, records *logtest.Recorder, prece
 }
 
 func TestProtocolErrorDiscoveryPanicPreservesNonfatalHandling(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	for _, kind := range []string{"enabled", "unwrap"} {
 		t.Run(kind, func(t *testing.T) {
 			events := make(chan ProtocolErrorEvent, 2)
 			handler, owner := protocolPanickingDiscovery(kind, events)
-			dictionary := dict.New(dict.Base)
+			dictionary := newTestDictionary(dict.Base())
 			dictionary.SetStrict(true)
 			records := logtest.New()
 			accepted := make(chan Conn, 1)
@@ -108,7 +110,7 @@ func TestProtocolErrorDiscoveryPanicPreservesNonfatalHandling(t *testing.T) {
 			if _, err := remote.Write(wire); err != nil {
 				t.Fatal(err)
 			}
-			answer, err := ReadMessage(remote, dict.Default)
+			answer, err := ReadMessage(remote, testDict)
 			if err != nil {
 				t.Fatalf("observer discovery changed nonfatal handling: error answer missing: %v", err)
 			}

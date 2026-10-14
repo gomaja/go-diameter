@@ -10,10 +10,12 @@ import (
 )
 
 func TestReadMessageUnknownMandatoryAVPs(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	unknown := NewAVP(0xfedc, avp.Mbit|avp.Vbit, 10415, datatype.OctetString("bad"))
 	optional := NewAVP(0xfedd, avp.Vbit, 10415, datatype.OctetString("okay"))
 	group := NewAVP(avp.VendorSpecificApplicationID, avp.Mbit, 0, &GroupedAVP{AVP: []*AVP{optional, unknown}})
-	m := NewRequest(ReAuth, 0, dict.Default)
+	m := NewRequest(ReAuth, 0, testDict)
 	m.AddAVP(optional)
 	m.AddAVP(unknown)
 	m.AddAVP(group)
@@ -21,7 +23,7 @@ func TestReadMessageUnknownMandatoryAVPs(t *testing.T) {
 	if _, err := m.WriteTo(&wire); err != nil {
 		t.Fatal(err)
 	}
-	decoded, err := ReadMessage(&wire, dict.Default)
+	decoded, err := ReadMessage(&wire, testDict)
 	if err != nil {
 		t.Fatal(err)
 	}

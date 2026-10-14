@@ -11,6 +11,7 @@ import (
 	"github.com/gomaja/go-diameter/diam/internal/logtest"
 
 	"github.com/gomaja/go-diameter/diam"
+	"github.com/gomaja/go-diameter/diam/dict"
 	"github.com/gomaja/go-diameter/diam/internal/base"
 )
 
@@ -24,6 +25,10 @@ func (*writableNotifyConn) Write(b []byte) (int, error)                 { return
 func (c *writableNotifyConn) WriteStream(b []byte, _ uint) (int, error) { return c.Write(b) }
 
 func TestOptionalConnThroughWrappers(t *testing.T) {
+	testDict := newSMTestDictionary(dict.Base())
+	serverSettings := cloneTestSettings(serverSettings,
+		testDict)
+
 	for _, tc := range []struct {
 		name  string
 		depth int
@@ -38,8 +43,8 @@ func TestOptionalConnThroughWrappers(t *testing.T) {
 			return c
 		}
 		t.Run("disconnect/"+tc.name, func(t *testing.T) {
-			sm := mustNewStateMachine(t, serverSettings)
-			inner := &blockingDisconnectConn{closed: make(chan struct{})}
+			sm := mustNewStateMachine(t, serverSettings, testDict)
+			inner := &blockingDisconnectConn{dictionary: testDict, closed: make(chan struct{})}
 			inner.Close()
 			err := sm.Disconnect(wrap(inner), DisconnectBusy, time.Second)
 			if tc.depth < 0 {
@@ -54,8 +59,8 @@ func TestOptionalConnThroughWrappers(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
 				cfg := *serverSettings
 				cfg.DPRCloseTimeout = time.Second
-				sm := mustNewStateMachine(t, &cfg)
-				inner := &writableNotifyConn{&blockingDisconnectConn{closed: make(chan struct{})}}
+				sm := mustNewStateMachine(t, &cfg, testDict)
+				inner := &writableNotifyConn{&blockingDisconnectConn{dictionary: testDict, closed: make(chan struct{})}}
 				defer inner.Close()
 				msg, err := base.BuildDPR(inner.Dictionary(), baseSettings(sm.cfg), uint32(DisconnectBusy))
 				if err != nil {
@@ -82,9 +87,9 @@ func TestOptionalConnThroughWrappers(t *testing.T) {
 						t.Fatalf("wrapped watchdog panicked: %v", p)
 					}
 				}()
-				sm := mustNewStateMachine(t, serverSettings)
-				cli := &Client{Handler: sm, WatchdogInterval: time.Hour}
-				inner := &observedNotifyConn{blockingDisconnectConn: &blockingDisconnectConn{closed: make(chan struct{})}}
+				sm := mustNewStateMachine(t, serverSettings, testDict)
+				cli := &Client{Handler: sm, WatchdogInterval: time.Hour, Dict: testDict}
+				inner := &observedNotifyConn{blockingDisconnectConn: &blockingDisconnectConn{dictionary: testDict, closed: make(chan struct{})}}
 				inner.Close()
 				cli.watchdog(wrap(inner), make(chan struct{}), &watchdogActivity{})
 				if inner.observed != (tc.depth >= 0) {
@@ -119,10 +124,14 @@ type loggedWatchdogConn struct {
 func (c loggedWatchdogConn) Logger() *slog.Logger { return c.logger }
 
 func TestWatchdogWarnsWithoutCloseNotifier(t *testing.T) {
+	testDict := newSMTestDictionary(dict.Base())
+	serverSettings := cloneTestSettings(serverSettings,
+		testDict)
+
 	logs := logtest.New()
-	inner := &blockingDisconnectConn{closed: make(chan struct{})}
+	inner := &blockingDisconnectConn{dictionary: testDict, closed: make(chan struct{})}
 	c := loggedWatchdogConn{inner, slog.New(logs).With("connection", "wrapped")}
-	cli := &Client{Handler: mustNewStateMachine(t, serverSettings)}
+	cli := &Client{Handler: mustNewStateMachine(t, serverSettings, testDict), Dict: testDict}
 	cli.watchdog(c, make(chan struct{}), &watchdogActivity{})
 	records := logs.Records()
 	if len(records) != 1 {
@@ -145,13 +154,17 @@ type loggedNotifyingWatchdogConn struct {
 func (c loggedNotifyingWatchdogConn) CloseNotify() <-chan struct{} { return c.closed }
 
 func TestWatchdogDoesNotWarnWithCloseNotifier(t *testing.T) {
+	testDict := newSMTestDictionary(dict.Base())
+	serverSettings := cloneTestSettings(serverSettings,
+		testDict)
+
 	logs := logtest.New()
-	inner := &blockingDisconnectConn{closed: make(chan struct{})}
+	inner := &blockingDisconnectConn{dictionary: testDict, closed: make(chan struct{})}
 	inner.Close()
 	c := loggedNotifyingWatchdogConn{loggedWatchdogConn{inner, slog.New(logs)}, inner.closed}
 	// A long interval keeps the timer from racing the closed CloseNotify
 	// channel, which would send a DWR on the closed connection.
-	cli := &Client{Handler: mustNewStateMachine(t, serverSettings), WatchdogInterval: time.Hour}
+	cli := &Client{Handler: mustNewStateMachine(t, serverSettings, testDict), WatchdogInterval: time.Hour, Dict: testDict}
 	cli.watchdog(unwrapTestConn{c}, make(chan struct{}), &watchdogActivity{})
 	if records := logs.Records(); len(records) != 0 {
 		t.Fatalf("unexpected watchdog warnings: %v", records)

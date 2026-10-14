@@ -6,6 +6,17 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gomaja/go-diameter/diam/dict/all"
+
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+	"github.com/gomaja/go-diameter/diam/dict/cx"
+	"github.com/gomaja/go-diameter/diam/dict/gx"
+	"github.com/gomaja/go-diameter/diam/dict/nasreq"
+	"github.com/gomaja/go-diameter/diam/dict/rorf"
+	"github.com/gomaja/go-diameter/diam/dict/s6a"
+	"github.com/gomaja/go-diameter/diam/dict/s6c"
+	"github.com/gomaja/go-diameter/diam/dict/sy"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
@@ -103,14 +114,16 @@ func TestPeerRejectsMalformedConfiguredVSAI(t *testing.T) {
 }
 
 func TestPeerExplicitCapabilitiesVerbatim(t *testing.T) {
-	settings := testSettings("explicit.example.net")
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
+	settings := testSettings("explicit.example.net", testDict)
 	settings.SupportedVendorID = []*diam.AVP{peerSupportedVendor(10415), peerSupportedVendor(42), peerSupportedVendor(10415)}
 	settings.AuthApplicationID = []*diam.AVP{peerAuth(4), peerAuth(999), peerAuth(4)}
 	settings.AcctApplicationID = []*diam.AVP{diam.NewAVP(avp.AcctApplicationID, avp.Mbit, 0, datatype.Unsigned32(3))}
 	settings.VendorSpecificApplicationID = []*diam.AVP{peerVendorApp(4, 10415)}
 	request, answer := peerMessages(t, Config{Settings: settings})
 	for _, message := range []*diam.Message{request, answer} {
-		got := readPeerCapabilities(t, message, dict.Default)
+		got := readPeerCapabilities(t, message, testDict)
 		if !reflect.DeepEqual(got.supported, []uint32{10415, 42, 10415}) ||
 			!reflect.DeepEqual(got.auth, []uint32{4, 999, 4}) ||
 			!reflect.DeepEqual(got.acct, []uint32{3}) ||
@@ -128,10 +141,10 @@ func TestPeerDictionaryApplicationFallbacks(t *testing.T) {
 		vendor     uint32
 		vendors    []uint32
 	}{
-		{"vendorless-private", dict.New(dict.Base), 16777999, 0, nil},
-		{"bare-typeless", dict.New(dict.Base), 999, 0, nil},
-		{"Gx-extended", dict.New(dict.Base, dict.NASREQ, dict.CreditControl, dict.RoRf, dict.Gx), 16777238, 10415, []uint32{5535, 9999, 10415, 13019, 45687}},
-		{"Credit-Control-RoRf", dict.New(dict.Base, dict.NASREQ, dict.CreditControl, dict.RoRf), 4, 0, []uint32{5535, 10415, 13019, 45687}},
+		{"vendorless-private", newTestDictionary(dict.Base()), 16777999, 0, nil},
+		{"bare-typeless", newTestDictionary(dict.Base()), 999, 0, nil},
+		{"Gx-extended", newTestDictionary(dict.Base(), nasreq.Dictionary(), creditcontrol.Dictionary(), rorf.Dictionary(), gx.Dictionary()), 16777238, 10415, []uint32{5535, 9999, 10415, 13019, 45687}},
+		{"Credit-Control-RoRf", newTestDictionary(dict.Base(), nasreq.Dictionary(), creditcontrol.Dictionary(), rorf.Dictionary()), 4, 0, []uint32{5535, 10415, 13019, 45687}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var extension string
@@ -169,7 +182,7 @@ func TestPeerDictionaryApplicationFallbacks(t *testing.T) {
 func TestPeerManufacturerIsAdvertisedApplicationAuthor(t *testing.T) {
 	settings := testSettings("3gpp.example.net")
 	settings.VendorID = 10415
-	settings.Dict = dict.New(dict.Base, dict.NASREQ, dict.CreditControl, dict.RoRf, dict.S6c, dict.S6a, dict.Cx, dict.Sy)
+	settings.Dict = newTestDictionary(dict.Base(), nasreq.Dictionary(), creditcontrol.Dictionary(), rorf.Dictionary(), s6c.Dictionary(), s6a.Dictionary(), cx.Dictionary(), sy.Dictionary())
 	request, answer := peerMessages(t, Config{Settings: settings})
 	for _, message := range []*diam.Message{request, answer} {
 		got := readPeerCapabilities(t, message, settings.Dict)
@@ -185,6 +198,8 @@ func TestPeerManufacturerIsAdvertisedApplicationAuthor(t *testing.T) {
 }
 
 func peerMessages(t *testing.T, settings Config) (*diam.Message, *diam.Message) {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
 	t.Helper()
 	manager, err := New(settings)
 	if err != nil {
@@ -194,7 +209,7 @@ func peerMessages(t *testing.T, settings Config) (*diam.Message, *diam.Message) 
 	cfg := manager.baseSettings(nil)
 	dictionary := settings.Settings.Dict
 	if dictionary == nil {
-		dictionary = dict.Default
+		dictionary = testDict
 	}
 	request, err := base.BuildCER(dictionary, cfg)
 	if err != nil {
@@ -216,8 +231,8 @@ func TestCxSupportedVendors(t *testing.T) {
 		want       []uint32
 		cx         bool
 	}{
-		{"base-only", dict.New(dict.Base), nil, false},
-		{"Cx", dict.New(dict.Base, dict.NASREQ, dict.Cx), []uint32{10415, 13019}, true},
+		{"base-only", newTestDictionary(dict.Base()), nil, false},
+		{"Cx", newTestDictionary(dict.Base(), nasreq.Dictionary(), cx.Dictionary()), []uint32{10415, 13019}, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			settings := testSettings("cx.example.net")
@@ -249,7 +264,7 @@ func TestCxSupportedVendors(t *testing.T) {
 
 func TestPeerS6aBundledCapabilities(t *testing.T) {
 	settings := testSettings("s6a.example.net")
-	settings.Dict = dict.New(dict.Base, dict.NASREQ, dict.CreditControl, dict.RoRf, dict.S6c, dict.S6a)
+	settings.Dict = newTestDictionary(dict.Base(), nasreq.Dictionary(), creditcontrol.Dictionary(), rorf.Dictionary(), s6c.Dictionary(), s6a.Dictionary())
 	request, answer := peerMessages(t, Config{Settings: settings})
 	for _, message := range []*diam.Message{request, answer} {
 		got := readPeerCapabilities(t, message, settings.Dict)
@@ -260,9 +275,11 @@ func TestPeerS6aBundledCapabilities(t *testing.T) {
 	}
 }
 
-func TestPeerDefaultDictionaryCapabilities(t *testing.T) {
-	settings := testSettings("default.example.net")
-	settings.Dict = dict.Default
+func TestPeerAllDictionaryCapabilities(t *testing.T) {
+	testDict := newTestDictionary(all.Dictionary())
+
+	settings := testSettings("default.example.net", testDict)
+	settings.Dict = testDict
 	request, answer := peerMessages(t, Config{Settings: settings})
 	for _, message := range []*diam.Message{request, answer} {
 		name := "CER"
@@ -270,7 +287,7 @@ func TestPeerDefaultDictionaryCapabilities(t *testing.T) {
 			name = "CEA"
 		}
 		t.Run(name, func(t *testing.T) {
-			got := readPeerCapabilities(t, message, dict.Default)
+			got := readPeerCapabilities(t, message, testDict)
 			checkPeerVendors(t, got.supported, []uint32{5535, 10415, 13019, 45687})
 			for _, app := range []uint32{1, 4} {
 				if n := countPeerValue(got.auth, app); n != 1 {
@@ -323,7 +340,7 @@ func TestPeerConfiguredSupportedVendors(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			settings := testSettings("configured.example.net")
-			settings.Dict = dict.New(dict.Base, dict.NASREQ, dict.Cx)
+			settings.Dict = newTestDictionary(dict.Base(), nasreq.Dictionary(), cx.Dictionary())
 			settings.VendorID = datatype.Unsigned32(tc.manufacturer)
 			settings.SupportedVendorID = tc.configured
 			request, answer := peerMessages(t, Config{Settings: settings})
@@ -338,7 +355,7 @@ func TestPeerConfiguredSupportedVendors(t *testing.T) {
 // RFC 6733 §2.4 assigns 0xffffffff to relays; its capability is a plain
 // Auth-Application-Id and has no vendor application group.
 func TestPeerRelayApplicationPlain(t *testing.T) {
-	dictionary := dict.New(dict.Base)
+	dictionary := newTestDictionary(dict.Base())
 	if err := dictionary.Load(bytes.NewReader([]byte(`<diameter><application id="4294967295" type="auth" name="Relay"/></diameter>`))); err != nil {
 		t.Fatal(err)
 	}

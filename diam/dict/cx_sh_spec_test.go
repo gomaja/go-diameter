@@ -1,4 +1,4 @@
-package dict
+package dict_test
 
 import (
 	"fmt"
@@ -6,11 +6,15 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/gomaja/go-diameter/diam/dict"
 )
 
 // TS 29.229 V19.1.0 Table 6.3.0.1 and TS 29.329 V19.1.0 Table 6.3.1.
 // These expectations include reused AVPs through each application's lookup scope.
 func TestCxShAVPTable(t *testing.T) {
+	reference := newAllTestParser(t)
+
 	for _, tc := range []struct {
 		app                     uint32
 		name                    string
@@ -133,11 +137,11 @@ func TestCxShAVPTable(t *testing.T) {
 		{16777217, "External-Identifier", 3111, 10415, "UTF8String", "M,V", "", ""},
 	} {
 		t.Run(fmt.Sprintf("%d/%s", tc.app, tc.name), func(t *testing.T) {
-			byName, err := Default.FindAVPByName(tc.app, tc.name)
+			byName, err := reference.FindAVPByName(tc.app, tc.name)
 			if err != nil {
 				t.Fatal(err)
 			}
-			byCode, err := Default.FindAVP(tc.app, tc.code, tc.vendor)
+			byCode, err := reference.FindAVP(tc.app, tc.code, tc.vendor)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -160,6 +164,8 @@ func TestCxShAVPTable(t *testing.T) {
 // Each row transcribes the ordered CCF. ! is fixed 1, + is 1+, * is 0+,
 // ? is 0..1, and an unmarked name is exactly 1.
 func TestCxShCommandCCF(t *testing.T) {
+	reference := newAllTestParser(t)
+
 	for _, tc := range []struct {
 		app, code uint32
 		request   bool
@@ -187,7 +193,7 @@ func TestCxShCommandCCF(t *testing.T) {
 		{16777217, 309, false, "!Session-Id ?DRMP Vendor-Specific-Application-Id ?Result-Code ?Experimental-Result Auth-Session-State Origin-Host Origin-Realm *Supported-Features *AVP ?Failed-AVP *Proxy-Info *Route-Record"},
 	} {
 		t.Run(fmt.Sprintf("%d/%d/%t", tc.app, tc.code, tc.request), func(t *testing.T) {
-			cmd, err := Default.FindCommand(tc.app, tc.code)
+			cmd, err := reference.FindCommand(tc.app, tc.code)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -200,7 +206,7 @@ func TestCxShCommandCCF(t *testing.T) {
 	}
 }
 
-func checkCxShCCF(t *testing.T, got []*Rule, ccf string) {
+func checkCxShCCF(t *testing.T, got []*dict.Rule, ccf string) {
 	t.Helper()
 	tokens := strings.Fields(ccf)
 	if len(got) != len(tokens) {
@@ -231,6 +237,8 @@ func checkCxShCCF(t *testing.T, got []*Rule, ccf string) {
 
 // Enumerated values from TS 29.229 V19.1.0 §6.3 and TS 29.329 V19.1.0 §6.3.
 func TestCxShEnumerations(t *testing.T) {
+	reference := newAllTestParser(t)
+
 	for _, tc := range []struct {
 		app          uint32
 		name, values string
@@ -261,23 +269,23 @@ func TestCxShEnumerations(t *testing.T) {
 		{16777217, "Local-Time-Zone-Indication", "0=ONLY_LOCAL_TIME_ZONE_REQUESTED 1=LOCAL_TIME_ZONE_WITH_LOCATION_INFO_REQUESTED"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			a, err := Default.FindAVPByName(tc.app, tc.name)
+			a, err := reference.FindAVPByName(tc.app, tc.name)
 			if err != nil {
 				t.Fatal(err)
 			}
 			if a.Data.TypeName != "Enumerated" {
 				t.Fatalf("type = %s", a.Data.TypeName)
 			}
-			var want []Enum
+			var want []dict.Enum
 			for _, s := range strings.Fields(tc.values) {
 				pair := strings.SplitN(s, "=", 2)
 				v, err := strconv.ParseInt(pair[0], 10, 32)
 				if err != nil {
 					t.Fatal(err)
 				}
-				want = append(want, Enum{Code: int32(v), Name: pair[1]})
+				want = append(want, dict.Enum{Code: int32(v), Name: pair[1]})
 			}
-			var got []Enum
+			var got []dict.Enum
 			for _, e := range a.Data.Enum {
 				got = append(got, *e)
 			}
@@ -291,6 +299,8 @@ func TestCxShEnumerations(t *testing.T) {
 // TS 29.229 V19.1.0 §6.3; TS 29.329 V19.1.0 §§6.3.1, 6.3.24, 6.3.29;
 // RFC 7683 §§7.1, 7.3 as updated by RFC 8581 §§7.1-2; RFC 8583 §7.1.
 func TestCxShGroupedCCF(t *testing.T) {
+	reference := newAllTestParser(t)
+
 	for _, tc := range []struct {
 		app       uint32
 		name, ccf string
@@ -320,7 +330,7 @@ func TestCxShGroupedCCF(t *testing.T) {
 		{16777217, "OC-OLR", "!OC-Sequence-Number !OC-Report-Type ?OC-Reduction-Percentage ?OC-Validity-Duration ?SourceID *AVP"},
 	} {
 		t.Run(fmt.Sprintf("%d/%s", tc.app, tc.name), func(t *testing.T) {
-			a, err := Default.FindAVPByName(tc.app, tc.name)
+			a, err := reference.FindAVPByName(tc.app, tc.name)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -333,6 +343,8 @@ func TestCxShGroupedCCF(t *testing.T) {
 }
 
 func TestCxShInheritedAVPs(t *testing.T) {
+	reference := newAllTestParser(t)
+
 	for _, app := range []uint32{16777216, 16777217} {
 		for _, tc := range []struct {
 			name string
@@ -342,7 +354,7 @@ func TestCxShInheritedAVPs(t *testing.T) {
 			{"Framed-IP-Address", 8, "OctetString"}, {"Framed-IPv6-Prefix", 97, "OctetString"}, {"Framed-Interface-Id", 96, "Unsigned64"},
 			{"Load-Value", 652, "Unsigned64"}, {"SourceID", 649, "DiameterIdentity"}, {"OC-Peer-Algo", 648, "Unsigned64"},
 		} {
-			d, err := Default.FindAVPByName(app, tc.name)
+			d, err := reference.FindAVPByName(app, tc.name)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -352,11 +364,11 @@ func TestCxShInheritedAVPs(t *testing.T) {
 		}
 	}
 	// TS 29.229 §6.1.7 mandates Public-Identity on Cx, unlike TS 29.273 SWx.
-	cx, err := Default.FindCommand(16777216, 303)
+	cx, err := reference.FindCommand(16777216, 303)
 	if err != nil {
 		t.Fatal(err)
 	}
-	swx, err := Default.FindCommand(16777265, 303)
+	swx, err := reference.FindCommand(16777265, 303)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -379,11 +391,11 @@ func TestCxShInheritedAVPs(t *testing.T) {
 	}
 	// TS 29.336 V20.0.0 Table 6.4.1/1 requires M,V, as does Sh.
 	// SGd clears M under TS 29.338 V19.3.0 Table 6.3.3.1/2; Sh and S6c retain M.
-	sh, err := Default.FindAVPByName(16777217, "External-Identifier")
+	sh, err := reference.FindAVPByName(16777217, "External-Identifier")
 	if err != nil {
 		t.Fatal(err)
 	}
-	sms, err := Default.FindAVPByName(16777313, "External-Identifier")
+	sms, err := reference.FindAVPByName(16777313, "External-Identifier")
 	if err != nil {
 		t.Fatal(err)
 	}

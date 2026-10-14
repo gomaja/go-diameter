@@ -7,6 +7,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gomaja/go-diameter/diam/dict/s13"
+
+	"github.com/gomaja/go-diameter/diam/dict/s6a"
+
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/dict"
@@ -15,6 +19,8 @@ import (
 // TS 29.272 V19.6.0 §§7.3.151, 7.3.162, 7.3.175, 7.3.177,
 // 7.3.186, 7.3.201–7.3.202 and Table 7.3.1/1.
 func TestS6aRefreshAVPWireRoundTrip(t *testing.T) {
+	testDict := newTestDictionary(s6a.Dictionary(), s13.Dictionary())
+
 	plmns := func() datatype.Type {
 		return &GroupedAVP{AVP: []*AVP{
 			NewAVP(1407, avp.Mbit|avp.Vbit, 10415, datatype.OctetString("\x21\xf3\x54")),
@@ -35,7 +41,7 @@ func TestS6aRefreshAVPWireRoundTrip(t *testing.T) {
 		{"Adjacent-PLMNs", 1672, plmns()},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			d, err := dict.Default.FindAVPByName(16777251, tc.name)
+			d, err := testDict.FindAVPByName(16777251, tc.name)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -46,17 +52,19 @@ func TestS6aRefreshAVPWireRoundTrip(t *testing.T) {
 			if d.Code != tc.code || d.Must != "V" || d.MustNot != "M" || d.MayEncrypt != "N" || d.Data.Type != typ {
 				t.Fatalf("definition differs from TS 29.272: %+v", d)
 			}
-			m := NewRequest(316, 16777251, dict.Default)
+			m := NewRequest(316, 16777251, testDict)
 			if _, err := m.NewAVPByName(tc.name, avp.Vbit, tc.data); err != nil {
 				t.Fatal(err)
 			}
-			assertRefreshWire(t, m, tc.code, avp.Vbit, 10415, tc.data)
+			assertRefreshWire(t, m, tc.code, avp.Vbit, 10415, tc.data, testDict)
 		})
 	}
 }
 
 // TS 29.272 V19.6.0 Table 7.3.1/2 overrides the reused definitions' M bit.
 func TestS6aS13RefreshMBitWire(t *testing.T) {
+	testDict := newTestDictionary(s6a.Dictionary(), s13.Dictionary())
+
 	for _, tc := range []struct {
 		name    string
 		app     uint32
@@ -75,7 +83,7 @@ func TestS6aS13RefreshMBitWire(t *testing.T) {
 		{"Load", 16777251, 650, 0, 0, "M,V", s6aLoadAVP(0, 37).Data},
 	} {
 		t.Run(tc.name+"/"+strconv.FormatUint(uint64(tc.app), 10), func(t *testing.T) {
-			d, err := dict.Default.FindAVPByName(tc.app, tc.name)
+			d, err := testDict.FindAVPByName(tc.app, tc.name)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -95,19 +103,26 @@ func TestS6aS13RefreshMBitWire(t *testing.T) {
 			if tc.app == 16777252 {
 				code = 324
 			}
-			if _, err := dict.Default.FindCommand(tc.app, code); err != nil {
+			if _, err := testDict.FindCommand(tc.app, code); err != nil {
 				t.Fatal(err)
 			}
-			m := NewRequest(code, tc.app, dict.Default)
+			m := NewRequest(code, tc.app, testDict)
 			if _, err := m.NewAVPByName(tc.name, flags, tc.data); err != nil {
 				t.Fatal(err)
 			}
-			assertRefreshWire(t, m, tc.code, tc.flags, tc.vendor, tc.data)
+			assertRefreshWire(t, m, tc.code, tc.flags, tc.vendor, tc.data, testDict)
 		})
 	}
 }
 
-func assertRefreshWire(t *testing.T, m *Message, code uint32, flags uint8, vendor uint32, data datatype.Type) {
+func assertRefreshWire(t *testing.T, m *Message, code uint32, flags uint8, vendor uint32, data datatype.Type, parsers ...*dict.Parser) {
+	var testDict *dict.Parser
+	if len(parsers) > 0 {
+		testDict = parsers[0]
+	} else {
+		testDict = newTestDictionary(s6a.Dictionary(), s13.Dictionary())
+	}
+
 	t.Helper()
 	wire, err := m.Serialize()
 	if err != nil {
@@ -119,7 +134,7 @@ func assertRefreshWire(t *testing.T, m *Message, code uint32, flags uint8, vendo
 	if vendor != 0 && (len(wire) < 32 || binary.BigEndian.Uint32(wire[28:32]) != vendor) {
 		t.Fatalf("wire vendor: %x", wire)
 	}
-	decoded, err := ReadMessage(bytes.NewReader(wire), dict.Default)
+	decoded, err := ReadMessage(bytes.NewReader(wire), testDict)
 	if err != nil {
 		t.Fatal(err)
 	}

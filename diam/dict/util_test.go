@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-package dict
+package dict_test
 
 import (
 	"bytes"
@@ -11,10 +11,14 @@ import (
 	"testing"
 
 	"github.com/gomaja/go-diameter/diam/datatype"
+	"github.com/gomaja/go-diameter/diam/dict"
+	"github.com/gomaja/go-diameter/diam/dict/all"
 )
 
 func TestApps(t *testing.T) {
-	// Default loads the bundled dictionaries in file name order.
+	reference := newAllTestParser(t)
+
+	// The explicit all selection loads shipped sources in filename order.
 	want := []uint32{
 		0, 3, // Base protocol and Base Accounting (base.xml)
 		4,        // Credit-Control (credit_control.xml)
@@ -32,30 +36,32 @@ func TestApps(t *testing.T) {
 		16777265, // 3GPP SWx (tgpp_swx.xml)
 	}
 	var have []uint32
-	for _, app := range Default.Apps() {
+	for _, app := range reference.Apps() {
 		have = append(have, app.ID)
 	}
 	if !slices.Equal(have, want) {
-		t.Fatalf("Default applications = %v, want %v", have, want)
+		t.Fatalf("all selection applications = %v, want %v", have, want)
 	}
 }
 
 func TestApp(t *testing.T) {
+	reference := newAllTestParser(t)
+
 	// Base protocol.
-	if _, err := Default.App(0); err != nil {
+	if _, err := reference.App(0); err != nil {
 		t.Fatal(err)
 	}
 	// Credit-Control applications.
-	if _, err := Default.App(4); err != nil {
+	if _, err := reference.App(4); err != nil {
 		t.Fatal(err)
 	}
 	// Diameter Sy application.
-	if _, err := Default.App(16777302); err != nil {
+	if _, err := reference.App(16777302); err != nil {
 		t.Fatal(err)
 	}
 }
 
-func findAVPCodeTest(t *testing.T, p *Parser, app uint32, codeStr string, vendor, expectedCode uint32) {
+func findAVPCodeTest(t *testing.T, p *dict.Parser, app uint32, codeStr string, vendor, expectedCode uint32) {
 	if avp, err := p.FindAVPByName(app, codeStr); err != nil {
 		t.Fatalf("FindAVP error: %v for app %d & %s AVP", err, app, codeStr)
 	} else if avp.Code != expectedCode || avp.VendorID != vendor {
@@ -75,7 +81,7 @@ func TestFindAVPByName(t *testing.T) {
     </avp>
   </application>
 </diameter>`
-	p := New(AllBundled()...)
+	p := newTestParser(t, all.Dictionary())
 	if err := p.Load(bytes.NewReader([]byte(nokiaXML))); err != nil {
 		t.Fatal(err)
 	}
@@ -102,25 +108,29 @@ func TestFindAVPByName(t *testing.T) {
 }
 
 func TestFindAVP(t *testing.T) {
-	if _, err := Default.FindAVP(999, 263, 0); err != nil {
+	reference := newAllTestParser(t)
+
+	if _, err := reference.FindAVP(999, 263, 0); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestFindCommand(t *testing.T) {
-	if cmd, err := Default.FindCommand(999, 257); err != nil {
+	reference := newAllTestParser(t)
+
+	if cmd, err := reference.FindCommand(999, 257); err != nil {
 		t.Error(err)
 	} else if cmd.Short != "CE" {
 		t.Fatalf("Unexpected command: %#v", cmd)
 	}
 
-	if cmd, err := Default.FindCommand(16777251, 316); err != nil {
+	if cmd, err := reference.FindCommand(16777251, 316); err != nil {
 		t.Error(err)
 	} else if cmd.Short != "UL" {
 		t.Fatalf("Unexpected command: %#v", cmd)
 	}
 
-	if cmd, err := Default.FindCommand(16777251, 318); err != nil {
+	if cmd, err := reference.FindCommand(16777251, 318); err != nil {
 		t.Error(err)
 	} else if cmd.Short != "AI" {
 		t.Fatalf("Unexpected command: %#v", cmd)
@@ -128,7 +138,9 @@ func TestFindCommand(t *testing.T) {
 }
 
 func TestEnum(t *testing.T) {
-	if item, err := Default.Enum(0, 274, 0, 1); err != nil {
+	reference := newAllTestParser(t)
+
+	if item, err := reference.Enum(0, 274, 0, 1); err != nil {
 		t.Fatal(err)
 	} else if item.Name != "AUTHENTICATE_ONLY" {
 		t.Errorf(
@@ -139,7 +151,9 @@ func TestEnum(t *testing.T) {
 }
 
 func TestRule(t *testing.T) {
-	if rule, err := Default.Rule(0, 284, 0, "Proxy-Host"); err != nil {
+	reference := newAllTestParser(t)
+
+	if rule, err := reference.Rule(0, 284, 0, "Proxy-Host"); err != nil {
 		t.Fatal(err)
 	} else if !rule.Required {
 		t.Errorf("Unexpected rule %#v", rule)
@@ -147,12 +161,14 @@ func TestRule(t *testing.T) {
 }
 
 func TestFindAVPUnknownVendor(t *testing.T) {
+	reference := newAllTestParser(t)
+
 	for _, code := range []uint32{99999, 5} {
-		a, err := Default.FindAVP(4, code, 10415)
-		if a != nil || !errors.Is(err, ErrNotFound) {
+		a, err := reference.FindAVP(4, code, 10415)
+		if a != nil || !errors.Is(err, dict.ErrNotFound) {
 			t.Fatalf("lookup = %v, %v; want nil, ErrNotFound", a, err)
 		}
-		unknown := MakeUnknownAVP(4, code, 10415)
+		unknown := dict.MakeUnknownAVP(4, code, 10415)
 		if unknown.Code != code || unknown.VendorID != 10415 || unknown.App.ID != 4 || unknown.Data.Type != datatype.UnknownType {
 			t.Fatalf("explicit placeholder = %v", unknown)
 		}
@@ -160,15 +176,17 @@ func TestFindAVPUnknownVendor(t *testing.T) {
 }
 
 func TestFindAVPExplicitVendor(t *testing.T) {
+	reference := newAllTestParser(t)
+
 	// Exact (appid, code, vendorID) match.
-	if avp, err := Default.FindAVP(4, 461, 0); err != nil {
+	if avp, err := reference.FindAVP(4, 461, 0); err != nil {
 		t.Fatalf("FindAVP error for Service-Context-Id: %v", err)
 	} else if avp.Name != "Service-Context-Id" {
 		t.Fatalf("Unexpected AVP %q, expected Service-Context-Id", avp.Name)
 	}
 
 	// Inherited base AVP (app 4 → base) resolves via the pre-merged index.
-	if avp, err := Default.FindAVP(4, 263, 0); err != nil {
+	if avp, err := reference.FindAVP(4, 263, 0); err != nil {
 		t.Fatalf("FindAVP error for inherited Session-Id: %v", err)
 	} else if avp.Name != "Session-Id" {
 		t.Fatalf("Unexpected AVP %q, expected Session-Id", avp.Name)
@@ -176,27 +194,29 @@ func TestFindAVPExplicitVendor(t *testing.T) {
 
 	// Base AVPs decode even when the application dictionary is not loaded
 	// because RFC 6733 §2 applies base AVP rules to all Diameter messages.
-	if avp, err := Default.FindAVP(16777216, 263, 0); err != nil {
+	if avp, err := reference.FindAVP(16777216, 263, 0); err != nil {
 		t.Fatalf("FindAVP error for unregistered-app Session-Id: %v", err)
 	} else if avp.Name != "Session-Id" {
 		t.Fatalf("Unexpected AVP %q, expected Session-Id", avp.Name)
 	}
 
 	// Inheritance through the full parent chain: Gx (16777238) → 4 → base.
-	if avp, err := Default.FindAVP(16777238, 264, 0); err != nil {
+	if avp, err := reference.FindAVP(16777238, 264, 0); err != nil {
 		t.Fatalf("FindAVP error for inherited Origin-Host: %v", err)
 	} else if avp.Name != "Origin-Host" {
 		t.Fatalf("Unexpected AVP %q, expected Origin-Host", avp.Name)
 	}
 
 	// An absent vendor identity must not resolve to the IETF code space.
-	a, err := Default.FindAVP(4, 5, 10415)
-	if a != nil || !errors.Is(err, ErrNotFound) {
+	a, err := reference.FindAVP(4, 5, 10415)
+	if a != nil || !errors.Is(err, dict.ErrNotFound) {
 		t.Fatalf("lookup = %v, %v; want nil, ErrNotFound", a, err)
 	}
 }
 
 func TestCreditControlRFC8506AVPs(t *testing.T) {
+	reference := newAllTestParser(t)
+
 	tests := []struct {
 		name     string
 		code     uint32
@@ -223,7 +243,7 @@ func TestCreditControlRFC8506AVPs(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			avp, err := Default.FindAVP(4, tt.code, 0)
+			avp, err := reference.FindAVP(4, tt.code, 0)
 			if err != nil {
 				t.Fatalf("FindAVP(%d): %v", tt.code, err)
 			}
@@ -238,14 +258,16 @@ func TestCreditControlRFC8506AVPs(t *testing.T) {
 }
 
 func TestCreditControlRFC8506Occurrences(t *testing.T) {
-	cmd, err := Default.FindCommand(4, 272)
+	reference := newAllTestParser(t)
+
+	cmd, err := reference.FindCommand(4, 272)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	tests := []struct {
 		name string
-		rule []*Rule
+		rule []*dict.Rule
 		avp  string
 		max  int
 	}{
@@ -261,7 +283,7 @@ func TestCreditControlRFC8506Occurrences(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var got *Rule
+			var got *dict.Rule
 			for _, rule := range tt.rule {
 				if rule.AVP == tt.avp {
 					got = rule
@@ -279,9 +301,11 @@ func TestCreditControlRFC8506Occurrences(t *testing.T) {
 }
 
 func TestCreditControlRFC8506QoSReferences(t *testing.T) {
+	reference := newAllTestParser(t)
+
 	// RFC 5777 §3.2 uses vendor 0; 3GPP TS 29.214 §5.3.9 also
 	// assigns code 509 to Flow-Number under vendor 10415.
-	avp, err := Default.FindAVP(4, 509, 0)
+	avp, err := reference.FindAVP(4, 509, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -294,16 +318,22 @@ func TestCreditControlRFC8506QoSReferences(t *testing.T) {
 }
 
 func BenchmarkFindAVPName(b *testing.B) {
+	reference := newAllTestParser(b)
+	b.ResetTimer()
+
 	for n := 0; n < b.N; n++ {
-		if _, err := Default.FindAVPByName(0, "Session-Id"); err != nil {
+		if _, err := reference.FindAVPByName(0, "Session-Id"); err != nil {
 			b.Fatal(err)
 		}
 	}
 }
 
 func BenchmarkFindAVPCode(b *testing.B) {
+	reference := newAllTestParser(b)
+	b.ResetTimer()
+
 	for n := 0; n < b.N; n++ {
-		if _, err := Default.FindAVP(0, 263, 0); err != nil {
+		if _, err := reference.FindAVP(0, 263, 0); err != nil {
 			b.Fatal(err)
 		}
 	}

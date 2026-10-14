@@ -9,6 +9,8 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam/avp"
 
 	"github.com/gomaja/go-diameter/diam/dict"
@@ -83,13 +85,15 @@ var malformedAVPMessages = []struct {
 }
 
 func TestReadMessageRejectsMalformedAVPFraming(t *testing.T) {
-	permissive := dict.New(dict.Base)
+	testDict := newTestDictionary(dict.Base())
+
+	permissive := newTestDictionary(dict.Base())
 	permissive.SetStrict(false)
 	parsers := []struct {
 		name       string
 		dictionary *dict.Parser
 	}{
-		{name: "strict", dictionary: dict.Default},
+		{name: "strict", dictionary: testDict},
 		{name: "permissive", dictionary: permissive},
 	}
 
@@ -112,13 +116,15 @@ func TestReadMessageRejectsMalformedAVPFraming(t *testing.T) {
 }
 
 func TestDecodeAVPsRejectsMissingPadding(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	body := []byte{
 		0x00, 0x00, 0x01, 0x08,
 		0x40, 0x00, 0x00, 0x09,
 		'x',
 	}
-	m := NewRequest(CapabilitiesExchange, 0, dict.Default)
-	if err := m.decodeAVPs(body, dict.Default.Snapshot()); err == nil {
+	m := NewRequest(CapabilitiesExchange, 0, testDict)
+	if err := m.decodeAVPs(body, testDict.Snapshot()); err == nil {
 		t.Fatal("decodeAVPs accepted an AVP without its required padding")
 	}
 	if len(m.AVP) != 0 {
@@ -127,6 +133,8 @@ func TestDecodeAVPsRejectsMissingPadding(t *testing.T) {
 }
 
 func FuzzReadMessage(f *testing.F) {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
 	for _, digits := range []string{"12", "12345678901234"} {
 		payload := rawAVP(avp.HostIPAddress, append([]byte{0, 8}, []byte(digits)...))
 		f.Add(append(testMessageHeader(1, uint32(HeaderLength+len(payload)), RequestFlag), payload...))
@@ -150,7 +158,7 @@ func FuzzReadMessage(f *testing.F) {
 	})
 
 	f.Fuzz(func(t *testing.T, wire []byte) {
-		_, err := ReadMessage(bytes.NewReader(wire), dict.Default)
+		_, err := ReadMessage(bytes.NewReader(wire), testDict)
 		var messageErr *MessageError
 		if !errors.As(err, &messageErr) || messageErr.FailedAVP == nil {
 			return
@@ -162,6 +170,8 @@ func FuzzReadMessage(f *testing.F) {
 }
 
 func FuzzDecodeGroupedFromBytes(f *testing.F) {
+	testDict := newTestDictionary(dict.Base())
+
 	for _, payload := range payloadFailureSeeds() {
 		f.Add(payload)
 	}
@@ -174,7 +184,7 @@ func FuzzDecodeGroupedFromBytes(f *testing.F) {
 	f.Add([]byte{0x00, 0x00, 0x01})
 
 	f.Fuzz(func(t *testing.T, payload []byte) {
-		_, _ = DecodeGroupedFromBytes(payload, 0, dict.Default)
+		_, _ = DecodeGroupedFromBytes(payload, 0, testDict)
 	})
 }
 

@@ -14,6 +14,8 @@ import (
 )
 
 func TestAddressE164DecodeValidate(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	for _, digits := range []string{"12", "12345678901234"} {
 		t.Run(digits, func(t *testing.T) {
 			payload := append([]byte{0, 8}, []byte(digits)...)
@@ -23,14 +25,14 @@ func TestAddressE164DecodeValidate(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			decoded, err := DecodeAVP(wire, 4, dict.Default)
+			decoded, err := DecodeAVP(wire, 4, testDict)
 			if err != nil {
 				t.Fatal(err)
 			}
 			if !bytes.Equal(decoded.Data.Serialize(), payload) {
 				t.Fatalf("payload changed: %x", decoded.Data.Serialize())
 			}
-			if err := validateAVPs([]*AVP{decoded}, []*dict.Rule{{AVP: "AVP"}}, 4, dict.Default.Snapshot()); err != nil {
+			if err := validateAVPs([]*AVP{decoded}, []*dict.Rule{{AVP: "AVP"}}, 4, testDict.Snapshot()); err != nil {
 				t.Fatal(err)
 			}
 		})
@@ -38,11 +40,13 @@ func TestAddressE164DecodeValidate(t *testing.T) {
 }
 
 func TestMissingAddressMinimum(t *testing.T) {
-	definition, err := dict.Default.FindAVP(0, avp.HostIPAddress, 0)
+	testDict := newTestDictionary(dict.Base())
+
+	definition, err := testDict.FindAVP(0, avp.HostIPAddress, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
-	example := missingAVPExample(definition, 0, dict.Default.Snapshot(), make(map[validationKey]bool))
+	example := missingAVPExample(definition, 0, testDict.Snapshot(), make(map[validationKey]bool))
 	if got := example.Data.Serialize(); !bytes.Equal(got, []byte{0, 0}) {
 		t.Fatalf("missing Address payload = %x, want minimum zero family", got)
 	}

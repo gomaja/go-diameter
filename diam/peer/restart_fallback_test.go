@@ -58,6 +58,7 @@ func TestManagerSecondCERKeepsConnectionOpen(t *testing.T) {
 				t.Fatal(err)
 			}
 			srv := &diam.Server{Logger: records.Logger(), RenewAcceptedCER: renewal, MaxConcurrentHandlers: 8}
+			srv.Dict = m.cfg.Settings.Dict
 			if err = m.BindServer(srv); err != nil {
 				t.Fatal(err)
 			}

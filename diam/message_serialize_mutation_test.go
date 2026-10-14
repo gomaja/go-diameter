@@ -11,13 +11,16 @@ import (
 
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
+	"github.com/gomaja/go-diameter/diam/dict"
 )
 
 func TestMessageLengthAfterAVPMutation(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	for _, path := range []string{"Unmarshal", "FindAVP"} {
 		for _, method := range []string{"Serialize", "SerializeTo", "WriteTo", "WriteToStream", "WriteToWithRetry", "WriteToStreamWithRetry"} {
 			t.Run(path+"/"+method, func(t *testing.T) {
-				m := NewRequest(CapabilitiesExchange, 0, nil)
+				m := NewRequest(CapabilitiesExchange, 0, testDict)
 				m.AddAVP(NewAVP(avp.HostIPAddress, avp.Mbit, 0, datatype.AddressFromIP(netip.MustParseAddr("192.0.2.1"))))
 				var a *AVP
 				if path == "Unmarshal" {
@@ -74,7 +77,7 @@ func TestMessageLengthAfterAVPMutation(t *testing.T) {
 					}
 					reader := bytes.NewReader(append(append([]byte(nil), wire...), wire...))
 					for range 2 {
-						decoded, err := ReadMessage(reader, nil)
+						decoded, err := ReadMessage(reader, testDict)
 						if err != nil {
 							t.Fatal(err)
 						}
@@ -96,6 +99,8 @@ func TestMessageLengthAfterAVPMutation(t *testing.T) {
 }
 
 func TestGroupedSerializeInvalidAddress(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	for _, addr := range []datatype.Address{{}, {Family: 65535, Value: []byte{1}}, {Family: datatype.AddressFamilyIPv4, Value: make([]byte, 16)}, {Family: datatype.AddressFamilyIPv6, Value: []byte{1, 2, 3, 4}}} {
 		for _, depth := range []int{0, 2} {
 			t.Run(fmt.Sprintf("%d/%d/%d", addr.Family, len(addr.Value), depth), func(t *testing.T) {
@@ -118,7 +123,7 @@ func TestGroupedSerializeInvalidAddress(t *testing.T) {
 				if got := group.Serialize(); !bytes.Equal(got, raw) {
 					t.Fatalf("raw group = %x, want %x", got, raw)
 				}
-				m := NewRequest(CapabilitiesExchange, 0, nil)
+				m := NewRequest(CapabilitiesExchange, 0, testDict)
 				m.AddAVP(NewAVP(avp.ProxyInfo, avp.Mbit, 0, group))
 				if _, err := m.Serialize(); err == nil {
 					t.Fatal("raw group bypassed message Address validation")
@@ -141,7 +146,9 @@ func TestPrettyDumpNilAVP(t *testing.T) {
 // from several goroutines after an AVP changed length through a pointer.
 // Serializing must not write to the message, or this races (go test -race).
 func TestSerializeConcurrentAfterAVPMutation(t *testing.T) {
-	m := NewRequest(CapabilitiesExchange, 0, nil)
+	testDict := newTestDictionary(dict.Base())
+
+	m := NewRequest(CapabilitiesExchange, 0, testDict)
 	m.AddAVP(NewAVP(avp.HostIPAddress, avp.Mbit, 0, datatype.AddressFromIP(netip.MustParseAddr("192.0.2.1"))))
 	a, err := m.FindAVP(avp.HostIPAddress, 0)
 	if err != nil {

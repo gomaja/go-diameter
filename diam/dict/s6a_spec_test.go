@@ -1,4 +1,4 @@
-package dict
+package dict_test
 
 import (
 	"fmt"
@@ -6,6 +6,8 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/gomaja/go-diameter/diam/dict"
 )
 
 // Transcribed from 3GPP TS 29.272 V19.6.0 §§7.2.3–7.2.20.
@@ -378,9 +380,9 @@ var s6aS13CommandABNF = []struct {
 
 var commandABNFToken = regexp.MustCompile(`^(\*)?([<\[{])\s*([^>}\]]+?)\s*[>}\]]$`)
 
-func transcribeCommandRules(t *testing.T, grammar string) []*Rule {
+func transcribeCommandRules(t *testing.T, grammar string) []*dict.Rule {
 	t.Helper()
-	var rules []*Rule
+	var rules []*dict.Rule
 	for _, line := range strings.Split(strings.TrimSpace(grammar), "\n") {
 		line = strings.TrimSpace(line)
 		match := commandABNFToken.FindStringSubmatch(line)
@@ -388,7 +390,7 @@ func transcribeCommandRules(t *testing.T, grammar string) []*Rule {
 			t.Fatalf("unrecognized ABNF rule %q", line)
 		}
 		name := strings.TrimSpace(match[3])
-		rule := &Rule{AVP: name, Required: match[2] == "<" || match[2] == "{", Fixed: match[2] == "<"}
+		rule := &dict.Rule{AVP: name, Required: match[2] == "<" || match[2] == "{", Fixed: match[2] == "<"}
 		if match[1] == "" {
 			rule.Max = 1
 			rule.MaxSet = true
@@ -399,13 +401,15 @@ func transcribeCommandRules(t *testing.T, grammar string) []*Rule {
 }
 
 func TestS6aS13CommandABNFSpec(t *testing.T) {
+	reference := newAllTestParser(t)
+
 	for _, tc := range s6aS13CommandABNF {
 		t.Run(tc.section, func(t *testing.T) {
-			command, err := Default.FindCommand(tc.app, tc.code)
+			command, err := reference.FindCommand(tc.app, tc.code)
 			if err != nil {
 				t.Fatal(err)
 			}
-			var actual CommandRule
+			var actual dict.CommandRule
 			if tc.request {
 				actual = command.Request
 			} else {

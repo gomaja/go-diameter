@@ -10,10 +10,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
-	"github.com/gomaja/go-diameter/diam/dict"
 	"github.com/gomaja/go-diameter/diam/sm/smpeer"
 )
 
@@ -61,7 +62,9 @@ func outboundTestManager(t *testing.T) (*Manager, []*actor, []*session) {
 }
 
 func requestWithoutOrigins(host, realm string) *diam.Message {
-	r := diam.NewRequest(272, 4, nil)
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
+	r := diam.NewRequest(272, 4, testDict)
 	if host != "" {
 		_, _ = r.NewAVP(avp.DestinationHost, avp.Mbit, 0, datatype.DiameterIdentity(host))
 	}
@@ -431,6 +434,8 @@ func TestRequestTimeoutCancelAndPendingLimit(t *testing.T) {
 }
 
 func TestCompletedQueuedRequestIsNotWritten(t *testing.T) {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
 	for _, finish := range []string{"cancel", "timeout"} {
 		t.Run(finish, func(t *testing.T) {
 			m, _, sessions := outboundTestManager(t)
@@ -439,7 +444,7 @@ func TestCompletedQueuedRequestIsNotWritten(t *testing.T) {
 			if err := m.SetRoutes([]Route{{Realm: "example.net", ApplicationID: 4, PeerHosts: []datatype.DiameterIdentity{"a.example.net"}}}); err != nil {
 				t.Fatal(err)
 			}
-			c := &blockedWriteConn{fakeConn: newFakeConn(), entered: make(chan struct{}), release: make(chan struct{}), written: make(chan []byte, 3)}
+			c := &blockedWriteConn{fakeConn: newFakeConn(testDict), entered: make(chan struct{}), release: make(chan struct{}), written: make(chan []byte, 3)}
 			sessions[0].c = c
 			m.wg.Add(1)
 			go sessions[0].writer()
@@ -485,7 +490,7 @@ func TestCompletedQueuedRequestIsNotWritten(t *testing.T) {
 			<-c.written // first request
 			select {
 			case wire := <-c.written:
-				msg, err := diam.ReadMessage(bytes.NewReader(wire), dict.Default)
+				msg, err := diam.ReadMessage(bytes.NewReader(wire), testDict)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -544,11 +549,13 @@ func TestCustomEndToEndErrorPreventsAdmission(t *testing.T) {
 }
 
 func TestManagedHopSkipsOutstandingControlRequest(t *testing.T) {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
 	m, _, sessions := outboundTestManager(t)
 	if err := m.SetRoutes([]Route{{Realm: "example.net", ApplicationID: 4, PeerHosts: []datatype.DiameterIdentity{"a.example.net"}}}); err != nil {
 		t.Fatal(err)
 	}
-	control := diam.NewRequest(diam.DeviceWatchdog, 0, nil)
+	control := diam.NewRequest(diam.DeviceWatchdog, 0, testDict)
 	if err := sessions[0].sendControl(control); err != nil {
 		t.Fatal("control request not queued")
 	}
@@ -566,11 +573,13 @@ func TestManagedHopSkipsOutstandingControlRequest(t *testing.T) {
 }
 
 func TestControlReservationReleasedIfSessionClosed(t *testing.T) {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
 	m, _, sessions := outboundTestManager(t)
 	s := sessions[0]
 	s.close()
 	for range 64 {
-		if err := s.sendControl(diam.NewRequest(diam.DeviceWatchdog, 0, nil)); err == nil {
+		if err := s.sendControl(diam.NewRequest(diam.DeviceWatchdog, 0, testDict)); err == nil {
 			t.Fatal("closed session accepted control request")
 		}
 		if len(m.controls[s]) != 0 {
@@ -580,6 +589,8 @@ func TestControlReservationReleasedIfSessionClosed(t *testing.T) {
 }
 
 func TestFirstSendClearsCallerTAndRejectsInvalid(t *testing.T) {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
 	m, _, sessions := outboundTestManager(t)
 	if err := m.SetRoutes([]Route{{Realm: "example.net", ApplicationID: 4, PeerHosts: []datatype.DiameterIdentity{"a.example.net"}}}); err != nil {
 		t.Fatal(err)
@@ -593,7 +604,7 @@ func TestFirstSendClearsCallerTAndRejectsInvalid(t *testing.T) {
 	}
 	m.receiveAnswer(sessions[0], sent.Answer(diam.Success))
 	<-result
-	for _, bad := range []*diam.Message{nil, diam.NewRequest(diam.DeviceWatchdog, 0, nil), outboundRequest("", "example.net").Answer(0)} {
+	for _, bad := range []*diam.Message{nil, diam.NewRequest(diam.DeviceWatchdog, 0, testDict), outboundRequest("", "example.net").Answer(0)} {
 		if _, err := m.Send(context.Background(), bad); !errors.Is(err, ErrInvalidRequest) {
 			t.Fatalf("invalid %v: %v", bad, err)
 		}

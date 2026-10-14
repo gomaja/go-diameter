@@ -5,22 +5,25 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/diamtest"
-	"github.com/gomaja/go-diameter/diam/dict"
 )
 
 // RFC 6733 §§6.2, 7.1.5, 7.5: errors still receive an answer when
 // Session-Id cannot be decoded. Proxy-Info survives all answer classes.
 func TestStateMachineErrorAnswersOnWire(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	for _, kind := range []string{"length7", "unknown-no-session", "proxy-2001", "proxy-3001", "proxy-5001"} {
 		t.Run(kind, func(t *testing.T) {
-			settings := testMessageErrorSettings()
+			settings := testMessageErrorSettings(testDict)
 			settings.RejectUnknownMandatoryAVPs = true
 			settings.ValidateRequests = true
-			h := mustNewStateMachine(t, settings)
+			h := mustNewStateMachine(t, settings, testDict)
 			h.HandleFunc("STR", func(c diam.Conn, r *diam.Message) {
 				a := r.Answer(diam.Success)
 				a.InsertAVP(r.AVP[0])
@@ -30,7 +33,7 @@ func TestStateMachineErrorAnswersOnWire(t *testing.T) {
 					t.Error(err)
 				}
 			})
-			srv := diamtest.NewServer(h, dict.Default)
+			srv := diamtest.NewServer(h, testDict)
 			defer srv.Close()
 			conn := dialHandshakeUnknownTest(t, srv.Addr)
 			defer func() { _ = conn.Close() }()
@@ -70,7 +73,7 @@ func TestStateMachineErrorAnswersOnWire(t *testing.T) {
 			if err := conn.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
 				t.Fatal(err)
 			}
-			a, err := diam.ReadMessage(conn, dict.Default)
+			a, err := diam.ReadMessage(conn, testDict)
 			if err != nil {
 				t.Fatal(err)
 			}

@@ -1,13 +1,17 @@
-package dict
+package dict_test
 
 import (
 	"reflect"
 	"testing"
+
+	"github.com/gomaja/go-diameter/diam/dict"
 )
 
 // RFC 7683 §§7.1–7.8, updated by RFC 8581 §§7.1–7.4; RFC 8583 §7.
 // TS 29.272 V19.6.0 Table 7.3.1/2 clears M for the enclosing S6a AVPs.
 func TestS6aOverloadAndLoadSpec(t *testing.T) {
+	reference := newAllTestParser(t)
+
 	for _, tc := range []struct {
 		name string
 		code uint32
@@ -27,7 +31,7 @@ func TestS6aOverloadAndLoadSpec(t *testing.T) {
 		{"Load-Value", 652, "Unsigned64"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			a, err := Default.FindAVPByName(16777251, tc.name)
+			a, err := reference.FindAVPByName(16777251, tc.name)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -51,7 +55,7 @@ func TestS6aOverloadAndLoadSpec(t *testing.T) {
 		{"OC-OLR", "< OC-Sequence-Number >\n< OC-Report-Type >\n[ OC-Reduction-Percentage ]\n[ OC-Validity-Duration ]\n[ SourceID ]\n*[ AVP ]"},
 		{"Load", "[ Load-Type ]\n[ Load-Value ]\n[ SourceID ]\n*[ AVP ]"},
 	} {
-		a, err := Default.FindAVPByName(16777251, tc.name)
+		a, err := reference.FindAVPByName(16777251, tc.name)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -61,12 +65,12 @@ func TestS6aOverloadAndLoadSpec(t *testing.T) {
 	}
 	for _, tc := range []struct {
 		code uint32
-		want []Enum
+		want []dict.Enum
 	}{
-		{626, []Enum{{Code: 0, Name: "HOST_REPORT"}, {Code: 1, Name: "REALM_REPORT"}, {Code: 2, Name: "PEER_REPORT"}}},
-		{651, []Enum{{Code: 0, Name: "HOST"}, {Code: 1, Name: "PEER"}}},
+		{626, []dict.Enum{{Code: 0, Name: "HOST_REPORT"}, {Code: 1, Name: "REALM_REPORT"}, {Code: 2, Name: "PEER_REPORT"}}},
+		{651, []dict.Enum{{Code: 0, Name: "HOST"}, {Code: 1, Name: "PEER"}}},
 	} {
-		a, err := Default.FindAVP(16777251, tc.code, 0)
+		a, err := reference.FindAVP(16777251, tc.code, 0)
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -10,6 +10,8 @@ import (
 	"io"
 	"testing"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/dict"
@@ -49,8 +51,10 @@ func TestDecodeHeaderClassifiesMessageErrors(t *testing.T) {
 }
 
 func TestReadMessagePreservesDecodedHeaderOnMessageError(t *testing.T) {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
 	wire := testMessageHeader(2, HeaderLength, RequestFlag|ProxiableFlag)
-	m, err := ReadMessage(bytes.NewReader(wire), dict.Default)
+	m, err := ReadMessage(bytes.NewReader(wire), testDict)
 	var messageErr *MessageError
 	if !errors.As(err, &messageErr) {
 		t.Fatalf("ReadMessage error = %T(%v), want *MessageError", err, err)
@@ -67,11 +71,13 @@ func TestReadMessagePreservesDecodedHeaderOnMessageError(t *testing.T) {
 }
 
 func TestReadMessagePreservesStreamOnHeaderMessageError(t *testing.T) {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
 	reader := &messageErrorMultistreamReader{
 		Reader: bytes.NewReader(testMessageHeader(2, HeaderLength, RequestFlag)),
 		stream: 7,
 	}
-	m, err := ReadMessage(reader, dict.Default)
+	m, err := ReadMessage(reader, testDict)
 	var messageErr *MessageError
 	if !errors.As(err, &messageErr) {
 		t.Fatalf("ReadMessage error = %T(%v), want *MessageError", err, err)
@@ -85,6 +91,8 @@ func TestReadMessagePreservesStreamOnHeaderMessageError(t *testing.T) {
 }
 
 func TestReadMessageClassifiesInvalidAVPLength(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	tests := []struct {
 		name            string
 		body            []byte
@@ -128,7 +136,7 @@ func TestReadMessageClassifiesInvalidAVPLength(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			wire := testFramedMessage(t, RequestFlag, tt.body)
-			m, err := ReadMessage(bytes.NewReader(wire), dict.Default)
+			m, err := ReadMessage(bytes.NewReader(wire), testDict)
 			var messageErr *MessageError
 			if !errors.As(err, &messageErr) {
 				t.Fatalf("ReadMessage error = %T(%v), want *MessageError", err, err)
@@ -167,6 +175,8 @@ func TestReadMessageClassifiesInvalidAVPLength(t *testing.T) {
 }
 
 func TestReadMessageRejectsMissingGroupedAVPPadding(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	leaf := []byte{
 		0x00, 0x00, 0x01, 0x08,
 		avp.Mbit, 0x00, 0x00, 0x09,
@@ -178,7 +188,7 @@ func TestReadMessageRejectsMissingGroupedAVPPadding(t *testing.T) {
 	}, leaf...)
 	parent = append(parent, 0, 0, 0)
 
-	m, err := ReadMessage(bytes.NewReader(testFramedMessage(t, RequestFlag, parent)), dict.Default)
+	m, err := ReadMessage(bytes.NewReader(testFramedMessage(t, RequestFlag, parent)), testDict)
 	var messageErr *MessageError
 	if !errors.As(err, &messageErr) {
 		t.Fatalf("ReadMessage error = %T(%v), want *MessageError", err, err)
@@ -190,6 +200,8 @@ func TestReadMessageRejectsMissingGroupedAVPPadding(t *testing.T) {
 }
 
 func TestReadMessagePreservesNestedGroupedFailedAVPPath(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	leaf := []byte{
 		0x00, 0x00, 0x01, 0x08,
 		avp.Mbit, 0x00, 0x00, 0x09,
@@ -205,7 +217,7 @@ func TestReadMessagePreservesNestedGroupedFailedAVPPath(t *testing.T) {
 		avp.Mbit, 0x00, 0x00, 0x1c,
 	}, inner...)
 
-	_, err := ReadMessage(bytes.NewReader(testFramedMessage(t, RequestFlag, outer)), dict.Default)
+	_, err := ReadMessage(bytes.NewReader(testFramedMessage(t, RequestFlag, outer)), testDict)
 	var messageErr *MessageError
 	if !errors.As(err, &messageErr) {
 		t.Fatalf("ReadMessage error = %T(%v), want *MessageError", err, err)
@@ -218,12 +230,14 @@ func TestReadMessagePreservesNestedGroupedFailedAVPPath(t *testing.T) {
 }
 
 func TestDecodeGroupedFromBytesRejectsMissingPadding(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	b := []byte{
 		0x00, 0x00, 0x01, 0x08,
 		avp.Mbit, 0x00, 0x00, 0x09,
 		'x',
 	}
-	g, err := DecodeGroupedFromBytes(b, 0, dict.Default)
+	g, err := DecodeGroupedFromBytes(b, 0, testDict)
 	if err == nil {
 		t.Fatal("DecodeGroupedFromBytes accepted an AVP whose padding exceeds the Grouped payload")
 	}

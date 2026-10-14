@@ -8,6 +8,8 @@ import (
 	"testing"
 	"testing/synctest"
 	"time"
+
+	"github.com/gomaja/go-diameter/diam/dict"
 )
 
 type cerWithoutRenewalHandler struct {
@@ -28,6 +30,8 @@ func (h *cerWithoutRenewalHandler) ServeDIAM(c Conn, m *Message) {
 }
 
 func TestAcceptedCERWithoutEligibilityDoesNotWaitForRetirement(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	for _, mode := range []int{1, 2, -1} {
 		t.Run(fmt.Sprint(mode), func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
@@ -50,7 +54,7 @@ func TestAcceptedCERWithoutEligibilityDoesNotWaitForRetirement(t *testing.T) {
 					_ = remote.Close()
 					<-finished
 				}()
-				payload := cerPayload(t)
+				payload := cerPayload(t, testDict)
 				transport.reads <- restartRead{data: payload}
 				original := <-h.entered
 				transport.reads <- restartRead{data: payload}

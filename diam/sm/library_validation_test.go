@@ -5,17 +5,20 @@ import (
 	"context"
 	"testing"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
-	"github.com/gomaja/go-diameter/diam/dict"
 	"github.com/gomaja/go-diameter/diam/sm/smparser"
 	"github.com/gomaja/go-diameter/diam/sm/smpeer"
 )
 
 func validatedCapture(t *testing.T, c *messageErrorCaptureConn) *diam.Message {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	t.Helper()
-	m, err := diam.ReadMessage(bytes.NewReader(c.wire.Bytes()), dict.Default)
+	m, err := diam.ReadMessage(bytes.NewReader(c.wire.Bytes()), testDict)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -26,12 +29,14 @@ func validatedCapture(t *testing.T, c *messageErrorCaptureConn) *diam.Message {
 }
 
 func TestLibraryBuiltMessagesValidate(t *testing.T) {
-	settings := testMessageErrorSettings()
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
+	settings := testMessageErrorSettings(testDict)
 	settings.HostIPAddresses = []datatype.Address{localhostAddress}
 	settings.VendorID = datatype.Unsigned32(1)
 	settings.ProductName = datatype.UTF8String("test")
-	sm := mustNewStateMachine(t, settings)
-	cli := &Client{Dict: dict.Default, Handler: sm}
+	sm := mustNewStateMachine(t, settings, testDict)
+	cli := &Client{Dict: testDict, Handler: sm}
 	for _, build := range []struct {
 		name string
 		make func() (*diam.Message, error)
@@ -49,7 +54,7 @@ func TestLibraryBuiltMessagesValidate(t *testing.T) {
 			}
 		})
 	}
-	cer := diam.NewMessage(diam.CapabilitiesExchange, diam.RequestFlag|diam.ProxiableFlag|diam.RetransmittedFlag, 0, 1, 2, dict.Default)
+	cer := diam.NewMessage(diam.CapabilitiesExchange, diam.RequestFlag|diam.ProxiableFlag|diam.RetransmittedFlag, 0, 1, 2, testDict)
 	for _, tc := range []struct {
 		name string
 		send func(*messageErrorCaptureConn) error
@@ -68,7 +73,7 @@ func TestLibraryBuiltMessagesValidate(t *testing.T) {
 		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			c := &messageErrorCaptureConn{}
+			c := &messageErrorCaptureConn{dictionary: testDict}
 			if err := tc.send(c); err != nil {
 				t.Fatal(err)
 			}
@@ -76,9 +81,9 @@ func TestLibraryBuiltMessagesValidate(t *testing.T) {
 		})
 	}
 	t.Run("permanent-error-answer", func(t *testing.T) {
-		request := diam.NewRequest(diam.DeviceWatchdog, 0, dict.Default)
+		request := diam.NewRequest(diam.DeviceWatchdog, 0, testDict)
 		// A non-CER error answer belongs to an admitted peer (RFC 6733 §5.6.1).
-		c := &messageErrorCaptureConn{ctx: smpeer.NewContext(context.Background(), &smpeer.Metadata{})}
+		c := &messageErrorCaptureConn{dictionary: testDict, ctx: smpeer.NewContext(context.Background(), &smpeer.Metadata{})}
 		failed := diam.NewAVP(avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("bad"))
 		if err := sm.HandleMessageError(c, request, &diam.MessageError{ResultCode: diam.InvalidAVPLength, FailedAVP: failed}); err != nil {
 			t.Fatal(err)
@@ -88,7 +93,7 @@ func TestLibraryBuiltMessagesValidate(t *testing.T) {
 			t.Fatal("5xxx error answer has E bit")
 		}
 	})
-	dpr := diam.NewRequest(diam.DisconnectPeer, 0, dict.Default)
+	dpr := diam.NewRequest(diam.DisconnectPeer, 0, testDict)
 	dpr.AddAVP(diam.NewAVP(avp.OriginHost, avp.Mbit, 0, settings.OriginHost))
 	dpr.AddAVP(diam.NewAVP(avp.OriginRealm, avp.Mbit, 0, settings.OriginRealm))
 	dpr.AddAVP(diam.NewAVP(avp.DisconnectCause, avp.Mbit, 0, datatype.Enumerated(0)))
@@ -96,13 +101,13 @@ func TestLibraryBuiltMessagesValidate(t *testing.T) {
 		t.Fatalf("DPR: %v", validationErr)
 	}
 	dpr.Header.CommandFlags |= diam.ProxiableFlag | diam.RetransmittedFlag
-	c := &messageErrorCaptureConn{}
+	c := &messageErrorCaptureConn{dictionary: testDict}
 	handleDPR(sm)(c, dpr)
 	validatedCapture(t, c)
-	dwr := diam.NewMessage(diam.DeviceWatchdog, diam.RequestFlag|diam.ProxiableFlag|diam.RetransmittedFlag, 0, 3, 4, dict.Default)
+	dwr := diam.NewMessage(diam.DeviceWatchdog, diam.RequestFlag|diam.ProxiableFlag|diam.RetransmittedFlag, 0, 3, 4, testDict)
 	dwr.AddAVP(diam.NewAVP(avp.OriginHost, avp.Mbit, 0, settings.OriginHost))
 	dwr.AddAVP(diam.NewAVP(avp.OriginRealm, avp.Mbit, 0, settings.OriginRealm))
-	c = &messageErrorCaptureConn{}
+	c = &messageErrorCaptureConn{dictionary: testDict}
 	handleDWR(sm)(c, dwr)
 	validatedCapture(t, c)
 }

@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict"
 	"github.com/gomaja/go-sctp"
 )
 
@@ -96,6 +97,8 @@ func TestBuiltInSCTPTLSRestartWireServer(t *testing.T) {
 }
 
 func TestBuiltInSCTPTLSRestartWireClient(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	addr, local, phase := os.Getenv("F4_SERVER_ADDR"), os.Getenv("F4_CLIENT_ADDR"), os.Getenv("F4_PHASE")
 	if addr == "" || local == "" || phase == "" {
 		t.Skip("requires the two-container SCTP/TLS restart harness")
@@ -149,7 +152,7 @@ func TestBuiltInSCTPTLSRestartWireClient(t *testing.T) {
 	if _, err := m.WriteTo(client); err != nil {
 		t.Fatal(err)
 	}
-	answer, err := ReadMessage(client, nil)
+	answer, err := ReadMessage(client, testDict)
 	if err != nil {
 		t.Fatal(err)
 	}

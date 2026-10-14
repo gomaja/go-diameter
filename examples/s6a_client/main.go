@@ -44,6 +44,7 @@ import (
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/dict"
+	"github.com/gomaja/go-diameter/diam/dict/s6a"
 	"github.com/gomaja/go-diameter/diam/sm"
 	"github.com/gomaja/go-diameter/diam/sm/smpeer"
 )
@@ -54,7 +55,7 @@ var (
 	realm           = flag.String("diam_realm", "openair4G.eur", "diameter identity realm")
 	networkType     = flag.String("network_type", "sctp", "protocol type tcp/sctp/tcp4/tcp6/sctp4/sctp6")
 	retries         = flag.Uint("retries", 3, "Maximum number of retransmits")
-	watchdog        = flag.Uint("watchdog", 5, "Diameter watchdog interval in seconds. 0 to disable watchdog.")
+	watchdog        = flag.Uint("watchdog", 6, "Diameter watchdog interval in seconds. 0 to disable watchdog.")
 	vendorID        = flag.Uint("vendor", 10415, "Vendor ID")
 	appID           = flag.Uint("app", 16777251, "AuthApplicationID")
 	ueIMSI          = flag.String("imsi", "001010000000001", "Client (UE) IMSI")
@@ -70,7 +71,13 @@ func main() {
 		flag.Usage()
 	}
 
+	dictionary, err := dict.New(s6a.Dictionary())
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	cfg := &sm.Settings{
+		Dict:             dictionary,
 		OriginHost:       datatype.DiameterIdentity(*host),
 		OriginRealm:      datatype.DiameterIdentity(*realm),
 		VendorID:         datatype.Unsigned32(*vendorID),
@@ -89,7 +96,7 @@ func main() {
 	}
 
 	cli := &sm.Client{
-		Dict:               dict.Default,
+		Dict:               dictionary,
 		Handler:            mux,
 		MaxRetransmits:     *retries,
 		RetransmitInterval: time.Second,
@@ -168,7 +175,7 @@ func sendAIR(c diam.Conn, cfg *sm.Settings) error {
 func newAIR(cfg *sm.Settings, meta *smpeer.Metadata) (*diam.Message, error) {
 	sid := "session;" + strconv.Itoa(int(rand.Uint32()))
 	// NewRequest sets R and P, as the AIR's "REQ, PXY" header requires.
-	m := diam.NewRequest(diam.AuthenticationInformation, diam.TGPP_S6A_APP_ID, dict.Default)
+	m := diam.NewRequest(diam.AuthenticationInformation, diam.TGPP_S6A_APP_ID, cfg.Dict)
 	if err := addAVP(m, avp.SessionID, avp.Mbit, 0, datatype.UTF8String(sid)); err != nil {
 		return nil, err
 	}
@@ -312,7 +319,7 @@ func sendULR(c diam.Conn, cfg *sm.Settings) error {
 func newULR(cfg *sm.Settings, meta *smpeer.Metadata) (*diam.Message, error) {
 	sid := "session;" + strconv.Itoa(int(rand.Uint32()))
 	// NewRequest sets R and P, as the ULR's "REQ, PXY" header requires.
-	m := diam.NewRequest(diam.UpdateLocation, diam.TGPP_S6A_APP_ID, dict.Default)
+	m := diam.NewRequest(diam.UpdateLocation, diam.TGPP_S6A_APP_ID, cfg.Dict)
 	if err := addAVP(m, avp.SessionID, avp.Mbit, 0, datatype.UTF8String(sid)); err != nil {
 		return nil, err
 	}

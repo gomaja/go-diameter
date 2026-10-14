@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
@@ -13,6 +15,9 @@ import (
 )
 
 func TestWatchdogIntervalValidation(t *testing.T) {
+	testDict := newSMTestDictionary(dict.Base())
+	clientSettings := cloneTestSettings(clientSettings, testDict)
+
 	for _, tc := range []struct {
 		interval, want time.Duration
 		invalid        bool
@@ -22,7 +27,7 @@ func TestWatchdogIntervalValidation(t *testing.T) {
 		{6*time.Second - time.Nanosecond, 0, true},
 		{-time.Second, 0, true},
 	} {
-		cli := &Client{Handler: mustNewStateMachine(t, clientSettings), EnableWatchdog: true, WatchdogInterval: tc.interval}
+		cli := &Client{Handler: mustNewStateMachine(t, clientSettings, testDict), EnableWatchdog: true, WatchdogInterval: tc.interval, Dict: testDict}
 		err := cli.validate()
 		if tc.invalid {
 			if err == nil || !strings.Contains(err.Error(), "minimum") {
@@ -34,12 +39,12 @@ func TestWatchdogIntervalValidation(t *testing.T) {
 	}
 	// The minimum governs the watchdog only; a disabled watchdog never sends
 	// DWRs, so a short leftover interval must not fail validation.
-	disabled := &Client{Handler: mustNewStateMachine(t, clientSettings), WatchdogInterval: time.Second}
+	disabled := &Client{Handler: mustNewStateMachine(t, clientSettings, testDict), WatchdogInterval: time.Second, Dict: testDict}
 	if err := disabled.validate(); err != nil {
 		t.Fatalf("disabled watchdog with 1s interval rejected: %v", err)
 	}
-	cli := &Client{Handler: mustNewStateMachine(t, clientSettings), EnableWatchdog: true, WatchdogInterval: 50 * time.Millisecond,
-		watchdogTiming: &watchdogTiming{floor: time.Millisecond}}
+	cli := &Client{Handler: mustNewStateMachine(t, clientSettings, testDict), EnableWatchdog: true, WatchdogInterval: 50 * time.Millisecond,
+		watchdogTiming: &watchdogTiming{floor: time.Millisecond}, Dict: testDict}
 	if err := cli.validate(); err != nil {
 		t.Fatalf("private test timing override rejected: %v", err)
 	}
@@ -61,12 +66,15 @@ func TestWatchdogJitterBounds(t *testing.T) {
 }
 
 func TestWatchdogTrafficSuppressesDWRAndIdleSendsIt(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings := cloneTestSettings(serverSettings, testDict)
+
 	dwr := make(chan struct{}, 4)
 	settings := *serverSettings
 	settings.OnDWR = func(diam.Conn, *diam.Message) { dwr <- struct{}{} }
-	ssm := mustNewStateMachine(t, &settings)
+	ssm := mustNewStateMachine(t, &settings, testDict)
 	ssmHandshakes := testHandshakeNotifications(ssm)
-	srv := diamtest.NewServer(ssm, dict.Default)
+	srv := diamtest.NewServer(ssm, testDict)
 	defer srv.Close()
 	cli := newLivenessClient(t)
 	cli.WatchdogInterval = 120 * time.Millisecond
@@ -82,7 +90,7 @@ func TestWatchdogTrafficSuppressesDWRAndIdleSendsIt(t *testing.T) {
 		t.Fatal("server handshake timeout")
 	}
 	for i := 0; i < 20; i++ {
-		m := diam.NewRequest(diam.DeviceWatchdog, 0, dict.Default)
+		m := diam.NewRequest(diam.DeviceWatchdog, 0, testDict)
 		if _, err := m.NewAVP(avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("server")); err != nil {
 			t.Fatal(err)
 		}

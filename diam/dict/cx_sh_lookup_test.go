@@ -1,26 +1,35 @@
-package dict
+package dict_test
 
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"slices"
 	"testing"
+
+	"github.com/gomaja/go-diameter/diam/dict"
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+	"github.com/gomaja/go-diameter/diam/dict/cx"
+	"github.com/gomaja/go-diameter/diam/dict/nasreq"
+	"github.com/gomaja/go-diameter/diam/dict/rorf"
+	"github.com/gomaja/go-diameter/diam/dict/rx"
+	"github.com/gomaja/go-diameter/diam/dict/sh"
 )
 
 // The selection deliberately excludes S6c/S6a/SWx: Cx builds on NASREQ and
 // Base, and Sh builds on Cx. TS 29.229 V19.1.0 §6.3.41; TS 29.329 V19.1.0 §6.3.
 func TestCxShBundledSelection(t *testing.T) {
-	for _, selection := range [][]Bundled{{Cx, NASREQ, Base}, {Sh, Cx, NASREQ, Base}} {
-		d := New(selection...)
+	for i, selection := range [][]dict.Dictionary{{cx.Dictionary(), nasreq.Dictionary(), dict.Base()}, {sh.Dictionary(), cx.Dictionary(), nasreq.Dictionary(), dict.Base()}} {
+		d := newTestParser(t, selection...)
 		appID := uint32(16777216)
-		if selection[0] == Sh {
+		if i == 1 {
 			appID = 16777217
 		}
 		app, err := d.App(appID)
 		if err != nil {
 			t.Fatal(err)
 		}
-		check := func(rules []*Rule) {
+		check := func(rules []*dict.Rule) {
 			for _, r := range rules {
 				if r.AVP != "AVP" {
 					if _, err := d.FindAVPByName(appID, r.AVP); err != nil {
@@ -33,12 +42,12 @@ func TestCxShBundledSelection(t *testing.T) {
 			check(c.Request.Rule)
 			check(c.Answer.Rule)
 		}
-		for idx, a := range d.Snapshot().avpname {
-			if idx.appID == appID {
+		for idx, a := range dict.NameIndexForTesting(d.Snapshot()) {
+			if idx.AppID == appID {
 				check(a.Data.Rule)
 			}
 		}
-		if selection[0] == Sh {
+		if i == 1 {
 			a, err := d.FindAVPByName(appID, "External-Identifier")
 			if err != nil || a.Must != "M,V" {
 				t.Fatalf("Sh requires its local External-Identifier with M,V: %v, %v", a, err)
@@ -48,16 +57,16 @@ func TestCxShBundledSelection(t *testing.T) {
 }
 
 func TestCxShVendorLookup(t *testing.T) {
-	selection := []Bundled{Base, NASREQ, Cx, Sh}
-	normal := New(selection...).Snapshot()
+	selection := []dict.Dictionary{dict.Base(), nasreq.Dictionary(), cx.Dictionary(), sh.Dictionary()}
+	normal := newTestParser(t, selection...).Snapshot()
 	// Reverse both file order and AVP declaration order before publication.
-	var files []*File
-	for _, name := range selection {
-		data, err := bundledFS.ReadFile("bundled/" + string(name))
+	var files []*dict.File
+	for _, name := range []string{"base.xml", "network_access_server.xml", "tgpp_cx.xml", "tgpp_sh.xml"} {
+		data, err := os.ReadFile(sourcePath(t, name))
 		if err != nil {
 			t.Fatal(err)
 		}
-		f, err := parseFile(bytes.NewReader(data))
+		f, err := dict.ParseXMLForTesting(bytes.NewReader(data))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -67,7 +76,7 @@ func TestCxShVendorLookup(t *testing.T) {
 		files = append(files, f)
 	}
 	slices.Reverse(files)
-	reversed, err := emptySnapshot.with(files, nil)
+	reversed, err := dict.SnapshotFromFilesForTesting(files)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -75,7 +84,7 @@ func TestCxShVendorLookup(t *testing.T) {
 	// cannot change vendor-explicit lookup results.
 	// A definition owned by Sh must win over an inherited Cx definition.
 	codes := []uint32{621, 622, 623, 624, 625, 626, 648, 649, 650, 651, 652}
-	for _, d := range []*Snapshot{normal, reversed} {
+	for _, d := range []*dict.Snapshot{normal, reversed} {
 		for _, app := range []uint32{16777216, 16777217} {
 			for _, code := range codes {
 				t.Run(fmt.Sprintf("%d/%d", app, code), func(t *testing.T) {
@@ -87,7 +96,7 @@ func TestCxShVendorLookup(t *testing.T) {
 					if err != nil || ietf == gpp || ietf.VendorID != 0 {
 						t.Fatalf("IETF lookup lost: %v, %v", ietf, err)
 					}
-					for _, want := range []*AVP{gpp, ietf} {
+					for _, want := range []*dict.AVP{gpp, ietf} {
 						if got, err := d.FindAVPByName(app, want.Name); err != nil || got != want {
 							t.Fatalf("name lookup = %v, %v; want %v", got, err, want)
 						}
@@ -99,12 +108,12 @@ func TestCxShVendorLookup(t *testing.T) {
 }
 
 func TestShVendorZero623UsesOwnGroupedDefinition(t *testing.T) {
-	d := New(Base, NASREQ, Cx, Sh)
+	d := newTestParser(t, dict.Base(), nasreq.Dictionary(), cx.Dictionary(), sh.Dictionary())
 	app, err := d.App(16777217)
 	if err != nil {
 		t.Fatal(err)
 	}
-	var own *AVP
+	var own *dict.AVP
 	for _, candidate := range app.AVP {
 		if candidate.Code == 623 && candidate.VendorID == 0 {
 			own = candidate
@@ -130,7 +139,7 @@ func TestShVendorZero623UsesOwnGroupedDefinition(t *testing.T) {
 }
 
 func TestRxInheritsFramedIPv6Prefix(t *testing.T) {
-	d := New(Rx, CreditControl, RoRf, NASREQ, Base)
+	d := newTestParser(t, rx.Dictionary(), creditcontrol.Dictionary(), rorf.Dictionary(), nasreq.Dictionary(), dict.Base())
 	want, err := d.FindAVPByName(1, "Framed-IPv6-Prefix")
 	if err != nil {
 		t.Fatal(err)

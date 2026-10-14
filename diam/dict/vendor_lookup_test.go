@@ -24,7 +24,7 @@ type vendorLookup interface {
 }
 
 func TestVendorLookup(t *testing.T) {
-	p := New()
+	p := newTestParser(t)
 	if err := p.Load(strings.NewReader(vendorLookupXML)); err != nil {
 		t.Fatal(err)
 	}

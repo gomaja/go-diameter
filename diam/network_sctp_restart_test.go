@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-sctp"
 )
 
@@ -299,6 +301,8 @@ func TestSCTPRestartBufferedDataCannotMaskMarker(t *testing.T) {
 }
 
 func TestSCTPRestartInterruptsDiameterMessage(t *testing.T) {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
 	for _, body := range []bool{false, true} {
 		t.Run(fmt.Sprintf("body=%v", body), func(t *testing.T) {
 			data := func(b []byte, stream uint16) sctpRestartRead {
@@ -315,7 +319,7 @@ func TestSCTPRestartInterruptsDiameterMessage(t *testing.T) {
 			msc := newRestartSCTPConn(nil)
 			msc.receiver = r
 			msc.SetWriterStream(7)
-			_, err := ReadMessage(msc, nil)
+			_, err := ReadMessage(msc, testDict)
 			var restart *TransportRestartError
 			if !errors.As(err, &restart) || r.index != len(reads)-2 {
 				t.Fatalf("interrupted message error=%v consumed=%d", err, r.index)
@@ -324,7 +328,7 @@ func TestSCTPRestartInterruptsDiameterMessage(t *testing.T) {
 			if len(msc.s.streamMap) != 0 || msc.CurrentStream() != InvalidStreamID || msc.CurrentWriterStream() != InvalidStreamID {
 				t.Fatal("reset retained retired message state")
 			}
-			m, err := ReadMessage(msc, nil)
+			m, err := ReadMessage(msc, testDict)
 			if err != nil || m.MessageStream() != 3 || r.index != len(reads) {
 				t.Fatalf("fresh message=%v error=%v consumed=%d", m, err, r.index)
 			}

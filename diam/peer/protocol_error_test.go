@@ -9,10 +9,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
-	"github.com/gomaja/go-diameter/diam/dict"
 	"github.com/gomaja/go-diameter/diam/internal/base"
 	"github.com/gomaja/go-diameter/diam/internal/logtest"
 	"github.com/gomaja/go-diameter/diam/sm"
@@ -46,6 +47,8 @@ func protocolErrorCheck(t *testing.T, e diam.ProtocolErrorEvent, c diam.Conn, h 
 // Removing a terminal decision's notification must fail without changing the
 // existing answer, connection policy, or protocol log.
 func TestProtocolErrorManagerWireDecisions(t *testing.T) {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
 	for _, tc := range []struct {
 		name              string
 		message           func(*testing.T) *diam.Message
@@ -53,18 +56,18 @@ func TestProtocolErrorManagerWireDecisions(t *testing.T) {
 		result, replyCode uint32
 		closing, preCER   bool
 	}{
-		{"unsupported command", func(t *testing.T) *diam.Message { return diam.NewRequest(999, 0, dict.Default) }, diam.ProtocolUnsupportedCommand, 3001, 3001, false, false},
-		{"unsupported application", func(t *testing.T) *diam.Message { return diam.NewRequest(999, 0x00fffffe, dict.Default) }, diam.ProtocolUnsupportedApplication, 3007, 3007, false, false},
-		{"unmatched answer", func(t *testing.T) *diam.Message { return diam.NewRequest(999, 0, dict.Default).Answer(diam.Success) }, diam.ProtocolUnexpectedMessage, 0, 0, false, false},
-		{"invalid DWR", func(t *testing.T) *diam.Message { return diam.NewRequest(diam.DeviceWatchdog, 0, dict.Default) }, diam.ProtocolInvalidDWR, 0, 0, false, false},
+		{"unsupported command", func(t *testing.T) *diam.Message { return diam.NewRequest(999, 0, testDict) }, diam.ProtocolUnsupportedCommand, 3001, 3001, false, false},
+		{"unsupported application", func(t *testing.T) *diam.Message { return diam.NewRequest(999, 0x00fffffe, testDict) }, diam.ProtocolUnsupportedApplication, 3007, 3007, false, false},
+		{"unmatched answer", func(t *testing.T) *diam.Message { return diam.NewRequest(999, 0, testDict).Answer(diam.Success) }, diam.ProtocolUnexpectedMessage, 0, 0, false, false},
+		{"invalid DWR", func(t *testing.T) *diam.Message { return diam.NewRequest(diam.DeviceWatchdog, 0, testDict) }, diam.ProtocolInvalidDWR, 0, 0, false, false},
 		{"wrong DWR identity", func(t *testing.T) *diam.Message {
-			m, err := base.BuildDWR(dict.Default, testBase("other.example.net"), 0)
+			m, err := base.BuildDWR(testDict, testBase("other.example.net"), 0)
 			if err != nil {
 				t.Fatal(err)
 			}
 			return m
 		}, diam.ProtocolInvalidDWR, 0, 0, false, false},
-		{"invalid DPR", func(t *testing.T) *diam.Message { return diam.NewRequest(diam.DisconnectPeer, 0, dict.Default) }, diam.ProtocolInvalidDPR, 0, 0, false, false},
+		{"invalid DPR", func(t *testing.T) *diam.Message { return diam.NewRequest(diam.DisconnectPeer, 0, testDict) }, diam.ProtocolInvalidDPR, 0, 0, false, false},
 		{"unsolicited DWA", func(t *testing.T) *diam.Message {
 			m, err := base.BuildDWA(reviewDWR(t), testBase("known.example.net"))
 			if err != nil {
@@ -92,7 +95,7 @@ func TestProtocolErrorManagerWireDecisions(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			events := make(chan diam.ProtocolErrorEvent, 8)
 			records := logtest.New()
-			settings := testSettings("local.example.net")
+			settings := testSettings("local.example.net", testDict)
 			settings.OnProtocolError = func(e diam.ProtocolErrorEvent) { events <- e }
 			m, err := New(Config{Settings: settings, Logger: records.Logger()})
 			if err != nil {
@@ -226,10 +229,12 @@ func TestProtocolErrorManagerMessageFailures(t *testing.T) {
 }
 
 func TestProtocolErrorManagerQueuedThenClosed(t *testing.T) {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
 	a, s, _ := failureReportingActor(t)
 	var got diam.ProtocolErrorEvent
 	a.m.cfg.Settings.OnProtocolError = func(e diam.ProtocolErrorEvent) { got = e; e.Conn.Close() }
-	msg := diam.NewRequest(999, 0, dict.Default)
+	msg := diam.NewRequest(999, 0, testDict)
 	a.m.unsupported(s, msg)
 	protocolErrorCheck(t, got, s.c, *msg.Header, diam.ProtocolUnsupportedCommand, 3001, false, diam.ProtocolReplyQueued, 3001)
 	if !s.c.Closed() || len(s.writes) != 1 {
@@ -260,6 +265,8 @@ func TestProtocolErrorManagerMalformedAndRejectedAnswers(t *testing.T) {
 }
 
 func TestProtocolErrorManagerPeerEventOverflow(t *testing.T) {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
 	a, s, _ := failureReportingActor(t)
 	a.state, a.i, a.active = IOpen, s, s
 	for len(a.m.callbackQ) < cap(a.m.callbackQ) {
@@ -267,13 +274,15 @@ func TestProtocolErrorManagerPeerEventOverflow(t *testing.T) {
 	}
 	var calls int
 	a.m.cfg.Settings.OnProtocolError = func(diam.ProtocolErrorEvent) { calls++ }
-	a.m.unsupported(s, diam.NewRequest(999, 0, dict.Default))
+	a.m.unsupported(s, diam.NewRequest(999, 0, testDict))
 	if calls != 1 {
 		t.Fatalf("protocol callbacks=%d", calls)
 	}
 }
 
 func TestProtocolErrorManagerDWAAndDPA(t *testing.T) {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
 	for _, tc := range []struct {
 		name    string
 		command uint32
@@ -317,7 +326,7 @@ func TestProtocolErrorManagerDWAAndDPA(t *testing.T) {
 				a.watchdogGen = s.gen
 				a.watchdogHop, a.watchdogEnd = msg.Header.HopByHopID, msg.Header.EndToEndID
 			} else {
-				req, buildErr := base.BuildDPR(dict.Default, testBase("known.example.net"), 0)
+				req, buildErr := base.BuildDPR(testDict, testBase("known.example.net"), 0)
 				if buildErr != nil {
 					t.Fatal(buildErr)
 				}
@@ -400,6 +409,8 @@ func TestProtocolErrorManagerHandshakeDecisions(t *testing.T) {
 }
 
 func TestProtocolErrorManagerTimersAndRetirement(t *testing.T) {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
 	for _, tc := range []struct {
 		name     string
 		state    PeerState
@@ -430,10 +441,10 @@ func TestProtocolErrorManagerTimersAndRetirement(t *testing.T) {
 		a, s, _ := failureReportingActor(t)
 		var got diam.ProtocolErrorEvent
 		a.m.cfg.Settings.OnProtocolError = func(e diam.ProtocolErrorEvent) { got = e }
-		replacement := newFakeConn()
+		replacement := newFakeConn(testDict)
 		t.Cleanup(replacement.Close)
 		a.i = &session{c: replacement, gen: 2}
-		msg := diam.NewRequest(999, 4, dict.Default).Answer(2001)
+		msg := diam.NewRequest(999, 4, testDict).Answer(2001)
 		a.onWire(event{s: s, msg: msg})
 		protocolErrorCheck(t, got, s.c, *msg.Header, diam.ProtocolUnexpectedMessage, 0, false, diam.ProtocolReplyNone, 0)
 	})
@@ -447,13 +458,15 @@ type protocolErrorLoggedConn struct {
 func (c protocolErrorLoggedConn) Logger() *slog.Logger { return c.logger }
 
 func TestProtocolErrorManagerCallbackPanic(t *testing.T) {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
 	a, s, _ := failureReportingActor(t)
 	records := logtest.New()
 	s.c = protocolErrorLoggedConn{Conn: s.c, logger: records.Logger()}
 	var calls int
 	a.m.cfg.Settings.OnProtocolError = func(diam.ProtocolErrorEvent) { calls++; panic("callback failure") }
 	for range 2 {
-		a.m.unsupported(s, diam.NewRequest(999, 0, dict.Default))
+		a.m.unsupported(s, diam.NewRequest(999, 0, testDict))
 	}
 	if calls != 2 || len(s.writes) != 2 || s.c.Closed() {
 		t.Fatal("panic changed handling or delivery")
@@ -470,10 +483,12 @@ func TestProtocolErrorManagerCallbackPanic(t *testing.T) {
 }
 
 func TestProtocolErrorManagerCallbackBackpressure(t *testing.T) {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
 	a, s, _ := failureReportingActor(t)
 	entered, release, done := make(chan struct{}), make(chan struct{}), make(chan struct{})
 	a.m.cfg.Settings.OnProtocolError = func(e diam.ProtocolErrorEvent) { close(entered); <-release }
-	go func() { a.m.unsupported(s, diam.NewRequest(999, 0, dict.Default)); close(done) }()
+	go func() { a.m.unsupported(s, diam.NewRequest(999, 0, testDict)); close(done) }()
 	select {
 	case <-entered:
 	case <-time.After(time.Second):
@@ -496,6 +511,8 @@ func TestProtocolErrorManagerCallbackBackpressure(t *testing.T) {
 }
 
 func TestProtocolErrorManagerConcurrentCallbacks(t *testing.T) {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
 	a, s, _ := failureReportingActor(t)
 	entered, release, done := make(chan struct{}, 2), make(chan struct{}), make(chan struct{}, 2)
 	a.m.cfg.Settings.OnProtocolError = func(e diam.ProtocolErrorEvent) {
@@ -505,7 +522,7 @@ func TestProtocolErrorManagerConcurrentCallbacks(t *testing.T) {
 		<-release
 	}
 	for range 2 {
-		go func() { a.m.unsupported(s, diam.NewRequest(999, 0, dict.Default)); done <- struct{}{} }()
+		go func() { a.m.unsupported(s, diam.NewRequest(999, 0, testDict)); done <- struct{}{} }()
 	}
 	for range 2 {
 		select {

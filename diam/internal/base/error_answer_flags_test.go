@@ -4,14 +4,17 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/gomaja/go-diameter/diam/dict/cx"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
-	"github.com/gomaja/go-diameter/diam/dict"
 	"github.com/gomaja/go-diameter/diam/internal/base"
 )
 
 func TestBuildErrorAnswerRebuildsReceivedFlags(t *testing.T) {
+	testDict := newTestDictionary(cx.Dictionary())
+
 	for _, flags := range []uint8{0, avp.Mbit | 0x1f, avp.Mbit | avp.Pbit, avp.Mbit | avp.Vbit} {
 		for _, raw := range []bool{false, true} {
 			t.Run(fmt.Sprintf("flags_%02x/raw_%t", flags, raw), func(t *testing.T) {
@@ -22,7 +25,7 @@ func TestBuildErrorAnswerRebuildsReceivedFlags(t *testing.T) {
 					a.Length = a.Len() - data.Padding()
 					return a
 				}
-				request := diam.NewRequest(diam.UserAuthorization, diam.TGPP_CX_APP_ID, dict.Default)
+				request := diam.NewRequest(diam.UserAuthorization, diam.TGPP_CX_APP_ID, testDict)
 				vendor := receivedAVP(avp.VendorID, datatype.Unsigned32(10415))
 				application := receivedAVP(avp.AuthApplicationID, datatype.Unsigned32(diam.TGPP_CX_APP_ID))
 				group := &diam.GroupedAVP{AVP: []*diam.AVP{vendor, application}}

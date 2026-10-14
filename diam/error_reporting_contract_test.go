@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/dict"
@@ -53,6 +55,8 @@ func reportingDial(t *testing.T, addr string) net.Conn {
 }
 
 func TestServeMuxLogsEveryUnhandledMessage(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	for _, limit := range []int{0, -1} {
 		t.Run(fmt.Sprintf("concurrency_%d", limit), func(t *testing.T) {
 			const count = 5000
@@ -65,7 +69,7 @@ func TestServeMuxLogsEveryUnhandledMessage(t *testing.T) {
 			}
 			records := logtest.New()
 			accepted := make(chan Conn, 4)
-			srv := &Server{Handler: NewServeMux(), Dict: dict.Default, Logger: records.Logger(), MaxConcurrentHandlers: limit, OnNewConnection: func(c Conn) { accepted <- c }}
+			srv := &Server{Handler: NewServeMux(), Dict: testDict, Logger: records.Logger(), MaxConcurrentHandlers: limit, OnNewConnection: func(c Conn) { accepted <- c }}
 			addr := reportingTCPServer(t, srv)
 			conns := make([]net.Conn, 4)
 			for i := range conns {
@@ -79,7 +83,7 @@ func TestServeMuxLogsEveryUnhandledMessage(t *testing.T) {
 							t.Error(err)
 							return
 						}
-						m := NewRequest(CapabilitiesExchange, 0, dict.Default)
+						m := NewRequest(CapabilitiesExchange, 0, testDict)
 						m.Header.HopByHopID = uint32(id)
 						m.Header.EndToEndID = uint32(id + count)
 						if _, err := m.WriteTo(c); err != nil {
@@ -179,6 +183,8 @@ func (h *blockingDerivedHandler) WithGroup(g string) slog.Handler {
 }
 
 func TestRecordsAreSynchronous(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	logs := &blockingRecordHandler{Recorder: logtest.New(), entered: make(chan struct{}), release: make(chan struct{})}
 	defer func() {
 		select {
@@ -190,10 +196,10 @@ func TestRecordsAreSynchronous(t *testing.T) {
 	next := make(chan struct{})
 	mux := NewServeMux()
 	mux.HandleFunc("DWR", func(Conn, *Message) { close(next) })
-	addr := reportingTCPServer(t, &Server{Handler: mux, Dict: dict.Default, Logger: slog.New(logs)})
+	addr := reportingTCPServer(t, &Server{Handler: mux, Dict: testDict, Logger: slog.New(logs)})
 	c := reportingDial(t, addr)
-	first, _ := NewRequest(CapabilitiesExchange, 0, dict.Default).Serialize()
-	second, _ := NewRequest(DeviceWatchdog, 0, dict.Default).Serialize()
+	first, _ := NewRequest(CapabilitiesExchange, 0, testDict).Serialize()
+	second, _ := NewRequest(DeviceWatchdog, 0, testDict).Serialize()
 	if _, err := c.Write(append(first, second...)); err != nil {
 		t.Fatal(err)
 	}
@@ -216,8 +222,10 @@ func TestRecordsAreSynchronous(t *testing.T) {
 }
 
 func TestMessageLogValueContainsOnlyHeader(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	const secret = "subscriber-secret-that-must-never-be-logged"
-	m := NewRequest(CapabilitiesExchange, 0, dict.Default)
+	m := NewRequest(CapabilitiesExchange, 0, testDict)
 	m.Header.HopByHopID = 42
 	m.Header.EndToEndID = 84
 	m.AddAVP(NewAVP(avp.UserName, avp.Mbit, 0, datatype.UTF8String(secret)))
@@ -260,6 +268,8 @@ func (h *responsibilityHandler) HandleMessageError(_ Conn, _ *Message, _ *Messag
 }
 
 func TestServerLogsBeforeClosing(t *testing.T) {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
 	for _, tc := range []struct {
 		name      string
 		result    error
@@ -279,7 +289,7 @@ func TestServerLogsBeforeClosing(t *testing.T) {
 			if tc.noHandler {
 				handler = HandlerFunc(func(Conn, *Message) {})
 			}
-			addr := reportingTCPServer(t, &Server{Handler: handler, Logger: records.Logger(), Dict: dict.Default})
+			addr := reportingTCPServer(t, &Server{Handler: handler, Logger: records.Logger(), Dict: testDict})
 			remote := reportingDial(t, addr)
 			malformed := testFramedMessage(t, RequestFlag, []byte{0, 0, 1, 2, avp.Mbit, 0xff, 0xff, 0xff})
 			if tc.fatal {
@@ -333,6 +343,8 @@ func TestServerLogsBeforeClosing(t *testing.T) {
 }
 
 func TestConnLoggerAcceptedAndLateDefault(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	for _, useDefault := range []bool{false, true} {
 		t.Run(fmt.Sprintf("default_%t", useDefault), func(t *testing.T) {
 			records := logtest.New()
@@ -341,7 +353,7 @@ func TestConnLoggerAcceptedAndLateDefault(t *testing.T) {
 				configured = records.Logger()
 			}
 			handled := make(chan Conn, 1)
-			srv := &Server{Logger: configured, Dict: dict.Default, Handler: HandlerFunc(func(c Conn, m *Message) { c.Logger().InfoContext(m.Context(), "connection marker"); handled <- c })}
+			srv := &Server{Logger: configured, Dict: testDict, Handler: HandlerFunc(func(c Conn, m *Message) { c.Logger().InfoContext(m.Context(), "connection marker"); handled <- c })}
 			// Resolve a nil Server.Logger at use, after construction and Serve start.
 			addr := reportingTCPServer(t, srv)
 			if useDefault {
@@ -350,7 +362,7 @@ func TestConnLoggerAcceptedAndLateDefault(t *testing.T) {
 				defer slog.SetDefault(previous)
 			}
 			remote := reportingDial(t, addr)
-			if _, err := NewRequest(CapabilitiesExchange, 0, dict.Default).WriteTo(remote); err != nil {
+			if _, err := NewRequest(CapabilitiesExchange, 0, testDict).WriteTo(remote); err != nil {
 				t.Fatal(err)
 			}
 			var c Conn
@@ -381,6 +393,8 @@ func TestConnLoggerAcceptedAndLateDefault(t *testing.T) {
 }
 
 func TestServeMuxPreservesMessageContext(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	records := logtest.New()
 	local, remote := net.Pipe()
 	defer func() { _ = local.Close() }()
@@ -389,7 +403,7 @@ func TestServeMuxPreservesMessageContext(t *testing.T) {
 	c := srv.newConn(local)
 	type contextKey struct{}
 	ctx := context.WithValue(context.Background(), contextKey{}, "message span")
-	m := NewRequest(CapabilitiesExchange, 0, dict.Default)
+	m := NewRequest(CapabilitiesExchange, 0, testDict)
 	m.SetContext(ctx)
 	NewServeMux().ServeDIAM(c.writer, m)
 	if records := records.Records(); len(records) != 1 || logtest.HasAttr(records[0], "error") {

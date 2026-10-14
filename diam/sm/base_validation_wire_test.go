@@ -6,16 +6,19 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/diamtest"
-	"github.com/gomaja/go-diameter/diam/dict"
 )
 
 // RFC 6733 §§8.3.1, 8.4.1, 8.5.1, 9.7.1: independent minimal requests.
 func baseSessionRequest(code uint32) *diam.Message {
-	m := diam.NewMessage(code, diam.RequestFlag|diam.ProxiableFlag, 0, 0x12345678, 0x87654321, dict.Default)
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
+	m := diam.NewMessage(code, diam.RequestFlag|diam.ProxiableFlag, 0, 0x12345678, 0x87654321, testDict)
 	m.AddAVP(diam.NewAVP(avp.SessionID, avp.Mbit, 0, datatype.UTF8String("original-session")))
 	m.AddAVP(diam.NewAVP(avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("client.example")))
 	m.AddAVP(diam.NewAVP(avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("example")))
@@ -41,14 +44,16 @@ func baseSessionRequest(code uint32) *diam.Message {
 // RFC 6733 §§3.2, 6.2, 7.1.5, 7.2; Verified Erratum 4808.
 // Exercise real validation dispatch and the shared error-answer builder on TCP.
 func TestBaseSessionErrorsTCP(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	for _, command := range []struct{ code, app uint32 }{{diam.ReAuth, 0}, {diam.SessionTermination, 0}, {diam.AbortSession, 0}, {diam.Accounting, 0}, {diam.Accounting, 3}} {
 		code := command.code
 		for _, kind := range []string{"duplicate", "displaced", "missing", "missing-nested", "protocol-missing"} {
 			t.Run(fmt.Sprintf("%d/%d/%s", command.app, code, kind), func(t *testing.T) {
-				settings := testMessageErrorSettings()
+				settings := testMessageErrorSettings(testDict)
 				settings.ValidateRequests = true
-				handler := mustNewStateMachine(t, settings)
-				server := diamtest.NewServer(handler, dict.Default)
+				handler := mustNewStateMachine(t, settings, testDict)
+				server := diamtest.NewServer(handler, testDict)
 				defer server.Close()
 				conn := dialHandshakeUnknownTest(t, server.Addr)
 				defer func() { _ = conn.Close() }()
@@ -90,7 +95,7 @@ func TestBaseSessionErrorsTCP(t *testing.T) {
 				if err := conn.SetReadDeadline(time.Now().Add(3 * time.Second)); err != nil {
 					t.Fatal(err)
 				}
-				answer, err := diam.ReadMessage(conn, dict.Default)
+				answer, err := diam.ReadMessage(conn, testDict)
 				if err != nil {
 					t.Fatal(err)
 				}

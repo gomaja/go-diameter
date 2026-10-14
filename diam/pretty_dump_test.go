@@ -12,9 +12,10 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
-	"github.com/gomaja/go-diameter/diam/dict"
 )
 
 func mustPrettyAVP(t *testing.T, msg *Message, code uint32, flags uint8, vendor uint32, data datatype.Type) {
@@ -25,8 +26,9 @@ func mustPrettyAVP(t *testing.T, msg *Message, code uint32, flags uint8, vendor 
 }
 
 func TestPrettyDump(t *testing.T) {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
 
-	msg := NewMessage(CreditControl, RequestFlag, CHARGING_CONTROL_APP_ID, 0xa8cc407d, 0xa8c1b2b4, dict.Default)
+	msg := NewMessage(CreditControl, RequestFlag, CHARGING_CONTROL_APP_ID, 0xa8cc407d, 0xa8c1b2b4, testDict)
 	mustPrettyAVP(t, msg, avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("test"))
 	mustPrettyAVP(t, msg, avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("localhost"))
 	mustPrettyAVP(t, msg, avp.HostIPAddress, avp.Mbit, 0, datatype.AddressFromIP(netip.MustParseAddr("10.1.0.1")))
@@ -60,6 +62,8 @@ func TestPrettyDump(t *testing.T) {
 }
 
 func TestPrettyDumpAVP(t *testing.T) {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
 	tests := []struct {
 		name     string
 		avp      *AVP
@@ -128,7 +132,7 @@ func TestPrettyDumpAVP(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			msg := NewMessage(CreditControl, RequestFlag, CHARGING_CONTROL_APP_ID, 0xa8cc407d, 0xa8c1b2b4, dict.Default)
+			msg := NewMessage(CreditControl, RequestFlag, CHARGING_CONTROL_APP_ID, 0xa8cc407d, 0xa8c1b2b4, testDict)
 
 			var b bytes.Buffer
 			prettyDumpAVP(&b, msg, tc.avp, 0)

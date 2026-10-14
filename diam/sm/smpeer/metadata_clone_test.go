@@ -53,7 +53,9 @@ func TestMetadataCloneOwnsCEAFields(t *testing.T) {
 }
 
 func TestMetadataCloneOwnsParsedApplicationIDs(t *testing.T) {
-	request := diam.NewMessage(diam.CapabilitiesExchange, diam.RequestFlag, 0, 1, 2, dict.Default)
+	testDict := newTestDictionary(dict.Base())
+
+	request := diam.NewMessage(diam.CapabilitiesExchange, diam.RequestFlag, 0, 1, 2, testDict)
 	for _, field := range []struct {
 		code  uint32
 		value datatype.Type

@@ -1,4 +1,4 @@
-package dict
+package dict_test
 
 import (
 	"encoding/json"
@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/gomaja/go-diameter/diam/dict"
 )
 
 const swxAppID = 16777265
@@ -47,9 +49,11 @@ type swxSpec struct {
 // TS 29.273 V19.2.0 Table 8.2.3.0/2: every reused AVP keeps its source
 // registry identity and receives the SWx-specific flag policy where stated.
 func TestSWxReusedAVPSpec(t *testing.T) {
+	reference := newAllTestParser(t)
+
 	for _, want := range loadSWxSpec(t).Reused {
 		t.Run(want.Name, func(t *testing.T) {
-			a := swxLookup(t, want.Name)
+			a := swxLookup(t, reference, want.Name)
 			if want.Metadata == nil {
 				t.Fatal("reused AVP lacks independently sourced metadata")
 			}
@@ -97,12 +101,12 @@ func swxName(s string) string {
 	return normalizeS6aABNFName(strings.ReplaceAll(s, "3GPP", "TGPP"))
 }
 
-func swxLookup(t *testing.T, name string) *AVP {
+func swxLookup(t *testing.T, reference *dict.Parser, name string) *dict.AVP {
 	t.Helper()
-	for _, app := range Default.Apps() {
+	for _, app := range reference.Apps() {
 		for _, a := range app.AVP {
 			if swxName(a.Name) == swxName(name) {
-				if found, err := Default.FindAVPByName(swxAppID, a.Name); err == nil {
+				if found, err := reference.FindAVPByName(swxAppID, a.Name); err == nil {
 					return found
 				}
 			}
@@ -114,14 +118,14 @@ func swxLookup(t *testing.T, name string) *AVP {
 
 func swxFlags(t *testing.T, s string) int {
 	t.Helper()
-	f, err := parseFlags(s)
+	f, err := dict.ParseFlagsForTesting(s)
 	if err != nil {
 		t.Fatalf("invalid flag set %q: %v", s, err)
 	}
 	return f
 }
 
-func swxCheckRules(t *testing.T, got []*Rule, want []swxRuleSpec) {
+func swxCheckRules(t *testing.T, got []*dict.Rule, want []swxRuleSpec) {
 	t.Helper()
 	if len(got) != len(want) {
 		t.Errorf("member count %d, want %d", len(got), len(want))
@@ -138,7 +142,7 @@ func swxCheckRules(t *testing.T, got []*Rule, want []swxRuleSpec) {
 	}
 }
 
-func swxCheckAVP(t *testing.T, got *AVP, want swxAVPSpec) {
+func swxCheckAVP(t *testing.T, got *dict.AVP, want swxAVPSpec) {
 	t.Helper()
 	if swxName(got.Name) != swxName(want.Name) || got.Code != want.Code || got.VendorID != want.Vendor || got.Data.TypeName != want.Type {
 		t.Errorf("identity/type %s/%d/%d/%s, want %s/%d/%d/%s", got.Name, got.Code, got.VendorID, got.Data.TypeName, want.Name, want.Code, want.Vendor, want.Type)
@@ -162,9 +166,11 @@ func swxCheckAVP(t *testing.T, got *AVP, want swxAVPSpec) {
 
 // TS 29.273 V19.2.0 Table 8.2.3.0/1 and §§8.2.3.1–8.2.3.28.
 func TestSWxAVPSpec(t *testing.T) {
+	reference := newAllTestParser(t)
+
 	for _, want := range loadSWxSpec(t).AVPs {
 		t.Run(want.Section+"/"+want.Name, func(t *testing.T) {
-			got, err := Default.FindAVP(swxAppID, want.Code, want.Vendor)
+			got, err := reference.FindAVP(swxAppID, want.Code, want.Vendor)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -177,9 +183,11 @@ func TestSWxAVPSpec(t *testing.T) {
 // published PPR PXY omission in §8.2.2.2: its PPA and §8.2.2.3 SAR/SAA
 // use PXY, and RFC 6733 §6.2 requires matching request/answer P bits.
 func TestSWxCommandSpec(t *testing.T) {
+	reference := newAllTestParser(t)
+
 	for _, want := range loadSWxSpec(t).Commands {
 		t.Run(want.Section, func(t *testing.T) {
-			c, err := Default.FindCommand(swxAppID, want.Code)
+			c, err := reference.FindCommand(swxAppID, want.Code)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -220,7 +228,9 @@ func TestSWxFixtureCoverage(t *testing.T) {
 
 // TS 29.273 V19.2.0 §8.2.1 and Table 8.2.3.0/2; RFC 6733 §5.3.6.
 func TestSWxVendorsAndLocalCoverage(t *testing.T) {
-	app, err := Default.App(swxAppID)
+	reference := newAllTestParser(t)
+
+	app, err := reference.App(swxAppID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -243,11 +253,11 @@ func TestSWxVendorsAndLocalCoverage(t *testing.T) {
 		names[swxName(a.Name)] = true
 	}
 	// TS 32.299 V19.0.0 Table 7.2.0.1: BSSID has no MAY-P and is inherited.
-	inherited, err := Default.FindAVPByName(4, "BSSID")
+	inherited, err := reference.FindAVPByName(4, "BSSID")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if swxLookup(t, "BSSID") != inherited {
+	if swxLookup(t, reference, "BSSID") != inherited {
 		t.Error("BSSID must inherit the corrected charging definition")
 	}
 	if len(app.AVP) != 38 {
@@ -257,8 +267,8 @@ func TestSWxVendorsAndLocalCoverage(t *testing.T) {
 		if !names[swxName(local.Name)] {
 			t.Errorf("uncovered local definition %s", local.Name)
 		}
-		inherited, err := Default.FindAVP(16777251, local.Code, local.VendorID)
-		if err == nil && sameAVP(local, inherited) {
+		inherited, err := reference.FindAVP(16777251, local.Code, local.VendorID)
+		if err == nil && dict.SameAVPForTesting(local, inherited) {
 			t.Errorf("redundant local copy %s", local.Name)
 		}
 	}

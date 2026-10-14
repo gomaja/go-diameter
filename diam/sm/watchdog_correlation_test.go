@@ -150,7 +150,7 @@ func TestPublishDWRRegistersBeforeWriteReturns(t *testing.T) {
 	signals := newWatchdogSignals()
 	c := &immediateDWAConn{watchdogProbeConn: newWatchdogProbeConn()}
 	c.onWrite = func(wire []byte) {
-		request, err := diam.ReadMessage(bytes.NewReader(wire), dict.Default)
+		request, err := diam.ReadMessage(bytes.NewReader(wire), newSMTestDictionary(dict.Base()))
 		if err != nil {
 			t.Fatal(err)
 		}

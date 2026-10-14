@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/diamtest"
@@ -17,8 +19,9 @@ import (
 )
 
 type blockingDisconnectConn struct {
-	mu     sync.Once
-	closed chan struct{}
+	dictionary *dict.Parser
+	mu         sync.Once
+	closed     chan struct{}
 }
 
 func (c *blockingDisconnectConn) Write([]byte) (int, error) {
@@ -39,7 +42,7 @@ func (c *blockingDisconnectConn) CloseNotify() <-chan struct{} { return c.closed
 func (c *blockingDisconnectConn) LocalAddr() net.Addr          { return nil }
 func (c *blockingDisconnectConn) RemoteAddr() net.Addr         { return nil }
 func (c *blockingDisconnectConn) TLS() *tls.ConnectionState    { return nil }
-func (c *blockingDisconnectConn) Dictionary() *dict.Parser     { return dict.Default }
+func (c *blockingDisconnectConn) Dictionary() *dict.Parser     { return c.dictionary }
 func (c *blockingDisconnectConn) Context() context.Context {
 	return smpeer.NewContext(context.Background(), &smpeer.Metadata{})
 }
@@ -47,8 +50,11 @@ func (c *blockingDisconnectConn) SetContext(context.Context) {}
 func (c *blockingDisconnectConn) Connection() net.Conn       { return nil }
 
 func TestDisconnectTimeoutBoundsBlockedWrite(t *testing.T) {
-	sm := mustNewStateMachine(t, serverSettings)
-	c := &blockingDisconnectConn{closed: make(chan struct{})}
+	testDict := newSMTestDictionary(dict.Base())
+	serverSettings := cloneTestSettings(serverSettings, testDict)
+
+	sm := mustNewStateMachine(t, serverSettings, testDict)
+	c := &blockingDisconnectConn{dictionary: testDict, closed: make(chan struct{})}
 	result := make(chan error, 1)
 	go func() { result <- sm.Disconnect(c, DisconnectBusy, 40*time.Millisecond) }()
 	select {
@@ -77,9 +83,13 @@ func writeTestDPA(t *testing.T, m *diam.Message, c diam.Conn) {
 }
 
 func TestDisconnectReceivesDPAAndCloses(t *testing.T) {
-	sm := mustNewStateMachine(t, serverSettings)
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings := cloneTestSettings(serverSettings, testDict)
+	clientSettings := cloneTestSettings(clientSettings, testDict)
+
+	sm := mustNewStateMachine(t, serverSettings, testDict)
 	smHandshakes := testHandshakeNotifications(sm)
-	srv := diamtest.NewServer(sm, dict.Default)
+	srv := diamtest.NewServer(sm, testDict)
 	defer srv.Close()
 	received := make(chan *diam.Message, 1)
 	client := dialHandshakeForDPR(t, "DPR", diam.HandlerFunc(func(c diam.Conn, m *diam.Message) {
@@ -119,9 +129,12 @@ func TestDisconnectReceivesDPAAndCloses(t *testing.T) {
 }
 
 func TestDisconnectTimesOutAndCloses(t *testing.T) {
-	sm := mustNewStateMachine(t, serverSettings)
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings := cloneTestSettings(serverSettings, testDict)
+
+	sm := mustNewStateMachine(t, serverSettings, testDict)
 	smHandshakes := testHandshakeNotifications(sm)
-	srv := diamtest.NewServer(sm, dict.Default)
+	srv := diamtest.NewServer(sm, testDict)
 	defer srv.Close()
 	received := make(chan struct{}, 1)
 	client := dialHandshakeForDPR(t, "DPR", diam.HandlerFunc(func(_ diam.Conn, _ *diam.Message) { received <- struct{}{} }), srv.Addr)
@@ -153,9 +166,12 @@ func TestDisconnectTimesOutAndCloses(t *testing.T) {
 }
 
 func TestDisconnectClosedConnectionReturnsError(t *testing.T) {
-	sm := mustNewStateMachine(t, serverSettings)
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings := cloneTestSettings(serverSettings, testDict)
+
+	sm := mustNewStateMachine(t, serverSettings, testDict)
 	smHandshakes := testHandshakeNotifications(sm)
-	srv := diamtest.NewServer(sm, dict.Default)
+	srv := diamtest.NewServer(sm, testDict)
 	defer srv.Close()
 	client := dialHandshakeForDPR(t, "", nil, srv.Addr)
 	peer := <-smHandshakes
@@ -171,9 +187,13 @@ func TestDisconnectClosedConnectionReturnsError(t *testing.T) {
 }
 
 func TestDisconnectIgnoresWrongHopID(t *testing.T) {
-	sm := mustNewStateMachine(t, serverSettings)
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings := cloneTestSettings(serverSettings, testDict)
+	clientSettings := cloneTestSettings(clientSettings, testDict)
+
+	sm := mustNewStateMachine(t, serverSettings, testDict)
 	smHandshakes := testHandshakeNotifications(sm)
-	srv := diamtest.NewServer(sm, dict.Default)
+	srv := diamtest.NewServer(sm, testDict)
 	defer srv.Close()
 	received := make(chan struct{}, 1)
 	client := dialHandshakeForDPR(t, "DPR", diam.HandlerFunc(func(c diam.Conn, m *diam.Message) {
@@ -208,9 +228,13 @@ func TestDisconnectIgnoresWrongHopID(t *testing.T) {
 }
 
 func TestDisconnectRejectsMalformedDPA(t *testing.T) {
-	sm := mustNewStateMachine(t, serverSettings)
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings := cloneTestSettings(serverSettings, testDict)
+	clientSettings := cloneTestSettings(clientSettings, testDict)
+
+	sm := mustNewStateMachine(t, serverSettings, testDict)
 	smHandshakes := testHandshakeNotifications(sm)
-	srv := diamtest.NewServer(sm, dict.Default)
+	srv := diamtest.NewServer(sm, testDict)
 	defer srv.Close()
 	received := make(chan struct{}, 1)
 	client := dialHandshakeForDPR(t, "DPR", diam.HandlerFunc(func(c diam.Conn, m *diam.Message) {
@@ -243,9 +267,13 @@ func TestDisconnectRejectsMalformedDPA(t *testing.T) {
 }
 
 func TestDisconnectIgnoresDPAOnAnotherConnection(t *testing.T) {
-	sm := mustNewStateMachine(t, serverSettings)
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings := cloneTestSettings(serverSettings, testDict)
+	clientSettings := cloneTestSettings(clientSettings, testDict)
+
+	sm := mustNewStateMachine(t, serverSettings, testDict)
 	smHandshakes := testHandshakeNotifications(sm)
-	srv := diamtest.NewServer(sm, dict.Default)
+	srv := diamtest.NewServer(sm, testDict)
 	defer srv.Close()
 	received := make(chan struct{}, 1)
 	var other diam.Conn
