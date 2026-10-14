@@ -1,6 +1,7 @@
 package sm
 
 import (
+	"bytes"
 	"log/slog"
 	"testing"
 	"testing/synctest"
@@ -200,7 +201,11 @@ func TestAcceptedWatchdogEventsHoldStopLock(t *testing.T) {
 		if !w.send() {
 			t.Fatal("DWR publication failed")
 		}
-		w.dwa.ServeDIAM(c, acceptedDWA(t, regressionDWR(t), diam.Success))
+		request, err := diam.ReadMessage(bytes.NewReader(<-c.writes), dict.Default)
+		if err != nil {
+			t.Fatal(err)
+		}
+		w.dwa.ServeDIAM(c, acceptedDWA(t, request, diam.Success))
 		w.dwa.ServeDIAM(c, acceptedDWA(t, regressionDWR(t), diam.TooBusy))
 		for _, event := range []WatchdogEvent{
 			WatchdogWriteFailed, WatchdogSuspect, WatchdogRecovered, WatchdogTimedOut,

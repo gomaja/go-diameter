@@ -196,7 +196,7 @@ func TestWatchdogReportsWriteError(t *testing.T) {
 		}
 	}
 
-	cli.dwr(c, 0)
+	cli.dwr(c, 0, &watchdogSignals{})
 
 	if got := records.Records(); len(got) != 1 || logError(got[0]) == nil {
 		t.Fatalf("watchdog failure records = %v", got)

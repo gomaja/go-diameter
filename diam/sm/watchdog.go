@@ -28,9 +28,10 @@ func jitteredTw(twinit, jitter time.Duration) time.Duration {
 }
 
 type watchdogSignals struct {
-	signal chan struct{}
-	last   atomic.Int64
-	dwac   chan struct{}
+	signal  chan struct{}
+	last    atomic.Int64
+	dwac    chan struct{}
+	request atomic.Pointer[diam.Header]
 }
 
 func newWatchdogSignals() watchdogSignals {
@@ -70,7 +71,7 @@ func connectionDone(c diam.Conn) <-chan struct{} {
 	return nil
 }
 
-func publishDWR(c diam.Conn, m *diam.Message, stream uint, mu *sync.Mutex, stopped *atomic.Bool, emit func(WatchdogEvent), failed func(error)) bool {
+func publishDWR(c diam.Conn, m *diam.Message, signals *watchdogSignals, stream uint, mu *sync.Mutex, stopped *atomic.Bool, emit func(WatchdogEvent), failed func(error)) bool {
 	// RFC 6733 §5.6: entering Closing excludes further DWRs. Serialize the
 	// check with the write and request event so a fast answer cannot overtake it.
 	mu.Lock()
@@ -78,6 +79,10 @@ func publishDWR(c diam.Conn, m *diam.Message, stream uint, mu *sync.Mutex, stopp
 		mu.Unlock()
 		return false
 	}
+	// RFC 6733 §§3, 6.2.1: retain both identifiers on this connection before
+	// writing, since an answer can arrive before WriteToStream returns.
+	header := *m.Header
+	signals.request.Store(&header)
 	if _, err := m.WriteToStream(c, stream); err != nil {
 		if c.Closed() || stopped != nil && stopped.Load() {
 			mu.Unlock()

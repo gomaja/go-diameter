@@ -324,7 +324,7 @@ func (cli *Client) server(network, addr string, laddr net.Addr, activity *watchd
 				return processCEA(cli.Handler, activity, c, m)
 			}}
 		if cli.EnableWatchdog {
-			h.dwa = handshakeOK(handleDWA(cli.Handler, activity.dwac, cli.observeWatchdog))
+			h.dwa = handshakeOK(handleDWA(cli.Handler, &activity.watchdogSignals, cli.observeWatchdog))
 		}
 		handler = h
 	}
@@ -599,7 +599,7 @@ func (cli *Client) watchdog(c diam.Conn, dwac chan struct{}, activity *watchdogA
 	w := connWatchdog{
 		conn: c, done: disconnect, signals: &activity.watchdogSignals, dwac: dwac,
 		interval: cli.nextWatchdogInterval,
-		send:     func() bool { return cli.dwr(c, osid) },
+		send:     func() bool { return cli.dwr(c, osid, &activity.watchdogSignals) },
 		observe:  func(event WatchdogEvent) { cli.observeWatchdog(c, event) },
 		protocolTimeout: func() {
 			cli.Handler.protocolError(c, nil, diam.ProtocolWatchdogTimeout, 0, true, diam.ProtocolReplyNone, 0)
@@ -608,14 +608,14 @@ func (cli *Client) watchdog(c diam.Conn, dwac chan struct{}, activity *watchdogA
 	w.run()
 }
 
-func (cli *Client) dwr(c diam.Conn, osid uint32) bool {
+func (cli *Client) dwr(c diam.Conn, osid uint32, signals *watchdogSignals) bool {
 	m, err := cli.makeDWR(osid)
 	if err != nil {
 		logMessage(c, nil, slog.LevelError, "sm: watchdog request failed; closing connection", err)
 		c.Close()
 		return false
 	}
-	return publishDWR(c, m, cli.WatchdogStream, &cli.watchdogEventMu, nil,
+	return publishDWR(c, m, signals, cli.WatchdogStream, &cli.watchdogEventMu, nil,
 		func(event WatchdogEvent) { cli.emitWatchdog(c, event) }, nil)
 }
 
