@@ -778,8 +778,7 @@ func (m *Message) Answer(resultCode uint32) *Message {
 	nm := NewMessage(
 		m.Header.CommandCode,
 		// RFC 6733 §3: an answer clears R, and T "MUST NOT be set in answer
-		// messages"; E marks error answers only, so a fresh answer starts
-		// without it. Reserved bits must be zero when sent (§3).
+		// messages". Reserved bits must be zero when sent (§3).
 		// Only P keeps the request's value (§6.2).
 		m.Header.CommandFlags&ProxiableFlag,
 		m.Header.ApplicationID,
@@ -791,6 +790,11 @@ func (m *Message) Answer(resultCode uint32) *Message {
 	// including zero values. NewMessage generates IDs only for new messages.
 	nm.Header.HopByHopID = m.Header.HopByHopID
 	nm.Header.EndToEndID = m.Header.EndToEndID
+	// RFC 6733 §§7.1.3 and 7.2: only 3xxx Result-Codes require E.
+	// The caller supplies the remaining answer-message AVPs.
+	if resultCode >= 3000 && resultCode < 4000 {
+		nm.Header.CommandFlags |= ErrorFlag
+	}
 	if resultCode != 0 {
 		if _, err := nm.NewAVP(avp.ResultCode, avp.Mbit, 0, datatype.Unsigned32(resultCode)); err != nil {
 			panic(err)

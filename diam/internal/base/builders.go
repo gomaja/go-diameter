@@ -76,9 +76,14 @@ func BuildCER(dictionary *dict.Parser, cfg Settings) (*diam.Message, error) {
 	return m, nil
 }
 
-// BuildCEA constructs the RFC 6733 §5.3.2 answer. A failed capability
-// exchange retains the mandatory local fields but omits supported apps.
+// BuildCEA constructs the RFC 6733 §5.3.2 answer. Non-protocol failures
+// retain the mandatory local fields but omit supported apps.
 func BuildCEA(request *diam.Message, cfg Settings, resultCode uint32) (*diam.Message, error) {
+	// RFC 6733 §§7.1.3 and 7.2: 3xxx results, including Unknown-Peer,
+	// require E and the generic answer-message grammar.
+	if resultCode >= 3000 && resultCode < 4000 {
+		return BuildErrorAnswer(request, cfg, resultCode, nil, true)
+	}
 	a := request.Answer(resultCode)
 	var buildErr error
 	add := func(code uint32, flags uint8, vendor uint32, data datatype.Type) {
