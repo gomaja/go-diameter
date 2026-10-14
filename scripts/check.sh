@@ -72,7 +72,7 @@ export GOTOOLCHAIN=$GO_STABLE
 work=$(mktemp -d "${TMPDIR:-/tmp}/go-diameter-check.XXXXXX") || exit 1
 trap 'rm -rf "$work/codeql-db"' EXIT
 
-modules=(. oteldiam)
+modules=(. oteldiam dnsdiam)
 
 need() {
 	command -v "$1" >/dev/null && return 0
@@ -171,16 +171,46 @@ check_vet() {
 }
 
 check_lint() {
-	go run "$staticcheck" ./... && go run "$golangci_lint" run ./...
+	in_modules go run "$staticcheck" ./... && in_modules go run "$golangci_lint" run ./...
 }
 
 check_vuln() {
-	# Vulnerabilities the code can reach, then every vulnerable module
-	# version required, reachable or not. Module mode needs a directory with
-	# Go files, so it starts from one.
-	in_modules go run "$govulncheck" ./... || return 1
-	go run "$govulncheck" -C diam -scan module &&
-		go run "$govulncheck" -C oteldiam -scan module
+	# Symbol mode checks reachable production and test calls. Package mode checks
+	# every production and test import, even without a reachable call. Both are strict.
+	in_modules go run "$govulncheck" -scan symbol -test ./... || return 1
+	in_modules go run "$govulncheck" -scan package -test ./... || return 1
+	# Permanent rule: do not use golang.org/x/crypto/openpgp or its subpackages.
+	# GO-2026-5932 has no fix in that deprecated package:
+	# https://pkg.go.dev/vuln/GO-2026-5932
+	# Only this module-level finding is permitted, with evidence on every run
+	# that it is unreachable, unimported and absent from test dependencies too.
+	# Imports in all module Go files are checked regardless of platform or tags,
+	# including tests; testdata/vendor and separate nested modules are excluded.
+	# Versionless local SBOM entries require matching go list module metadata.
+	# A new finding, a forbidden import, malformed JSON or a tool failure fails.
+	local m directory json deps inventory
+	for m in "${modules[@]}"; do
+		directory=$m
+		# Module mode accepts no patterns; start root scans in a Go directory.
+		[ "$m" != . ] || directory=diam
+		json=$work/vuln-${m//./root}.json
+		deps=$work/vuln-${m//./root}.deps
+		if ! go run "$govulncheck" -C "$directory" -scan module -test -json > "$json"; then
+			echo "module vulnerability scan failed: $m" >&2
+			return 1
+		fi
+		if ! (cd "$m" && go list -deps -test ./...) > "$deps"; then
+			echo "test-inclusive dependency scan failed: $m" >&2
+			return 1
+		fi
+		inventory=$work/vuln-${m//./root}.modules
+		if ! (cd "$m" && go list -m -json all) > "$inventory"; then
+			echo "module metadata scan failed: $m" >&2
+			return 1
+		fi
+		echo "== module vulnerability gate: $m (symbol and package scans passed)"
+		go run ./scripts/vulngate "$json" "$deps" "$m" "$inventory" || return 1
+	done
 }
 
 check_windows() {

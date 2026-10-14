@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 
 	"github.com/gomaja/go-diameter/diam"
+	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/sm/smpeer"
 )
 
@@ -54,7 +55,7 @@ func (m *Manager) newSession(c diam.Conn, a *actor, gen uint64, inbound bool) *s
 	s := &session{m: m, c: c, actor: a, gen: gen, inbound: inbound, writes: make(chan writeRequest, m.cfg.Limits.Events), ingress: make(chan incoming, m.cfg.Limits.Events), closed: make(chan struct{})}
 	// Close sets closing under this lock before it waits for session workers.
 	m.mu.Lock()
-	if m.closing || c.Closed() {
+	if m.closing || c.Closed() || a != nil && (a.retiring.Load() || !a.leaseLive()) {
 		m.mu.Unlock()
 		c.Close()
 		return nil
@@ -150,6 +151,11 @@ func (s *session) binding() (*actor, uint64) {
 }
 func (s *session) bind(a *actor, gen uint64) bool {
 	s.firstMu.Lock()
+	if a.retiring.Load() || !a.leaseLive() {
+		s.firstMu.Unlock()
+		s.close()
+		return false
+	}
 	if s.isRetired() {
 		s.firstMu.Unlock()
 		return false
@@ -168,6 +174,9 @@ func (s *session) sendWrite(w writeRequest) error {
 	}
 	if s.beforeAdmission != nil {
 		s.beforeAdmission()
+	}
+	if !s.leaseAllowsWrite(w) {
+		return ErrLeaseExpired
 	}
 	s.ingressMu.Lock()
 	defer s.ingressMu.Unlock()
@@ -270,6 +279,10 @@ func (s *session) writer() {
 				w.pending.entries[s] = attempt
 				s.m.pendingMu.Unlock()
 			}
+			if !s.leaseAllowsWrite(w) {
+				s.close()
+				return
+			}
 			_, err := w.msg.WriteTo(s.c)
 			if err != nil {
 				s.m.reportLocal(s, w.msg, "peer: write failed; closing connection", err)
@@ -325,4 +338,24 @@ func connectionDone(c diam.Conn) <-chan struct{} {
 		}
 	}
 	return nil
+}
+
+// Expiry permits only disconnect and terminal rejection, never application traffic.
+func (s *session) leaseAllowsWrite(w writeRequest) bool {
+	msg := w.msg
+	a, _ := s.binding()
+	if a == nil {
+		return true
+	}
+	if a.leaseLive() {
+		if msg == nil || msg.Header == nil || msg.Header.ApplicationID == 0 || a.discovery.Load() == nil {
+			return true
+		}
+		realm, err := destination(msg, avp.DestinationRealm)
+		return err == nil && a.discoveryMessageIdentities(msg) && a.discoveryRealm(realm) && a.discoveryAllows(msg.Header.ApplicationID)
+	}
+	if msg == nil || msg.Header == nil || msg.Header.ApplicationID != 0 {
+		return false
+	}
+	return msg.Header.CommandCode == diam.DisconnectPeer || w.closeAfter && msg.Header.CommandCode == diam.CapabilitiesExchange && msg.Header.CommandFlags&diam.RequestFlag == 0
 }

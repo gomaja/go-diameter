@@ -88,7 +88,7 @@ func (a *actor) reconnectInterval() time.Duration {
 	return d
 }
 func (a *actor) scheduleReconnect() {
-	if a.m.isClosing() || a.ownStop || a.suppressReconnect || a.cfg.NoAutoReconnect || len(a.cfg.Endpoints) == 0 || !a.m.hasStarted() {
+	if !a.leaseLive() || a.m.isClosing() || a.ownStop || a.suppressReconnect || a.cfg.NoAutoReconnect || len(a.cfg.Endpoints) == 0 || !a.m.hasStarted() {
 		return
 	}
 	a.stopReconnect()
@@ -102,7 +102,7 @@ func (a *actor) scheduleReconnect() {
 func (a *actor) reconnectTick() {
 	// RFC 3539 Appendix A INITIAL/DOWN Timer expires: AttemptOpen. RFC 6733 §12
 	// supplies Tc as the retry timer while there is no live connection.
-	if a.state != Closed || a.m.isClosing() || a.ownStop || a.suppressReconnect || len(a.cfg.Endpoints) == 0 || !a.m.hasStarted() {
+	if !a.leaseLive() || a.state != Closed || a.m.isClosing() || a.ownStop || a.suppressReconnect || len(a.cfg.Endpoints) == 0 || !a.m.hasStarted() {
 		return
 	}
 	if a.dialing {
@@ -158,6 +158,9 @@ func (a *actor) onOpen() {
 	}
 }
 func (a *actor) lostConnection(reason error) {
+	// An initial handshake can end with transport EOF rather than a rejected
+	// CEA. Complete its acquisition acknowledgement before reconnect backoff.
+	a.signalReady(reason)
 	a.stopWatchdog()
 	a.pendingWatchdog = false // release the dead transport's outstanding probe
 	if a.everOpen {

@@ -59,7 +59,7 @@ func destination(msg *diam.Message, code uint32) (string, error) {
 }
 
 func (m *Manager) usable(a *actor, app uint32) *session {
-	if a == nil {
+	if a == nil || !a.leaseLive() || !a.discoveryAllows(app) {
 		return nil
 	}
 	p := a.snapshot()
@@ -121,7 +121,7 @@ func (m *Manager) selectPeer(msg *diam.Message, excluded map[*actor]bool) (*acto
 	if a := m.peers[host]; a != nil {
 		// RFC 6733 §5.5.4: no alternate peer can deliver to an unavailable
 		// configured final destination.
-		if !excluded[a] {
+		if !excluded[a] && a.discoveryRealm(realm) && a.discoveryMessageIdentities(msg) {
 			if s := m.usable(a, msg.Header.ApplicationID); s != nil {
 				return a, s, nil
 			}
@@ -129,7 +129,8 @@ func (m *Manager) selectPeer(msg *diam.Message, excluded map[*actor]bool) (*acto
 		return nil, nil, ErrUnableToDeliver
 	}
 	peers, ok := m.routes.Load().entries[routeKey{realm: realm, app: msg.Header.ApplicationID}]
-	if !ok {
+	dynamic := m.dynamicRoutes[routeKey{realm: realm, app: msg.Header.ApplicationID}]
+	if !ok && len(dynamic) == 0 {
 		if host != "" {
 			return nil, nil, ErrUnableToDeliver
 		}
@@ -137,11 +138,19 @@ func (m *Manager) selectPeer(msg *diam.Message, excluded map[*actor]bool) (*acto
 	}
 	for _, name := range peers {
 		a := m.peers[name]
-		if excluded[a] {
+		if excluded[a] || !a.discoveryRealm(realm) || !a.discoveryMessageIdentities(msg) {
 			continue
 		}
 		if s := m.usable(a, msg.Header.ApplicationID); s != nil {
 			return a, s, nil
+		}
+	}
+	for _, r := range dynamic {
+		a := r.actor
+		if !excluded[a] && a.discoveryMessageIdentities(msg) && m.cfg.Now().Before(r.expires) {
+			if s := m.usable(a, msg.Header.ApplicationID); s != nil {
+				return a, s, nil
+			}
 		}
 	}
 	return nil, nil, ErrUnableToDeliver

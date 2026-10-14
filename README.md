@@ -620,6 +620,90 @@ deprecate ([exceptions in logs](https://opentelemetry.io/docs/specs/semconv/exce
 The panic then continues to `diam.Server`. `WithTracerProvider` and
 `WithLoggerProvider` choose the providers; the defaults are the global ones.
 
+## DNS peer discovery
+
+The separate [`dnsdiam`](dnsdiam) module implements RFC 6733 §5.2 discovery.
+It keeps the DNS client out of the core module. It follows application and
+transport S-NAPTR tags (RFC 6408), NAPTR delegation (RFC 3958), SRV priority and
+weights (RFC 2782), and explicit A/AAAA lookups. Only genuine NAPTR absence
+permits SRV fallback under the requested realm. Names are absolute, without
+search-domain expansion; configure literal-IP nameservers or use Unix
+`resolv.conf`. The pinned Codeberg client retries truncated UDP replies over
+TCP and validates response correlation.
+
+Install the core from `main` together with the discovery module, because the
+discovery module uses the new Manager lease API:
+
+```sh
+go get github.com/gomaja/go-diameter@main github.com/gomaja/go-diameter/dnsdiam@main
+```
+
+Start a `peer.Manager` with its normal local settings, then attach discovery:
+
+```go
+resolver, err := dnsdiam.NewResolver(dnsdiam.DNSConfig{})
+if err != nil {
+    return err
+}
+discovery, err := dnsdiam.New(dnsdiam.Config{Resolver: resolver})
+if err != nil {
+    return err
+}
+controller, err := dnsdiam.NewController(discovery, manager, policy)
+if err != nil {
+    return err
+}
+defer controller.Close(context.Background())
+if err := controller.Ensure(ctx, "example.net", applicationID); err != nil {
+    return err
+}
+// Run Watch for ongoing refresh; it blocks until cancellation or failure.
+return controller.Watch(ctx, dnsdiam.Request{
+    Realm: "example.net", ApplicationID: applicationID,
+})
+```
+
+`policy` is a `dnsdiam.Policy` with Diameter trust anchors, TLS client credentials
+and a required `Authorize` callback that approves the peer's role, realm and
+application. Certificates must cover the NAPTR/SRV naming chain and final
+hostname. Origin-Host, Origin-Realm and advertised applications are checked
+before eligibility. Operators configure servers to require and verify client
+certificates (RFC 6733 §§5.2, 13.1–13.2). `AllowRealm` and `AllowDelegation` are
+explicit exceptions to the default realm and DNS delegation boundaries.
+Ordinary Web PKI and DNSSEC alone do not authorize Diameter roles; requiring
+authenticated DNS also requires a trusted validating resolver.
+
+Eligible configured routes take precedence. Discovered peers and each of their
+realm routes expire together at the earliest DNS or certificate deadline.
+Each application retains the discovery ranking; later candidates serve requests
+when earlier candidates are unavailable.
+Failed refresh never extends authorization; zero TTL is never installed.
+Unchanged authorized connections survive refresh, while changed endpoint or
+security evidence triggers replacement. One discovered host can share several
+applications within one requested realm; sharing it across different requested
+realms is rejected. Closing the controller releases its leases.
+
+TLS/TCP is the default. Plain TCP/SCTP requires `AllowPlaintext` and configured
+external security, normally IPsec. Discovery can report DTLS/SCTP records,
+but current dialing and Manager integration reject that transport.
+
+Without a Manager, inspect ordered `Candidate` values with `Discover`, or use
+the helper that completes capability and security admission before exposing
+application traffic:
+
+```go
+conn, err := discovery.DialContext(ctx, request, dnsdiam.DialConfig{
+    Settings: settings, Policy: policy, Handler: applicationHandler,
+})
+```
+
+The helper preserves the DNS hostname for TLS while dialing the resolved IP and
+advertised port. It gates application traffic by the requested application and
+realm. Writes must contain complete Diameter frames, as `Message.WriteTo`
+produces. Its connection closes at expiry; rediscover and dial again to
+refresh it. The `Resolver`, current time, RNG and timer boundaries are injectable
+for tests. Run repository checks from the root to validate all three modules.
+
 ## Performance
 
 Throughput depends heavily on application structure, logging, dictionary lookup

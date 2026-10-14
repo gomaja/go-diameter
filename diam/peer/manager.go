@@ -1,4 +1,4 @@
-// Package peer provides opt-in, statically configured Diameter peer management.
+// Package peer provides opt-in configured and leased Diameter peer management.
 // It owns the RFC 6733 §5.6 base-message state machine on bound connections.
 // Accepted SCTP restart renews a session on the same socket (RFC 9260 §5.2.4;
 // RFC 6458 §6.1.1), preserving outbound election legs (RFC 6733 §5.6.4).
@@ -71,9 +71,12 @@ type Config struct {
 	// OnWatchdogConnEvent. Use Timers.TwInit and OnPeerEvent for managed peers.
 	Settings sm.Settings
 	Clock    Clock
-	Timers   Timers
-	Limits   Limits
-	Dial     DialFunc
+	// Now supplies the current time for discovery admission and expiration.
+	// It must be safe for concurrent calls. Nil uses time.Now.
+	Now    func() time.Time
+	Timers Timers
+	Limits Limits
+	Dial   DialFunc
 	// EndToEnd optionally supplies a concurrency-safe End-to-End ID generator.
 	// It must keep (Origin-Host, End-to-End ID) unique for at least four
 	// minutes, including across restarts (RFC 6733 §3).
@@ -103,6 +106,8 @@ type PeerSnapshot struct {
 	Generation   uint64
 	Watchdog     WatchdogState
 	Eligible     bool
+	Dynamic      bool
+	ExpiresAt    time.Time
 }
 type PeerEvent struct {
 	Peer   PeerSnapshot
@@ -113,6 +118,8 @@ type Manager struct {
 	cfg              Config
 	mu               sync.RWMutex
 	peers            map[string]*actor
+	retiredActors    []*actor
+	dynamicRoutes    map[routeKey][]dynamicRoute
 	sessions         map[diam.Conn]*session
 	retiredSessions  map[diam.Conn]*session
 	server           *diam.Server
@@ -159,6 +166,9 @@ func New(cfg Config) (*Manager, error) {
 		return nil, errors.New("peer: Origin-Host and Origin-Realm are required")
 	}
 	cfg.Settings.HostIPAddresses = base.CloneAddresses(cfg.Settings.HostIPAddresses)
+	if cfg.Now == nil {
+		cfg.Now = time.Now
+	}
 	if cfg.Clock == nil {
 		cfg.Clock = realClock{}
 	}
@@ -196,7 +206,7 @@ func New(cfg Config) (*Manager, error) {
 	if cfg.Limits.PendingPerPeer <= 0 {
 		cfg.Limits.PendingPerPeer = 1024
 	}
-	m := &Manager{cfg: cfg, peers: make(map[string]*actor), sessions: make(map[diam.Conn]*session), retiredSessions: make(map[diam.Conn]*session), done: make(chan struct{}), closed: make(chan struct{}), callbackQ: make(chan PeerEvent, cfg.Limits.Events), pending: make(map[*session]map[uint32]*pendingRequest), controls: make(map[*session]map[uint32]struct{}), localApps: make(map[uint32]struct{})}
+	m := &Manager{cfg: cfg, dynamicRoutes: make(map[routeKey][]dynamicRoute), peers: make(map[string]*actor), sessions: make(map[diam.Conn]*session), retiredSessions: make(map[diam.Conn]*session), done: make(chan struct{}), closed: make(chan struct{}), callbackQ: make(chan PeerEvent, cfg.Limits.Events), pending: make(map[*session]map[uint32]*pendingRequest), controls: make(map[*session]map[uint32]struct{}), localApps: make(map[uint32]struct{})}
 	localCapabilities := m.baseSettings(nil)
 	for _, id := range base.AdvertisedApplicationIDs(localCapabilities) {
 		m.localApps[id] = struct{}{}
@@ -386,7 +396,7 @@ func (m *Manager) Close(ctx context.Context, cause sm.DisconnectCause) error {
 func (m *Manager) allActors() []*actor {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	out := make([]*actor, 0, len(m.peers))
+	out := append([]*actor(nil), m.retiredActors...)
 	for _, a := range m.peers {
 		out = append(out, a)
 	}
