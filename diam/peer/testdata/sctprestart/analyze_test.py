@@ -24,6 +24,23 @@ def event(generation, watchdog, eligible, host='client1.example'):
             f'Eligible:{str(eligible).lower()}}} reason=<nil>')
 
 
+def checkpoints(log, early=False):
+    """Literal post-processing observations, independent of callback delivery."""
+    result = []
+    for index, line in enumerate(log):
+        result.append(line)
+        if index in (8, 13, 16, 19):
+            count = (8, 13, 16, 19).index(index)
+            hop, end = ('81000002', '82000002') if count == 0 else (
+                f'{16 + count:08x}', f'{32 + count:08x}')
+            eligible = count >= (2 if early else 3)
+            snapshot = event(2, 'OKAY' if eligible else 'REOPEN', eligible)
+            result.append(f'RECOVERY_CHECKPOINT command={257 if count == 0 else 280} '
+                          f'hop={hop} end={end} connection_generation=2 '
+                          + snapshot.replace('PEER_EVENT ', '').replace(' reason=<nil>', ''))
+    return result
+
+
 def fixture():
     """Hand-selected identifiers and packet order; no analyzer helpers used."""
     rows = []
@@ -83,7 +100,7 @@ def fixture():
 
 
 class AnalyzerRecoveryTest(unittest.TestCase):
-    def analyze(self, rows, log):
+    def analyze(self, rows, log, synchronous=False):
         # Only the external tshark invocation is replaced. The actual CLI,
         # packet parsing, state checks, and resulting exit code run unchanged.
         with tempfile.TemporaryDirectory() as directory:
@@ -91,6 +108,8 @@ class AnalyzerRecoveryTest(unittest.TestCase):
             out = root / 'watchdog'
             out.mkdir()
             (out / 'run-id').write_text('synthetic-recovery')
+            if not synchronous:
+                log = checkpoints(log)
             (out / 'server.log').write_text('\n'.join(log) + '\n')
             (out / 'iptables.txt').write_text(' 1 100 DROP 132\n')
             (root / 'packets.tsv').write_text('\n'.join(
@@ -117,40 +136,66 @@ class AnalyzerRecoveryTest(unittest.TestCase):
         result = self.analyze(rows, log)
         self.assertEqual(result.returncode, 0, result.stderr)
 
+    def test_rejects_early_second_dwa_health_despite_queued_reopen_callbacks(self):
+        rows, log = fixture()
+        # Earlier FIFO REOPEN callbacks fill the old timing windows. DWA 2
+        # already made the actual state eligible; its callback arrives last.
+        result = self.analyze(rows, checkpoints(log, early=True), synchronous=True)
+        self.assertNotEqual(result.returncode, 0, result.stdout)
+
+    def test_accepts_correct_recovery_with_delayed_fifo_callbacks(self):
+        rows, log = fixture()
+        observed = checkpoints(log)
+        delayed = []
+        for callback in (log[14], log[17], log[20]):
+            observed.remove(callback)
+            delayed.append(callback)
+        observed.extend(delayed)
+        result = self.analyze(rows, observed, synchronous=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_rejects_pre_restart_okay_when_renewed_generation_stays_reopen(self):
         rows, log = fixture()
-        log[-1] = event(2, 'REOPEN', False)
-        result = self.analyze(rows, log)
+        observed = checkpoints(log)
+        observed[-2] = observed[-2].replace('Watchdog:OKAY Eligible:true', 'Watchdog:REOPEN Eligible:false')
+        result = self.analyze(rows, observed, synchronous=True)
         self.assertNotEqual(result.returncode, 0, result.stdout)
         self.assertIn('renewed generation did not become eligible', result.stderr)
 
     def test_rejects_eligibility_before_each_of_three_answers(self):
-        for count, index in enumerate((9, 14, 17)):
+        for count in range(3):
             with self.subTest(before_answer=count):
                 rows, log = fixture()
-                log[index] = event(2, 'OKAY', True)
-                result = self.analyze(rows, log)
+                observed = checkpoints(log)
+                indices = [i for i, line in enumerate(observed) if line.startswith('RECOVERY_CHECKPOINT')]
+                observed[indices[count]] = observed[indices[count]].replace('Watchdog:REOPEN Eligible:false', 'Watchdog:OKAY Eligible:true')
+                result = self.analyze(rows, observed, synchronous=True)
                 self.assertNotEqual(result.returncode, 0, result.stdout)
                 self.assertIn('eligible before third matching DWA', result.stderr)
 
     def test_other_peer_or_old_generation_cannot_supply_recovery(self):
-        for replacement in (event(2, 'OKAY', True, 'alternate.example'),
-                            event(1, 'OKAY', True)):
+        for replacement in ('Host:DiameterIdentity{alternate.example}', 'Generation:1'):
             with self.subTest(replacement=replacement):
                 rows, log = fixture()
-                log[-1] = replacement
-                result = self.analyze(rows, log)
+                observed = checkpoints(log)
+                if replacement.startswith('Host:'):
+                    observed[-2] = observed[-2].replace('Host:DiameterIdentity{client1.example}', replacement)
+                else:
+                    observed[-2] = observed[-2].replace('Generation:2', replacement)
+                result = self.analyze(rows, observed, synchronous=True)
                 self.assertNotEqual(result.returncode, 0, result.stdout)
-                self.assertIn('renewed generation did not become eligible', result.stderr)
+                self.assertIn('checkpoint identity or generation mismatch', result.stderr)
 
     def test_requires_ineligible_snapshot_after_first_two_answers(self):
-        for index in (14, 17):
-            with self.subTest(index=index):
+        for count in (1, 2):
+            with self.subTest(count=count):
                 rows, log = fixture()
-                log[index] = event(1, 'REOPEN', False)
-                result = self.analyze(rows, log)
+                observed = checkpoints(log)
+                indices = [i for i, line in enumerate(observed) if line.startswith('RECOVERY_CHECKPOINT')]
+                observed.pop(indices[count])
+                result = self.analyze(rows, observed, synchronous=True)
                 self.assertNotEqual(result.returncode, 0, result.stdout)
-                self.assertIn('ineligible snapshot missing after recovery DWA', result.stderr)
+                self.assertIn('expected CER plus three DWA processing checkpoints', result.stderr)
 
     def test_capture_dwa_requires_ordered_transport_delivery(self):
         rows, log = fixture()
@@ -175,18 +220,38 @@ class AnalyzerRecoveryTest(unittest.TestCase):
 
     def test_third_answer_requires_complete_transport_delivery(self):
         rows, log = fixture()
-        log[-2], log[-1] = log[-1], log[-2]
-        result = self.analyze(rows, log)
+        observed = checkpoints(log)
+        observed[-3], observed[-2] = observed[-2], observed[-3]
+        result = self.analyze(rows, observed, synchronous=True)
         self.assertNotEqual(result.returncode, 0, result.stdout)
-        self.assertIn('eligible before third matching DWA', result.stderr)
+        self.assertIn('checkpoint precedes complete message delivery', result.stderr)
 
     def test_first_snapshot_after_third_answer_must_be_eligible(self):
         rows, log = fixture()
-        log[-1] = event(2, 'REOPEN', False)
-        log.append(event(2, 'OKAY', True))
-        result = self.analyze(rows, log)
+        observed = checkpoints(log)
+        observed[-2] = observed[-2].replace('Watchdog:OKAY Eligible:true', 'Watchdog:REOPEN Eligible:false')
+        observed.append(event(2, 'OKAY', True))
+        result = self.analyze(rows, observed, synchronous=True)
         self.assertNotEqual(result.returncode, 0, result.stdout)
         self.assertIn('renewed generation did not become eligible', result.stderr)
+
+    def test_checkpoint_must_match_both_dwa_identifiers(self):
+        for identifier in ('hop=00000012', 'end=00000022'):
+            with self.subTest(identifier=identifier):
+                rows, log = fixture()
+                observed = checkpoints(log)
+                observed = [line.replace(identifier, identifier[:-1] + 'f')
+                            if line.startswith('RECOVERY_CHECKPOINT') else line for line in observed]
+                result = self.analyze(rows, observed, synchronous=True)
+                self.assertNotEqual(result.returncode, 0, result.stdout)
+                self.assertIn('checkpoint DWA identifiers mismatch', result.stderr)
+
+    def test_recovery_callbacks_can_be_absent_without_affecting_checkpoints(self):
+        rows, log = fixture()
+        observed = [line for line in checkpoints(log)
+                    if not (line.startswith('PEER_EVENT') and 'Generation:2' in line)]
+        result = self.analyze(rows, observed, synchronous=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
 
 
 if __name__ == '__main__':

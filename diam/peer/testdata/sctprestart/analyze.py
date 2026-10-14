@@ -8,7 +8,7 @@ import sys
 
 
 def assert_watchdog_recovery(rows, log, cer, cea):
-    """Correlate RFC 3539 Appendix A REOPEN recovery with ordered delivery."""
+    """Check RFC 3539 Appendix A using synchronous, identifier-bound state."""
     hook = re.search(r'RESTART_HOOK .*old_generation=(\d+) new_generation=(\d+)', log)
     assert hook and int(hook[2]) > int(hook[1]), 'renewed generation marker missing'
     generation = int(hook[2])
@@ -24,6 +24,7 @@ def assert_watchdog_recovery(rows, log, cer, cea):
               int(row['frame.number']) > int(cea['frame.number'])]
     assert len(probes) >= 3, 'fewer than three recovery watchdog probes'
     delivered = []
+    headers = []
     reply_frames = []
     for probe in probes[:3]:
         replies = [row for row in rows if row['diameter.cmd.code'] == '280' and
@@ -60,24 +61,31 @@ def assert_watchdog_recovery(rows, log, cer, cea):
             if int(marker[1]) == int(reads[0][1]) + 1 and
             int(marker[2]) == body_size and marker.start() > reads[0].end()]
         assert body_size > 0 and len(bodies) == 1, 'complete recovery DWA transport read missing'
+        headers.append(reads[0])
         delivered.append(bodies[0])
 
-    snapshots = []
-    for marker in re.finditer(r'PEER_EVENT peer=\{Host:DiameterIdentity\{([^}]+)\}.*'
-                              r'State:(\S+) Generation:(\d+) Watchdog:(\w+) Eligible:(true|false)', log):
-        if marker[1] == host and int(marker[3]) == generation and marker.start() > cer_read.end():
-            snapshots.append(marker)
-    assert not any(marker[5] == 'true' and marker.start() < delivered[2].end()
-                   for marker in snapshots), 'renewed generation eligible before third matching DWA'
-    boundaries = [cer_read, *delivered]
-    for index in range(3):
-        assert any(boundaries[index].end() < marker.start() < boundaries[index + 1].start() and
-                   marker[2] == 'R-Open' and marker[4] == 'REOPEN' and marker[5] == 'false'
-                   for marker in snapshots), f'ineligible snapshot missing after recovery DWA {index}'
-    after_third = [marker for marker in snapshots if marker.start() > delivered[2].end()]
-    assert (after_third and after_third[0][2] == 'R-Open' and
-            after_third[0][4] == 'OKAY' and after_third[0][5] == 'true'), \
-        'renewed generation did not become eligible after third matching DWA'
+    # OnPeerEvent callbacks are asynchronous and can be dropped. Only the
+    # harness's post-ServeDIAM snapshots establish the per-answer boundary.
+    snapshots = list(re.finditer(
+        r'RECOVERY_CHECKPOINT command=(\d+) hop=([0-9a-f]{8}) end=([0-9a-f]{8}) '
+        r'connection_generation=(\d+) peer=\{Host:DiameterIdentity\{([^}]+)\}.*'
+        r'State:(\S+) Generation:(\d+) Watchdog:(\w+) Eligible:(true|false)', log))
+    assert len(snapshots) == 4, 'expected CER plus three DWA processing checkpoints'
+    for index, (marker, message, boundary) in enumerate(zip(
+            snapshots, [cer, *probes[:3]], [cer_read, *delivered])):
+        assert (int(marker[1]) == (257 if index == 0 else 280) and
+                marker[2] == message['diameter.hopbyhopid'][2:] and
+                marker[3] == message['diameter.endtoendid'][2:]), 'checkpoint DWA identifiers mismatch'
+        assert (int(marker[4]) == generation and marker[5] == host and
+                int(marker[7]) == generation), 'checkpoint identity or generation mismatch'
+        assert marker.start() > boundary.end(), 'checkpoint precedes complete message delivery'
+        if index < 3:
+            assert marker.end() < headers[index].start(), 'checkpoint follows next DWA delivery'
+            assert marker[9] == 'false', 'renewed generation eligible before third matching DWA'
+            assert marker[6] == 'R-Open' and marker[8] == 'REOPEN', 'checkpoint is not REOPEN'
+        else:
+            assert marker[6] == 'R-Open' and marker[8] == 'OKAY' and marker[9] == 'true', \
+                'renewed generation did not become eligible after third matching DWA'
     print(f'PASS: {host} generation {generation} remained ineligible through two matching DWA; '
           f'eligible after third, capture frames={reply_frames}, '
           f'transport completion reads={[int(marker[1]) for marker in delivered]}.')
