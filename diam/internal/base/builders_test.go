@@ -2,6 +2,7 @@ package base_test
 
 import (
 	"bytes"
+	"fmt"
 	"net/netip"
 	"testing"
 
@@ -237,5 +238,56 @@ func validateBuiltMessage(t *testing.T, m *diam.Message) {
 	}
 	if err := decoded.ValidateOutgoing(); err != nil {
 		t.Fatalf("serialized outgoing %d: %v", m.Header.CommandCode, err)
+	}
+}
+
+func TestBuildCEAResultCodeFlags(t *testing.T) {
+	for _, result := range []uint32{diam.Success, 2999, 3000, diam.UnknownPeer, 3999, 4000, 4999, 5000, diam.NoCommonApplication, diam.NoCommonSecurity, 5999} {
+		t.Run(fmt.Sprint(result), func(t *testing.T) {
+			request := diam.NewMessage(diam.CapabilitiesExchange, diam.RequestFlag|diam.RetransmittedFlag, 0, 7, 9, dict.Default)
+			cfg := fixtureSettings()
+			answer, err := base.BuildCEA(request, cfg, result)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var wire bytes.Buffer
+			if _, err := answer.WriteTo(&wire); err != nil {
+				t.Fatal(err)
+			}
+			answer, err = diam.ReadMessage(&wire, dict.Default)
+			if err != nil {
+				t.Fatal(err)
+			}
+			protocolError := result >= 3000 && result < 4000
+			wantFlags := uint8(0)
+			if protocolError {
+				wantFlags = diam.ErrorFlag
+			}
+			if answer.Header.CommandFlags != wantFlags {
+				t.Errorf("Result-Code=%d CEA flags=%#02x, want %#02x", result, answer.Header.CommandFlags, wantFlags)
+			}
+			rc, err := answer.FindAVP(avp.ResultCode, 0)
+			if err != nil || rc.Data != datatype.Unsigned32(result) {
+				t.Fatalf("Result-Code=%v error=%v, want %d", rc, err, result)
+			}
+			if protocolError {
+				wantCodes := []uint32{avp.OriginHost, avp.OriginRealm, avp.ResultCode, avp.OriginStateID}
+				if len(answer.AVP) != len(wantCodes) {
+					t.Fatalf("error answer AVP count=%d, want %d", len(answer.AVP), len(wantCodes))
+				}
+				for i, a := range answer.AVP {
+					if a.Code != wantCodes[i] {
+						t.Errorf("error answer AVP[%d]=%d, want %d", i, a.Code, wantCodes[i])
+					}
+				}
+			} else {
+				for _, code := range []uint32{avp.HostIPAddress, avp.VendorID, avp.ProductName} {
+					if _, err := answer.FindAVP(code, 0); err != nil {
+						t.Errorf("CEA lost capability AVP %d: %v", code, err)
+					}
+				}
+			}
+			validateBuiltMessage(t, answer)
+		})
 	}
 }

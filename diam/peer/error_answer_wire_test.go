@@ -1,6 +1,8 @@
 package peer
 
 import (
+	"errors"
+	"io"
 	"net"
 	"testing"
 	"time"
@@ -71,4 +73,58 @@ func TestManagerErrorAnswersOnWire(t *testing.T) {
 			t.Fatal(err)
 		}
 	})
+}
+
+// RFC 6733 §§7.1.3 and 7.2: an unknown peer receives a 3010 error answer,
+// using the generic answer-message grammar, before its transport closes.
+func TestUnknownPeerCEACarriesEBit(t *testing.T) {
+	m, err := New(Config{Settings: testSettings("local.example.net")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := m.AddPeer(PeerConfig{Host: "known.example.net"}); err != nil {
+		t.Fatal(err)
+	}
+	l, srv := startReceiver(t, m)
+	t.Cleanup(func() { closeManager(t, m, srv) })
+	c, err := net.Dial("tcp", l.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = c.Close() })
+	cer, err := base.BuildCER(dict.Default, testBase("other.example.net"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	write(t, c, cer)
+	cea := read(t, c)
+	if got := code(t, cea); got != diam.UnknownPeer {
+		t.Errorf("Result-Code=%d, want 3010", got)
+	}
+	if cea.Header.CommandFlags != diam.ErrorFlag {
+		t.Errorf("CEA with Result-Code 3010 has header flags %#02x, want E (RFC 6733 §7.1.3)", cea.Header.CommandFlags)
+	}
+	if cea.Header.CommandCode != cer.Header.CommandCode || cea.Header.ApplicationID != 0 || cea.Header.HopByHopID != cer.Header.HopByHopID || cea.Header.EndToEndID != cer.Header.EndToEndID {
+		t.Errorf("CEA header=%+v, request header=%+v", cea.Header, cer.Header)
+	}
+	// Pin the existing BuildErrorAnswer shape, including local identities
+	// (RFC 6733 §6.2, Verified Erratum 4887), without CEA capability fields.
+	wantCodes := []uint32{avp.OriginHost, avp.OriginRealm, avp.ResultCode}
+	wantData := []datatype.Type{datatype.DiameterIdentity("local.example.net"), datatype.DiameterIdentity("example.net"), datatype.Unsigned32(diam.UnknownPeer)}
+	if len(cea.AVP) != len(wantCodes) {
+		t.Errorf("error answer AVP count=%d, want %d (RFC 6733 §7.2)", len(cea.AVP), len(wantCodes))
+	} else {
+		for i, a := range cea.AVP {
+			if a.Code != wantCodes[i] || a.VendorID != 0 || a.Flags != avp.Mbit || a.Data != wantData[i] {
+				t.Errorf("error answer AVP[%d]=%+v, want code=%d data=%v", i, a, wantCodes[i], wantData[i])
+			}
+		}
+	}
+	if err := cea.ValidateOutgoing(); err != nil {
+		t.Errorf("error answer grammar: %v", err)
+	}
+	var b [1]byte
+	if n, err := c.Read(b[:]); n != 0 || !errors.Is(err, io.EOF) {
+		t.Fatalf("connection did not close: read=%d error=%v, want EOF", n, err)
+	}
 }

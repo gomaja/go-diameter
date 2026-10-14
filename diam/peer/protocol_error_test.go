@@ -139,6 +139,13 @@ func TestProtocolErrorManagerWireDecisions(t *testing.T) {
 				if code(t, answer) != tc.replyCode || answer.Header.HopByHopID != msg.Header.HopByHopID {
 					t.Fatalf("answer=%+v", answer.Header)
 				}
+				protocolError := tc.replyCode >= 3000 && tc.replyCode < 4000
+				if (answer.Header.CommandFlags&diam.ErrorFlag != 0) != protocolError {
+					t.Errorf("reply code=%d flags=%#02x, want E=%v", tc.replyCode, answer.Header.CommandFlags, protocolError)
+				}
+				if err := answer.ValidateOutgoing(); err != nil {
+					t.Errorf("reply grammar: %v", err)
+				}
 			}
 			protocolErrorCheck(t, e, expectedConn, *msg.Header, tc.kind, tc.result, tc.closing, reply, tc.replyCode, 0)
 			if tc.closing {
