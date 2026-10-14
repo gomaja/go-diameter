@@ -547,10 +547,11 @@ srv := &diam.Server{
 }
 ```
 
-Install the supported `oteldiam` module separately:
+Install the supported `oteldiam` module separately, together with the
+library at the same commit, since both follow `main`:
 
 ```sh
-go get github.com/gomaja/go-diameter/oteldiam@main
+go get github.com/gomaja/go-diameter@main github.com/gomaja/go-diameter/oteldiam@main
 ```
 
 Import it and wrap a Diameter handler:

@@ -3,7 +3,7 @@ module github.com/gomaja/go-diameter/oteldiam
 go 1.26.0
 
 require (
-	github.com/gomaja/go-diameter v0.0.0-20261014155425-378c03d23082
+	github.com/gomaja/go-diameter v0.0.0-20261014163932-f8bc15879003
 	go.opentelemetry.io/otel v1.47.0
 	go.opentelemetry.io/otel/log v1.47.0
 	go.opentelemetry.io/otel/sdk v1.47.0
