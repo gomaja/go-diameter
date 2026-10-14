@@ -34,6 +34,7 @@ import (
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/dict"
 	"github.com/gomaja/go-diameter/diam/internal/base"
+	"github.com/gomaja/go-diameter/diam/internal/watchdog"
 	"github.com/gomaja/go-diameter/diam/sm"
 	"github.com/gomaja/go-diameter/diam/sm/smparser"
 	"github.com/gomaja/go-diameter/diam/sm/smpeer"
@@ -160,9 +161,9 @@ func New(cfg Config) (*Manager, error) {
 		cfg.Clock = realClock{}
 	}
 	if cfg.Timers.TwInit == 0 {
-		cfg.Timers.TwInit = 30 * time.Second
+		cfg.Timers.TwInit = watchdog.DefaultTw
 	}
-	floor := 6 * time.Second
+	floor := watchdog.MinimumTw
 	if cfg.watchdogTiming != nil {
 		floor = cfg.watchdogTiming.floor
 	}
