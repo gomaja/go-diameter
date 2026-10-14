@@ -8,6 +8,15 @@
 // that pass the handshake get metadata associated to their connection.
 // See the smpeer sub-package for details on the metadata.
 //
+// StateMachine and peer.Manager ignore a base CER on a connection whose
+// capabilities exchange has completed: one Warn log, no answer, and the
+// connection stays open. RFC 6733 §5.6 has no row for this event; R-Conn-CER
+// concerns a CER on a new connection (§5.6.1). OnProtocolError reports
+// ProtocolUnexpectedMessage with Closing=false and ProtocolReplyNone.
+// Only StateMachine currently supports accepted CER renewal, when
+// diam.Server.RenewAcceptedCER is enabled and the accepted connection is
+// admitted, live and not Closing. Manager renewal is deferred to issue #93.
+//
 // Settings.EnableWatchdog opts accepted connections into RFC 3539 §3.4.1 and
 // Appendix A supervision after a success CEA and OnHandshake. Client.EnableWatchdog
 // independently supervises dialed connections. Both remain opt-in; conforming

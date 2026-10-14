@@ -1,5 +1,15 @@
 // Package peer provides opt-in, statically configured Diameter peer management.
 // It owns the RFC 6733 §5.6 base-message state machine on bound connections.
+//
+// Manager and sm.StateMachine ignore a base CER on a connection whose
+// capabilities exchange has completed: one Warn log, no answer, and the
+// connection stays open. Manager preserves the session, watchdog and pending
+// requests. RFC 6733 §5.6 has no row for this event; R-Conn-CER concerns a CER on
+// a new connection (§5.6.1). Settings.OnProtocolError reports
+// ProtocolUnexpectedMessage with Closing=false and ProtocolReplyNone.
+// Accepted CER renewal with diam.Server.RenewAcceptedCER currently applies
+// only to sm.StateMachine; Manager ignores the CER even when that flag is set.
+// Manager renewal is deferred to issue #93.
 package peer
 
 import (

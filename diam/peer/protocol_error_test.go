@@ -86,7 +86,7 @@ func TestProtocolErrorManagerWireDecisions(t *testing.T) {
 			m.AddAVP(diam.NewAVP(avp.InbandSecurityID, avp.Mbit, 0, datatype.Unknown{1, 2}))
 			return m
 		}, diam.ProtocolMalformedMessage, 5014, 5014, false, false},
-		{"duplicate CER", reviewCER, diam.ProtocolUnexpectedMessage, 0, 0, true, false},
+		{"duplicate CER", reviewCER, diam.ProtocolUnexpectedMessage, 0, 0, false, false},
 		{"pre CER traffic", reviewDWR, diam.ProtocolHandshakeState, 0, 0, true, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -174,6 +174,9 @@ func TestProtocolErrorManagerWireDecisions(t *testing.T) {
 			wantLog := "peer: protocol error"
 			if tc.kind == diam.ProtocolMalformedMessage {
 				wantLog = "diam: malformed message"
+			}
+			if tc.name == "duplicate CER" {
+				wantLog = "peer: ignoring CER on admitted connection; accepted CER renewal is not supported"
 			}
 			if len(logs) != 1 || logs[0].Level != slog.LevelWarn || logs[0].Message != wantLog {
 				t.Fatalf("logs changed: %v", logs)
