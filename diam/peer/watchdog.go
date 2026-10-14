@@ -191,7 +191,7 @@ func (a *actor) watchdogTick() {
 		connection := a.active
 		a.fail(errors.New("peer: watchdog suspect timeout"))
 		if connection != nil {
-			a.m.protocolError(connection.c, nil, diam.ProtocolWatchdogTimeout, 0, true, diam.ProtocolReplyNone, 0)
+			a.protocolError(connection.c, nil, diam.ProtocolWatchdogTimeout, 0, true, diam.ProtocolReplyNone, 0)
 		}
 	case WatchdogReopen:
 		if !a.pendingWatchdog {
@@ -205,7 +205,7 @@ func (a *actor) watchdogTick() {
 			connection := a.active
 			a.fail(errors.New("peer: recovery DWR unanswered"))
 			if connection != nil {
-				a.m.protocolError(connection.c, nil, diam.ProtocolWatchdogTimeout, 0, true, diam.ProtocolReplyNone, 0)
+				a.protocolError(connection.c, nil, diam.ProtocolWatchdogTimeout, 0, true, diam.ProtocolReplyNone, 0)
 			}
 			return
 		}
@@ -229,13 +229,13 @@ func (a *actor) watchdogReceive(msg *diam.Message) bool {
 	}
 	if msg.Header.ApplicationID != 0 {
 		a.m.report(a.active, msg, errors.New("peer: DWA application ID is not zero"))
-		a.m.protocolError(a.active.c, msg, diam.ProtocolInvalidDWA, 0, false, diam.ProtocolReplyNone, 0)
+		a.protocolError(a.active.c, msg, diam.ProtocolInvalidDWA, 0, false, diam.ProtocolReplyNone, 0)
 		return false
 	}
 	if !a.pendingWatchdog || a.active == nil || a.watchdogGen != a.active.gen || msg.Header.HopByHopID != a.watchdogHop || msg.Header.EndToEndID != a.watchdogEnd {
 		a.m.report(a.active, msg, errors.New("peer: unsolicited or mismatched DWA"))
 		if a.active != nil {
-			a.m.protocolError(a.active.c, msg, diam.ProtocolInvalidDWA, 0, false, diam.ProtocolReplyNone, 0)
+			a.protocolError(a.active.c, msg, diam.ProtocolInvalidDWA, 0, false, diam.ProtocolReplyNone, 0)
 		}
 		return false
 	}
@@ -246,7 +246,7 @@ func (a *actor) watchdogReceive(msg *diam.Message) bool {
 			if code := protocolResultCode(err); errors.Is(err, errDWAResultCode) && code != 0 && code != diam.Success {
 				kind, result = diam.ProtocolRejectedDWA, code
 			}
-			a.m.protocolError(a.active.c, msg, kind, result, false, diam.ProtocolReplyNone, 0)
+			a.protocolError(a.active.c, msg, kind, result, false, diam.ProtocolReplyNone, 0)
 		}
 		return false
 	}

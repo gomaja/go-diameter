@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -21,6 +22,7 @@ import (
 )
 
 type event struct {
+	delivery   *protocolDelivery
 	messageErr *diam.MessageError
 	kind       psmEvent
 	s          *session
@@ -40,6 +42,9 @@ const (
 )
 
 type actor struct {
+	controlOnce   sync.Once
+	control       chan retirementCommand
+	delivery      *protocolDelivery
 	m             *Manager
 	cfg           PeerConfig
 	events        chan event
@@ -102,11 +107,32 @@ func (a *actor) post(e event) {
 	}
 }
 func (a *actor) run() {
+	control := a.retirementMailbox()
 	defer a.m.wg.Done()
 	defer close(a.done)
 	for {
-		e := <-a.events
-		a.handle(e)
+		select {
+		case cmd := <-control:
+			a.retireResponder(cmd)
+		default:
+			select {
+			case cmd := <-control:
+				a.retireResponder(cmd)
+			case e := <-a.events:
+				d := e.delivery
+				if d == nil {
+					d = newProtocolDelivery()
+				}
+				a.delivery = d
+				a.handle(e)
+				a.delivery = nil
+				d.finish()
+				if e.delivery == nil && len(d.notifications) > 0 {
+					a.m.wg.Add(1)
+					go func() { defer a.m.wg.Done(); d.deliver(a.m) }()
+				}
+			}
+		}
 		if a.m.isClosing() && a.state == Closed {
 			a.stopTimer()
 			a.stopWatchdog()
@@ -165,8 +191,11 @@ func (a *actor) failWithLog(level slog.Level, text string, err error) {
 	a.lostConnection(err)
 }
 func (a *actor) handle(e event) {
+	if e.s != nil && e.s.isRetired() {
+		return
+	}
 	if e.kind == watchdogTimeout {
-		if e.token == a.wdToken && a.active != nil && e.gen == a.active.gen {
+		if e.token == a.wdToken && a.active != nil && !a.active.isRetired() && e.gen == a.active.gen {
 			a.watchdogTick()
 		}
 		return
@@ -182,7 +211,7 @@ func (a *actor) handle(e event) {
 		if e.token != a.token && e.token != 0 {
 			return
 		}
-		if a.state == Closed {
+		if a.state == Closed || (a.active != nil && a.active.isRetired()) {
 			return
 		}
 		a.step(timeout, nil, nil)
@@ -333,22 +362,22 @@ func (a *actor) onCER(e event) {
 	if e.s == nil || e.meta == nil {
 		return
 	}
-	if a.state == Closing || a.m.isClosing() {
+	if a.state == Closing || a.m.isClosing() || a.ownStop {
 		a.m.report(e.s, e.msg, errors.New("peer: CER while closing; closing connection"))
 		e.s.close()
-		a.m.protocolError(e.s.c, e.msg, diam.ProtocolHandshakeState, 0, true, diam.ProtocolReplyNone, 0)
+		a.protocolError(e.s.c, e.msg, diam.ProtocolHandshakeState, 0, true, diam.ProtocolReplyNone, 0)
 		return
 	}
 	if compareIdentity(e.meta.OriginHost, a.cfg.Host) != 0 {
 		a.m.report(e.s, e.msg, errors.New("peer: configured Origin-Host mismatch; closing connection"))
 		e.s.close()
-		a.m.protocolError(e.s.c, e.msg, diam.ProtocolCERRejected, 0, true, diam.ProtocolReplyNone, 0)
+		a.protocolError(e.s.c, e.msg, diam.ProtocolCERRejected, 0, true, diam.ProtocolReplyNone, 0)
 		return
 	}
 	if a.state != Closed && a.state != WaitConnAck && a.state != WaitICEA && a.state != WaitConnAckElect && a.state != WaitReturns && a.state != IOpen && a.state != ROpen {
 		a.m.report(e.s, e.msg, fmt.Errorf("peer: CER in state %s; closing connection", a.state))
 		e.s.close()
-		a.m.protocolError(e.s.c, e.msg, diam.ProtocolHandshakeState, 0, true, diam.ProtocolReplyNone, 0)
+		a.protocolError(e.s.c, e.msg, diam.ProtocolHandshakeState, 0, true, diam.ProtocolReplyNone, 0)
 		return
 	}
 	if a.state == WaitConnAckElect || a.state == WaitReturns || a.state == IOpen || a.state == ROpen {
@@ -356,9 +385,12 @@ func (a *actor) onCER(e event) {
 		return
 	}
 	a.nextGen++
-	e.s.bind(a, a.nextGen)
+	if !e.s.bind(a, a.nextGen) {
+		return
+	}
 	a.r = e.s
 	e.s.cerRequest = e.msg
+	e.s.meta = e.meta.Clone()
 	a.meta = e.meta.Clone()
 	a.step(rConnCER, e.s, e.msg)
 	if a.state == WaitReturns {
@@ -366,13 +398,16 @@ func (a *actor) onCER(e event) {
 	}
 }
 func (a *actor) elect() {
+	if a.r == nil || a.r.isRetired() {
+		return
+	}
 	// RFC 6733 §5.6.4: compare ASCII case-folded octets; the winner discards I.
 	switch compareIdentity(a.m.cfg.Settings.OriginHost, a.cfg.Host) {
 	case 0:
 		s := a.r
 		a.fail(errors.New("peer: Origin-Host identity collision"))
 		if s != nil {
-			a.m.protocolError(s.c, s.cerRequest, diam.ProtocolHandshakeState, 0, true, diam.ProtocolReplyNone, 0)
+			a.protocolError(s.c, s.cerRequest, diam.ProtocolHandshakeState, 0, true, diam.ProtocolReplyNone, 0)
 		}
 	case 1:
 		if a.state == WaitReturns {
@@ -389,7 +424,7 @@ func (a *actor) onWire(e event) {
 	if (s != a.i && s != a.r) || s.gen == 0 {
 		if msg.Header.CommandFlags&diam.RequestFlag == 0 && msg.Header.ApplicationID != 0 {
 			a.m.report(s, msg, errors.New("peer: answer on retired connection generation (RFC 6733 §6.2.1)"))
-			a.m.protocolError(s.c, msg, diam.ProtocolUnexpectedMessage, 0, false, diam.ProtocolReplyNone, 0)
+			a.protocolError(s.c, msg, diam.ProtocolUnexpectedMessage, 0, false, diam.ProtocolReplyNone, 0)
 		}
 		return
 	} // RFC 6733 §5.6: ignore retired candidate generations.
@@ -400,23 +435,24 @@ func (a *actor) onWire(e event) {
 		if isI && e.messageErr == nil && cmd == diam.CapabilitiesExchange && !req && msg.Header.ApplicationID == 0 {
 			if s.cerHop != msg.Header.HopByHopID || s.cerEnd != msg.Header.EndToEndID {
 				a.fail(errors.New("peer: CEA identifiers mismatch"))
-				a.m.protocolError(s.c, msg, diam.ProtocolCEARejected, 0, true, diam.ProtocolReplyNone, 0)
+				a.protocolError(s.c, msg, diam.ProtocolCEARejected, 0, true, diam.ProtocolReplyNone, 0)
 				return
 			}
 			cea := new(smparser.CEA)
 			if err := cea.Parse(msg, smparser.ParseOptions{Role: smparser.Client, LocalApplications: base.AdvertisedApplicationIDs(a.m.baseSettings(s.c))}); err != nil {
 				a.fail(fmt.Errorf("peer: invalid CEA: %w", err))
 				if a.m.cfg.Settings.OnProtocolError != nil {
-					a.m.protocolError(s.c, msg, diam.ProtocolCEARejected, protocolResultCode(err), true, diam.ProtocolReplyNone, 0)
+					a.protocolError(s.c, msg, diam.ProtocolCEARejected, protocolResultCode(err), true, diam.ProtocolReplyNone, 0)
 				}
 				return
 			}
 			if compareIdentity(cea.OriginHost, a.cfg.Host) != 0 {
 				a.fail(errors.New("peer: CEA Origin-Host mismatch"))
-				a.m.protocolError(s.c, msg, diam.ProtocolCEARejected, 0, true, diam.ProtocolReplyNone, 0)
+				a.protocolError(s.c, msg, diam.ProtocolCEARejected, 0, true, diam.ProtocolReplyNone, 0)
 				return
 			}
-			a.meta = smpeer.FromCEA(cea).Clone()
+			s.meta = smpeer.FromCEA(cea).Clone()
+			a.meta = s.meta.Clone()
 			s.releaseControl(s.cerHop)
 			a.step(iCEA, s, msg)
 			return
@@ -427,7 +463,7 @@ func (a *actor) onWire(e event) {
 			if e.messageErr != nil {
 				result = e.messageErr.ResultCode
 			}
-			a.m.protocolError(s.c, msg, diam.ProtocolHandshakeState, result, true, diam.ProtocolReplyNone, 0)
+			a.protocolError(s.c, msg, diam.ProtocolHandshakeState, result, true, diam.ProtocolReplyNone, 0)
 		} else {
 			// RFC 6733 §5.6 has no R-Rcv-Message action in Wait-Returns.
 			// As in Wait-Conn-Ack/Elect, close all pre-CEA traffic on R.
@@ -441,7 +477,7 @@ func (a *actor) onWire(e event) {
 			if e.messageErr != nil {
 				result = e.messageErr.ResultCode
 			}
-			a.m.protocolError(s.c, msg, diam.ProtocolHandshakeState, result, true, diam.ProtocolReplyNone, 0)
+			a.protocolError(s.c, msg, diam.ProtocolHandshakeState, result, true, diam.ProtocolReplyNone, 0)
 		}
 		return
 	}
@@ -452,14 +488,14 @@ func (a *actor) onWire(e event) {
 		if e.messageErr != nil {
 			result = e.messageErr.ResultCode
 		}
-		a.m.protocolError(s.c, msg, diam.ProtocolHandshakeState, result, true, diam.ProtocolReplyNone, 0)
+		a.protocolError(s.c, msg, diam.ProtocolHandshakeState, result, true, diam.ProtocolReplyNone, 0)
 		return
 	}
 	if headerErr := base.ValidateHeader(msg); headerErr != nil {
 		a.m.report(s, msg, headerErr)
 		if !req {
 			closing := e.messageErr != nil && e.messageErr.Fatal
-			a.m.protocolError(s.c, msg, diam.ProtocolInvalidHeader, headerErr.ResultCode, closing, diam.ProtocolReplyNone, 0)
+			a.protocolError(s.c, msg, diam.ProtocolInvalidHeader, headerErr.ResultCode, closing, diam.ProtocolReplyNone, 0)
 			return
 		} // RFC 6733 §§2.5 and 7: invalid DWA/DPA is discarded.
 		headerErr.Fatal = e.messageErr != nil && e.messageErr.Fatal
@@ -467,7 +503,7 @@ func (a *actor) onWire(e event) {
 	}
 	if e.messageErr != nil {
 		// The actor queued CEA before this error answer (RFC 6733 §§5.6, 7).
-		_ = a.m.answerMessageError(s, msg, e.messageErr)
+		_ = a.m.answerMessageError(s, msg, e.messageErr, a.delivery)
 		return
 	}
 
@@ -480,24 +516,24 @@ func (a *actor) onWire(e event) {
 			// successful DPA completes this disconnect exchange.
 			if msg.Header.HopByHopID != a.pendingDPR || msg.Header.EndToEndID != a.pendingDPREnd {
 				a.m.report(s, msg, errors.New("peer: DPA identifiers mismatch"))
-				a.m.protocolError(s.c, msg, diam.ProtocolInvalidDPA, 0, false, diam.ProtocolReplyNone, 0)
+				a.protocolError(s.c, msg, diam.ProtocolInvalidDPA, 0, false, diam.ProtocolReplyNone, 0)
 				return
 			}
 			result, err := base.ValidateDPA(msg)
 			if err != nil {
 				a.m.report(s, msg, err)
-				a.m.protocolError(s.c, msg, diam.ProtocolInvalidDPA, 0, false, diam.ProtocolReplyNone, 0)
+				a.protocolError(s.c, msg, diam.ProtocolInvalidDPA, 0, false, diam.ProtocolReplyNone, 0)
 				return
 			}
 			if result != diam.Success {
 				a.m.report(s, msg, fmt.Errorf("peer: DPA Result-Code %d", result))
-				a.m.protocolError(s.c, msg, diam.ProtocolPeerRejected, result, false, diam.ProtocolReplyNone, 0)
+				a.protocolError(s.c, msg, diam.ProtocolPeerRejected, result, false, diam.ProtocolReplyNone, 0)
 				return
 			}
 			host, err := msg.FindAVP(avp.OriginHost, 0)
 			if err != nil || compareIdentity(host.Data.(datatype.DiameterIdentity), a.cfg.Host) != 0 {
 				a.m.report(s, msg, errors.New("peer: DPA Origin-Host mismatch"))
-				a.m.protocolError(s.c, msg, diam.ProtocolInvalidDPA, 0, false, diam.ProtocolReplyNone, 0)
+				a.protocolError(s.c, msg, diam.ProtocolInvalidDPA, 0, false, diam.ProtocolReplyNone, 0)
 				return
 			}
 			if isI {
@@ -520,12 +556,12 @@ func (a *actor) onWire(e event) {
 		var dwr base.DWR
 		if err := dwr.Parse(msg); err != nil {
 			a.m.report(s, msg, err)
-			a.m.protocolError(s.c, msg, diam.ProtocolInvalidDWR, 0, false, diam.ProtocolReplyNone, 0)
+			a.protocolError(s.c, msg, diam.ProtocolInvalidDWR, 0, false, diam.ProtocolReplyNone, 0)
 			return
 		}
 		if compareIdentity(dwr.OriginHost, a.cfg.Host) != 0 {
 			a.m.report(s, msg, errors.New("peer: DWR Origin-Host mismatch"))
-			a.m.protocolError(s.c, msg, diam.ProtocolInvalidDWR, 0, false, diam.ProtocolReplyNone, 0)
+			a.protocolError(s.c, msg, diam.ProtocolInvalidDWR, 0, false, diam.ProtocolReplyNone, 0)
 			return
 		}
 		if isI {
@@ -552,10 +588,10 @@ func (a *actor) onWire(e event) {
 		// RFC 6733 §§5.6–5.6.1 define R-Conn-CER for a new connection,
 		// not this admitted one. Match StateMachine's default policy: drop
 		// the CER without answering or disturbing admission and pending work.
-		// Accepted CER renewal is not supported by Manager yet.
-		reason := errors.New("peer: ignoring CER on admitted connection; accepted CER renewal is not supported")
+		// Server handles eligible opt-in accepted CER renewal before dispatch.
+		reason := errors.New("peer: ignoring CER on admitted connection; accepted CER renewal is disabled or ineligible")
 		a.m.reportFailure(s, msg, slog.LevelWarn, reason.Error(), reason)
-		a.m.protocolError(s.c, msg, diam.ProtocolUnexpectedMessage, 0, false, diam.ProtocolReplyNone, 0)
+		a.protocolError(s.c, msg, diam.ProtocolUnexpectedMessage, 0, false, diam.ProtocolReplyNone, 0)
 	default:
 		if a.watchdog == WatchdogReopen {
 			return
@@ -570,14 +606,14 @@ func (a *actor) onWire(e event) {
 func (a *actor) validDPR(s *session, msg *diam.Message) bool {
 	if _, err := base.ValidateDPR(msg); err != nil {
 		a.m.report(s, msg, err)
-		a.m.protocolError(s.c, msg, diam.ProtocolInvalidDPR, 0, false, diam.ProtocolReplyNone, 0)
+		a.protocolError(s.c, msg, diam.ProtocolInvalidDPR, 0, false, diam.ProtocolReplyNone, 0)
 		return false
 	}
 	// RFC 6733 §§5.1, 5.4.1: accept a DPR only from this connection's peer.
 	host, err := msg.FindAVP(avp.OriginHost, 0)
 	if err != nil || compareIdentity(host.Data.(datatype.DiameterIdentity), a.cfg.Host) != 0 {
 		a.m.report(s, msg, errors.New("peer: DPR Origin-Host mismatch"))
-		a.m.protocolError(s.c, msg, diam.ProtocolInvalidDPR, 0, false, diam.ProtocolReplyNone, 0)
+		a.protocolError(s.c, msg, diam.ProtocolInvalidDPR, 0, false, diam.ProtocolReplyNone, 0)
 		return false
 	}
 	return true
@@ -585,7 +621,7 @@ func (a *actor) validDPR(s *session, msg *diam.Message) bool {
 func (a *actor) answerDPR(s *session, msg *diam.Message) {
 	if _, err := base.ValidateDPR(msg); err != nil {
 		a.m.report(s, msg, err)
-		a.m.protocolError(s.c, msg, diam.ProtocolInvalidDPR, 0, false, diam.ProtocolReplyNone, 0)
+		a.protocolError(s.c, msg, diam.ProtocolInvalidDPR, 0, false, diam.ProtocolReplyNone, 0)
 		return
 	}
 	dpa, err := base.BuildDPA(msg, a.m.baseSettings(s.c))
@@ -684,7 +720,7 @@ func (a *actor) step(ev psmEvent, s *session, msg *diam.Message) {
 		case WaitConnAckElect, WaitReturns, IOpen, ROpen:
 			a.m.report(s, msg, errors.New("peer: duplicate CER candidate; closing connection"))
 			s.close()
-			a.m.protocolError(s.c, msg, diam.ProtocolUnexpectedMessage, 0, true, diam.ProtocolReplyNone, 0)
+			a.protocolError(s.c, msg, diam.ProtocolUnexpectedMessage, 0, true, diam.ProtocolReplyNone, 0)
 		}
 	case winElection, iDisc:
 		switch old {
@@ -736,7 +772,7 @@ func (a *actor) step(ev psmEvent, s *session, msg *diam.Message) {
 		}
 		a.fail(errors.New("peer: state timeout"))
 		if connection != nil {
-			a.m.protocolError(connection.c, nil, kind, 0, true, diam.ProtocolReplyNone, 0)
+			a.protocolError(connection.c, nil, kind, 0, true, diam.ProtocolReplyNone, 0)
 		}
 		return
 	case iDWR, rDWR:
@@ -778,10 +814,13 @@ func (a *actor) step(ev psmEvent, s *session, msg *diam.Message) {
 		a.meta = nil
 	case iMessage, rMessage:
 		if msg.Header.CommandFlags&diam.RequestFlag == 0 {
-			a.m.receiveAnswer(s, msg)
+			a.m.receiveAnswer(s, msg, a.delivery)
 		} else {
-			a.m.unsupported(s, msg)
+			a.m.unsupported(s, msg, a.delivery)
 		}
+	}
+	if a.active != nil && a.active.inbound && (a.state == ROpen) && !a.active.isRetired() {
+		a.active.admitted.Store(true)
 	}
 	if old != IOpen && old != ROpen && (a.state == IOpen || a.state == ROpen) {
 		a.onOpen()
@@ -807,6 +846,9 @@ func (a *actor) sendCEA(s *session) bool {
 		return false
 	}
 	if err := s.send(answer, false); err != nil {
+		if s.isRetired() {
+			return false
+		}
 		a.failLocal("send CEA", err)
 		return false
 	}

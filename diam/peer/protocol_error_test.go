@@ -176,7 +176,7 @@ func TestProtocolErrorManagerWireDecisions(t *testing.T) {
 				wantLog = "diam: malformed message"
 			}
 			if tc.name == "duplicate CER" {
-				wantLog = "peer: ignoring CER on admitted connection; accepted CER renewal is not supported"
+				wantLog = "peer: ignoring CER on admitted connection; accepted CER renewal is disabled or ineligible"
 			}
 			if len(logs) != 1 || logs[0].Level != slog.LevelWarn || logs[0].Message != wantLog {
 				t.Fatalf("logs changed: %v", logs)
