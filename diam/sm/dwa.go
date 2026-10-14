@@ -17,18 +17,18 @@ var dwaACK = struct{}{}
 // handleDWA handles Device-Watchdog-Answer messages.
 func handleDWA(
 	sm *StateMachine,
-	dwac chan struct{},
+	signals *watchdogSignals,
 	observer func(diam.Conn, WatchdogEvent),
 ) diam.HandlerFunc {
 	return func(c diam.Conn, m *diam.Message) {
-		kind, code := processDWA(c, m, dwac, observer)
+		kind, code := processDWA(c, m, signals, observer)
 		if kind != "" {
 			sm.protocolError(c, m, kind, code, false, diam.ProtocolReplyNone, 0)
 		}
 	}
 }
 
-func processDWA(c diam.Conn, m *diam.Message, dwac chan struct{}, observer func(diam.Conn, WatchdogEvent)) (diam.ProtocolErrorKind, uint32) {
+func processDWA(c diam.Conn, m *diam.Message, signals *watchdogSignals, observer func(diam.Conn, WatchdogEvent)) (diam.ProtocolErrorKind, uint32) {
 	observe := func(c diam.Conn, event WatchdogEvent) {
 		if observer != nil {
 			observer(c, event)
@@ -51,8 +51,17 @@ func processDWA(c diam.Conn, m *diam.Message, dwac chan struct{}, observer func(
 	if c.Closed() {
 		return "", 0
 	}
+	// RFC 6733 §§3, 6.2.1 and RFC 3539 §3.4.1, Appendix A: only the
+	// outstanding DWR's answer clears Pending; consume it once, including
+	// when duplicate answers are dispatched concurrently.
+	request := signals.request.Load()
+	if request == nil || m.Header.HopByHopID != request.HopByHopID || m.Header.EndToEndID != request.EndToEndID ||
+		!signals.request.CompareAndSwap(request, nil) {
+		logMessage(c, m, slog.LevelWarn, "sm: unhandled answer discarded", nil)
+		return diam.ProtocolUnexpectedMessage, 0
+	}
 	select {
-	case dwac <- dwaACK:
+	case signals.dwac <- dwaACK:
 	default:
 	}
 	observe(c, WatchdogAnswerReceived)

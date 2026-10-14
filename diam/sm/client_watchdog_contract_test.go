@@ -1,12 +1,14 @@
 package sm
 
 import (
+	"bytes"
 	"sync/atomic"
 	"testing"
 	"testing/synctest"
 	"time"
 
 	"github.com/gomaja/go-diameter/diam"
+	"github.com/gomaja/go-diameter/diam/dict"
 	"github.com/gomaja/go-diameter/diam/internal/base"
 )
 
@@ -77,7 +79,7 @@ func TestClientWatchdogSerializesRequestAndDWAEvents(t *testing.T) {
 	cli := newLivenessClient(t)
 	c := &blockingPublishWatchdogConn{
 		watchdogProbeConn: newWatchdogProbeConn(),
-		entered:           make(chan struct{}), release: make(chan struct{}),
+		entered:           make(chan struct{}), release: make(chan struct{}), written: make(chan []byte, 1),
 	}
 	type observation struct {
 		event    WatchdogEvent
@@ -92,7 +94,8 @@ func TestClientWatchdogSerializesRequestAndDWAEvents(t *testing.T) {
 		observations <- observation{event, locked}
 	}
 	requestDone := make(chan bool, 1)
-	go func() { requestDone <- cli.dwr(c, 0) }()
+	signals := newWatchdogSignals()
+	go func() { requestDone <- cli.dwr(c, 0, &signals) }()
 	<-c.entered
 	// RFC 6733 §5.6 R-Open: a DWA observer must not publish before its
 	// request. Holding the same mutex through write and both event callbacks
@@ -103,13 +106,19 @@ func TestClientWatchdogSerializesRequestAndDWAEvents(t *testing.T) {
 		<-requestDone
 		t.Fatal("watchdog event lock was free during the DWR write")
 	}
-	dwa, err := base.BuildDWA(regressionDWR(t), baseSettings(serverSettings))
+	request, err := diam.ReadMessage(bytes.NewReader(<-c.written), dict.Default)
 	if err != nil {
 		close(c.release)
 		<-requestDone
 		t.Fatal(err)
 	}
-	dwaHandler := handleDWA(cli.Handler, make(chan struct{}, 1), cli.observeWatchdog)
+	dwa, err := base.BuildDWA(request, baseSettings(serverSettings))
+	if err != nil {
+		close(c.release)
+		<-requestDone
+		t.Fatal(err)
+	}
+	dwaHandler := handleDWA(cli.Handler, &signals, cli.observeWatchdog)
 	dwaStarted := make(chan struct{})
 	dwaDone := make(chan struct{})
 	go func() {

@@ -257,7 +257,7 @@ func TestPublishDWRStoppedBeforeWrite(t *testing.T) {
 	stopped.Store(true)
 	mu := new(sync.Mutex)
 	events := make(chan WatchdogEvent, 1)
-	if publishDWR(c, regressionDWR(t), 3, mu, &stopped, func(event WatchdogEvent) { events <- event }, nil) {
+	if publishDWR(c, regressionDWR(t), &watchdogSignals{}, 3, mu, &stopped, func(event WatchdogEvent) { events <- event }, nil) {
 		t.Fatal("stopped watchdog published a DWR")
 	}
 	if got := len(c.writes); got != 0 {
@@ -329,9 +329,13 @@ type blockingPublishWatchdogConn struct {
 	*watchdogProbeConn
 	entered chan struct{}
 	release chan struct{}
+	written chan []byte
 }
 
 func (c *blockingPublishWatchdogConn) WriteStream(b []byte, stream uint) (int, error) {
+	if c.written != nil {
+		c.written <- append([]byte(nil), b...)
+	}
 	close(c.entered)
 	<-c.release
 	return c.watchdogProbeConn.WriteStream(b, stream)
@@ -349,7 +353,7 @@ func TestPublishDWRHoldsEventLockThroughWriteAndEvent(t *testing.T) {
 	result := make(chan bool, 1)
 	request := regressionDWR(t)
 	go func() {
-		result <- publishDWR(c, request, 3, mu, nil, func(event WatchdogEvent) {
+		result <- publishDWR(c, request, &watchdogSignals{}, 3, mu, nil, func(event WatchdogEvent) {
 			if mu.TryLock() {
 				mu.Unlock()
 				lockHeldAtEvent <- false
@@ -405,7 +409,7 @@ func TestPublishDWRReleasesEventLockBeforeClose(t *testing.T) {
 	mu := new(sync.Mutex)
 	c := &failedPublishWatchdogConn{watchdogProbeConn: newWatchdogProbeConn(), mu: mu}
 	var event WatchdogEvent
-	if publishDWR(c, regressionDWR(t), 0, mu, nil, func(e WatchdogEvent) { event = e }, nil) {
+	if publishDWR(c, regressionDWR(t), &watchdogSignals{}, 0, mu, nil, func(e WatchdogEvent) { event = e }, nil) {
 		t.Fatal("failed write reported success")
 	}
 	if event != WatchdogWriteFailed || !c.Closed() {

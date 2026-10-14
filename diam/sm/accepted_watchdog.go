@@ -69,7 +69,7 @@ func (sm *StateMachine) startWatchdog(c diam.Conn) {
 				w.terminate(nil, slog.LevelError, "sm: watchdog request failed; closing connection", err)
 				return false
 			}
-			return publishDWR(c, m, w.policy.stream, &w.mu, &w.stopped, w.emit, func(err error) {
+			return publishDWR(c, m, &w.signals, w.policy.stream, &w.mu, &w.stopped, w.emit, func(err error) {
 				w.terminate(m, slog.LevelError, "sm: watchdog request failed; closing connection", err)
 			})
 		},
@@ -91,7 +91,7 @@ func (sm *StateMachine) startWatchdog(c diam.Conn) {
 			if w.stopped.Load() || c.Closed() {
 				return
 			}
-			kind, code = processDWA(c, m, w.signals.dwac, func(_ diam.Conn, event WatchdogEvent) { w.emit(event) })
+			kind, code = processDWA(c, m, &w.signals, func(_ diam.Conn, event WatchdogEvent) { w.emit(event) })
 		}()
 		// The watchdog event retains its existing serialization; the new hook
 		// runs outside the publication mutex (RFC 6733 §§5.5–5.6).
