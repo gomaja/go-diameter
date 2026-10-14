@@ -14,60 +14,110 @@ import (
 	"github.com/gomaja/go-diameter/diam/internal/logtest"
 )
 
-func TestProtocolErrorInitialCERValidationVariantsWire(t *testing.T) {
-	for _, tc := range []struct {
-		name                       string
-		validate, unknown, missing bool
-		kind                       diam.ProtocolErrorKind
-		code                       uint32
-		log                        string
-	}{
-		{"A4_unknown_validation_off", false, true, false, diam.ProtocolUnsupportedAVP, 5001, "sm: unsupported mandatory AVP"},
-		{"A4_unknown_validation_on", true, true, false, diam.ProtocolUnsupportedAVP, 5001, "sm: unsupported mandatory AVP"},
-		{"A5_missing_Origin_Host", true, false, true, diam.ProtocolInvalidRequest, 5005, "sm: invalid request"},
-		{"A4_before_A5", true, true, true, diam.ProtocolUnsupportedAVP, 5001, "sm: unsupported mandatory AVP"},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			p := newProtocolWire(t, func(c *Settings) { c.ValidateRequests = tc.validate; c.RejectUnknownMandatoryAVPs = tc.unknown }, false)
-			cer := regressionCER(t, dict.Default, 1001)
-			if tc.missing {
-				for i, a := range cer.AVP {
-					if a.Code == avp.OriginHost {
-						cer.AVP = append(cer.AVP[:i], cer.AVP[i+1:]...)
-						break
+func TestProtocolErrorCERValidationVariantsWire(t *testing.T) {
+	for _, admitted := range []bool{false, true} {
+		for _, tc := range []struct {
+			name                       string
+			validate, unknown, missing bool
+			multiple, invalidBits      bool
+			kind                       diam.ProtocolErrorKind
+			code                       uint32
+			log                        string
+		}{
+			{"A4_unknown_validation_off", false, true, false, false, false, diam.ProtocolUnsupportedAVP, 5001, "sm: unsupported mandatory AVP"},
+			{"A4_unknown_validation_on", true, true, false, false, false, diam.ProtocolUnsupportedAVP, 5001, "sm: unsupported mandatory AVP"},
+			{"A4_multiple_unknown", false, true, false, true, false, diam.ProtocolUnsupportedAVP, 5001, "sm: unsupported mandatory AVP"},
+			{"A5_missing_Origin_Host", true, false, true, false, false, diam.ProtocolInvalidRequest, 5005, "sm: invalid request"},
+			{"A5_invalid_AVP_bits", true, false, false, false, true, diam.ProtocolInvalidRequest, 3009, "sm: invalid request"},
+			{"A4_before_A5", true, true, true, false, false, diam.ProtocolUnsupportedAVP, 5001, "sm: unsupported mandatory AVP"},
+		} {
+			t.Run(fmt.Sprintf("admitted=%t/%s", admitted, tc.name), func(t *testing.T) {
+				p := newProtocolWire(t, func(c *Settings) {
+					c.ValidateRequests = tc.validate
+					c.RejectUnknownMandatoryAVPs = tc.unknown
+					c.HandshakeTimeout = -1
+				}, admitted)
+				cer := regressionCER(t, dict.Default, 1001)
+				if tc.missing {
+					for i, a := range cer.AVP {
+						if a.Code == avp.OriginHost {
+							cer.AVP = append(cer.AVP[:i], cer.AVP[i+1:]...)
+							break
+						}
 					}
 				}
-			}
-			if tc.unknown {
-				cer.AddAVP(diam.NewAVP(0x00fedcab, avp.Mbit, 0, datatype.Unknown{1, 2, 3, 4}))
-			}
-			header := p.send(t, cer)
-			answer, err := diam.ReadMessage(p.peer, dict.Default)
-			if err != nil || !testResultCode(answer, tc.code) || answer.Header.CommandCode != diam.CapabilitiesExchange || answer.Header.CommandFlags != 0 || answer.Header.HopByHopID != header.HopByHopID || answer.Header.EndToEndID != header.EndToEndID {
-				t.Fatalf("initial CER answer=%v %v", answer, err)
-			}
-			assertProtocolEvent(t, protocolEvent(t, p.events), p.conn, &header, tc.kind, tc.code, false, diam.ProtocolReplyWritten, tc.code)
-			if p.conn.Closed() {
-				t.Fatal("validation branch changed initial CER close policy")
-			}
-			valid := regressionCER(t, dict.Default, 1001)
-			valid.Header.HopByHopID++
-			valid.Header.EndToEndID++
-			validHeader := p.send(t, valid)
-			answer, err = diam.ReadMessage(p.peer, dict.Default)
-			if err != nil || !testResultCode(answer, 2001) || answer.Header.HopByHopID != validHeader.HopByHopID || answer.Header.EndToEndID != validHeader.EndToEndID {
-				t.Fatalf("later valid CER=%v %v", answer, err)
-			}
-			p.usable(t)
-			select {
-			case extra := <-p.events:
-				t.Fatalf("extra event=%+v", extra)
-			default:
-			}
-			if logs := p.logs.Records(); len(logs) != 1 || logs[0].Level != slog.LevelWarn || logs[0].Message != tc.log {
-				t.Fatalf("logs=%v", logs)
-			}
-		})
+				if tc.unknown {
+					cer.AddAVP(diam.NewAVP(0x00fedcab, avp.Mbit, 0, datatype.Unknown{1, 2, 3, 4}))
+				}
+				if tc.multiple {
+					cer.AddAVP(diam.NewAVP(0x00fedcac, avp.Mbit, 0, datatype.Unknown{5, 6, 7, 8}))
+				}
+				if tc.invalidBits {
+					// RFC 6733 §§4.1, 7.1.3: V with Vendor-Id zero yields 3009.
+					for i, a := range cer.AVP {
+						if a.Code == avp.VendorID {
+							cer.AVP[i] = diam.NewAVP(avp.VendorID, avp.Mbit, 0, datatype.Unsigned32(0))
+							cer.AVP[i].Flags |= avp.Vbit
+							break
+						}
+					}
+				}
+				header := p.send(t, cer)
+				answer, err := diam.ReadMessage(p.peer, dict.Default)
+				flags := uint8(0)
+				if tc.code == 3009 {
+					flags = diam.ErrorFlag // RFC 6733 §§7.1.3, 7.2.
+				}
+				if err != nil || !testResultCode(answer, tc.code) || answer.Header.CommandCode != diam.CapabilitiesExchange || answer.Header.ApplicationID != 0 || answer.Header.CommandFlags != flags || answer.Header.HopByHopID != header.HopByHopID || answer.Header.EndToEndID != header.EndToEndID {
+					t.Fatalf("CER answer=%v %v", answer, err)
+				}
+				var failed []*diam.AVP
+				for _, a := range answer.AVP {
+					if a.Code == avp.FailedAVP && a.VendorID == 0 {
+						failed = append(failed, a)
+					}
+				}
+				if len(failed) != 1 {
+					t.Fatalf("Failed-AVP containers=%d, want one (RFC 6733 §7.1.5, Verified Erratum 4615)", len(failed))
+				}
+				wantFailed := []byte{0, 0, 1, 8, 0x40, 0, 0, 8} // Missing Origin-Host, §7.5.
+				if tc.unknown {
+					wantFailed = []byte{0, 0xfe, 0xdc, 0xab, 0x40, 0, 0, 12, 1, 2, 3, 4}
+				}
+				if tc.multiple {
+					wantFailed = append(wantFailed, 0, 0xfe, 0xdc, 0xac, 0x40, 0, 0, 12, 5, 6, 7, 8)
+				}
+				if tc.invalidBits {
+					wantFailed = []byte{0, 0, 1, 10, 0xc0, 0, 0, 16, 0, 0, 0, 0, 0, 0, 0, 0}
+				}
+				if got := failed[0].Data.Serialize(); !bytes.Equal(got, wantFailed) {
+					t.Fatalf("Failed-AVP bytes=%x, want %x", got, wantFailed)
+				}
+				if !admitted {
+					p.closed(t)
+				}
+				assertProtocolEvent(t, protocolEvent(t, p.events), p.conn, &header, tc.kind, tc.code, !admitted, diam.ProtocolReplyWritten, tc.code)
+				if admitted {
+					p.usable(t)
+				}
+				select {
+				case extra := <-p.events:
+					t.Fatalf("extra event=%+v", extra)
+				default:
+				}
+				wantLogs := 1
+				if !admitted {
+					wantLogs = 2
+				}
+				logs := p.logs.Records()
+				if len(logs) != wantLogs || logs[0].Level != slog.LevelWarn || logs[0].Message != tc.log {
+					t.Fatalf("logs=%v", logs)
+				}
+				if !admitted && (logs[1].Level != slog.LevelWarn || logs[1].Message != "sm: rejected CER; closing connection") {
+					t.Fatalf("close log=%v", logs[1])
+				}
+			})
+		}
 	}
 }
 

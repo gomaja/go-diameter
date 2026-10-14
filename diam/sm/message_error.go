@@ -141,14 +141,22 @@ func (sm *StateMachine) handleMessageError(c diam.Conn, request *diam.Message, m
 		return outcome, nil
 	}
 	outcome.reply = diam.ProtocolReplyWritten
-	if request.Header.CommandCode == diam.CapabilitiesExchange && (base.ValidateHeader(request) != nil || !admittedPeer(c)) {
-		// RFC 6733 §§5.3 and 5.6.1: a rejected CER admits no peer, and the
-		// transport connection is closed, as handleCER does.
-		logMessage(c, request, slog.LevelWarn, "sm: rejected CER; closing connection", messageErr)
-		c.Close()
+	if sm.closeRejectedCER(c, request, messageErr) {
 		outcome.closing = true
 	}
 	return outcome, nil
+}
+
+// closeRejectedCER shares the post-answer rejection policy with request
+// validation. RFC 6733 §§5.3, 5.6.1: a rejected initial CER admits no peer.
+// An admitted connection keeps its existing validation policy.
+func (sm *StateMachine) closeRejectedCER(c diam.Conn, request *diam.Message, messageErr error) bool {
+	if request.Header.CommandCode == diam.CapabilitiesExchange && (base.ValidateHeader(request) != nil || !admittedPeer(c)) {
+		logMessage(c, request, slog.LevelWarn, "sm: rejected CER; closing connection", messageErr)
+		c.Close()
+		return true
+	}
+	return false
 }
 
 func (sm *StateMachine) writeErrorAnswer(c diam.Conn, request *diam.Message, resultCode uint32, failedAVPs []*diam.AVP, protocolError bool) (err error) {

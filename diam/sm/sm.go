@@ -386,11 +386,13 @@ func (sm *StateMachine) ServeDIAM(c diam.Conn, m *diam.Message) {
 	}
 	if sm.cfg.RejectUnknownMandatoryAVPs && m.Header.CommandFlags&diam.RequestFlag != 0 {
 		if failed := m.UnknownMandatoryAVPs(); len(failed) != 0 {
-			logMessage(c, m, slog.LevelWarn, "sm: unsupported mandatory AVP", &diam.MessageError{ResultCode: diam.AVPUnsupported})
+			messageErr := &diam.MessageError{ResultCode: diam.AVPUnsupported}
+			logMessage(c, m, slog.LevelWarn, "sm: unsupported mandatory AVP", messageErr)
 			// RFC 6733 §7.1.5, Verified Erratum 4615: one Failed-AVP
 			// contains the unsupported AVP(s), including Grouped hierarchy.
 			err := sm.writeErrorAnswer(c, m, diam.AVPUnsupported, failed, false)
-			sm.protocolError(c, m, diam.ProtocolUnsupportedAVP, diam.AVPUnsupported, false, protocolReply(err), diam.AVPUnsupported)
+			closing := sm.closeRejectedCER(c, m, messageErr)
+			sm.protocolError(c, m, diam.ProtocolUnsupportedAVP, diam.AVPUnsupported, closing, protocolReply(err), diam.AVPUnsupported)
 			return
 		}
 	}
@@ -405,7 +407,8 @@ func (sm *StateMachine) ServeDIAM(c diam.Conn, m *diam.Message) {
 			}
 			protocolError := validationErr.ResultCode >= 3000 && validationErr.ResultCode < 4000
 			err := sm.writeErrorAnswer(c, m, validationErr.ResultCode, failed, protocolError)
-			sm.protocolError(c, m, diam.ProtocolInvalidRequest, validationErr.ResultCode, false, protocolReply(err), validationErr.ResultCode)
+			closing := sm.closeRejectedCER(c, m, validationErr)
+			sm.protocolError(c, m, diam.ProtocolInvalidRequest, validationErr.ResultCode, closing, protocolReply(err), validationErr.ResultCode)
 			return
 		}
 	}
