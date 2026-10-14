@@ -549,12 +549,13 @@ func (a *actor) onWire(e event) {
 			a.step(rDPR, s, msg)
 		}
 	case cmd == diam.CapabilitiesExchange && req && msg.Header.ApplicationID == 0:
-		// RFC 6733 §§1.1.3, 5.6 do not define CER on the active Open
-		// connection. R-Conn-CER concerns a new incoming transport carrying
-		// CER. Retain our conservative close policy for a second CER here.
-		a.m.report(s, msg, errors.New("peer: duplicate CER on open connection; closing connection"))
-		s.close()
-		a.m.protocolError(s.c, msg, diam.ProtocolUnexpectedMessage, 0, true, diam.ProtocolReplyNone, 0)
+		// RFC 6733 §§5.6–5.6.1 define R-Conn-CER for a new connection,
+		// not this admitted one. Match StateMachine's default policy: drop
+		// the CER without answering or disturbing admission and pending work.
+		// Accepted CER renewal is not supported by Manager yet.
+		reason := errors.New("peer: ignoring CER on admitted connection; accepted CER renewal is not supported")
+		a.m.reportFailure(s, msg, slog.LevelWarn, reason.Error(), reason)
+		a.m.protocolError(s.c, msg, diam.ProtocolUnexpectedMessage, 0, false, diam.ProtocolReplyNone, 0)
 	default:
 		if a.watchdog == WatchdogReopen {
 			return

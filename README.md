@@ -128,14 +128,23 @@ Conn does not receive `OnShutdownConnection`: after an SCTP association restart
 it cannot send a DPR to the old peer (RFC 9260 §5.2.4; RFC 6733 §5.4). Shutdown
 still waits for Server callbacks to return, subject to its context deadline.
 
+Both `sm.StateMachine` and `peer.Manager` ignore a base CER received on a
+connection whose capabilities exchange has completed: they log it at Warn, send
+no answer and keep the connection open. Manager preserves its session, watchdog
+and pending requests. This is library policy: [RFC 6733 §5.6](https://www.rfc-editor.org/rfc/rfc6733.html#section-5.6)
+has no row for a CER on the open connection itself; `R-Conn-CER -> R-Reject`
+concerns a CER on a new connection (§5.6.1). Both handlers report the ignored CER
+through `sm.Settings.OnProtocolError` as `ProtocolUnexpectedMessage`, with
+`Closing=false` and `ProtocolReplyNone`.
+
 For transports that cannot signal restart, `Server.RenewAcceptedCER` optionally
-interprets a subsequent admitted base CER as fresh admission. It defaults to false
-and requires the handler's `AcceptedCERHandler` eligibility check; StateMachine
-permits only an admitted, live, non-Closing accepted generation. This policy
-cannot distinguish a retry from a restart. Default StateMachine behavior ignores
-and logs the Open-state CER at Warn; Manager keeps its close policy. RFC 6733
-§1.1.3 deprecates Open-state capability exchange; RFC 6737 §§3–4 defines capability
-updates separately.
+interprets a subsequent admitted base CER as fresh admission. It defaults to
+false and applies only to `sm.StateMachine` for now, with its
+`AcceptedCERHandler` eligibility check permitting an admitted, live, non-Closing
+accepted generation. Manager ignores the CER even when the Server flag is set;
+Manager renewal is deferred to #93. Renewal cannot distinguish a retry from a
+restart. RFC 6733 §1.1.3 deprecates Open-state capability exchange; RFC 6737 §§3–4
+defines capability updates separately.
 
 Use the handler-visible Conn for transport operations. `Connection()` preserves
 its original raw type, whose reads, Close and deadlines can bypass generation
