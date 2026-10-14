@@ -298,6 +298,14 @@ socket-backed SCTP behavior must be validated on Linux with SCTP enabled.
 SCTP needs Linux 5.0 or later, the same floor as go-sctp. The main deployment
 target is Rocky Linux 9, which runs a 5.14 kernel.
 
+RFC 6733 §13 requires implementations to support TLS/TCP and DTLS/SCTP,
+and Diameter must not run without TLS, DTLS or IPsec. DTLS/SCTP (RFC 6083,
+updated by RFC 8996) is not implemented
+([#89](https://github.com/gomaja/go-diameter/issues/89)). TLS over an SCTP
+association, which `ListenAndServeTLS` and the `DialTLS` functions provide
+for the `sctp` network, is not the RFC 6083 mapping, so protect SCTP
+associations with IPsec where §13 applies.
+
 On Rocky Linux 9, and on other RHEL 9 derivatives, SCTP is not available out
 of the box. The `sctp` module ships in the `kernel-modules-extra` package,
 and that package also blacklists it, because unprivileged users could
