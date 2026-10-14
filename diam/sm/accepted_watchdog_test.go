@@ -14,6 +14,8 @@ import (
 	"testing/synctest"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
@@ -77,6 +79,10 @@ type acceptedWatchdogEvent struct {
 }
 
 func newAcceptedWatchdogSettings() Settings {
+	testDict := newSMTestDictionary(dict.Base())
+	serverSettings := cloneTestSettings(serverSettings,
+		testDict)
+
 	cfg := *serverSettings
 	cfg.HostIPAddresses = []datatype.Address{localhostAddress}
 	cfg.EnableWatchdog = true
@@ -112,11 +118,13 @@ func awaitAcceptedEventWithin(t *testing.T, events <-chan acceptedWatchdogEvent,
 }
 
 func acceptedWatchdogOnWire(t *testing.T, peer net.Conn) *diam.Message {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	t.Helper()
 	if err := peer.SetReadDeadline(time.Now().Add(2 * time.Second)); err != nil {
 		t.Fatal(err)
 	}
-	m, err := diam.ReadMessage(peer, dict.Default)
+	m, err := diam.ReadMessage(peer, testDict)
 	if err != nil || m.Header.CommandCode != diam.DeviceWatchdog || m.Header.CommandFlags&diam.RequestFlag == 0 || m.Header.ApplicationID != 0 {
 		t.Fatalf("DWR on wire = %v, %v", m, err)
 	}
@@ -124,6 +132,10 @@ func acceptedWatchdogOnWire(t *testing.T, peer net.Conn) *diam.Message {
 }
 
 func acceptedDWA(t *testing.T, request *diam.Message, result uint32) *diam.Message {
+	testDict := newSMTestDictionary(dict.Base())
+	clientSettings := cloneTestSettings(clientSettings,
+		testDict)
+
 	t.Helper()
 	a := request.Answer(result)
 	mustSMClientAVP(t, a, avp.OriginHost, avp.Mbit, 0, clientSettings.OriginHost)
@@ -153,9 +165,11 @@ func acceptedWatchdogStopped(t *testing.T, sm *StateMachine, c diam.Conn, state 
 }
 
 func newAcceptedWatchdogPipe(t *testing.T, cfg *Settings) (*StateMachine, net.Conn, func()) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	t.Helper()
-	sm := mustNewStateMachine(t, cfg)
-	server := &diam.Server{Handler: sm, Dict: dict.Default}
+	sm := mustNewStateMachine(t, cfg, testDict)
+	server := &diam.Server{Handler: sm, Dict: testDict}
 	listener := &watchdogPipeListener{accepted: make(chan net.Conn, 1), closed: make(chan struct{})}
 	serverSide, peer := net.Pipe()
 	listener.accepted <- serverSide
@@ -171,11 +185,13 @@ func newAcceptedWatchdogPipe(t *testing.T, cfg *Settings) (*StateMachine, net.Co
 }
 
 func acceptedPipeHandshake(t *testing.T, peer net.Conn) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	t.Helper()
-	if _, err := regressionCER(t, dict.Default, 1001).WriteTo(peer); err != nil {
+	if _, err := regressionCER(t, testDict, 1001).WriteTo(peer); err != nil {
 		t.Fatal(err)
 	}
-	cea, err := diam.ReadMessage(peer, dict.Default)
+	cea, err := diam.ReadMessage(peer, testDict)
 	if err != nil || !testResultCode(cea, diam.Success) {
 		t.Fatalf("CEA: %v, %v", cea, err)
 	}
@@ -184,6 +200,10 @@ func acceptedPipeHandshake(t *testing.T, peer net.Conn) {
 // RFC 6733 §5.5.3 and RFC 3539 §3.4.1: an accepted, idle connection must
 // receive a DWR after Twinit. The default Twinit is 30 seconds with ±2s jitter.
 func TestAcceptedWatchdogIssueReproducerDefaultTwinit(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings := cloneTestSettings(serverSettings,
+		testDict)
+
 	synctest.Test(t, func(t *testing.T) {
 		cfg := *serverSettings
 		cfg.HostIPAddresses = []datatype.Address{localhostAddress}
@@ -195,8 +215,8 @@ func TestAcceptedWatchdogIssueReproducerDefaultTwinit(t *testing.T) {
 			accepted <- c
 		}
 		events := acceptedWatchdogEvents(&cfg)
-		sm := mustNewStateMachine(t, &cfg)
-		server := &diam.Server{Handler: sm, Dict: dict.Default}
+		sm := mustNewStateMachine(t, &cfg, testDict)
+		server := &diam.Server{Handler: sm, Dict: testDict}
 		listener := &watchdogPipeListener{accepted: make(chan net.Conn, 1), closed: make(chan struct{})}
 		serverSide, peer := net.Pipe()
 		listener.accepted <- serverSide
@@ -209,17 +229,17 @@ func TestAcceptedWatchdogIssueReproducerDefaultTwinit(t *testing.T) {
 				t.Errorf("Serve: %v", err)
 			}
 		}()
-		if _, err := regressionCER(t, dict.Default, 1001).WriteTo(peer); err != nil {
+		if _, err := regressionCER(t, testDict, 1001).WriteTo(peer); err != nil {
 			t.Fatal(err)
 		}
-		cea, err := diam.ReadMessage(peer, dict.Default)
+		cea, err := diam.ReadMessage(peer, testDict)
 		if err != nil || !testResultCode(cea, diam.Success) {
 			t.Fatalf("CEA: %v, %v", cea, err)
 		}
 		c := <-accepted
 		incoming := make(chan *diam.Message, 1)
 		go func() {
-			m, _ := diam.ReadMessage(peer, dict.Default)
+			m, _ := diam.ReadMessage(peer, testDict)
 			incoming <- m
 		}()
 		select {
@@ -253,7 +273,7 @@ func TestAcceptedWatchdogIssueReproducerDefaultTwinit(t *testing.T) {
 				t.Fatalf("Tw[%d] = Tw[%d] = %v; consecutive timers did not redraw jitter", i, i-1, tw)
 			}
 		}
-		_, err = diam.ReadMessage(peer, dict.Default)
+		_, err = diam.ReadMessage(peer, testDict)
 		if !errors.Is(err, net.ErrClosed) && !errors.Is(err, io.EOF) {
 			t.Fatalf("after DOWN read error = %v, want EOF", err)
 		}
@@ -264,18 +284,20 @@ func TestAcceptedWatchdogIssueReproducerDefaultTwinit(t *testing.T) {
 // RFC 3539 §3.4.1 [2],[4] and Appendix A: one DWR is outstanding, SUSPECT
 // leaves the transport up, and DOWN closes it only on the third expiry.
 func TestAcceptedWatchdogReproducerTCP(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	for _, mode := range []int{0, 4, -1} {
 		t.Run(fmt.Sprint(mode), func(t *testing.T) {
 			cfg := newAcceptedWatchdogSettings()
 			accepted := make(chan diam.Conn, 1)
 			cfg.OnHandshake = func(c diam.Conn, _ *smpeer.Metadata) { accepted <- c }
 			events := acceptedWatchdogEvents(&cfg)
-			sm := mustNewStateMachine(t, &cfg)
-			srv := diamtest.NewUnstartedServer(sm, dict.Default)
+			sm := mustNewStateMachine(t, &cfg, testDict)
+			srv := diamtest.NewUnstartedServer(sm, testDict)
 			srv.Config.MaxConcurrentHandlers = mode
 			srv.Start()
 			defer srv.Close()
-			cea, peer := regressionExchange(t, srv, regressionCER(t, dict.Default, 1001), dict.Default)
+			cea, peer := regressionExchange(t, srv, regressionCER(t, testDict, 1001), testDict)
 			if !testResultCode(cea, diam.Success) {
 				t.Fatalf("CEA = %v", cea)
 			}
@@ -300,19 +322,21 @@ func TestAcceptedWatchdogReproducerTCP(t *testing.T) {
 // RFC 3539 §3.4.1 [3],[4] and Appendix A: a valid DWA clears Pending and
 // rearms Tw; an invalid answer leaves the request outstanding.
 func TestAcceptedWatchdogDWA(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	cfg := newAcceptedWatchdogSettings()
 	accepted := make(chan diam.Conn, 1)
 	cfg.OnHandshake = func(c diam.Conn, _ *smpeer.Metadata) { accepted <- c }
 	events := acceptedWatchdogEvents(&cfg)
-	sm := mustNewStateMachine(t, &cfg)
+	sm := mustNewStateMachine(t, &cfg, testDict)
 	userDWA := make(chan struct{}, 1)
 	sm.HandleFunc("DWA", func(diam.Conn, *diam.Message) { userDWA <- struct{}{} })
 	logs := logtest.New()
-	srv := diamtest.NewUnstartedServer(sm, dict.Default)
+	srv := diamtest.NewUnstartedServer(sm, testDict)
 	srv.Config.Logger = logs.Logger()
 	srv.Start()
 	defer srv.Close()
-	cea, peer := regressionExchange(t, srv, regressionCER(t, dict.Default, 1001), dict.Default)
+	cea, peer := regressionExchange(t, srv, regressionCER(t, testDict, 1001), testDict)
 	if !testResultCode(cea, diam.Success) {
 		t.Fatalf("CEA = %v", cea)
 	}
@@ -350,17 +374,19 @@ func TestAcceptedWatchdogDWA(t *testing.T) {
 // RFC 3539 §3.4.1 [3]: an answer from one peer cannot clear another
 // connection's Pending flag.
 func TestAcceptedWatchdogRoutesAnswersPerConnection(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	cfg := newAcceptedWatchdogSettings()
 	events := acceptedWatchdogEvents(&cfg)
 	accepted := make(chan diam.Conn, 2)
 	cfg.OnHandshake = func(c diam.Conn, _ *smpeer.Metadata) { accepted <- c }
-	sm := mustNewStateMachine(t, &cfg)
-	srv := diamtest.NewServer(sm, dict.Default)
+	sm := mustNewStateMachine(t, &cfg, testDict)
+	srv := diamtest.NewServer(sm, testDict)
 	defer srv.Close()
 	peers := make([]net.Conn, 2)
 	conns := make([]diam.Conn, 2)
 	for i := range peers {
-		cea, peer := regressionExchange(t, srv, regressionCER(t, dict.Default, 1001), dict.Default)
+		cea, peer := regressionExchange(t, srv, regressionCER(t, testDict, 1001), testDict)
 		if !testResultCode(cea, diam.Success) {
 			t.Fatalf("peer %d CEA = %v", i, cea)
 		}
@@ -405,15 +431,19 @@ func TestAcceptedWatchdogRoutesAnswersPerConnection(t *testing.T) {
 // RFC 6733 §5.6: DWA interception applies only while the accepted
 // connection is under watchdog supervision.
 func TestAcceptedWatchdogDisabledByDefault(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings := cloneTestSettings(serverSettings,
+		testDict)
+
 	cfg := *serverSettings
 	accepted := make(chan diam.Conn, 1)
 	cfg.OnHandshake = func(c diam.Conn, _ *smpeer.Metadata) { accepted <- c }
-	sm := mustNewStateMachine(t, &cfg)
+	sm := mustNewStateMachine(t, &cfg, testDict)
 	routed := make(chan struct{}, 1)
 	sm.HandleFunc("DWA", func(diam.Conn, *diam.Message) { routed <- struct{}{} })
-	srv := diamtest.NewServer(sm, dict.Default)
+	srv := diamtest.NewServer(sm, testDict)
 	defer srv.Close()
-	cea, peer := regressionExchange(t, srv, regressionCER(t, dict.Default, 1001), dict.Default)
+	cea, peer := regressionExchange(t, srv, regressionCER(t, testDict, 1001), testDict)
 	if !testResultCode(cea, diam.Success) {
 		t.Fatalf("CEA = %v", cea)
 	}
@@ -435,18 +465,20 @@ func TestAcceptedWatchdogDisabledByDefault(t *testing.T) {
 // RFC 3539 §3.4.1 [1], Appendix A: inbound traffic resets Tw, including
 // messages other than DWA. A pending DWR still remains outstanding.
 func TestAcceptedWatchdogRecoversOnTraffic(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	for _, mode := range []int{0, 4, -1} {
 		t.Run(fmt.Sprint(mode), func(t *testing.T) {
 			cfg := newAcceptedWatchdogSettings()
 			accepted := make(chan diam.Conn, 1)
 			cfg.OnHandshake = func(c diam.Conn, _ *smpeer.Metadata) { accepted <- c }
 			events := acceptedWatchdogEvents(&cfg)
-			sm := mustNewStateMachine(t, &cfg)
-			srv := diamtest.NewUnstartedServer(sm, dict.Default)
+			sm := mustNewStateMachine(t, &cfg, testDict)
+			srv := diamtest.NewUnstartedServer(sm, testDict)
 			srv.Config.MaxConcurrentHandlers = mode
 			srv.Start()
 			defer srv.Close()
-			cea, peer := regressionExchange(t, srv, regressionCER(t, dict.Default, 1001), dict.Default)
+			cea, peer := regressionExchange(t, srv, regressionCER(t, testDict, 1001), testDict)
 			if !testResultCode(cea, diam.Success) {
 				t.Fatalf("CEA = %v", cea)
 			}
@@ -460,7 +492,7 @@ func TestAcceptedWatchdogRecoversOnTraffic(t *testing.T) {
 			if err := peer.SetReadDeadline(time.Now().Add(2 * time.Second)); err != nil {
 				t.Fatal(err)
 			}
-			a, err := diam.ReadMessage(peer, dict.Default)
+			a, err := diam.ReadMessage(peer, testDict)
 			if err != nil || a.Header.CommandCode != diam.DeviceWatchdog || a.Header.CommandFlags&diam.RequestFlag != 0 || !testResultCode(a, diam.Success) {
 				t.Fatalf("peer DWA = %v, %v", a, err)
 			}
@@ -478,6 +510,8 @@ func TestAcceptedWatchdogRecoversOnTraffic(t *testing.T) {
 // RFC 3539 §3.4.1 [1] and Appendix A SetWatchdog: traffic resets Tw at
 // receipt, so a steady inbound peer sends no unnecessary DWR.
 func TestAcceptedWatchdogTrafficSuppressesDWR(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	synctest.Test(t, func(t *testing.T) {
 		cfg := newAcceptedWatchdogSettings()
 		cfg.HostIPAddresses = []datatype.Address{localhostAddress}
@@ -493,7 +527,7 @@ func TestAcceptedWatchdogTrafficSuppressesDWR(t *testing.T) {
 			if _, err := regressionDWR(t).WriteTo(peer); err != nil {
 				t.Fatal(err)
 			}
-			a, err := diam.ReadMessage(peer, dict.Default)
+			a, err := diam.ReadMessage(peer, testDict)
 			if err != nil || a.Header.CommandCode != diam.DeviceWatchdog || a.Header.CommandFlags&diam.RequestFlag != 0 || !testResultCode(a, diam.Success) {
 				t.Fatalf("peer DWA = %v, %v", a, err)
 			}
@@ -512,7 +546,7 @@ func TestAcceptedWatchdogTrafficSuppressesDWR(t *testing.T) {
 		default:
 		}
 		incoming := make(chan *diam.Message, 1)
-		go func() { m, _ := diam.ReadMessage(peer, dict.Default); incoming <- m }()
+		go func() { m, _ := diam.ReadMessage(peer, testDict); incoming <- m }()
 		select {
 		case m := <-incoming:
 			if m == nil || m.Header.CommandCode != diam.DeviceWatchdog || m.Header.CommandFlags&diam.RequestFlag == 0 {
@@ -528,10 +562,12 @@ func TestAcceptedWatchdogTrafficSuppressesDWR(t *testing.T) {
 // RFC 6733 §5.6.1 and RFC 3539 §3.4.1 [1]: Tw begins after the success
 // CEA and the handshake callback, never on accept or during CER processing.
 func TestAcceptedWatchdogNoDWRBeforeHandshake(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	synctest.Test(t, func(t *testing.T) {
 		cfg := newAcceptedWatchdogSettings()
 		cfg.HandshakeTimeout = time.Hour
-		sm := mustNewStateMachine(t, &cfg)
+		sm := mustNewStateMachine(t, &cfg, testDict)
 		c := newAcceptedWatchdogProbeConn()
 		defer close(c.done)
 		cleanup := sm.HandleAccept(c)
@@ -546,8 +582,8 @@ func TestAcceptedWatchdogNoDWRBeforeHandshake(t *testing.T) {
 		if _, ok := sm.watchdogs.Load(c); ok {
 			t.Fatal("watchdog started before handshake")
 		}
-		sm.ServeDIAM(c, regressionCER(t, dict.Default, 1001))
-		if m, err := diam.ReadMessage(bytes.NewReader(<-c.writes), dict.Default); err != nil || !testResultCode(m, diam.Success) {
+		sm.ServeDIAM(c, regressionCER(t, testDict, 1001))
+		if m, err := diam.ReadMessage(bytes.NewReader(<-c.writes), testDict); err != nil || !testResultCode(m, diam.Success) {
 			t.Fatalf("CEA: %v, %v", m, err)
 		}
 		select {
@@ -560,7 +596,7 @@ func TestAcceptedWatchdogNoDWRBeforeHandshake(t *testing.T) {
 		synctest.Wait()
 		select {
 		case wire := <-c.writes:
-			m, err := diam.ReadMessage(bytes.NewReader(wire), dict.Default)
+			m, err := diam.ReadMessage(bytes.NewReader(wire), testDict)
 			if err != nil || m.Header.CommandCode != diam.DeviceWatchdog {
 				t.Fatalf("post-handshake DWR: %v, %v", m, err)
 			}
@@ -571,12 +607,14 @@ func TestAcceptedWatchdogNoDWRBeforeHandshake(t *testing.T) {
 }
 
 func TestAcceptedWatchdogWaitsForCEAWrite(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	for _, rejected := range []bool{false, true} {
 		t.Run(fmt.Sprint(rejected), func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
 				cfg := newAcceptedWatchdogSettings()
 				cfg.HandshakeTimeout = time.Hour
-				sm := mustNewStateMachine(t, &cfg)
+				sm := mustNewStateMachine(t, &cfg, testDict)
 				c := newAcceptedWatchdogProbeConn()
 				defer close(c.done)
 				cleanup := sm.HandleAccept(c)
@@ -591,15 +629,15 @@ func TestAcceptedWatchdogWaitsForCEAWrite(t *testing.T) {
 						<-unblock
 					}
 				}
-				request := regressionCER(t, dict.Default, 1001)
+				request := regressionCER(t, testDict, 1001)
 				if rejected {
-					request = regressionCER(t, dict.Default, 9999)
+					request = regressionCER(t, testDict, 9999)
 				}
 				done := make(chan struct{})
 				go func() { sm.ServeDIAM(c, request); close(done) }()
 				<-entered
 				wire := <-c.writes
-				a, err := diam.ReadMessage(bytes.NewReader(wire), dict.Default)
+				a, err := diam.ReadMessage(bytes.NewReader(wire), testDict)
 				if err != nil || testResultCode(a, diam.Success) == rejected {
 					t.Fatalf("CEA during blocked write = %v, %v", a, err)
 				}
@@ -626,7 +664,7 @@ func TestAcceptedWatchdogWaitsForCEAWrite(t *testing.T) {
 				synctest.Wait()
 				select {
 				case wire := <-c.writes:
-					m, err := diam.ReadMessage(bytes.NewReader(wire), dict.Default)
+					m, err := diam.ReadMessage(bytes.NewReader(wire), testDict)
 					if err != nil || m.Header.CommandCode != diam.DeviceWatchdog {
 						t.Fatalf("post-CEA DWR = %v, %v", m, err)
 					}
@@ -641,6 +679,8 @@ func TestAcceptedWatchdogWaitsForCEAWrite(t *testing.T) {
 // RFC 6733 §5.6.1: rejected or aborted CER exchanges never establish a
 // connection on which the RFC 3539 watchdog can run.
 func TestAcceptedWatchdogNotStartedAfterRejectedOrAbortedCER(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	for _, scenario := range []string{"no-common-application", "missing-origin-host", "timer-won", "CEA-build-fails", "CEA-write-fails", "OnCER-closes"} {
 		t.Run(scenario, func(t *testing.T) {
 			cfg := newAcceptedWatchdogSettings()
@@ -651,7 +691,7 @@ func TestAcceptedWatchdogNotStartedAfterRejectedOrAbortedCER(t *testing.T) {
 			if scenario == "OnCER-closes" {
 				cfg.OnCER = func(c diam.Conn, _ *diam.Message) { c.Close() }
 			}
-			sm := mustNewStateMachine(t, &cfg)
+			sm := mustNewStateMachine(t, &cfg, testDict)
 			c := newAcceptedWatchdogProbeConn()
 			if scenario == "CEA-build-fails" {
 				c.badLocalAddr = true
@@ -659,10 +699,10 @@ func TestAcceptedWatchdogNotStartedAfterRejectedOrAbortedCER(t *testing.T) {
 			defer close(c.done)
 			cleanup := sm.HandleAccept(c)
 			defer cleanup()
-			request := regressionCER(t, dict.Default, 1001)
+			request := regressionCER(t, testDict, 1001)
 			switch scenario {
 			case "no-common-application":
-				request = regressionCER(t, dict.Default, 9999)
+				request = regressionCER(t, testDict, 9999)
 			case "missing-origin-host":
 				for i, a := range request.AVP {
 					if a.Code == avp.OriginHost {
@@ -691,20 +731,22 @@ func TestAcceptedWatchdogNotStartedAfterRejectedOrAbortedCER(t *testing.T) {
 }
 
 func TestAcceptedWatchdogStartsAfterOnHandshake(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	synctest.Test(t, func(t *testing.T) {
 		cfg := newAcceptedWatchdogSettings()
 		cfg.HandshakeTimeout = time.Hour
 		entered, release := make(chan struct{}), make(chan struct{})
 		cfg.OnHandshake = func(diam.Conn, *smpeer.Metadata) { close(entered); <-release }
-		sm := mustNewStateMachine(t, &cfg)
+		sm := mustNewStateMachine(t, &cfg, testDict)
 		c := newAcceptedWatchdogProbeConn()
 		defer close(c.done)
 		cleanup := sm.HandleAccept(c)
 		defer cleanup()
 		dispatchDone := make(chan struct{})
-		request := regressionCER(t, dict.Default, 1001)
+		request := regressionCER(t, testDict, 1001)
 		go func() { sm.ServeDIAM(c, request); close(dispatchDone) }()
-		if m, err := diam.ReadMessage(bytes.NewReader(<-c.writes), dict.Default); err != nil || !testResultCode(m, diam.Success) {
+		if m, err := diam.ReadMessage(bytes.NewReader(<-c.writes), testDict); err != nil || !testResultCode(m, diam.Success) {
 			t.Fatalf("CEA: %v, %v", m, err)
 		}
 		<-entered
@@ -725,7 +767,7 @@ func TestAcceptedWatchdogStartsAfterOnHandshake(t *testing.T) {
 		synctest.Wait()
 		select {
 		case wire := <-c.writes:
-			m, err := diam.ReadMessage(bytes.NewReader(wire), dict.Default)
+			m, err := diam.ReadMessage(bytes.NewReader(wire), testDict)
 			if err != nil || m.Header.CommandCode != diam.DeviceWatchdog {
 				t.Fatalf("DWR after OnHandshake: %v, %v", m, err)
 			}
@@ -737,12 +779,12 @@ func TestAcceptedWatchdogStartsAfterOnHandshake(t *testing.T) {
 		cfg := newAcceptedWatchdogSettings()
 		cfg.OnHandshake = func(diam.Conn, *smpeer.Metadata) { panic("handshake callback") }
 		events := acceptedWatchdogEvents(&cfg)
-		sm := mustNewStateMachine(t, &cfg)
-		srv := diamtest.NewUnstartedServer(sm, dict.Default)
+		sm := mustNewStateMachine(t, &cfg, testDict)
+		srv := diamtest.NewUnstartedServer(sm, testDict)
 		srv.Config.MaxConcurrentHandlers = -1
 		srv.Start()
 		defer srv.Close()
-		cea, peer := regressionExchange(t, srv, regressionCER(t, dict.Default, 1001), dict.Default)
+		cea, peer := regressionExchange(t, srv, regressionCER(t, testDict, 1001), testDict)
 		if !testResultCode(cea, diam.Success) {
 			t.Fatalf("CEA = %v", cea)
 		}
@@ -754,24 +796,26 @@ func TestAcceptedWatchdogStartsAfterOnHandshake(t *testing.T) {
 // RFC 3539 §3.4.1 [1]: a message with an invalid Diameter header is not
 // valid peer traffic and cannot reset Tw.
 func TestAcceptedWatchdogInvalidHeaderDoesNotResetActivity(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	synctest.Test(t, func(t *testing.T) {
 		cfg := newAcceptedWatchdogSettings()
-		sm := mustNewStateMachine(t, &cfg)
+		sm := mustNewStateMachine(t, &cfg, testDict)
 		c := newAcceptedWatchdogProbeConn()
 		defer close(c.done)
 		cleanup := sm.HandleAccept(c)
 		defer cleanup()
-		sm.ServeDIAM(c, regressionCER(t, dict.Default, 1001))
+		sm.ServeDIAM(c, regressionCER(t, testDict, 1001))
 		<-c.writes // CEA
 		synctest.Wait()
 		time.Sleep(cfg.WatchdogInterval / 2)
-		invalid := diam.NewMessage(diam.DeviceWatchdog, 0, 4, 1, 2, dict.Default)
+		invalid := diam.NewMessage(diam.DeviceWatchdog, 0, 4, 1, 2, testDict)
 		sm.ServeDIAM(c, invalid)
 		time.Sleep(cfg.WatchdogInterval / 2)
 		synctest.Wait()
 		select {
 		case wire := <-c.writes:
-			m, err := diam.ReadMessage(bytes.NewReader(wire), dict.Default)
+			m, err := diam.ReadMessage(bytes.NewReader(wire), testDict)
 			if err != nil || m.Header.CommandCode != diam.DeviceWatchdog || m.Header.CommandFlags&diam.RequestFlag == 0 {
 				t.Fatalf("first idle DWR = %v, %v", m, err)
 			}
@@ -784,18 +828,20 @@ func TestAcceptedWatchdogInvalidHeaderDoesNotResetActivity(t *testing.T) {
 // RFC 3539 §3.4.1 [1] and Appendix A: a syntactically valid received
 // message is traffic even when request validation rejects its AVPs.
 func TestAcceptedWatchdogRejectedRequestsCountAsActivity(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	for _, reason := range []string{"unknown-mandatory", "invalid-grammar"} {
 		t.Run(reason, func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
 				cfg := newAcceptedWatchdogSettings()
 				cfg.RejectUnknownMandatoryAVPs = reason == "unknown-mandatory"
 				cfg.ValidateRequests = reason == "invalid-grammar"
-				sm := mustNewStateMachine(t, &cfg)
+				sm := mustNewStateMachine(t, &cfg, testDict)
 				c := newAcceptedWatchdogProbeConn()
 				defer close(c.done)
 				cleanup := sm.HandleAccept(c)
 				defer cleanup()
-				sm.ServeDIAM(c, regressionCER(t, dict.Default, 1001))
+				sm.ServeDIAM(c, regressionCER(t, testDict, 1001))
 				<-c.writes // CEA
 				synctest.Wait()
 				time.Sleep(60 * time.Millisecond)
@@ -807,7 +853,7 @@ func TestAcceptedWatchdogRejectedRequestsCountAsActivity(t *testing.T) {
 						t.Fatal(err)
 					}
 					var err error
-					request, err = diam.ReadMessage(&wire, dict.Default)
+					request, err = diam.ReadMessage(&wire, testDict)
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -822,7 +868,7 @@ func TestAcceptedWatchdogRejectedRequestsCountAsActivity(t *testing.T) {
 				sm.ServeDIAM(c, request)
 				select {
 				case wire := <-c.writes:
-					a, err := diam.ReadMessage(bytes.NewReader(wire), dict.Default)
+					a, err := diam.ReadMessage(bytes.NewReader(wire), testDict)
 					if err != nil || a.Header.CommandFlags&diam.RequestFlag != 0 || testResultCode(a, diam.Success) {
 						t.Fatalf("rejection answer = %v, %v", a, err)
 					}
@@ -841,7 +887,7 @@ func TestAcceptedWatchdogRejectedRequestsCountAsActivity(t *testing.T) {
 				synctest.Wait()
 				select {
 				case wire := <-c.writes:
-					m, err := diam.ReadMessage(bytes.NewReader(wire), dict.Default)
+					m, err := diam.ReadMessage(bytes.NewReader(wire), testDict)
 					if err != nil || m.Header.CommandCode != diam.DeviceWatchdog || m.Header.CommandFlags&diam.RequestFlag == 0 {
 						t.Fatalf("idle DWR = %v, %v", m, err)
 					}
@@ -854,14 +900,16 @@ func TestAcceptedWatchdogRejectedRequestsCountAsActivity(t *testing.T) {
 }
 
 func TestAcceptedWatchdogMessageErrorDoesNotResetActivity(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	synctest.Test(t, func(t *testing.T) {
 		cfg := newAcceptedWatchdogSettings()
-		sm := mustNewStateMachine(t, &cfg)
+		sm := mustNewStateMachine(t, &cfg, testDict)
 		c := newAcceptedWatchdogProbeConn()
 		defer close(c.done)
 		cleanup := sm.HandleAccept(c)
 		defer cleanup()
-		sm.ServeDIAM(c, regressionCER(t, dict.Default, 1001))
+		sm.ServeDIAM(c, regressionCER(t, testDict, 1001))
 		<-c.writes // CEA
 		synctest.Wait()
 		time.Sleep(cfg.WatchdogInterval / 2)
@@ -873,7 +921,7 @@ func TestAcceptedWatchdogMessageErrorDoesNotResetActivity(t *testing.T) {
 		synctest.Wait()
 		select {
 		case wire := <-c.writes:
-			m, err := diam.ReadMessage(bytes.NewReader(wire), dict.Default)
+			m, err := diam.ReadMessage(bytes.NewReader(wire), testDict)
 			if err != nil || m.Header.CommandCode != diam.DeviceWatchdog || m.Header.CommandFlags&diam.RequestFlag == 0 {
 				t.Fatalf("idle DWR = %v, %v", m, err)
 			}
@@ -884,8 +932,12 @@ func TestAcceptedWatchdogMessageErrorDoesNotResetActivity(t *testing.T) {
 }
 
 func acceptedDPR(t *testing.T) *diam.Message {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	clientSettings := cloneTestSettings(clientSettings,
+		testDict)
+
 	t.Helper()
-	m := diam.NewRequest(diam.DisconnectPeer, 0, dict.Default)
+	m := diam.NewRequest(diam.DisconnectPeer, 0, testDict)
 	mustSMClientAVP(t, m, avp.OriginHost, avp.Mbit, 0, clientSettings.OriginHost)
 	mustSMClientAVP(t, m, avp.OriginRealm, avp.Mbit, 0, clientSettings.OriginRealm)
 	mustSMClientAVP(t, m, avp.DisconnectCause, avp.Mbit, 0, datatype.Enumerated(0))
@@ -895,6 +947,8 @@ func acceptedDPR(t *testing.T) *diam.Message {
 // RFC 6733 §5.6: receiving DPR moves the responder to Closing; no more
 // DWRs are sent after a valid DPR.
 func TestAcceptedWatchdogStopsOnDPR(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	synctest.Test(t, func(t *testing.T) {
 		cfg := newAcceptedWatchdogSettings()
 		cfg.DPRCloseTimeout = time.Hour
@@ -911,13 +965,13 @@ func TestAcceptedWatchdogStopsOnDPR(t *testing.T) {
 		if _, err := request.WriteTo(peer); err != nil {
 			t.Fatal(err)
 		}
-		a, err := diam.ReadMessage(peer, dict.Default)
+		a, err := diam.ReadMessage(peer, testDict)
 		if err != nil || a.Header.CommandCode != diam.DisconnectPeer || !testResultCode(a, diam.Success) {
 			t.Fatalf("DPA: %v, %v", a, err)
 		}
 		acceptedWatchdogStopped(t, sm, c, state)
 		unexpected := make(chan *diam.Message, 1)
-		go func() { m, _ := diam.ReadMessage(peer, dict.Default); unexpected <- m }()
+		go func() { m, _ := diam.ReadMessage(peer, testDict); unexpected <- m }()
 		select {
 		case m := <-unexpected:
 			t.Fatalf("watchdog wrote in Closing: %v", m)
@@ -933,6 +987,8 @@ func TestAcceptedWatchdogStopsOnDPR(t *testing.T) {
 
 // RFC 6733 §5.6: local Stop transitions to Closing before sending DPR.
 func TestAcceptedWatchdogStopsOnDisconnect(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	synctest.Test(t, func(t *testing.T) {
 		cfg := newAcceptedWatchdogSettings()
 		accepted := make(chan diam.Conn, 1)
@@ -946,13 +1002,13 @@ func TestAcceptedWatchdogStopsOnDisconnect(t *testing.T) {
 		state := acceptedWatchdogState(t, sm, c)
 		result := make(chan error, 1)
 		go func() { result <- sm.Disconnect(c, DisconnectRebooting, time.Hour) }()
-		request, err := diam.ReadMessage(peer, dict.Default)
+		request, err := diam.ReadMessage(peer, testDict)
 		if err != nil || request.Header.CommandCode != diam.DisconnectPeer || request.Header.CommandFlags&diam.RequestFlag == 0 {
 			t.Fatalf("DPR: %v, %v", request, err)
 		}
 		acceptedWatchdogStopped(t, sm, c, state)
 		unexpected := make(chan *diam.Message, 1)
-		go func() { m, _ := diam.ReadMessage(peer, dict.Default); unexpected <- m }()
+		go func() { m, _ := diam.ReadMessage(peer, testDict); unexpected <- m }()
 		select {
 		case m := <-unexpected:
 			t.Fatalf("watchdog wrote during local Closing: %v", m)
@@ -975,16 +1031,18 @@ func TestAcceptedWatchdogStopsOnDisconnect(t *testing.T) {
 // RFC 3539 §3.4.1 Appendix A DOWN and RFC 6733 §5.6: the supervisor
 // releases its connection entry after every way the transport can end.
 func TestAcceptedWatchdogNoLeak(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	for _, ending := range []string{"peer-FIN", "DOWN", "local-Close", "Server-Shutdown"} {
 		t.Run(ending, func(t *testing.T) {
 			cfg := newAcceptedWatchdogSettings()
 			accepted := make(chan diam.Conn, 1)
 			cfg.OnHandshake = func(c diam.Conn, _ *smpeer.Metadata) { accepted <- c }
 			events := acceptedWatchdogEvents(&cfg)
-			sm := mustNewStateMachine(t, &cfg)
-			srv := diamtest.NewServer(sm, dict.Default)
+			sm := mustNewStateMachine(t, &cfg, testDict)
+			srv := diamtest.NewServer(sm, testDict)
 			defer srv.Close()
-			cea, peer := regressionExchange(t, srv, regressionCER(t, dict.Default, 1001), dict.Default)
+			cea, peer := regressionExchange(t, srv, regressionCER(t, testDict, 1001), testDict)
 			if !testResultCode(cea, diam.Success) {
 				t.Fatalf("CEA = %v", cea)
 			}
@@ -1017,13 +1075,17 @@ func TestAcceptedWatchdogNoLeak(t *testing.T) {
 // RFC 6733 §2.1 and RFC 3539 §3.4.1 [5]: a shared StateMachine supervises
 // accepted connections; a Client owns the watchdog for connections it dials.
 func TestSharedStateMachineWatchdogsIndependent(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings := cloneTestSettings(serverSettings,
+		testDict)
+
 	cfg := newAcceptedWatchdogSettings()
 	accepted := make(chan diam.Conn, 2)
 	cfg.OnHandshake = func(c diam.Conn, _ *smpeer.Metadata) { accepted <- c }
-	sm := mustNewStateMachine(t, &cfg)
-	local := diamtest.NewServer(sm, dict.Default)
+	sm := mustNewStateMachine(t, &cfg, testDict)
+	local := diamtest.NewServer(sm, testDict)
 	defer local.Close()
-	cea, localPeer := regressionExchange(t, local, regressionCER(t, dict.Default, 1001), dict.Default)
+	cea, localPeer := regressionExchange(t, local, regressionCER(t, testDict, 1001), testDict)
 	if !testResultCode(cea, diam.Success) {
 		t.Fatalf("local CEA = %v", cea)
 	}
@@ -1035,7 +1097,7 @@ func TestSharedStateMachineWatchdogsIndependent(t *testing.T) {
 	remoteCfg := *serverSettings
 	remoteDWR := make(chan struct{}, 4)
 	remoteCfg.OnDWR = func(diam.Conn, *diam.Message) { remoteDWR <- struct{}{} }
-	remote := diamtest.NewServer(mustNewStateMachine(t, &remoteCfg), dict.Default)
+	remote := diamtest.NewServer(mustNewStateMachine(t, &remoteCfg, testDict), testDict)
 	defer remote.Close()
 	cli := newLivenessClient(t)
 	cli.Handler = sm
@@ -1063,6 +1125,8 @@ func TestSharedStateMachineWatchdogsIndependent(t *testing.T) {
 
 // A user callback cannot crash the server or strand the accepted watchdog.
 func TestAcceptedWatchdogEventPanicClosesConnection(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	cfg := newAcceptedWatchdogSettings()
 	accepted := make(chan diam.Conn, 1)
 	cfg.OnHandshake = func(c diam.Conn, _ *smpeer.Metadata) { accepted <- c }
@@ -1074,10 +1138,10 @@ func TestAcceptedWatchdogEventPanicClosesConnection(t *testing.T) {
 		}
 		panic("watchdog event callback")
 	}
-	sm = mustNewStateMachine(t, &cfg)
-	srv := diamtest.NewServer(sm, dict.Default)
+	sm = mustNewStateMachine(t, &cfg, testDict)
+	srv := diamtest.NewServer(sm, testDict)
 	defer srv.Close()
-	cea, peer := regressionExchange(t, srv, regressionCER(t, dict.Default, 1001), dict.Default)
+	cea, peer := regressionExchange(t, srv, regressionCER(t, testDict, 1001), testDict)
 	if !testResultCode(cea, diam.Success) {
 		t.Fatalf("CEA = %v", cea)
 	}

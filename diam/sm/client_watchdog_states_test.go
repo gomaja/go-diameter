@@ -5,11 +5,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/diamtest"
-	"github.com/gomaja/go-diameter/diam/dict"
 )
 
 type watchdogProbeConn struct {
@@ -117,16 +118,19 @@ func TestWatchdogRecoversFromSuspectOnNonDWATraffic(t *testing.T) {
 }
 
 func TestWatchdogRecoversFromSuspectOnAnswer(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings := cloneTestSettings(serverSettings, testDict)
+
 	type request struct {
 		c diam.Conn
 		m *diam.Message
 	}
 	requests := make(chan request, 4)
-	serverSM := mustNewStateMachine(t, serverSettings)
+	serverSM := mustNewStateMachine(t, serverSettings, testDict)
 	serverSM.dwrHandler = handshakeOK(func(c diam.Conn, m *diam.Message) {
 		requests <- request{c, m}
 	})
-	srv := diamtest.NewServer(serverSM, dict.Default)
+	srv := diamtest.NewServer(serverSM, testDict)
 	defer srv.Close()
 	events := make(chan WatchdogEvent, 12)
 	cli := newLivenessClient(t)

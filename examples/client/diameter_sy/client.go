@@ -3,6 +3,8 @@
 // found in the LICENSE file.
 
 // Diameter client example. This is by no means a complete client.
+// The synthetic initial Sy request demonstrates encoding and exchange; a real
+// PCRF also needs an active IP-CAN session (TS 29.219 V19.0.0 §4.4.1).
 //
 // If you'd like to test diameter over SSL, make sure the server supports
 // it and add -ssl to the command line. To use client certificates,
@@ -39,6 +41,7 @@ import (
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/dict"
+	"github.com/gomaja/go-diameter/diam/dict/sy"
 	"github.com/gomaja/go-diameter/diam/sm"
 	"github.com/gomaja/go-diameter/diam/sm/smpeer"
 )
@@ -60,13 +63,13 @@ func main() {
 		flag.Usage()
 	}
 
-	// Load our custom dictionary on top of the default one.
-	//err := dict.Default.Load(bytes.NewReader([]byte(helloDictionary)))
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
+	dictionary, err := dict.New(sy.Dictionary())
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	cfg := &sm.Settings{
+		Dict:             dictionary,
 		OriginHost:       datatype.DiameterIdentity(*host),
 		OriginRealm:      datatype.DiameterIdentity(*realm),
 		VendorID:         10415,
@@ -85,12 +88,12 @@ func main() {
 	}
 	// CER -> for sending
 	cli := &sm.Client{
-		Dict:               dict.Default,
+		Dict:               dictionary,
 		Handler:            mux,
 		MaxRetransmits:     3,
 		RetransmitInterval: time.Second,
 		EnableWatchdog:     true,
-		WatchdogInterval:   5 * time.Second,
+		WatchdogInterval:   6 * time.Second,
 
 		VendorSpecificApplicationID: []*diam.AVP{
 			diam.NewAVP(avp.VendorSpecificApplicationID, avp.Mbit, 0, &diam.GroupedAVP{
@@ -170,29 +173,56 @@ func sendSLR(c diam.Conn, cfg *sm.Settings) error {
 	if !ok {
 		return errors.New("peer metadata unavailable")
 	}
-	sid := "session;" + strconv.Itoa(int(rand.Uint32()))
-	m := diam.NewRequest(8388635, 16777302, c.Dictionary()) // SLR ID,Diameter Sy ID
-	if err := addAVP(m, avp.SessionID, avp.Mbit, 0, datatype.UTF8String(sid)); err != nil {
-		return err
-	}
-	if err := addAVP(m, avp.OriginHost, avp.Mbit, 0, cfg.OriginHost); err != nil {
-		return err
-	}
-	if err := addAVP(m, avp.OriginRealm, avp.Mbit, 0, cfg.OriginRealm); err != nil {
-		return err
-	}
-	if err := addAVP(m, avp.DestinationRealm, avp.Mbit, 0, meta.OriginRealm); err != nil {
-		return err
-	}
-	if err := addAVP(m, avp.DestinationHost, avp.Mbit, 0, meta.OriginHost); err != nil {
-		return err
-	}
-	if err := addAVP(m, avp.SLRequestType, avp.Mbit, 0, datatype.UTF8String("0")); err != nil {
+	m, err := newSLR(cfg, meta)
+	if err != nil {
 		return err
 	}
 	log.Printf("Sending SLR to %s\n%s", c.RemoteAddr(), m)
-	_, err := m.WriteTo(c)
+	_, err = m.WriteTo(c)
 	return err
+}
+
+// newSLR builds an initial request using the selected Sy parser.
+func newSLR(cfg *sm.Settings, meta *smpeer.Metadata) (*diam.Message, error) {
+	sid := "session;" + strconv.Itoa(int(rand.Uint32()))
+	m := diam.NewRequest(8388635, 16777302, cfg.Dict) // SLR ID,Diameter Sy ID
+	if err := addAVP(m, avp.SessionID, avp.Mbit, 0, datatype.UTF8String(sid)); err != nil {
+		return nil, err
+	}
+	// TS 29.219 V19.0.0 §5.6.2 requires the Sy application identifier.
+	if err := addAVP(m, avp.AuthApplicationID, avp.Mbit, 0, datatype.Unsigned32(16777302)); err != nil {
+		return nil, err
+	}
+	if err := addAVP(m, avp.OriginHost, avp.Mbit, 0, cfg.OriginHost); err != nil {
+		return nil, err
+	}
+	if err := addAVP(m, avp.OriginRealm, avp.Mbit, 0, cfg.OriginRealm); err != nil {
+		return nil, err
+	}
+	if err := addAVP(m, avp.DestinationRealm, avp.Mbit, 0, meta.OriginRealm); err != nil {
+		return nil, err
+	}
+	if err := addAVP(m, avp.DestinationHost, avp.Mbit, 0, meta.OriginHost); err != nil {
+		return nil, err
+	}
+	// TS 29.219 V19.0.0 §§5.3.0, 5.3.4: 3GPP Enumerated INITIAL_REQUEST.
+	if err := addAVP(m, avp.SLRequestType, avp.Mbit|avp.Vbit, 10415, datatype.Enumerated(0)); err != nil {
+		return nil, err
+	}
+	// TS 29.219 V19.0.0 Table 4.5.1.1/1 requires user identity initially.
+	// Table 5.4 preserves Subscription-Id flags; use a synthetic NAI.
+	if err := addAVP(m, avp.SubscriptionID, avp.Mbit, 0, &diam.GroupedAVP{
+		AVP: []*diam.AVP{
+			diam.NewAVP(avp.SubscriptionIDType, avp.Mbit, 0, datatype.Enumerated(3)),
+			diam.NewAVP(avp.SubscriptionIDData, avp.Mbit, 0, datatype.UTF8String("subscriber@example.org")),
+		},
+	}); err != nil {
+		return nil, err
+	}
+	if err := m.Validate(); err != nil {
+		return nil, err
+	}
+	return m, nil
 }
 
 func addAVP(m *diam.Message, code uint32, flags uint8, vendor uint32, data datatype.Type) error {

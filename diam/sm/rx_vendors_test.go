@@ -1,17 +1,23 @@
 package sm
 
 import (
+	"testing"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/dict"
-	"testing"
+	"github.com/gomaja/go-diameter/diam/dict/rx"
 )
 
 // TS 29.214 V20.0.0 Table 5.4.0.1 requires ETSI advertisement for
 // Reservation-Priority; RFC 6733 §5.3.6 defines Supported-Vendor-Id.
 func TestRxSupportedVendors(t *testing.T) {
-	dictionary := dict.New(dict.Rx)
+	testDict := newSMTestDictionary(dict.Base())
+	serverSettings := cloneTestSettings(serverSettings,
+		testDict)
+
+	dictionary := newTestDictionary(rx.Dictionary())
 	settings := *serverSettings
 	settings.Dict = dictionary
 	settings.HostIPAddresses = []datatype.Address{localhostAddress}

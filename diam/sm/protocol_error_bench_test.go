@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
@@ -27,7 +29,7 @@ func BenchmarkProtocolErrorNilRoundTrip(b *testing.B) {
 }
 
 func benchmarkProtocolErrorNilRoundTrip(b *testing.B, transport string) {
-	dictionary := dict.New(dict.Base, dict.CreditControl)
+	dictionary := newTestDictionary(dict.Base(), creditcontrol.Dictionary())
 	address := datatype.AddressFromIP(netip.MustParseAddr("127.0.0.1"))
 	machine, err := sm.New(&sm.Settings{
 		OriginHost: "server.example", OriginRealm: "example", VendorID: 13,

@@ -1,4 +1,4 @@
-package dict
+package dict_test
 
 import (
 	"encoding/json"
@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/gomaja/go-diameter/diam/dict"
 )
 
 type nasreqRuleSpec struct {
@@ -63,14 +65,14 @@ func loadNASREQSpec(t *testing.T) nasreqSpec {
 
 func nasreqFlags(t *testing.T, s string) int {
 	t.Helper()
-	f, err := parseFlags(s)
+	f, err := dict.ParseFlagsForTesting(s)
 	if err != nil {
 		t.Fatalf("invalid flag set %q: %v", s, err)
 	}
 	return f
 }
 
-func nasreqRules(t *testing.T, got []*Rule, want []nasreqRuleSpec) {
+func nasreqRules(t *testing.T, got []*dict.Rule, want []nasreqRuleSpec) {
 	t.Helper()
 	if len(got) != len(want) {
 		t.Errorf("rule count %d, want %d", len(got), len(want))
@@ -90,9 +92,11 @@ func nasreqRules(t *testing.T, got []*Rule, want []nasreqRuleSpec) {
 // RFC 7155 §§4.2–4.6; Verified Errata 6119, 5995. Enumerations include
 // the IANA RADIUS Types and AAA Parameters registries referenced by the RFC.
 func TestNASREQAVPSpec(t *testing.T) {
+	reference := newAllTestParser(t)
+
 	for _, want := range loadNASREQSpec(t).AVPs {
 		t.Run(want.Section+"/"+want.Name, func(t *testing.T) {
-			got, err := Default.FindAVP(1, want.Code, want.Vendor)
+			got, err := reference.FindAVP(1, want.Code, want.Vendor)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -122,9 +126,11 @@ func TestNASREQAVPSpec(t *testing.T) {
 
 // RFC 7155 §§3.1–3.10; Verified Errata 5993, 5994 and 5995.
 func TestNASREQCommandSpec(t *testing.T) {
+	reference := newAllTestParser(t)
+
 	for _, want := range loadNASREQSpec(t).Commands {
 		t.Run(want.Section, func(t *testing.T) {
-			c, err := Default.FindCommand(1, want.Code)
+			c, err := reference.FindCommand(1, want.Code)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -170,12 +176,14 @@ func TestNASREQFixtureCoverage(t *testing.T) {
 // effective definitions with the base application, including recursive Grouped
 // members; base specification tests separately pin that source to RFC 6733.
 func TestNASREQReusedBaseAVPs(t *testing.T) {
+	reference := newAllTestParser(t)
+
 	s := loadNASREQSpec(t)
 	local := map[string]bool{"NAS-IP-Address": true, "NAS-IPv6-Address": true, "NAS-Identifier": true, "State": true}
 	for _, a := range s.AVPs {
 		local[a.Name] = true
 	}
-	base := New(Base)
+	base := newTestParser(t, dict.Base())
 	seen := map[string]bool{}
 	var check func(string)
 	check = func(name string) {
@@ -188,7 +196,7 @@ func TestNASREQReusedBaseAVPs(t *testing.T) {
 		if err != nil {
 			t.Fatalf("RFC 7155 reused %s missing in RFC 6733 source: %v", name, err)
 		}
-		got, err := Default.FindAVPByName(1, name)
+		got, err := reference.FindAVPByName(1, name)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -237,9 +245,11 @@ func TestNASREQReusedBaseAVPs(t *testing.T) {
 // Diameter AVP rows. IANA pins their RADIUS identities; the analogous RFC
 // 7155 NAS AVPs establish their Diameter wire data representations.
 func TestNASREQSupplementalRADIUSAVPs(t *testing.T) {
+	reference := newAllTestParser(t)
+
 	for _, want := range loadNASREQSpec(t).Supplemental {
 		t.Run(want.Name, func(t *testing.T) {
-			got, err := Default.FindAVP(1, want.Code, want.Vendor)
+			got, err := reference.FindAVP(1, want.Code, want.Vendor)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -267,6 +277,8 @@ type nasreqReusedAVPSpec struct {
 // RFC 6733 §4.5 and §6.7.2 are independent source data for the AVPs
 // referenced by RFC 7155 command bodies but inherited from the base app.
 func TestNASREQReusedSourceSpec(t *testing.T) {
+	reference := newAllTestParser(t)
+
 	b, err := os.ReadFile("testdata/nasreq_reused_spec.json")
 	if err != nil {
 		t.Fatal(err)
@@ -280,7 +292,7 @@ func TestNASREQReusedSourceSpec(t *testing.T) {
 	}
 	for _, want := range source.AVPs {
 		t.Run(want.Name, func(t *testing.T) {
-			got, err := Default.FindAVP(1, want.Code, 0)
+			got, err := reference.FindAVP(1, want.Code, 0)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -323,9 +335,9 @@ func TestNASREQReusedSourceSpec(t *testing.T) {
 // RFC 6733 §4.1 forbids V for vendor-zero IETF AVPs, independently of
 // whether an application's individual flag table repeats that prohibition.
 func TestNASCCIETFVendorFlagPolicy(t *testing.T) {
-	for _, bundle := range []Bundled{NASREQ, CreditControl} {
-		t.Run(string(bundle), func(t *testing.T) {
-			for _, app := range bundledFiles()[bundle].App {
+	for _, name := range []string{"network_access_server.xml", "credit_control.xml"} {
+		t.Run(name, func(t *testing.T) {
+			for _, app := range sourceApps(t, name) {
 				for _, a := range app.AVP {
 					if a.VendorID == 0 && nasreqFlags(t, a.MustNot)&nasreqFlags(t, "V") == 0 {
 						t.Errorf("%s (%d) must prohibit V under RFC 6733 §4.1", a.Name, a.Code)

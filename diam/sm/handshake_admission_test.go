@@ -11,14 +11,19 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/diamtest"
-	"github.com/gomaja/go-diameter/diam/dict"
 	"github.com/gomaja/go-diameter/diam/internal/logtest"
 	"github.com/gomaja/go-diameter/diam/sm/smpeer"
 )
 
 func TestOnHandshakeCalledForEveryPeer(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings := cloneTestSettings(serverSettings, testDict)
+	clientSettings := cloneTestSettings(clientSettings, testDict)
+
 	const peers = 1100
 	var serverCalls, clientCalls atomic.Int32
 	serverDone := make(chan struct{})
@@ -31,7 +36,7 @@ func TestOnHandshakeCalledForEveryPeer(t *testing.T) {
 			close(serverDone)
 		}
 	}
-	srv := diamtest.NewServer(mustNewStateMachine(t, &cfg), dict.Default)
+	srv := diamtest.NewServer(mustNewStateMachine(t, &cfg, testDict), testDict)
 	defer srv.Close()
 	clientCfg := *clientSettings
 	clientCfg.OnHandshake = func(c diam.Conn, p *smpeer.Metadata) {
@@ -43,7 +48,7 @@ func TestOnHandshakeCalledForEveryPeer(t *testing.T) {
 	cli := newLivenessClient(t)
 	cli.EnableWatchdog = false
 	cli.RetransmitInterval = 2 * time.Second
-	cli.Handler = mustNewStateMachine(t, &clientCfg)
+	cli.Handler = mustNewStateMachine(t, &clientCfg, testDict)
 	for i := 0; i < peers; i++ {
 		c, err := cli.Dial(srv.Addr)
 		if err != nil {
@@ -73,6 +78,9 @@ func TestOnHandshakeCalledForEveryPeer(t *testing.T) {
 // C1 and RFC 6733 §5.6: the CEA can be read while OnHandshake is blocked,
 // but no subsequent message may be admitted before the callback returns.
 func TestOnHandshakeHoldsServerAdmission(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings := cloneTestSettings(serverSettings, testDict)
+
 	for _, mode := range []int{0, -1} {
 		t.Run(fmt.Sprint(mode), func(t *testing.T) {
 			entered, release, dwr := make(chan struct{}), make(chan struct{}), make(chan struct{}, 1)
@@ -82,7 +90,7 @@ func TestOnHandshakeHoldsServerAdmission(t *testing.T) {
 			cfg := *serverSettings
 			cfg.OnHandshake = func(diam.Conn, *smpeer.Metadata) { close(entered); <-release }
 			cfg.OnDWR = func(diam.Conn, *diam.Message) { dwr <- struct{}{} }
-			srv := diamtest.NewUnstartedServer(mustNewStateMachine(t, &cfg), dict.Default)
+			srv := diamtest.NewUnstartedServer(mustNewStateMachine(t, &cfg, testDict), testDict)
 			srv.Config.MaxConcurrentHandlers = mode
 			srv.Start()
 			defer srv.Close()
@@ -95,10 +103,10 @@ func TestOnHandshakeHoldsServerAdmission(t *testing.T) {
 			if err = c.SetDeadline(time.Now().Add(2 * time.Second)); err != nil {
 				t.Fatal(err)
 			}
-			if _, err = regressionCER(t, dict.Default, 1001).WriteTo(c); err != nil {
+			if _, err = regressionCER(t, testDict, 1001).WriteTo(c); err != nil {
 				t.Fatal(err)
 			}
-			if a, err := diam.ReadMessage(c, dict.Default); err != nil || !testResultCode(a, diam.Success) {
+			if a, err := diam.ReadMessage(c, testDict); err != nil || !testResultCode(a, diam.Success) {
 				t.Fatalf("CEA: %v %v", a, err)
 			}
 			select {
@@ -115,13 +123,17 @@ func TestOnHandshakeHoldsServerAdmission(t *testing.T) {
 			case <-time.After(30 * time.Millisecond):
 			}
 			unblock()
-			if a, err := diam.ReadMessage(c, dict.Default); err != nil || a.Header.CommandCode != diam.DeviceWatchdog || !testResultCode(a, diam.Success) {
+			if a, err := diam.ReadMessage(c, testDict); err != nil || a.Header.CommandCode != diam.DeviceWatchdog || !testResultCode(a, diam.Success) {
 				t.Fatalf("DWA: %v %v", a, err)
 			}
 		})
 	}
 }
 func TestOnHandshakeHoldsClientAdmissionAndDial(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings := cloneTestSettings(serverSettings, testDict)
+	clientSettings := cloneTestSettings(clientSettings, testDict)
+
 	for _, mode := range []int{0, -1} {
 		t.Run(fmt.Sprint(mode), func(t *testing.T) {
 			entered, release, dwr := make(chan struct{}), make(chan struct{}), make(chan struct{}, 1)
@@ -134,9 +146,9 @@ func TestOnHandshakeHoldsClientAdmissionAndDial(t *testing.T) {
 					t.Errorf("peer DWR: %v", err)
 				}
 			}
-			serverSM := mustNewStateMachine(t, &serverCfg)
+			serverSM := mustNewStateMachine(t, &serverCfg, testDict)
 			serverSM.HandleFunc("DWA", func(diam.Conn, *diam.Message) {})
-			srv := diamtest.NewServer(serverSM, dict.Default)
+			srv := diamtest.NewServer(serverSM, testDict)
 			defer srv.Close()
 			defer unblock()
 			cfg := *clientSettings
@@ -144,7 +156,7 @@ func TestOnHandshakeHoldsClientAdmissionAndDial(t *testing.T) {
 			cfg.OnDWR = func(diam.Conn, *diam.Message) { dwr <- struct{}{} }
 			cli := newLivenessClient(t)
 			cli.EnableWatchdog = false
-			cli.Handler = mustNewStateMachine(t, &cfg)
+			cli.Handler = mustNewStateMachine(t, &cfg, testDict)
 			cli.RetransmitInterval = 2 * time.Second
 			type result struct {
 				c   diam.Conn
@@ -197,18 +209,22 @@ func TestOnHandshakeHoldsClientAdmissionAndDial(t *testing.T) {
 }
 
 func TestOnHandshakeOutlastsClientRetryBudget(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings := cloneTestSettings(serverSettings, testDict)
+	clientSettings := cloneTestSettings(clientSettings, testDict)
+
 	entered, release := make(chan struct{}), make(chan struct{})
 	var once sync.Once
 	unblock := func() { once.Do(func() { close(release) }) }
 	defer unblock()
 	cfg := *clientSettings
 	cfg.OnHandshake = func(diam.Conn, *smpeer.Metadata) { close(entered); <-release }
-	srv := diamtest.NewServer(mustNewStateMachine(t, serverSettings), dict.Default)
+	srv := diamtest.NewServer(mustNewStateMachine(t, serverSettings, testDict), testDict)
 	defer srv.Close()
 	defer unblock()
 	cli := newLivenessClient(t)
 	cli.EnableWatchdog = false
-	cli.Handler = mustNewStateMachine(t, &cfg)
+	cli.Handler = mustNewStateMachine(t, &cfg, testDict)
 	cli.RetransmitInterval = 500 * time.Millisecond
 	cli.MaxRetransmits = 1
 	type result struct {
@@ -244,6 +260,10 @@ func TestOnHandshakeOutlastsClientRetryBudget(t *testing.T) {
 }
 
 func TestOnHandshakePanicCompletesDial(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings := cloneTestSettings(serverSettings, testDict)
+	clientSettings := cloneTestSettings(clientSettings, testDict)
+
 	for _, mode := range []int{0, -1} {
 		for _, termination := range []string{"panic", "Goexit"} {
 			t.Run(fmt.Sprintf("%d/%s", mode, termination), func(t *testing.T) {
@@ -251,7 +271,7 @@ func TestOnHandshakePanicCompletesDial(t *testing.T) {
 				accepted := make(chan diam.Conn, 1)
 				serverCfg := *serverSettings
 				serverCfg.OnHandshake = func(c diam.Conn, _ *smpeer.Metadata) { accepted <- c }
-				srv := diamtest.NewServer(mustNewStateMachine(t, &serverCfg), dict.Default)
+				srv := diamtest.NewServer(mustNewStateMachine(t, &serverCfg, testDict), testDict)
 				defer srv.Close()
 				cfg := *clientSettings
 				cfg.OnHandshake = func(diam.Conn, *smpeer.Metadata) {
@@ -262,7 +282,7 @@ func TestOnHandshakePanicCompletesDial(t *testing.T) {
 				}
 				cli := newLivenessClient(t)
 				cli.EnableWatchdog = false
-				cli.Handler = mustNewStateMachine(t, &cfg)
+				cli.Handler = mustNewStateMachine(t, &cfg, testDict)
 				cli.Logger = records.Logger()
 				cli.RetransmitInterval = time.Second
 				done := make(chan error, 1)

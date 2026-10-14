@@ -1,26 +1,30 @@
-package dict
+package dict_test
 
 import (
 	"fmt"
 	"sort"
 	"testing"
+
+	"github.com/gomaja/go-diameter/diam/dict"
 )
 
-// TestDefaultRuleClosure keeps command and grouped AVP grammars usable through
+// TestShippedRuleClosure keeps command and grouped AVP grammars usable through
 // each application's actual lookup scope, including inherited AVPs.
-func TestDefaultRuleClosure(t *testing.T) {
-	for _, app := range Default.Apps() {
+func TestShippedRuleClosure(t *testing.T) {
+	reference := newAllTestParser(t)
+
+	for _, app := range reference.Apps() {
 		app := app
 		t.Run(fmt.Sprintf("%d/%s", app.ID, app.Name), func(t *testing.T) {
 			visited := make(map[string]bool)
 			missing := make(map[string]string)
-			var check func(string, []*Rule)
-			check = func(owner string, rules []*Rule) {
+			var check func(string, []*dict.Rule)
+			check = func(owner string, rules []*dict.Rule) {
 				for _, rule := range rules {
 					if rule.AVP == "AVP" { // Diameter's arbitrary AVP wildcard.
 						continue
 					}
-					avp, err := Default.FindAVPByName(app.ID, rule.AVP)
+					avp, err := reference.FindAVPByName(app.ID, rule.AVP)
 					if err != nil || avp == nil {
 						if _, seen := missing[rule.AVP]; !seen {
 							missing[rule.AVP] = owner
@@ -38,8 +42,8 @@ func TestDefaultRuleClosure(t *testing.T) {
 				check(cmd.Name+" answer", cmd.Answer.Rule)
 			}
 			// Include inherited groups even when no command in this app names them.
-			for idx, avp := range Default.Snapshot().avpname {
-				if idx.appID != app.ID {
+			for idx, avp := range dict.NameIndexForTesting(reference.Snapshot()) {
+				if idx.AppID != app.ID {
 					continue
 				}
 				if avp.Data.TypeName == "Grouped" && !visited[avp.Name] {

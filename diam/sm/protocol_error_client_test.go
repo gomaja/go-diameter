@@ -8,10 +8,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
-	"github.com/gomaja/go-diameter/diam/dict"
 	"github.com/gomaja/go-diameter/diam/internal/logtest"
 )
 
@@ -31,12 +32,15 @@ type protocolClientWire struct {
 }
 
 func newProtocolClientWire(t *testing.T, configure func(*Client)) *protocolClientWire {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	clientSettings := cloneTestSettings(clientSettings, testDict)
+
 	t.Helper()
 	p := &protocolClientWire{events: make(chan diam.ProtocolErrorEvent, 16), dialed: make(chan protocolClientDialResult, 1), logs: logtest.New()}
 	settings := *clientSettings
 	settings.AuthApplicationID = []*diam.AVP{diam.NewAVP(avp.AuthApplicationID, avp.Mbit, 0, datatype.Unsigned32(4))}
 	settings.OnProtocolError = func(e diam.ProtocolErrorEvent) { p.events <- e }
-	p.client = &Client{Handler: mustNewStateMachine(t, &settings), Logger: p.logs.Logger(), RetransmitInterval: time.Second}
+	p.client = &Client{Handler: mustNewStateMachine(t, &settings, testDict), Logger: p.logs.Logger(), RetransmitInterval: time.Second, Dict: testDict}
 	if configure != nil {
 		configure(p.client)
 	}
@@ -71,7 +75,7 @@ func newProtocolClientWire(t *testing.T, configure func(*Client)) *protocolClien
 		t.Fatal("client connection missing")
 	}
 	t.Cleanup(p.conn.Close)
-	p.cer, err = diam.ReadMessage(p.peer, dict.Default)
+	p.cer, err = diam.ReadMessage(p.peer, testDict)
 	if err != nil || p.cer.Header.CommandCode != diam.CapabilitiesExchange || p.cer.Header.CommandFlags&diam.RequestFlag == 0 {
 		t.Fatalf("CER=%v error=%v", p.cer, err)
 	}
@@ -135,6 +139,8 @@ func (p *protocolClientWire) noExtraEvents(t *testing.T) {
 }
 
 func TestProtocolErrorClientA15RepeatedCEAWire(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	p := newProtocolClientWire(t, nil)
 	cea := protocolClientCEA(p.cer, 2001)
 	p.send(t, cea)
@@ -146,7 +152,7 @@ func TestProtocolErrorClientA15RepeatedCEAWire(t *testing.T) {
 	assertProtocolEvent(t, protocolEvent(t, p.events), p.conn, &header, diam.ProtocolUnexpectedMessage, 0, false, diam.ProtocolReplyNone, 0)
 	request := regressionDWR(t)
 	dwrHeader := p.send(t, request)
-	answer, err := diam.ReadMessage(p.peer, dict.Default)
+	answer, err := diam.ReadMessage(p.peer, testDict)
 	if err != nil || !testResultCode(answer, 2001) || answer.Header.CommandCode != diam.DeviceWatchdog || answer.Header.HopByHopID != dwrHeader.HopByHopID || p.conn.Closed() {
 		t.Fatalf("connection changed after duplicate CEA: %v %v", answer, err)
 	}
@@ -230,9 +236,11 @@ func TestProtocolErrorClientB7RejectedCEAWire(t *testing.T) {
 }
 
 func TestProtocolErrorClientB8CEABudgetTimeoutWire(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	p := newProtocolClientWire(t, func(c *Client) { c.RetransmitInterval = 20 * time.Millisecond; c.MaxRetransmits = 2 })
 	for range 2 {
-		cer, err := diam.ReadMessage(p.peer, dict.Default)
+		cer, err := diam.ReadMessage(p.peer, testDict)
 		if err != nil || cer.Header.CommandCode != diam.CapabilitiesExchange || cer.Header.HopByHopID != p.cer.Header.HopByHopID || cer.Header.EndToEndID != p.cer.Header.EndToEndID {
 			t.Fatalf("CER retransmission=%v %v", cer, err)
 		}
@@ -249,6 +257,8 @@ func TestProtocolErrorClientB8CEABudgetTimeoutWire(t *testing.T) {
 }
 
 func TestProtocolErrorClientB12WatchdogTimeoutWire(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	watchdogEvents := make(chan WatchdogEvent, 8)
 	watchdogConns := make(chan diam.Conn, 8)
 	p := newProtocolClientWire(t, func(c *Client) {
@@ -261,7 +271,7 @@ func TestProtocolErrorClientB12WatchdogTimeoutWire(t *testing.T) {
 	if result := p.dialResult(t); result.err != nil || result.conn != p.conn {
 		t.Fatalf("Dial=%+v", result)
 	}
-	dwr, err := diam.ReadMessage(p.peer, dict.Default)
+	dwr, err := diam.ReadMessage(p.peer, testDict)
 	if err != nil || dwr.Header.CommandCode != diam.DeviceWatchdog || dwr.Header.CommandFlags&diam.RequestFlag == 0 {
 		t.Fatalf("DWR=%v %v", dwr, err)
 	}

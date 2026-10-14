@@ -9,10 +9,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
-	"github.com/gomaja/go-diameter/diam/dict"
 	"github.com/gomaja/go-diameter/diam/internal/base"
 	"github.com/gomaja/go-diameter/diam/internal/logtest"
 )
@@ -28,8 +29,10 @@ func (h consumingErrorHandler) HandleMessageError(c diam.Conn, msg *diam.Message
 	return err
 }
 func reviewPeerServer(t *testing.T, wrap bool) (*Manager, net.Conn) {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
 	t.Helper()
-	m, err := New(Config{Logger: logtest.New().Logger(), Settings: testSettings("local.example.net")})
+	m, err := New(Config{Logger: logtest.New().Logger(), Settings: testSettings("local.example.net", testDict)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -40,7 +43,8 @@ func reviewPeerServer(t *testing.T, wrap bool) (*Manager, net.Conn) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	srv := &diam.Server{Dict: dict.Default, MaxConcurrentHandlers: -1}
+	srv := &diam.Server{Dict: testDict, MaxConcurrentHandlers: -1}
+	srv.Dict = m.cfg.Settings.Dict
 	if err = m.BindServer(srv); err != nil {
 		t.Fatal(err)
 	}
@@ -57,16 +61,20 @@ func reviewPeerServer(t *testing.T, wrap bool) (*Manager, net.Conn) {
 	return m, c
 }
 func reviewCER(t *testing.T) *diam.Message {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
 	t.Helper()
-	m, e := base.BuildCER(dict.Default, testBase("known.example.net"))
+	m, e := base.BuildCER(testDict, testBase("known.example.net"))
 	if e != nil {
 		t.Fatal(e)
 	}
 	return m
 }
 func reviewDWR(t *testing.T) *diam.Message {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
 	t.Helper()
-	m, e := base.BuildDWR(dict.Default, testBase("known.example.net"), 0)
+	m, e := base.BuildDWR(testDict, testBase("known.example.net"), 0)
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -193,13 +201,15 @@ func TestWaitReturnsValidAnsweringConnection(t *testing.T) {
 	testWaitReturnsAnsweringConnection(t, false)
 }
 func testWaitReturnsAnsweringConnection(t *testing.T, malformed bool) {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
 	records := logtest.New()
-	m, err := New(Config{Logger: records.Logger(), Settings: testSettings("local.example.net")})
+	m, err := New(Config{Logger: records.Logger(), Settings: testSettings("local.example.net", testDict)})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer closeManager(t, m, nil)
-	c := &reviewWireConn{newFakeConn()}
+	c := &reviewWireConn{newFakeConn(testDict)}
 	defer c.Close()
 	defer func() { _ = c.other.Close() }()
 	s := &session{m: m, c: c, gen: 1, writes: make(chan writeRequest, 8), closed: make(chan struct{})}
@@ -215,7 +225,7 @@ func testWaitReturnsAnsweringConnection(t *testing.T, malformed bool) {
 		me = &diam.MessageError{ResultCode: diam.InvalidAVPLength, FailedAVP: diam.NewAVP(avp.InbandSecurityID, avp.Mbit, 0, datatype.Unknown{1, 2})}
 	}
 	a.onWire(event{kind: wireEvent, s: s, msg: reviewDWR(t), messageErr: me})
-	answer, err := diam.ReadMessage(c.other, dict.Default)
+	answer, err := diam.ReadMessage(c.other, testDict)
 	if !errors.Is(err, io.EOF) {
 		t.Fatalf("expected close without a pre-CEA answer: answer=%v err=%v", answer, err)
 	}

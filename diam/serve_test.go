@@ -18,22 +18,25 @@ import (
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/diamtest"
+	"github.com/gomaja/go-diameter/diam/dict"
 )
 
 func TestCapabilitiesExchange(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	errc := make(chan error, 1)
 
 	smux := diam.NewServeMux()
 	smux.Handle("CER", handleCER(errc, false))
 
-	srv := diamtest.NewServer(smux, nil)
+	srv := diamtest.NewServer(smux, testDict)
 	defer srv.Close()
 
 	wait := make(chan struct{})
 	cmux := diam.NewServeMux()
 	cmux.HandleIdx(diam.CommandIndex{AppID: 0, Code: diam.CapabilitiesExchange, Request: false}, handleCEA(errc, wait))
 
-	cli, err := diam.Dial(srv.Addr, cmux, nil)
+	cli, err := diam.Dial(srv.Addr, cmux, testDict)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,13 +55,15 @@ func TestCapabilitiesExchange(t *testing.T) {
 }
 
 func TestCapabilitiesExchangeTLS(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	errc := make(chan error, 1)
 	certFile, keyFile, cert := newTestCertificateFiles(t)
 
 	smux := diam.NewServeMux()
 	smux.Handle("CER", handleCER(errc, true))
 
-	srv := diamtest.NewUnstartedServer(smux, nil)
+	srv := diamtest.NewUnstartedServer(smux, testDict)
 	tm := time.Second
 	srv.Config.ReadTimeout = tm
 	srv.Config.WriteTimeout = tm
@@ -136,7 +141,9 @@ func testClientTLSConfig(t *testing.T, certFile string) *tls.Config {
 }
 
 func sendCER(w io.Writer) (n int64, err error) {
-	m := diam.NewRequest(diam.CapabilitiesExchange, 0, nil)
+	testDict := newTestDictionary(dict.Base())
+
+	m := diam.NewRequest(diam.CapabilitiesExchange, 0, testDict)
 	if _, err := m.NewAVP(avp.OriginHost, avp.Mbit, 0, datatype.OctetString("cli")); err != nil {
 		return 0, err
 	}

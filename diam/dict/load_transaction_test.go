@@ -17,7 +17,7 @@ func TestLoadCommandRuleResolution(t *testing.T) {
 	for _, direction := range []string{"request", "answer"} {
 		for _, rename := range []bool{false, true} {
 			t.Run(fmt.Sprintf("%s/rename=%t", direction, rename), func(t *testing.T) {
-				p := New()
+				p := newTestParser(t)
 				command := commandDefinition(4, direction, "Member")
 				input := command
 				if rename {
@@ -43,7 +43,7 @@ func TestLoadMultipleReaders(t *testing.T) {
 	for _, files := range []bool{false, true} {
 		for _, reverse := range []bool{false, true} {
 			t.Run(fmt.Sprintf("files=%t/reverse=%t", files, reverse), func(t *testing.T) {
-				p := New()
+				p := newTestParser(t)
 				a := "<diameter>" + groupedDefinition(4, 70001, "A", "B") + commandDefinition(4, "request", "B") + "</diameter>"
 				b := "<diameter>" + groupedDefinition(4, 70002, "B", "A") + "</diameter>"
 				before := p.Snapshot()
@@ -86,7 +86,7 @@ func TestLoadMultipleReaders(t *testing.T) {
 }
 
 func TestLoadMultipleAtomicFailure(t *testing.T) {
-	p := New(Base)
+	p := newTestParser(t, Base())
 	good := "<diameter>" + nameDefinition(4, 70001, 0, "Unpublished", "Unsigned32") + "</diameter>"
 	before := p.Snapshot()
 	for _, bad := range []string{"<diameter>", "<diameter>" + commandDefinition(4, "answer", "Missing") + "</diameter>"} {
@@ -121,7 +121,7 @@ func TestLoadMultipleAtomicFailure(t *testing.T) {
 func TestLoadInheritedCommandRuleResolution(t *testing.T) {
 	for _, direction := range []string{"request", "answer"} {
 		t.Run(direction, func(t *testing.T) {
-			p := New()
+			p := newTestParser(t)
 			initial := "<diameter>" + nameDefinition(0, 70001, 0, "Member", "Unsigned32") + commandDefinition(0, direction, "Member") + `<application id="4"/></diameter>`
 			if err := p.Load(strings.NewReader(initial)); err != nil {
 				t.Fatal(err)

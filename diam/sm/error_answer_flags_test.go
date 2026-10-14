@@ -4,14 +4,17 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/cx"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/diamtest"
-	"github.com/gomaja/go-diameter/diam/dict"
 )
 
 func TestCxErrorAnswerCopiedGroupedFlagsTCP(t *testing.T) {
+	testDict := newSMTestDictionary(cx.Dictionary())
+
 	for _, trigger := range []struct {
 		name string
 		code uint32
@@ -27,9 +30,9 @@ func TestCxErrorAnswerCopiedGroupedFlagsTCP(t *testing.T) {
 			{"child reserved bits", avp.Mbit | 0x1f},
 		} {
 			t.Run(trigger.name+"/"+flags.name, func(t *testing.T) {
-				settings := testMessageErrorSettings()
+				settings := testMessageErrorSettings(testDict)
 				settings.ValidateRequests = true
-				sm := mustNewStateMachine(t, settings)
+				sm := mustNewStateMachine(t, settings, testDict)
 				sm.HandleFunc("UAR", func(c diam.Conn, m *diam.Message) {
 					if trigger.code == diam.MissingAVP {
 						t.Error("request missing Public-Identity reached application handler")
@@ -39,12 +42,12 @@ func TestCxErrorAnswerCopiedGroupedFlagsTCP(t *testing.T) {
 						t.Errorf("write application error answer: %v", err)
 					}
 				})
-				server := diamtest.NewServer(sm, dict.Default)
+				server := diamtest.NewServer(sm, testDict)
 				defer server.Close()
 				conn := dialHandshakeUnknownTest(t, server.Addr)
 				defer func() { _ = conn.Close() }()
 
-				request := diam.NewMessage(diam.UserAuthorization, diam.RequestFlag|diam.ProxiableFlag, diam.TGPP_CX_APP_ID, 0x12345678, 0x87654321, dict.Default)
+				request := diam.NewMessage(diam.UserAuthorization, diam.RequestFlag|diam.ProxiableFlag, diam.TGPP_CX_APP_ID, 0x12345678, 0x87654321, testDict)
 				mustSMClientAVP(t, request, avp.SessionID, avp.Mbit, 0, datatype.UTF8String("cx-error-session"))
 				mustSMClientAVP(t, request, avp.VendorSpecificApplicationID, avp.Mbit, 0, &diam.GroupedAVP{AVP: []*diam.AVP{
 					diam.NewAVP(avp.VendorID, flags.bits, 0, datatype.Unsigned32(10415)),
@@ -70,7 +73,7 @@ func TestCxErrorAnswerCopiedGroupedFlagsTCP(t *testing.T) {
 				if err := conn.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
 					t.Fatal(err)
 				}
-				answer, err := diam.ReadMessage(conn, dict.Default)
+				answer, err := diam.ReadMessage(conn, testDict)
 				if err != nil {
 					t.Fatalf("read Cx error answer %d: %v", trigger.code, err)
 				}

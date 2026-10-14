@@ -6,6 +6,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+	"github.com/gomaja/go-diameter/diam/dict/nasreq"
+	"github.com/gomaja/go-diameter/diam/dict/rorf"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
@@ -14,7 +18,7 @@ import (
 )
 
 func TestCERMalformedSecurityReturnsFailedAVP(t *testing.T) {
-	dictionary := dict.New(dict.Base, dict.NASREQ, dict.CreditControl, dict.RoRf)
+	dictionary := newTestDictionary(dict.Base(), nasreq.Dictionary(), creditcontrol.Dictionary(), rorf.Dictionary())
 	dictionary.SetStrict(false)
 	settings := testSettings("local.example.net")
 	settings.Dict = dictionary
@@ -30,6 +34,7 @@ func TestCERMalformedSecurityReturnsFailedAVP(t *testing.T) {
 		t.Fatal(err)
 	}
 	srv := &diam.Server{Dict: dictionary}
+	srv.Dict = m.cfg.Settings.Dict
 	if err = m.BindServer(srv); err != nil {
 		t.Fatal(err)
 	}

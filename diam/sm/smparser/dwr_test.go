@@ -14,7 +14,9 @@ import (
 )
 
 func TestDWR_MissingOriginHost(t *testing.T) {
-	m := diam.NewRequest(diam.DeviceWatchdog, 0, dict.Default)
+	testDict := newParserTestDictionary(dict.Base())
+
+	m := diam.NewRequest(diam.DeviceWatchdog, 0, testDict)
 	dwr := new(DWR)
 	err := dwr.Parse(m)
 	if err != ErrMissingOriginHost {
@@ -23,7 +25,9 @@ func TestDWR_MissingOriginHost(t *testing.T) {
 }
 
 func TestDWR_MissingOriginRealm(t *testing.T) {
-	m := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
+	testDict := newParserTestDictionary(dict.Base())
+
+	m := diam.NewRequest(diam.CapabilitiesExchange, 0, testDict)
 	mustDWRAVP(t, m, avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("foobar"))
 	dwr := new(DWR)
 	err := dwr.Parse(m)
@@ -33,7 +37,9 @@ func TestDWR_MissingOriginRealm(t *testing.T) {
 }
 
 func TestDWR_OK(t *testing.T) {
-	m := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
+	testDict := newParserTestDictionary(dict.Base())
+
+	m := diam.NewRequest(diam.CapabilitiesExchange, 0, testDict)
 	mustDWRAVP(t, m, avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("foobar"))
 	mustDWRAVP(t, m, avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("test"))
 	mustDWRAVP(t, m, avp.OriginStateID, avp.Mbit, 0, datatype.Unsigned32(1))

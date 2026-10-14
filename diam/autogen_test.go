@@ -18,7 +18,7 @@ import (
 func TestAutogenExportsIdentifiers(t *testing.T) {
 	requireAutogenTools(t)
 	dir := t.TempDir()
-	for _, name := range []string{"dict/bundled", "avp"} {
+	for _, name := range []string{"dict/fixtures", "avp"} {
 		if err := os.MkdirAll(filepath.Join(dir, name), 0750); err != nil {
 			t.Fatal(err)
 		}
@@ -41,7 +41,8 @@ func TestAutogenExportsIdentifiers(t *testing.T) {
 <avp name="9-Test" code="999"><data type="Unsigned32"/></avp>
 </application>
 </diameter>`
-	if err := os.WriteFile(filepath.Join(dir, "dict/bundled/fixture.xml"), []byte(fixture), 0600); err != nil {
+	writeAutogenManifest(t, dir, []string{"dict/fixtures/fixture.xml"})
+	if err := os.WriteFile(filepath.Join(dir, "dict/fixtures/fixture.xml"), []byte(fixture), 0600); err != nil {
 		t.Fatal(err)
 	}
 	cmd := exec.Command("sh", "autogen.sh")
@@ -104,7 +105,7 @@ func requireAutogenTools(t *testing.T) {
 func TestGeneratedFilesAreCurrent(t *testing.T) {
 	requireAutogenTools(t)
 	dir := t.TempDir()
-	for _, name := range []string{"dict/bundled", "avp"} {
+	for _, name := range []string{"dict/fixtures", "avp"} {
 		if err := os.MkdirAll(filepath.Join(dir, name), 0750); err != nil {
 			t.Fatal(err)
 		}
@@ -115,17 +116,18 @@ func TestGeneratedFilesAreCurrent(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		if err := os.MkdirAll(filepath.Dir(dst), 0750); err != nil {
+			t.Fatal(err)
+		}
 		if err := os.WriteFile(dst, b, 0600); err != nil {
 			t.Fatal(err)
 		}
 	}
 	copyFile("autogen.sh", filepath.Join(dir, "autogen.sh"))
-	xml, err := filepath.Glob(filepath.Join("dict", "bundled", "*.xml"))
-	if err != nil || len(xml) == 0 {
-		t.Fatalf("bundled dictionaries: %v %v", xml, err)
-	}
-	for _, src := range xml {
-		copyFile(src, filepath.Join(dir, "dict", "bundled", filepath.Base(src)))
+	paths := autogenSourcePaths(t)
+	writeAutogenManifest(t, dir, paths)
+	for _, src := range paths {
+		copyFile(src, filepath.Join(dir, src))
 	}
 	cmd := exec.Command("sh", "autogen.sh")
 	cmd.Dir = dir
@@ -167,7 +169,7 @@ func lf(b []byte) string { return strings.ReplaceAll(string(b), "\r\n", "\n") }
 func TestAutogenEveryBundledCommand(t *testing.T) {
 	requireAutogenTools(t)
 	dir := t.TempDir()
-	for _, name := range []string{"dict/bundled", "avp"} {
+	for _, name := range []string{"dict/fixtures", "avp"} {
 		if err := os.MkdirAll(filepath.Join(dir, name), 0750); err != nil {
 			t.Fatal(err)
 		}
@@ -179,10 +181,7 @@ func TestAutogenEveryBundledCommand(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "autogen.sh"), script, 0600); err != nil {
 		t.Fatal(err)
 	}
-	paths, err := filepath.Glob("dict/bundled/*.xml")
-	if err != nil {
-		t.Fatal(err)
-	}
+	paths := autogenSourcePaths(t)
 	var body strings.Builder
 	body.WriteString(`<diameter><application name="Command test" inherits="0" id="42">` + "\n")
 	want := map[string]string{}
@@ -193,7 +192,10 @@ func TestAutogenEveryBundledCommand(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := os.WriteFile(filepath.Join(dir, "dict", "bundled", filepath.Base(path)), raw, 0600); err != nil {
+		if err := os.MkdirAll(filepath.Dir(filepath.Join(dir, path)), 0750); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, path), raw, 0600); err != nil {
 			t.Fatal(err)
 		}
 		var f struct {
@@ -241,7 +243,8 @@ func TestAutogenEveryBundledCommand(t *testing.T) {
 		t.Fatal("no bundled commands")
 	}
 	body.WriteString("</application></diameter>")
-	if err := os.WriteFile(filepath.Join(dir, "dict/bundled/commands.xml"), []byte(body.String()), 0600); err != nil {
+	writeAutogenManifest(t, dir, append(paths, "dict/fixtures/commands.xml"))
+	if err := os.WriteFile(filepath.Join(dir, "dict/fixtures/commands.xml"), []byte(body.String()), 0600); err != nil {
 		t.Fatal(err)
 	}
 	cmd := exec.Command("sh", "autogen.sh")
@@ -272,4 +275,33 @@ func TestAutogenEveryBundledCommand(t *testing.T) {
 		}
 	}
 	t.Logf("checked %d bundled command declarations in all six attribute orders", count)
+}
+
+func autogenSourcePaths(t *testing.T) []string {
+	t.Helper()
+	raw, err := os.ReadFile("dict/sources.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var paths []string
+	for _, line := range strings.Split(string(raw), "\n") {
+		line = strings.TrimSpace(line)
+		if line != "" && !strings.HasPrefix(line, "#") {
+			paths = append(paths, filepath.Join("dict", line))
+		}
+	}
+	if len(paths) != 14 {
+		t.Fatalf("source manifest has %d sources, want 14", len(paths))
+	}
+	return paths
+}
+func writeAutogenManifest(t *testing.T, dir string, paths []string) {
+	t.Helper()
+	manifest := make([]string, len(paths))
+	for i, p := range paths {
+		manifest[i] = strings.TrimPrefix(filepath.ToSlash(p), "dict/")
+	}
+	if err := os.WriteFile(filepath.Join(dir, "dict/sources.txt"), []byte(strings.Join(manifest, "\n")+"\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
 }

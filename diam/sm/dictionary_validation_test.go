@@ -6,14 +6,17 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/all"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/diamtest"
-	"github.com/gomaja/go-diameter/diam/dict"
 )
 
 func TestDictionaryValidationTCP(t *testing.T) {
+	testDict := newSMTestDictionary(all.Dictionary())
+
 	for _, tc := range []struct {
 		name    string
 		enabled bool
@@ -34,12 +37,12 @@ func TestDictionaryValidationTCP(t *testing.T) {
 		{"missing-session", true, func(m *diam.Message) { m.AVP = m.AVP[1:] }, diam.MissingAVP, diam.ProxiableFlag, avp.SessionID},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			settings := testMessageErrorSettings()
+			settings := testMessageErrorSettings(testDict)
 			settings.ValidateRequests = tc.enabled
-			sm := mustNewStateMachine(t, settings)
+			sm := mustNewStateMachine(t, settings, testDict)
 			seen := make(chan struct{}, 1)
 			sm.HandleFunc("RAR", func(_ diam.Conn, _ *diam.Message) { seen <- struct{}{} })
-			srv := diamtest.NewServer(sm, dict.Default)
+			srv := diamtest.NewServer(sm, testDict)
 			defer srv.Close()
 			conn := dialHandshakeUnknownTest(t, srv.Addr)
 			defer func() { _ = conn.Close() }()
@@ -61,7 +64,7 @@ func TestDictionaryValidationTCP(t *testing.T) {
 			if err := conn.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
 				t.Fatal(err)
 			}
-			answer, err := diam.ReadMessage(conn, dict.Default)
+			answer, err := diam.ReadMessage(conn, testDict)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -94,21 +97,23 @@ func TestDictionaryValidationTCP(t *testing.T) {
 }
 
 func TestDictionaryValidationNeverAnswersAnswer(t *testing.T) {
-	settings := testMessageErrorSettings()
+	testDict := newSMTestDictionary(all.Dictionary())
+
+	settings := testMessageErrorSettings(testDict)
 	settings.ValidateRequests = true
-	sm := mustNewStateMachine(t, settings)
-	srv := diamtest.NewServer(sm, dict.Default)
+	sm := mustNewStateMachine(t, settings, testDict)
+	srv := diamtest.NewServer(sm, testDict)
 	defer srv.Close()
 	conn := dialHandshakeUnknownTest(t, srv.Addr)
 	defer func() { _ = conn.Close() }()
-	answer := diam.NewMessage(diam.ReAuth, diam.ProxiableFlag, 0, 1, 2, dict.Default)
+	answer := diam.NewMessage(diam.ReAuth, diam.ProxiableFlag, 0, 1, 2, testDict)
 	if _, err := answer.WriteTo(conn); err != nil {
 		t.Fatal(err)
 	}
 	if err := conn.SetReadDeadline(time.Now().Add(150 * time.Millisecond)); err != nil {
 		t.Fatal(err)
 	}
-	_, err := diam.ReadMessage(conn, dict.Default)
+	_, err := diam.ReadMessage(conn, testDict)
 	var nerr net.Error
 	if !errors.As(err, &nerr) || !nerr.Timeout() {
 		t.Fatalf("unexpected answer to answer: %v", err)
@@ -116,11 +121,13 @@ func TestDictionaryValidationNeverAnswersAnswer(t *testing.T) {
 }
 
 func TestDictionaryValidationKeepsUnknownMandatoryResult(t *testing.T) {
-	settings := testMessageErrorSettings()
+	testDict := newSMTestDictionary(all.Dictionary())
+
+	settings := testMessageErrorSettings(testDict)
 	settings.ValidateRequests = true
 	settings.RejectUnknownMandatoryAVPs = true
-	sm := mustNewStateMachine(t, settings)
-	srv := diamtest.NewServer(sm, dict.Default)
+	sm := mustNewStateMachine(t, settings, testDict)
+	srv := diamtest.NewServer(sm, testDict)
 	defer srv.Close()
 	conn := dialHandshakeUnknownTest(t, srv.Addr)
 	defer func() { _ = conn.Close() }()
@@ -131,7 +138,7 @@ func TestDictionaryValidationKeepsUnknownMandatoryResult(t *testing.T) {
 	if err := conn.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
 		t.Fatal(err)
 	}
-	answer, err := diam.ReadMessage(conn, dict.Default)
+	answer, err := diam.ReadMessage(conn, testDict)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -144,6 +151,8 @@ func TestDictionaryValidationKeepsUnknownMandatoryResult(t *testing.T) {
 }
 
 func TestDictionaryValidationUnderstoodFlagsTCP(t *testing.T) {
+	testDict := newSMTestDictionary(all.Dictionary())
+
 	for _, tc := range []struct {
 		name   string
 		change func(*diam.Message)
@@ -164,10 +173,10 @@ func TestDictionaryValidationUnderstoodFlagsTCP(t *testing.T) {
 		}, diam.AVPUnsupported},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			settings := testMessageErrorSettings()
+			settings := testMessageErrorSettings(testDict)
 			settings.ValidateRequests = true
 			settings.RejectUnknownMandatoryAVPs = true
-			sm := mustNewStateMachine(t, settings)
+			sm := mustNewStateMachine(t, settings, testDict)
 			sm.HandleFunc("RAR", func(c diam.Conn, m *diam.Message) {
 				answer := m.Answer(0)
 				answer.AddAVP(diam.NewAVP(avp.SessionID, avp.Mbit, 0, m.AVP[0].Data))
@@ -178,7 +187,7 @@ func TestDictionaryValidationUnderstoodFlagsTCP(t *testing.T) {
 					t.Error(err)
 				}
 			})
-			srv := diamtest.NewServer(sm, dict.Default)
+			srv := diamtest.NewServer(sm, testDict)
 			defer srv.Close()
 			conn := dialHandshakeUnknownTest(t, srv.Addr)
 			defer func() { _ = conn.Close() }()
@@ -191,7 +200,7 @@ func TestDictionaryValidationUnderstoodFlagsTCP(t *testing.T) {
 			if err := conn.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
 				t.Fatal(err)
 			}
-			answer, err := diam.ReadMessage(conn, dict.Default)
+			answer, err := diam.ReadMessage(conn, testDict)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -206,16 +215,18 @@ func TestDictionaryValidationUnderstoodFlagsTCP(t *testing.T) {
 }
 
 func TestDictionaryValidationCreditControlAnswerTCP(t *testing.T) {
-	settings := testMessageErrorSettings()
+	testDict := newSMTestDictionary(all.Dictionary())
+
+	settings := testMessageErrorSettings(testDict)
 	settings.ValidateRequests = true
-	sm := mustNewStateMachine(t, settings)
+	sm := mustNewStateMachine(t, settings, testDict)
 	seen := make(chan struct{}, 1)
 	sm.HandleFunc("CCR", func(_ diam.Conn, _ *diam.Message) { seen <- struct{}{} })
-	srv := diamtest.NewServer(sm, dict.Default)
+	srv := diamtest.NewServer(sm, testDict)
 	defer srv.Close()
 	conn := dialHandshakeUnknownTest(t, srv.Addr)
 	defer func() { _ = conn.Close() }()
-	request := diam.NewMessage(diam.CreditControl, diam.RequestFlag|diam.ProxiableFlag, 4, 0x11223344, 0x55667788, dict.Default)
+	request := diam.NewMessage(diam.CreditControl, diam.RequestFlag|diam.ProxiableFlag, 4, 0x11223344, 0x55667788, testDict)
 	for _, field := range []struct {
 		code  uint32
 		value datatype.Type
@@ -238,7 +249,7 @@ func TestDictionaryValidationCreditControlAnswerTCP(t *testing.T) {
 	if err := conn.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
 		t.Fatal(err)
 	}
-	answer, err := diam.ReadMessage(conn, dict.Default)
+	answer, err := diam.ReadMessage(conn, testDict)
 	if err != nil {
 		t.Fatal(err)
 	}

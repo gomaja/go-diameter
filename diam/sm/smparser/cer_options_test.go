@@ -4,6 +4,8 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
@@ -11,7 +13,9 @@ import (
 )
 
 func TestCERParseOptions(t *testing.T) {
-	baseOnly := dict.New(dict.Base)
+	testDict := newParserTestDictionary(creditcontrol.Dictionary())
+
+	baseOnly := newTestDictionary(dict.Base())
 	for _, tc := range []struct {
 		name     string
 		options  ParseOptions
@@ -29,7 +33,7 @@ func TestCERParseOptions(t *testing.T) {
 		{"plaintext", ParseOptions{Role: Server}, 4, true, ErrNoCommonSecurity},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			m := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.New(dict.Base, dict.CreditControl))
+			m := diam.NewRequest(diam.CapabilitiesExchange, 0, newTestDictionary(dict.Base(), creditcontrol.Dictionary()))
 			mustCERAVP(t, m, avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("peer.example"))
 			mustCERAVP(t, m, avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("example"))
 			mustCERAVP(t, m, avp.AuthApplicationID, avp.Mbit, 0, datatype.Unsigned32(tc.app))
@@ -43,7 +47,7 @@ func TestCERParseOptions(t *testing.T) {
 		})
 	}
 	for _, role := range []Role{Client, Server} {
-		m := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
+		m := diam.NewRequest(diam.CapabilitiesExchange, 0, testDict)
 		mustCERAVP(t, m, avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("peer.example"))
 		mustCERAVP(t, m, avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("example"))
 		want := ErrNoCommonApplication
@@ -64,12 +68,12 @@ func TestCEAParseOptions(t *testing.T) {
 		want    error
 	}{
 		{"message dictionary", ParseOptions{Role: Client}, nil},
-		{"dictionary override", ParseOptions{Role: Client, Dictionary: dict.New(dict.Base)}, ErrNoCommonApplication},
-		{"explicit applications", ParseOptions{Role: Client, Dictionary: dict.New(dict.Base), LocalApplications: []uint32{4}}, nil},
+		{"dictionary override", ParseOptions{Role: Client, Dictionary: newTestDictionary(dict.Base())}, ErrNoCommonApplication},
+		{"explicit applications", ParseOptions{Role: Client, Dictionary: newTestDictionary(dict.Base()), LocalApplications: []uint32{4}}, nil},
 		{"empty applications", ParseOptions{Role: Client, LocalApplications: []uint32{}}, ErrNoCommonApplication},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			m := diam.NewMessage(diam.CapabilitiesExchange, 0, 0, 1, 2, dict.New(dict.Base, dict.CreditControl))
+			m := diam.NewMessage(diam.CapabilitiesExchange, 0, 0, 1, 2, newTestDictionary(dict.Base(), creditcontrol.Dictionary()))
 			m.AddAVP(diam.NewAVP(avp.ResultCode, avp.Mbit, 0, datatype.Unsigned32(diam.Success)))
 			m.AddAVP(diam.NewAVP(avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("peer.example")))
 			m.AddAVP(diam.NewAVP(avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("example")))
@@ -82,8 +86,10 @@ func TestCEAParseOptions(t *testing.T) {
 }
 
 func TestCapabilityParserHeader(t *testing.T) {
+	testDict := newParserTestDictionary(creditcontrol.Dictionary())
+
 	for _, answer := range []bool{false, true} {
-		m := diam.NewRequest(diam.CapabilitiesExchange, 4, dict.Default)
+		m := diam.NewRequest(diam.CapabilitiesExchange, 4, testDict)
 		m.AddAVP(diam.NewAVP(avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("peer.example")))
 		m.AddAVP(diam.NewAVP(avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("example")))
 		m.AddAVP(diam.NewAVP(avp.AuthApplicationID, avp.Mbit, 0, datatype.Unsigned32(4)))

@@ -3,6 +3,8 @@ package sm
 import (
 	"testing"
 
+	"github.com/gomaja/go-diameter/diam/dict/gx"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
@@ -13,7 +15,12 @@ import (
 // ETSI supplies Logical-Access-ID and Physical-Access-ID, and 3GPP2 supplies
 // 3GPP2-BSID, so a Gx node lists both in Supported-Vendor-Id.
 func TestGxCapabilitiesWire(t *testing.T) {
-	for _, dictionary := range []*dict.Parser{dict.Default, dict.New(dict.Gx)} {
+	testDict := newSMTestDictionary(gx.Dictionary())
+	serverSettings := cloneTestSettings(serverSettings,
+		testDict,
+	)
+
+	for _, dictionary := range []*dict.Parser{testDict, newTestDictionary(gx.Dictionary())} {
 		settings := *serverSettings
 		settings.Dict = dictionary
 		client := &Client{Handler: mustNew(&settings), Dict: dictionary}

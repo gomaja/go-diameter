@@ -5,6 +5,9 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+	"github.com/gomaja/go-diameter/diam/dict/nasreq"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
@@ -55,12 +58,14 @@ func (h *protocolDisabledStateMachine) HandleProtocolError(event diam.ProtocolEr
 }
 
 func TestProtocolErrorServerNilCallbackMalformedAnswer(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	for _, route := range []bool{false, true} {
 		t.Run(map[bool]string{false: "direct", true: "mux"}[route], func(t *testing.T) {
 			var wrapper *protocolDisabledStateMachine
 			p := newProtocolDeliveryWire(t, 0, !route, func(cfg *Settings) {
 				cfg.OnProtocolError = nil
-				cfg.Dict = dict.New(dict.Base, dict.NASREQ)
+				cfg.Dict = newTestDictionary(dict.Base(), nasreq.Dictionary())
 				cfg.Dict.SetStrict(true)
 				cfg.AcctApplicationID = []*diam.AVP{diam.NewAVP(avp.AcctApplicationID, avp.Mbit, 0, datatype.Unsigned32(1001))}
 			}, func(server *diam.Server) {
@@ -72,7 +77,7 @@ func TestProtocolErrorServerNilCallbackMalformedAnswer(t *testing.T) {
 					server.Handler = mux
 				}
 			})
-			message := diam.NewMessage(diam.DeviceWatchdog, 0, 0, 83, 86, dict.Default)
+			message := diam.NewMessage(diam.DeviceWatchdog, 0, 0, 83, 86, testDict)
 			message.AddAVP(diam.NewAVP(avp.InbandSecurityID, avp.Mbit, 0, datatype.Unknown{1, 2}))
 			p.send(t, message)
 			var b [1]byte

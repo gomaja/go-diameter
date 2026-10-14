@@ -5,26 +5,29 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
-	"github.com/gomaja/go-diameter/diam/dict"
 )
 
 // RFC 6733 (October 2012) §7.5: Failed-AVP retains received header bits,
 // including an invalid V bit paired with Vendor-Id 0 (§4.1.1).
 func TestFailedAVPPreservesReceivedVendorFlag(t *testing.T) {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
 	for _, nested := range []bool{false, true} {
 		bad := &AVP{Code: avp.AuthApplicationID, Flags: avp.Vbit | avp.Mbit, Data: datatype.Unknown{1, 2}}
 		if nested {
 			bad = &AVP{Code: avp.ProxyInfo, Flags: avp.Vbit | avp.Mbit, Data: &GroupedAVP{AVP: []*AVP{bad}}}
 		}
-		m := NewRequest(272, 4, dict.Default)
+		m := NewRequest(272, 4, testDict)
 		m.AddAVP(bad)
 		wire, err := m.Serialize()
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, err = ReadMessage(bytes.NewReader(wire), dict.Default)
+		_, err = ReadMessage(bytes.NewReader(wire), testDict)
 		var failure *MessageError
 		if !errors.As(err, &failure) {
 			t.Fatalf("ReadMessage = %v, want MessageError", err)

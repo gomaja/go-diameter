@@ -11,6 +11,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/s6c"
+	"github.com/gomaja/go-diameter/diam/dict/sgd"
+
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/dict"
@@ -210,12 +213,14 @@ func smsAssertTree(t *testing.T, got, want *AVP) {
 // TS 29.338 V19.3.0 Tables 5.3.3.1/1 and 6.3.3.1/1, and each Grouped
 // AVP clause: exercise every fixture definition and every named group member.
 func TestSMSAVPWireSpec(t *testing.T) {
+	testDict := newTestDictionary(s6c.Dictionary(), sgd.Dictionary())
+
 	for _, f := range smsLoadWireFixtures(t) {
 		defs := smsDefIndex(t, f)
 		for _, def := range f.Definitions {
 			t.Run(fmt.Sprintf("%d/%s", f.Application, def.Name), func(t *testing.T) {
 				data := smsSample(t, defs, def, 0)
-				m := NewRequest(f.Commands[0].Code, f.Application, dict.Default)
+				m := NewRequest(f.Commands[0].Code, f.Application, testDict)
 				flags := smsWireFlags(def.Must, def.MustNot)
 				if _, err := m.NewAVPByName(def.Name, flags, data); err != nil {
 					t.Fatal(err)
@@ -230,7 +235,7 @@ func TestSMSAVPWireSpec(t *testing.T) {
 				if def.Vendor != 0 && (len(wire) < 32 || binary.BigEndian.Uint32(wire[28:32]) != def.Vendor) {
 					t.Fatalf("wire vendor differs for %s", def.Name)
 				}
-				got, err := ReadMessage(bytes.NewReader(wire), dict.Default)
+				got, err := ReadMessage(bytes.NewReader(wire), testDict)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -251,7 +256,14 @@ func TestSMSAVPWireSpec(t *testing.T) {
 	}
 }
 
-func smsCommandSample(t testing.TB, f smsWireFixture, defs map[string]smsWireDef, command smsWireCommand) *Message {
+func smsCommandSample(t testing.TB, f smsWireFixture, defs map[string]smsWireDef, command smsWireCommand, parsers ...*dict.Parser) *Message {
+	var testDict *dict.Parser
+	if len(parsers) > 0 {
+		testDict = parsers[0]
+	} else {
+		testDict = newTestDictionary(s6c.Dictionary(), sgd.Dictionary())
+	}
+
 	t.Helper()
 	flags := uint8(0)
 	if command.Request {
@@ -260,7 +272,7 @@ func smsCommandSample(t testing.TB, f smsWireFixture, defs map[string]smsWireDef
 	if command.Proxiable {
 		flags |= ProxiableFlag
 	}
-	m := NewMessage(command.Code, flags, command.Application, 0x12345678, 0x87654321, dict.Default)
+	m := NewMessage(command.Code, flags, command.Application, 0x12345678, 0x87654321, testDict)
 	for _, rule := range command.Rules {
 		if rule.Name == "AVP" {
 			continue
@@ -281,11 +293,13 @@ func smsCommandSample(t testing.TB, f smsWireFixture, defs map[string]smsWireDef
 // TS 29.338 V19.3.0 §§5.3.2.3–5.3.2.8 and 6.3.2.3–6.3.2.6:
 // ten exact CCFs, fixed Session-Id, PXY, mandatory members, and singleton bounds.
 func TestSMSCommandWireSpec(t *testing.T) {
+	testDict := newTestDictionary(s6c.Dictionary(), sgd.Dictionary())
+
 	for _, f := range smsLoadWireFixtures(t) {
 		defs := smsDefIndex(t, f)
 		for _, command := range f.Commands {
 			t.Run(command.Section, func(t *testing.T) {
-				m := smsCommandSample(t, f, defs, command)
+				m := smsCommandSample(t, f, defs, command, testDict)
 				if len(command.Rules) == 0 || command.Rules[0].Name != "Session-Id" || !command.Rules[0].Fixed {
 					t.Fatal("missing fixed Session-Id fixture rule")
 				}
@@ -296,7 +310,7 @@ func TestSMSCommandWireSpec(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				got, err := ReadMessage(bytes.NewReader(wire), dict.Default)
+				got, err := ReadMessage(bytes.NewReader(wire), testDict)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -327,7 +341,7 @@ func TestSMSCommandWireSpec(t *testing.T) {
 					}
 					def := defs[rule.Name]
 					if rule.Min > 0 {
-						missing := smsCommandSample(t, f, defs, command)
+						missing := smsCommandSample(t, f, defs, command, testDict)
 						for i, a := range missing.AVP {
 							if a.Code == def.Code && a.VendorID == def.Vendor {
 								missing.AVP = append(missing.AVP[:i], missing.AVP[i+1:]...)
@@ -339,7 +353,7 @@ func TestSMSCommandWireSpec(t *testing.T) {
 						}
 					}
 					if rule.Max != nil && *rule.Max == 1 {
-						tooMany := smsCommandSample(t, f, defs, command)
+						tooMany := smsCommandSample(t, f, defs, command, testDict)
 						for i := 0; i < 2-rule.Min; i++ {
 							tooMany.AddAVP(NewAVP(def.Code, smsWireFlags(def.Must, def.MustNot+rule.MustNot), def.Vendor, smsSample(t, defs, def, 0)))
 						}
@@ -357,6 +371,8 @@ func TestSMSCommandWireSpec(t *testing.T) {
 // 5.3.3.27–5.3.3.28, 5.3.3.35–5.3.3.36, 6.3.3.5, 6.3.3.13:
 // each printed *[AVP] is an extension point; groups without it are closed.
 func TestSMSGroupedGrammarBoundaries(t *testing.T) {
+	testDict := newTestDictionary(s6c.Dictionary(), sgd.Dictionary())
+
 	for _, f := range smsLoadWireFixtures(t) {
 		defs := smsDefIndex(t, f)
 		for _, def := range f.Definitions {
@@ -375,11 +391,11 @@ func TestSMSGroupedGrammarBoundaries(t *testing.T) {
 						wildcard = true
 					}
 				}
-				base := NewRequest(f.Commands[0].Code, f.Application, dict.Default)
+				base := NewRequest(f.Commands[0].Code, f.Application, testDict)
 				group := smsSample(t, defs, def, 0).(*GroupedAVP)
 				group.AVP = append(group.AVP, NewAVP(263, avp.Mbit, 0, datatype.UTF8String("extension")))
 				base.AddAVP(NewAVP(def.Code, smsWireFlags(def.Must, def.MustNot), def.Vendor, group))
-				err := validateAVPs(base.AVP, []*dict.Rule{{AVP: "AVP"}}, f.Application, dict.Default.Snapshot())
+				err := validateAVPs(base.AVP, []*dict.Rule{{AVP: "AVP"}}, f.Application, testDict.Snapshot())
 				if wildcard && err != nil {
 					t.Fatalf("allowed group extension rejected: %v", err)
 				}
@@ -391,14 +407,14 @@ func TestSMSGroupedGrammarBoundaries(t *testing.T) {
 						continue
 					}
 					child := defs[rule.Name]
-					m := NewRequest(f.Commands[0].Code, f.Application, dict.Default)
+					m := NewRequest(f.Commands[0].Code, f.Application, testDict)
 					g := smsSample(t, defs, def, 0).(*GroupedAVP)
 					if def.Name == "Vendor-Specific-Application-Id" && child.Name == "Acct-Application-Id" {
 						g.AVP = append(g.AVP, NewAVP(child.Code, smsWireFlags(child.Must, child.MustNot), child.Vendor, smsSample(t, defs, child, 1)))
 					}
 					g.AVP = append(g.AVP, NewAVP(child.Code, smsWireFlags(child.Must, child.MustNot+rule.MustNot), child.Vendor, smsSample(t, defs, child, 1)))
 					m.AddAVP(NewAVP(def.Code, smsWireFlags(def.Must, def.MustNot), def.Vendor, g))
-					if err := validateAVPs(m.AVP, []*dict.Rule{{AVP: "AVP"}}, f.Application, dict.Default.Snapshot()); err == nil {
+					if err := validateAVPs(m.AVP, []*dict.Rule{{AVP: "AVP"}}, f.Application, testDict.Snapshot()); err == nil {
 						t.Errorf("duplicate group member %s accepted", rule.Name)
 					}
 				}
@@ -410,18 +426,20 @@ func TestSMSGroupedGrammarBoundaries(t *testing.T) {
 // TS 29.338 V19.3.0: seed decoding with every specific/reused definition
 // and all ten command bodies, including the recursive location grammars.
 func FuzzSMSDictionaryMessages(f *testing.F) {
+	testDict := newTestDictionary(s6c.Dictionary(), sgd.Dictionary())
+
 	for _, fixture := range smsLoadWireFixtures(f) {
 		defs := smsDefIndex(f, fixture)
 		var messages []*Message
 		for _, def := range fixture.Definitions {
-			m := NewRequest(fixture.Commands[0].Code, fixture.Application, dict.Default)
+			m := NewRequest(fixture.Commands[0].Code, fixture.Application, testDict)
 			if _, err := m.NewAVPByName(def.Name, smsWireFlags(def.Must, def.MustNot), smsSample(f, defs, def, 0)); err != nil {
 				f.Fatal(err)
 			}
 			messages = append(messages, m)
 		}
 		for _, command := range fixture.Commands {
-			messages = append(messages, smsCommandSample(f, fixture, defs, command))
+			messages = append(messages, smsCommandSample(f, fixture, defs, command, testDict))
 		}
 		for _, m := range messages {
 			wire, err := m.Serialize()
@@ -432,7 +450,7 @@ func FuzzSMSDictionaryMessages(f *testing.F) {
 		}
 	}
 	f.Fuzz(func(t *testing.T, wire []byte) {
-		m, err := ReadMessage(bytes.NewReader(wire), dict.Default)
+		m, err := ReadMessage(bytes.NewReader(wire), testDict)
 		if err != nil || m.DecodeErr != nil {
 			return
 		}
@@ -441,7 +459,7 @@ func FuzzSMSDictionaryMessages(f *testing.F) {
 		if err != nil {
 			return
 		}
-		again, err := ReadMessage(bytes.NewReader(encoded), dict.Default)
+		again, err := ReadMessage(bytes.NewReader(encoded), testDict)
 		if err != nil {
 			t.Fatal(err)
 		}

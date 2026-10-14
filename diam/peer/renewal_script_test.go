@@ -19,10 +19,11 @@ import (
 	"testing/synctest"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
-	"github.com/gomaja/go-diameter/diam/dict"
 	"github.com/gomaja/go-diameter/diam/internal/base"
 	"github.com/gomaja/go-diameter/diam/internal/logtest"
 	"github.com/gomaja/go-diameter/diam/sm"
@@ -134,12 +135,13 @@ func renewalScriptNew(t *testing.T, mode int, enabled, wrapped bool, change func
 		}
 	}
 	h.transport = &renewalScriptTransport{reads: make(chan restartEvent, 32), writes: make(chan []byte, 64), closed: make(chan struct{})}
-	h.srv = &diam.Server{Logger: records.Logger(), MaxConcurrentHandlers: mode, RenewAcceptedCER: enabled, OnNewConnection: func(c diam.Conn) { h.physical <- c }, OnConnectionRestart: func(old, next diam.Conn, r diam.RetirementReason) { h.pairs <- renewalScriptPair{old, next, r} }}
+	h.srv = &diam.Server{Dict: h.m.cfg.Settings.Dict, Logger: records.Logger(), MaxConcurrentHandlers: mode, RenewAcceptedCER: enabled, OnNewConnection: func(c diam.Conn) { h.physical <- c }, OnConnectionRestart: func(old, next diam.Conn, r diam.RetirementReason) { h.pairs <- renewalScriptPair{old, next, r} }}
 	for _, option := range options {
 		if option.beforeBind != nil {
 			option.beforeBind(h.srv)
 		}
 	}
+	h.srv.Dict = h.m.cfg.Settings.Dict
 	if err = h.m.BindServer(h.srv); err != nil {
 		t.Fatal(err)
 	}
@@ -199,12 +201,14 @@ func (h *renewalScriptHarness) restart() {
 	h.transport.reads <- restartEvent{err: &diam.TransportRestartError{AssociationID: 81, InboundStreams: 16, OutboundStreams: 16}}
 }
 func (h *renewalScriptHarness) message(t *testing.T) *diam.Message {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
 	t.Helper()
 	for len(h.output) < 20 || len(h.output) < int(uint32(h.output[1])<<16|uint32(h.output[2])<<8|uint32(h.output[3])) {
 		h.output = append(h.output, renewalScriptReceive(t, h.transport.writes, "serialized response")...)
 	}
 	n := int(uint32(h.output[1])<<16 | uint32(h.output[2])<<8 | uint32(h.output[3]))
-	m, err := diam.ReadMessage(bytes.NewReader(h.output[:n]), dict.Default)
+	m, err := diam.ReadMessage(bytes.NewReader(h.output[:n]), testDict)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -220,12 +224,14 @@ func (h *renewalScriptHarness) answer(t *testing.T, cmd uint32, want uint32) *di
 	return m
 }
 func renewalScriptCER(t *testing.T, host, realm string, app, state uint32) *diam.Message {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
 	t.Helper()
 	cfg := testBase(host)
 	cfg.OriginRealm = datatype.DiameterIdentity(realm)
 	cfg.OriginStateID = datatype.Unsigned32(state)
 	cfg.AuthApplicationID = []*diam.AVP{diam.NewAVP(avp.AuthApplicationID, avp.Mbit, 0, datatype.Unsigned32(app))}
-	m, err := base.BuildCER(dict.Default, cfg)
+	m, err := base.BuildCER(testDict, cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -466,12 +472,14 @@ func TestManagerRenewalScriptFreshIdentityAndRejection(t *testing.T) {
 }
 
 func TestManagerRenewalScriptDPRBeforeCER(t *testing.T) {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
 	for _, mode := range []int{0, 1, 2, -1} {
 		t.Run(fmt.Sprint(mode), func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
 				h := renewalScriptNew(t, mode, true, true, nil)
 				h.open(t)
-				dpr, err := base.BuildDPR(dict.Default, testBase("known.example.net"), uint32(sm.DisconnectDoNotWantToTalkToYou))
+				dpr, err := base.BuildDPR(testDict, testBase("known.example.net"), uint32(sm.DisconnectDoNotWantToTalkToYou))
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -496,6 +504,8 @@ func TestManagerRenewalScriptDPRBeforeCER(t *testing.T) {
 }
 
 func TestManagerRenewalScriptBlockedObservers(t *testing.T) {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
 	for _, blocked := range []string{"protocol", "peer", "both"} {
 		t.Run(blocked, func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
@@ -528,7 +538,7 @@ func TestManagerRenewalScriptBlockedObservers(t *testing.T) {
 					renewalScriptReceive(t, peerEntered, "blocked peer observer")
 				}
 				if blocked == "protocol" || blocked == "both" {
-					dwr, err := base.BuildDWR(dict.Default, testBase("other.example.net"), 0)
+					dwr, err := base.BuildDWR(testDict, testBase("other.example.net"), 0)
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -735,6 +745,8 @@ func TestManagerRenewalScriptFirstCERAtRestart(t *testing.T) {
 }
 
 func TestManagerRenewalScriptCERThenMalformed(t *testing.T) {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
 	for _, mode := range []int{0, 1, 2, -1} {
 		t.Run(fmt.Sprint(mode), func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
@@ -742,7 +754,7 @@ func TestManagerRenewalScriptCERThenMalformed(t *testing.T) {
 				h.restart()
 				pair := renewalScriptReceive(t, h.pairs, "pre-CER replacement")
 				cer := renewalScriptCER(t, "known.example.net", "example.net", 4, 222)
-				malformed, err := base.BuildDWR(dict.Default, testBase("known.example.net"), 0)
+				malformed, err := base.BuildDWR(testDict, testBase("known.example.net"), 0)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -810,6 +822,8 @@ func (h *renewalScriptCallbackBarrier) ServeDIAM(c diam.Conn, msg *diam.Message)
 }
 
 func TestManagerRenewalScriptRepeatedRestartWithOutstandingCallback(t *testing.T) {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
 	synctest.Test(t, func(t *testing.T) {
 		barrier := &renewalScriptCallbackBarrier{entered: make(chan struct{}), release: make(chan struct{})}
 		defer close(barrier.release)
@@ -818,7 +832,7 @@ func TestManagerRenewalScriptRepeatedRestartWithOutstandingCallback(t *testing.T
 			srv.Handler = barrier
 		}})
 		h.open(t)
-		dwr, err := base.BuildDWR(dict.Default, testBase("known.example.net"), 0)
+		dwr, err := base.BuildDWR(testDict, testBase("known.example.net"), 0)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -900,11 +914,13 @@ func renewalScriptCertificate(t *testing.T) tls.Certificate {
 }
 
 func TestManagerRenewalScriptTLSRestartClosesPhysical(t *testing.T) {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
 	certificate := renewalScriptCertificate(t)
 	for _, admitted := range []bool{false, true} {
 		t.Run(fmt.Sprintf("admitted=%t", admitted), func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
-				m, err := New(Config{Settings: testSettings("local.example.net"), Clock: &fakeClock{}, Logger: logtest.New().Logger()})
+				m, err := New(Config{Settings: testSettings("local.example.net", testDict), Clock: &fakeClock{}, Logger: logtest.New().Logger()})
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -920,6 +936,7 @@ func TestManagerRenewalScriptTLSRestartClosesPhysical(t *testing.T) {
 				srv := &diam.Server{MaxConcurrentHandlers: 2, RenewAcceptedCER: true, Logger: logtest.New().Logger(), OnNewConnection: func(c diam.Conn) { accepted <- c }, OnConnectionRestart: func(old, next diam.Conn, reason diam.RetirementReason) {
 					replacements <- renewalScriptPair{old, next, reason}
 				}}
+				srv.Dict = m.cfg.Settings.Dict
 				if err = m.BindServer(srv); err != nil {
 					t.Fatal(err)
 				}
@@ -952,7 +969,7 @@ func TestManagerRenewalScriptTLSRestartClosesPhysical(t *testing.T) {
 					if _, err := request.WriteTo(clientTLS); err != nil {
 						t.Fatal(err)
 					}
-					answer, err := diam.ReadMessage(clientTLS, dict.Default)
+					answer, err := diam.ReadMessage(clientTLS, testDict)
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -1177,6 +1194,8 @@ func (h *renewalScriptExceptionalOrder) ServeDIAM(c diam.Conn, msg *diam.Message
 }
 
 func TestManagerRenewalScriptExceptionalObserverReleasesAdmission(t *testing.T) {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
 	for _, messageError := range []bool{false, true} {
 		t.Run(map[bool]string{false: "unmanaged ServeDIAM", true: "sealed ingress HandleMessageError"}[messageError], func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
@@ -1205,12 +1224,12 @@ func TestManagerRenewalScriptExceptionalObserverReleasesAdmission(t *testing.T) 
 						previous(c)
 					}
 				}})
-				first, err := base.BuildDWR(dict.Default, testBase("known.example.net"), 0)
+				first, err := base.BuildDWR(testDict, testBase("known.example.net"), 0)
 				if err != nil {
 					t.Fatal(err)
 				}
 				first.Header.HopByHopID = 101
-				second, err := base.BuildDWR(dict.Default, testBase("known.example.net"), 0)
+				second, err := base.BuildDWR(testDict, testBase("known.example.net"), 0)
 				if err != nil {
 					t.Fatal(err)
 				}

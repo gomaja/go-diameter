@@ -82,7 +82,9 @@ type Tracer struct {
 	logger otellog.Logger
 }
 
-// NewTracer returns a Tracer that serves messages with h.
+// NewTracer returns a Tracer that serves messages with h. Command names are
+// resolved through each message's selected dictionary. Tracing does not add
+// application definitions to the shared, initially base-only dict.Default.
 func NewTracer(h diam.Handler, opts ...Option) *Tracer {
 	var cfg config
 	for _, opt := range opts {

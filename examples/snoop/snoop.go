@@ -3,8 +3,8 @@
 // found in the LICENSE file.
 
 // Snoop agent can sit in between two diameter peers and snoop all messages
-// in real time, printing them to the console. By default it only
-// supports the default dictionaries of go-diameter, so if you're testing
+// in real time, printing them to the console. It explicitly selects all
+// shipped dictionaries, so if you're testing
 // a custom application use the -dict command line flag to load your
 // dictionary from a file.
 //
@@ -21,6 +21,7 @@ import (
 
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/dict"
+	"github.com/gomaja/go-diameter/diam/dict/all"
 )
 
 // A Bridge between two peers.
@@ -48,11 +49,15 @@ func main() {
 	if *local == *remote {
 		log.Fatal("Local and remote address are the same. Duh?")
 	}
-	// Load dictionary files onto the default (base protocol) dict.
+	dictionary, err := dict.New(all.Dictionary())
+	if err != nil {
+		log.Fatal(err)
+	}
+	// Load custom files into the same parser used on both connections.
 	if *files != "" {
 		for _, f := range strings.Split(*files, ",") {
 			log.Println("Loading dictionary", f)
-			if err := dict.Default.LoadFile(f); err != nil {
+			if err := dictionary.LoadFile(f); err != nil {
 				log.Fatal(err)
 			}
 		}
@@ -69,9 +74,9 @@ func main() {
 			c.Close()
 		}
 	})
-	// Start the server using default handler and dict.
+	// Start the server with the selected parser and default handler.
 	log.Printf("Starting server on %s", *local)
-	if err := diam.ListenAndServe(*local, nil, nil); err != nil {
+	if err := diam.ListenAndServe(*local, nil, dictionary); err != nil {
 		log.Fatal(err)
 	}
 }
@@ -100,7 +105,7 @@ func GetBridge(c diam.Conn) *Bridge {
 		b.Client <- m
 	})
 	// Connect to upstream server.
-	s, err := diam.Dial(upstreamAddr, mux, nil)
+	s, err := diam.Dial(upstreamAddr, mux, c.Dictionary())
 	if err != nil {
 		return nil
 	}

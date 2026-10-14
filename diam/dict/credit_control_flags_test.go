@@ -1,4 +1,4 @@
-package dict
+package dict_test
 
 import (
 	"encoding/json"
@@ -6,6 +6,8 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/gomaja/go-diameter/diam/dict"
 )
 
 // RFC 8506 (March 2019) §8, AVP flag table, pp. 60–61. The fixture is
@@ -41,11 +43,11 @@ func TestCreditControlAVPFlagsRFC8506(t *testing.T) {
 	}
 	for _, name := range []string{"credit_control.xml", "gx_credit_control.xml"} {
 		t.Run(name, func(t *testing.T) {
-			data, err := bundledFS.ReadFile("bundled/" + name)
+			data, err := os.ReadFile(sourcePath(t, name))
 			if err != nil {
 				t.Fatal(err)
 			}
-			var file File
+			var file dict.File
 			if err := xml.Unmarshal(data, &file); err != nil {
 				t.Fatal(err)
 			}

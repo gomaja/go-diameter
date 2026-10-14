@@ -1,4 +1,4 @@
-package dict
+package dict_test
 
 import (
 	"fmt"
@@ -8,6 +8,8 @@ import (
 // RFC 6733 §4.5 and the companion sources in base_spec.json govern every
 // inherited base definition. Local 3GPP overrides remain application-scoped.
 func TestBaseDefinitionsAcrossApplications(t *testing.T) {
+	reference := newAllTestParser(t)
+
 	overrides := map[uint32]map[string]uint32{
 		16777216: {"DRMP": 16777216, "OC-Supported-Features": 16777216, "OC-OLR": 16777216, "Load": 16777216},
 		16777217: {"DRMP": 16777216, "OC-Supported-Features": 16777216, "OC-OLR": 16777217, "Load": 16777216},
@@ -20,14 +22,14 @@ func TestBaseDefinitionsAcrossApplications(t *testing.T) {
 		16777313: {"DRMP": 16777312},
 	}
 	seen := map[uint32]bool{}
-	for _, app := range Default.Apps() {
+	for _, app := range reference.Apps() {
 		if seen[app.ID] {
 			continue
 		}
 		seen[app.ID] = true
 		t.Run(fmt.Sprint(app.ID), func(t *testing.T) {
 			for _, want := range loadBaseSpec(t).AVPs {
-				got, err := Default.FindAVP(app.ID, want.Code, want.Vendor)
+				got, err := reference.FindAVP(app.ID, want.Code, want.Vendor)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -39,7 +41,7 @@ func TestBaseDefinitionsAcrossApplications(t *testing.T) {
 					continue
 				}
 				rxCheckAVP(t, got, want)
-				source, err := Default.FindAVP(0, want.Code, want.Vendor)
+				source, err := reference.FindAVP(0, want.Code, want.Vendor)
 				if err != nil {
 					t.Fatal(err)
 				}

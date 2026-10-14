@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict"
 	"github.com/gomaja/go-diameter/diam/internal/logtest"
 
 	"github.com/gomaja/go-diameter/diam/avp"
@@ -81,8 +82,10 @@ func wantRecord(t *testing.T, rec map[string]any, want map[string]any) {
 }
 
 func writeTestCER(t *testing.T, w io.Writer) {
+	testDict := newTestDictionary(dict.Base())
+
 	t.Helper()
-	m := NewRequest(CapabilitiesExchange, 0, nil)
+	m := NewRequest(CapabilitiesExchange, 0, testDict)
 	if _, err := m.NewAVP(avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("cli")); err != nil {
 		t.Fatal(err)
 	}

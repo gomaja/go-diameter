@@ -6,13 +6,22 @@ import (
 	"net/netip"
 	"testing"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+	"github.com/gomaja/go-diameter/diam/dict/nasreq"
+
+	"github.com/gomaja/go-diameter/diam/dict/rx"
+	"github.com/gomaja/go-diameter/diam/dict/s6a"
+	"github.com/gomaja/go-diameter/diam/dict/swx"
+	"github.com/gomaja/go-diameter/diam/dict/sy"
+
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
-	"github.com/gomaja/go-diameter/diam/dict"
 )
 
 // 3GPP TS 29.273 V19.2.0 §9.2 and TS 29.061 V20.1.0 §16.4.7.
 func TestSWxDictionaryClosureWire(t *testing.T) {
+	testDict := newTestDictionary(swx.Dictionary())
+
 	const appID = 16777265
 	for _, tc := range []struct {
 		name     string
@@ -31,20 +40,20 @@ func TestSWxDictionaryClosureWire(t *testing.T) {
 		{"3GPP2-MEID", 1471, 10415, "OctetString"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			d, err := dict.Default.FindAVPByName(appID, tc.name)
+			d, err := testDict.FindAVPByName(appID, tc.name)
 			if err != nil || d.Code != tc.code || d.VendorID != tc.vendor || d.Data.TypeName != tc.typeName {
 				t.Fatalf("definition: %v, %v", d, err)
 			}
-			msg := NewRequest(265, appID, dict.Default)
+			msg := NewRequest(265, appID, testDict)
 			if tc.name == "MIP-Home-Agent-Address" {
 				msg.AddAVP(NewAVP(d.Code, avp.Mbit, 0, datatype.AddressFromIP(netip.MustParseAddr("192.0.2.1"))))
 			} else {
-				msg.AddAVP(smsAVP(t, appID, tc.name))
+				msg.AddAVP(smsAVP(t, appID, tc.name, testDict))
 			}
 			left, right := net.Pipe()
 			done := make(chan error, 1)
 			go func() { _, e := msg.WriteTo(left); done <- e }()
-			got, err := ReadMessage(right, dict.Default)
+			got, err := ReadMessage(right, testDict)
 			_ = left.Close()
 			_ = right.Close()
 			if writeErr := <-done; writeErr != nil {
@@ -62,6 +71,8 @@ func TestSWxDictionaryClosureWire(t *testing.T) {
 
 // 3GPP TS 29.219 V19.0.0 §5.3.1 and RFC 8506 §8.
 func TestSyDictionaryClosureWire(t *testing.T) {
+	testDict := newTestDictionary(sy.Dictionary())
+
 	const appID = 16777302
 	for _, tc := range []struct {
 		name     string
@@ -74,16 +85,16 @@ func TestSyDictionaryClosureWire(t *testing.T) {
 		{"Subscription-Id", 443, 0, "Grouped"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			d, err := dict.Default.FindAVPByName(appID, tc.name)
+			d, err := testDict.FindAVPByName(appID, tc.name)
 			if err != nil || d.Code != tc.code || d.VendorID != tc.vendor || d.Data.TypeName != tc.typeName {
 				t.Fatalf("definition: %v, %v", d, err)
 			}
-			msg := NewRequest(8388635, appID, dict.Default)
-			msg.AddAVP(smsAVP(t, appID, tc.name))
+			msg := NewRequest(8388635, appID, testDict)
+			msg.AddAVP(smsAVP(t, appID, tc.name, testDict))
 			left, right := net.Pipe()
 			done := make(chan error, 1)
 			go func() { _, e := msg.WriteTo(left); done <- e }()
-			got, err := ReadMessage(right, dict.Default)
+			got, err := ReadMessage(right, testDict)
 			_ = left.Close()
 			_ = right.Close()
 			if writeErr := <-done; writeErr != nil {
@@ -101,6 +112,8 @@ func TestSyDictionaryClosureWire(t *testing.T) {
 
 // 3GPP TS 29.214 V20.0.0 §5.4 and TS 29.212 V20.0.0 §§5.3.138-139.
 func TestRxDictionaryClosureWire(t *testing.T) {
+	testDict := newTestDictionary(rx.Dictionary())
+
 	const appID = 16777236
 	for _, tc := range []struct {
 		name     string
@@ -115,16 +128,16 @@ func TestRxDictionaryClosureWire(t *testing.T) {
 		{"TGPP-User-Location-Info", 22, 10415, "OctetString"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			d, err := dict.Default.FindAVPByName(appID, tc.name)
+			d, err := testDict.FindAVPByName(appID, tc.name)
 			if err != nil || d.Code != tc.code || d.VendorID != tc.vendor || d.Data.TypeName != tc.typeName {
 				t.Fatalf("definition: %v, %v", d, err)
 			}
-			msg := NewRequest(265, appID, dict.Default)
-			msg.AddAVP(smsAVP(t, appID, tc.name))
+			msg := NewRequest(265, appID, testDict)
+			msg.AddAVP(smsAVP(t, appID, tc.name, testDict))
 			left, right := net.Pipe()
 			done := make(chan error, 1)
 			go func() { _, e := msg.WriteTo(left); done <- e }()
-			got, err := ReadMessage(right, dict.Default)
+			got, err := ReadMessage(right, testDict)
 			_ = left.Close()
 			_ = right.Close()
 			if writeErr := <-done; writeErr != nil {
@@ -143,6 +156,8 @@ func TestRxDictionaryClosureWire(t *testing.T) {
 // 3GPP TS 32.299 V19.0.0 §§7.2, 7.3, 7.4 and the defining documents
 // cited beside the XML definitions.
 func TestChargingDictionaryClosureWire(t *testing.T) {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
 	for _, tc := range []struct {
 		name     string
 		code     uint32
@@ -166,17 +181,17 @@ func TestChargingDictionaryClosureWire(t *testing.T) {
 		{"SGSN-Realm", 2410, 10415, "DiameterIdentity"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			d, err := dict.Default.FindAVPByName(4, tc.name)
+			d, err := testDict.FindAVPByName(4, tc.name)
 			if err != nil || d.Code != tc.code || d.VendorID != tc.vendor || d.Data.TypeName != tc.typeName {
 				t.Fatalf("definition: %v, %v", d, err)
 			}
-			msg := NewRequest(CreditControl, 4, dict.Default)
-			msg.AddAVP(smsAVP(t, 4, tc.name))
+			msg := NewRequest(CreditControl, 4, testDict)
+			msg.AddAVP(smsAVP(t, 4, tc.name, testDict))
 			wire, err := msg.Serialize()
 			if err != nil {
 				t.Fatal(err)
 			}
-			got, err := ReadMessage(bytes.NewReader(wire), dict.Default)
+			got, err := ReadMessage(bytes.NewReader(wire), testDict)
 			if err != nil || got.DecodeErr != nil {
 				t.Fatalf("decode: %v, %v", err, got.DecodeErr)
 			}
@@ -186,7 +201,7 @@ func TestChargingDictionaryClosureWire(t *testing.T) {
 			left, right := net.Pipe()
 			done := make(chan error, 1)
 			go func() { _, e := msg.WriteTo(left); done <- e }()
-			fromConn, err := ReadMessage(right, dict.Default)
+			fromConn, err := ReadMessage(right, testDict)
 			_ = left.Close()
 			_ = right.Close()
 			if writeErr := <-done; writeErr != nil {
@@ -204,6 +219,8 @@ func TestChargingDictionaryClosureWire(t *testing.T) {
 
 // RFC 7155 §§3, 4.1.1, 4.2, 4.4.9 and Verified Errata 5995, 6119.
 func TestNASDictionaryClosureWire(t *testing.T) {
+	testDict := newTestDictionary(nasreq.Dictionary())
+
 	for _, tc := range []struct {
 		name     string
 		code     uint32
@@ -218,21 +235,21 @@ func TestNASDictionaryClosureWire(t *testing.T) {
 		{"State", 24, "OctetString"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			d, err := dict.Default.FindAVPByName(1, tc.name)
+			d, err := testDict.FindAVPByName(1, tc.name)
 			if err != nil || d.Code != tc.code || d.VendorID != 0 || d.Data.TypeName != tc.typeName {
 				t.Fatalf("definition: %v, %v", d, err)
 			}
-			msg := NewRequest(265, 1, dict.Default)
+			msg := NewRequest(265, 1, testDict)
 			if tc.name == "QoS-Filter-Rule" {
 				msg.AddAVP(NewAVP(d.Code, avp.Mbit, 0, datatype.QoSFilterRule("permit in ip from any to any")))
 			} else {
-				msg.AddAVP(smsAVP(t, 1, tc.name))
+				msg.AddAVP(smsAVP(t, 1, tc.name, testDict))
 			}
 			wire, err := msg.Serialize()
 			if err != nil {
 				t.Fatal(err)
 			}
-			got, err := ReadMessage(bytes.NewReader(wire), dict.Default)
+			got, err := ReadMessage(bytes.NewReader(wire), testDict)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -242,7 +259,7 @@ func TestNASDictionaryClosureWire(t *testing.T) {
 			left, right := net.Pipe()
 			done := make(chan error, 1)
 			go func() { _, e := msg.WriteTo(left); done <- e }()
-			fromConn, err := ReadMessage(right, dict.Default)
+			fromConn, err := ReadMessage(right, testDict)
 			_ = left.Close()
 			_ = right.Close()
 			if writeErr := <-done; writeErr != nil {
@@ -261,6 +278,8 @@ func TestNASDictionaryClosureWire(t *testing.T) {
 // 3GPP TS 29.272 V19.6.0 §§7.3.47, 7.3.83, 7.3.106-116, 7.3.156,
 // 7.3.184, 7.3.196, 7.3.199, with reused AVPs from TS 29.273 and 29.336.
 func TestS6aDictionaryClosureWire(t *testing.T) {
+	testDict := newTestDictionary(s6a.Dictionary())
+
 	const appID = 16777251
 	for _, tc := range []struct {
 		name     string
@@ -282,17 +301,17 @@ func TestS6aDictionaryClosureWire(t *testing.T) {
 		{"Supported-Services", 3143, "Grouped"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			d, err := dict.Default.FindAVPByName(appID, tc.name)
+			d, err := testDict.FindAVPByName(appID, tc.name)
 			if err != nil || d.Code != tc.code || d.VendorID != 10415 || d.Data.TypeName != tc.typeName {
 				t.Fatalf("definition: %v, %v", d, err)
 			}
-			msg := NewRequest(319, appID, dict.Default)
-			msg.AddAVP(smsAVP(t, appID, tc.name))
+			msg := NewRequest(319, appID, testDict)
+			msg.AddAVP(smsAVP(t, appID, tc.name, testDict))
 			wire, err := msg.Serialize()
 			if err != nil {
 				t.Fatal(err)
 			}
-			got, err := ReadMessage(bytes.NewReader(wire), dict.Default)
+			got, err := ReadMessage(bytes.NewReader(wire), testDict)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -302,7 +321,7 @@ func TestS6aDictionaryClosureWire(t *testing.T) {
 			left, right := net.Pipe()
 			done := make(chan error, 1)
 			go func() { _, e := msg.WriteTo(left); done <- e }()
-			fromConn, err := ReadMessage(right, dict.Default)
+			fromConn, err := ReadMessage(right, testDict)
 			_ = left.Close()
 			_ = right.Close()
 			if writeErr := <-done; writeErr != nil {

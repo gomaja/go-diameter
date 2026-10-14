@@ -10,29 +10,36 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/diamtest"
-	"github.com/gomaja/go-diameter/diam/dict"
 	"github.com/gomaja/go-diameter/diam/sm/smpeer"
 )
 
 // RFC 6733 §§5.3.1–5.3.5: CER and CEA carry each advertised host address.
 func TestAddressCapabilitiesExchangeTCP(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings := cloneTestSettings(serverSettings,
+		testDict)
+	clientSettings := cloneTestSettings(clientSettings,
+		testDict)
+
 	addresses := []datatype.Address{
 		datatype.AddressFromIP(netip.MustParseAddr("192.0.2.1")),
 		datatype.AddressFromIP(netip.MustParseAddr("2001:db8::1")),
 	}
 	serverCfg := *serverSettings
 	serverCfg.HostIPAddresses = addresses
-	server := mustNewStateMachine(t, &serverCfg)
+	server := mustNewStateMachine(t, &serverCfg, testDict)
 	serverHandshakes := testHandshakeNotifications(server)
-	srv := diamtest.NewServer(server, dict.Default)
+	srv := diamtest.NewServer(server, testDict)
 	defer srv.Close()
 	clientCfg := *clientSettings
 	clientCfg.HostIPAddresses = addresses
-	client := &Client{Handler: mustNewStateMachine(t, &clientCfg), AuthApplicationID: []*diam.AVP{diam.NewAVP(avp.AuthApplicationID, avp.Mbit, 0, datatype.Unsigned32(4))}}
+	client := &Client{Handler: mustNewStateMachine(t, &clientCfg, testDict), AuthApplicationID: []*diam.AVP{diam.NewAVP(avp.AuthApplicationID, avp.Mbit, 0, datatype.Unsigned32(4))}, Dict: testDict}
 	clientHandshakes := testHandshakeNotifications(client.Handler)
 	conn, err := client.Dial(srv.Addr)
 	if err != nil {

@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/gx"
+
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/dict"
@@ -19,7 +21,14 @@ type gxWireSpecAVP struct {
 	Code, Vendor     uint32
 }
 
-func gxWireDefinitions(t *testing.T) []gxWireSpecAVP {
+func gxWireDefinitions(t *testing.T, parsers ...*dict.Parser) []gxWireSpecAVP {
+	var testDict *dict.Parser
+	if len(parsers) > 0 {
+		testDict = parsers[0]
+	} else {
+		testDict = newTestDictionary(gx.Dictionary())
+	}
+
 	t.Helper()
 	b, err := os.ReadFile("dict/testdata/gx_spec.json")
 	if err != nil {
@@ -73,7 +82,7 @@ func gxWireDefinitions(t *testing.T) []gxWireSpecAVP {
 	}
 	// Exercise every local definition too, including all nested Trace-Data
 	// overrides required by TS 29.212 V20.0.0 Table 5.4.0.1 Note 5.
-	app, err := dict.Default.App(16777238)
+	app, err := testDict.App(16777238)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,9 +110,16 @@ func gxWireFlags(must string) uint8 {
 	}
 	return f
 }
-func gxSampleData(t *testing.T, a *dict.AVP, depth int) datatype.Type {
+func gxSampleData(t *testing.T, a *dict.AVP, depth int, parsers ...*dict.Parser) datatype.Type {
+	testDict := newTestDictionary(gx.Dictionary())
+	if len(parsers) > 0 {
+
+		// RFC 6733 §7.5: one unknown AVP is valid Failed-AVP evidence.
+		testDict = parsers[0]
+	}
+
 	t.Helper()
-	// RFC 6733 §7.5: one unknown AVP is valid Failed-AVP evidence.
+
 	if a.Code == avp.FailedAVP && a.VendorID == 0 {
 		return &GroupedAVP{AVP: []*AVP{NewAVP(999999, avp.Mbit, 0, datatype.OctetString("unsupported"))}}
 	}
@@ -117,7 +133,7 @@ func gxSampleData(t *testing.T, a *dict.AVP, depth int) datatype.Type {
 			if r.AVP == "AVP" || r.MaxSet && r.Max == 0 {
 				continue
 			}
-			child, err := dict.Default.FindAVPByName(16777238, r.AVP)
+			child, err := testDict.FindAVPByName(16777238, r.AVP)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -126,7 +142,7 @@ func gxSampleData(t *testing.T, a *dict.AVP, depth int) datatype.Type {
 				count = 1
 			}
 			for i := 0; i < count; i++ {
-				g.AVP = append(g.AVP, NewAVP(child.Code, gxWireFlags(child.Must), child.VendorID, gxSampleData(t, child, depth+1)))
+				g.AVP = append(g.AVP, NewAVP(child.Code, gxWireFlags(child.Must), child.VendorID, gxSampleData(t, child, depth+1, testDict)))
 			}
 		}
 		return g
@@ -170,33 +186,42 @@ func gxSampleData(t *testing.T, a *dict.AVP, depth int) datatype.Type {
 // TS 29.212 V20.0.0 Tables 5.3.0.1/5.4.0.1: all 130 Gx AVPs, reused
 // definitions with source metadata, and every local nested flag override.
 func TestGxAVPWireRoundTrip(t *testing.T) {
-	for _, want := range gxWireDefinitions(t) {
+	testDict := newTestDictionary(gx.Dictionary())
+
+	for _, want := range gxWireDefinitions(t, testDict) {
 		t.Run(want.Name, func(t *testing.T) {
-			a, err := dict.Default.FindAVP(16777238, want.Code, want.Vendor)
+			a, err := testDict.FindAVP(16777238, want.Code, want.Vendor)
 			if err != nil {
 				t.Fatal(err)
 			}
 			if want.Type != "" && a.Data.TypeName != want.Type {
 				t.Fatalf("type %s, want %s", a.Data.TypeName, want.Type)
 			}
-			data := gxSampleData(t, a, 0)
-			m := NewRequest(272, 16777238, dict.Default)
+			data := gxSampleData(t, a, 0, testDict)
+			m := NewRequest(272, 16777238, testDict)
 			// Metadata supplies outgoing flags; the expected wire bits come from the
 			// independent specification fixture, rather than the created AVP.
 			if _, err := m.NewAVPByName(a.Name, gxWireFlags(a.Must), data); err != nil {
 				t.Fatal(err)
 			}
-			assertRefreshWire(t, m, want.Code, gxWireFlags(want.Must), want.Vendor, data)
+			assertRefreshWire(t, m, want.Code, gxWireFlags(want.Must), want.Vendor, data, testDict)
 		})
 	}
 }
-func gxCommandMessage(t *testing.T, code uint32, request bool) *Message {
+func gxCommandMessage(t *testing.T, code uint32, request bool, parsers ...*dict.Parser) *Message {
+	var testDict *dict.Parser
+	if len(parsers) > 0 {
+		testDict = parsers[0]
+	} else {
+		testDict = newTestDictionary(gx.Dictionary())
+	}
+
 	t.Helper()
 	flags := uint8(ProxiableFlag)
 	if request {
 		flags |= RequestFlag
 	}
-	m := NewMessage(code, flags, 16777238, 0x12345678, 0x87654321, dict.Default)
+	m := NewMessage(code, flags, 16777238, 0x12345678, 0x87654321, testDict)
 	m.AddAVP(NewAVP(263, avp.Mbit, 0, datatype.UTF8String("gx;123")))
 	m.AddAVP(NewAVP(258, avp.Mbit, 0, datatype.Unsigned32(16777238)))
 	m.AddAVP(NewAVP(264, avp.Mbit, 0, datatype.DiameterIdentity("pcef.example.net")))
@@ -218,9 +243,11 @@ func gxCommandMessage(t *testing.T, code uint32, request bool) *Message {
 // TS 29.212 V20.0.0 §§5.6.2–5.6.5: fixed Session-Id, PXY, and both
 // optional answer result alternatives. These bodies are independent of XML.
 func TestGxCommandWireRoundTrip(t *testing.T) {
+	testDict := newTestDictionary(gx.Dictionary())
+
 	for _, code := range []uint32{272, 258} {
 		for _, request := range []bool{true, false} {
-			m := gxCommandMessage(t, code, request)
+			m := gxCommandMessage(t, code, request, testDict)
 			if err := m.Validate(); err != nil {
 				t.Fatalf("command %d request=%t: %v", code, request, err)
 			}
@@ -228,7 +255,7 @@ func TestGxCommandWireRoundTrip(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			got, err := ReadMessage(bytes.NewReader(b), dict.Default)
+			got, err := ReadMessage(bytes.NewReader(b), testDict)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -255,15 +282,17 @@ func TestGxCommandWireRoundTrip(t *testing.T) {
 	}
 }
 func TestGxCommandCardinality(t *testing.T) {
+	testDict := newTestDictionary(gx.Dictionary())
+
 	t.Run("subscription_and_proxy_repeat", func(t *testing.T) {
-		m := gxCommandMessage(t, 272, true)
+		m := gxCommandMessage(t, 272, true, testDict)
 		for _, name := range []string{"Subscription-Id", "Proxy-Info", "Route-Record"} {
-			a, err := dict.Default.FindAVPByName(16777238, name)
+			a, err := testDict.FindAVPByName(16777238, name)
 			if err != nil {
 				t.Fatal(err)
 			}
 			for i := 0; i < 2; i++ {
-				m.AddAVP(NewAVP(a.Code, gxWireFlags(a.Must), a.VendorID, gxSampleData(t, a, 0)))
+				m.AddAVP(NewAVP(a.Code, gxWireFlags(a.Must), a.VendorID, gxSampleData(t, a, 0, testDict)))
 			}
 		}
 		if err := m.Validate(); err != nil {
@@ -271,7 +300,7 @@ func TestGxCommandCardinality(t *testing.T) {
 		}
 	})
 	t.Run("two_gateway_addresses", func(t *testing.T) {
-		m := gxCommandMessage(t, 272, true)
+		m := gxCommandMessage(t, 272, true, testDict)
 		for i := 0; i < 3; i++ {
 			m.AddAVP(NewAVP(1050, avp.Vbit, 10415, datatype.Address{Family: 1, Value: []byte{192, 0, 2, byte(i + 1)}}))
 			err := m.Validate()
@@ -284,7 +313,7 @@ func TestGxCommandCardinality(t *testing.T) {
 		}
 	})
 	t.Run("required_application_id", func(t *testing.T) {
-		m := gxCommandMessage(t, 272, false)
+		m := gxCommandMessage(t, 272, false, testDict)
 		m.AVP = append(m.AVP[:1], m.AVP[2:]...)
 		if err := m.Validate(); err == nil || err.ResultCode != MissingAVP {
 			t.Fatalf("missing Auth-Application-Id: %v", err)
@@ -296,8 +325,10 @@ func TestGxCommandCardinality(t *testing.T) {
 // Its printed "2 [ Tunnel-Header-Filter ]" means 0..2 occurrences under
 // RFC 5234 §§3.7–3.8 (updated by RFC 7405): two optional elements.
 func TestGxTunnelFilterCardinality(t *testing.T) {
+	testDict := newTestDictionary(gx.Dictionary())
+
 	for count := 0; count <= 3; count++ {
-		m := gxCommandMessage(t, 272, true)
+		m := gxCommandMessage(t, 272, true, testDict)
 		g := &GroupedAVP{AVP: []*AVP{NewAVP(1037, avp.Vbit, 10415, datatype.Unsigned32(20))}}
 		for i := 0; i < count; i++ {
 			g.AVP = append(g.AVP, NewAVP(1036, avp.Vbit, 10415, datatype.IPFilterRule("permit out ip from any to any")))

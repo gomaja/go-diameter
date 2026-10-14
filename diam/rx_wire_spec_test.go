@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/rx"
+
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/dict"
@@ -118,9 +120,16 @@ func rxWireFlags(t *testing.T, must string) uint8 {
 	return flags
 }
 
-func rxFindAVP(t *testing.T, name string) *dict.AVP {
+func rxFindAVP(t *testing.T, name string, parsers ...*dict.Parser) *dict.AVP {
+	var testDict *dict.Parser
+	if len(parsers) > 0 {
+		testDict = parsers[0]
+	} else {
+		testDict = newTestDictionary(rx.Dictionary())
+	}
+
 	t.Helper()
-	a, err := dict.Default.FindAVPByName(rxWireAppID, name)
+	a, err := testDict.FindAVPByName(rxWireAppID, name)
 	if err == nil {
 		return a
 	}
@@ -128,10 +137,10 @@ func rxFindAVP(t *testing.T, name string) *dict.AVP {
 		s = strings.ToUpper(strings.ReplaceAll(s, "3GPP", "TGPP"))
 		return strings.NewReplacer("-", "", "_", "", " ", "").Replace(s)
 	}
-	for _, app := range dict.Default.Apps() {
+	for _, app := range testDict.Apps() {
 		for _, candidate := range app.AVP {
 			if normalize(candidate.Name) == normalize(name) {
-				if a, err = dict.Default.FindAVPByName(rxWireAppID, candidate.Name); err == nil {
+				if a, err = testDict.FindAVPByName(rxWireAppID, candidate.Name); err == nil {
 					return a
 				}
 			}
@@ -210,10 +219,12 @@ func rxSampleData(t *testing.T, a *dict.AVP, depth int) datatype.Type {
 // TS 29.214 V20.0.0 Tables 5.3.0.1 and 5.4.0.1: all Rx-local AVPs and
 // recursively copied registry definitions have independent wire identities.
 func TestRxAVPWireRoundTrip(t *testing.T) {
+	testDict := newTestDictionary(rx.Dictionary())
+
 	definitions, _ := rxWireSpec(t)
 	for _, want := range definitions {
 		t.Run(want.Name, func(t *testing.T) {
-			a, err := dict.Default.FindAVP(rxWireAppID, want.Code, want.Vendor)
+			a, err := testDict.FindAVP(rxWireAppID, want.Code, want.Vendor)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -221,16 +232,23 @@ func TestRxAVPWireRoundTrip(t *testing.T) {
 				t.Fatalf("type %s, want %s", a.Data.TypeName, want.Type)
 			}
 			data := rxSampleData(t, a, 0)
-			m := NewRequest(265, rxWireAppID, dict.Default)
+			m := NewRequest(265, rxWireAppID, testDict)
 			if _, err := m.NewAVPByName(a.Name, rxWireFlags(t, a.Must), data); err != nil {
 				t.Fatal(err)
 			}
-			assertRefreshWire(t, m, want.Code, rxWireFlags(t, want.Must), want.Vendor, data)
+			assertRefreshWire(t, m, want.Code, rxWireFlags(t, want.Must), want.Vendor, data, testDict)
 		})
 	}
 }
 
-func rxCommandMessage(t *testing.T, spec rxWireCommandSpec) *Message {
+func rxCommandMessage(t *testing.T, spec rxWireCommandSpec, parsers ...*dict.Parser) *Message {
+	var testDict *dict.Parser
+	if len(parsers) > 0 {
+		testDict = parsers[0]
+	} else {
+		testDict = newTestDictionary(rx.Dictionary())
+	}
+
 	t.Helper()
 	flags := uint8(0)
 	if spec.Proxiable {
@@ -239,13 +257,13 @@ func rxCommandMessage(t *testing.T, spec rxWireCommandSpec) *Message {
 	if spec.Request {
 		flags |= RequestFlag
 	}
-	m := NewMessage(spec.Code, flags, rxWireAppID, 0x12345678, 0x87654321, dict.Default)
+	m := NewMessage(spec.Code, flags, rxWireAppID, 0x12345678, 0x87654321, testDict)
 	for _, rule := range spec.Rules {
 		if rule.Name == "AVP" {
 			continue
 		}
 		for i := 0; i < rule.Min; i++ {
-			a := rxFindAVP(t, rule.Name)
+			a := rxFindAVP(t, rule.Name, testDict)
 			m.AddAVP(NewAVP(a.Code, rxWireFlags(t, a.Must), a.VendorID, rxSampleData(t, a, 0)))
 		}
 	}
@@ -255,10 +273,12 @@ func rxCommandMessage(t *testing.T, spec rxWireCommandSpec) *Message {
 // TS 29.214 V20.0.0 §§5.6.1–5.6.8: the four Rx command pairs use the
 // source CCF's required AVPs, fixed placement, and P bit on actual bytes.
 func TestRxCommandWireAndBoundaries(t *testing.T) {
+	testDict := newTestDictionary(rx.Dictionary())
+
 	_, commands := rxWireSpec(t)
 	for _, spec := range commands {
 		t.Run(spec.Section, func(t *testing.T) {
-			m := rxCommandMessage(t, spec)
+			m := rxCommandMessage(t, spec, testDict)
 			if err := m.ValidateOutgoing(); err != nil {
 				t.Fatalf("valid command: %v", err)
 			}
@@ -266,7 +286,7 @@ func TestRxCommandWireAndBoundaries(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			got, err := ReadMessage(bytes.NewReader(wire), dict.Default)
+			got, err := ReadMessage(bytes.NewReader(wire), testDict)
 			if err != nil || got.DecodeErr != nil {
 				t.Fatalf("decode: %v / %v", err, got.DecodeErr)
 			}
@@ -292,8 +312,8 @@ func TestRxCommandWireAndBoundaries(t *testing.T) {
 				if rule.Name == "AVP" || rule.Min == 0 {
 					continue
 				}
-				m := rxCommandMessage(t, spec)
-				a := rxFindAVP(t, rule.Name)
+				m := rxCommandMessage(t, spec, testDict)
+				a := rxFindAVP(t, rule.Name, testDict)
 				for i, item := range m.AVP {
 					if item.Code == a.Code && item.VendorID == a.VendorID {
 						m.AVP = append(m.AVP[:i], m.AVP[i+1:]...)
@@ -309,8 +329,8 @@ func TestRxCommandWireAndBoundaries(t *testing.T) {
 				if rule.Name == "AVP" || rule.Fixed || rule.Max == nil {
 					continue
 				}
-				m := rxCommandMessage(t, spec)
-				a := rxFindAVP(t, rule.Name)
+				m := rxCommandMessage(t, spec, testDict)
+				a := rxFindAVP(t, rule.Name, testDict)
 				count := 0
 				for _, item := range m.AVP {
 					if item.Code == a.Code && item.VendorID == a.VendorID {

@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/dict"
 )
@@ -22,9 +24,13 @@ type eofDispatchGate struct {
 }
 
 func newEOFDispatchGate(t *testing.T) *eofDispatchGate {
+	testDict := newSMTestDictionary(dict.Base())
+	serverSettings2 :=
+		cloneTestSettings(serverSettings2, testDict)
+
 	t.Helper()
 	cfg := *serverSettings2
-	h := &eofDispatchGate{inner: mustNewStateMachine(t, &cfg), entered: make(chan diam.Conn, 1), delivered: make(chan *diam.Message, 1), release: make(chan struct{})}
+	h := &eofDispatchGate{inner: mustNewStateMachine(t, &cfg, testDict), entered: make(chan diam.Conn, 1), delivered: make(chan *diam.Message, 1), release: make(chan struct{})}
 	h.inner.Handle("ALL", diam.HandlerFunc(func(_ diam.Conn, m *diam.Message) { h.delivered <- m }))
 	t.Cleanup(h.resume)
 	return h
@@ -123,6 +129,8 @@ func checkEOFDispatch(t *testing.T, h *eofDispatchGate, c diam.Conn, answer *dia
 }
 
 func TestOrdinaryMultistreamEOFPreservesDecodedBusinessAnswer(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	for _, mode := range []int{1, 2, -1} {
 		t.Run(fmt.Sprint(mode), func(t *testing.T) {
 			h := newEOFDispatchGate(t)
@@ -130,7 +138,7 @@ func TestOrdinaryMultistreamEOFPreservesDecodedBusinessAnswer(t *testing.T) {
 			transport := &eofMultistreamTransport{acceptedRestartTransport: &acceptedRestartTransport{Conn: local, reads: make(chan acceptedRestartRead, 8), closed: make(chan struct{})}}
 			listener := &watchdogPipeListener{accepted: make(chan net.Conn, 1), closed: make(chan struct{})}
 			listener.accepted <- transport
-			server := &diam.Server{Handler: h, Dict: dict.Default, MaxConcurrentHandlers: mode}
+			server := &diam.Server{Handler: h, Dict: testDict, MaxConcurrentHandlers: mode}
 			done := make(chan error, 1)
 			go func() { done <- server.Serve(listener) }()
 			t.Cleanup(func() {
@@ -142,9 +150,9 @@ func TestOrdinaryMultistreamEOFPreservesDecodedBusinessAnswer(t *testing.T) {
 					t.Error(err)
 				}
 			})
-			transport.message(t, regressionCER(t, dict.Default, 1001))
+			transport.message(t, regressionCER(t, testDict, 1001))
 			acceptedRestartCEA(t, peer, diam.Success)
-			answer := diam.NewRequest(999, 1001, dict.Default).Answer(diam.Success)
+			answer := diam.NewRequest(999, 1001, testDict).Answer(diam.Success)
 			transport.message(t, answer)
 			var c diam.Conn
 			select {

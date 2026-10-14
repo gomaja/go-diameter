@@ -13,6 +13,7 @@ import (
 
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/diamtest"
+	"github.com/gomaja/go-diameter/diam/dict"
 	"github.com/gomaja/go-diameter/diam/internal/testutil"
 )
 
@@ -28,20 +29,22 @@ func requireSCTP(t *testing.T) {
 }
 
 func TestCapabilitiesExchangeSCTP(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	requireSCTP(t)
 	errc := make(chan error, 1)
 
 	smux := diam.NewServeMux()
 	smux.Handle("CER", handleCER(errc, false))
 
-	srv := diamtest.NewServerNetwork("sctp", smux, nil)
+	srv := diamtest.NewServerNetwork("sctp", smux, testDict)
 	defer srv.Close()
 
 	wait := make(chan struct{})
 	cmux := diam.NewServeMux()
 	cmux.Handle("CEA", handleCEA(errc, wait))
 
-	cli, err := diam.DialNetworkTimeout("sctp", srv.Addr, cmux, nil, testutil.SCTPTimeout)
+	cli, err := diam.DialNetworkTimeout("sctp", srv.Addr, cmux, testDict, testutil.SCTPTimeout)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,6 +63,8 @@ func TestCapabilitiesExchangeSCTP(t *testing.T) {
 }
 
 func TestCapabilitiesExchangeSCTP_TLS(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	requireSCTP(t)
 	errc := make(chan error, 1)
 	certFile, keyFile, cert := newTestCertificateFiles(t)
@@ -67,7 +72,7 @@ func TestCapabilitiesExchangeSCTP_TLS(t *testing.T) {
 	smux := diam.NewServeMux()
 	smux.Handle("CER", handleCER(errc, true))
 
-	srv := diamtest.NewUnstartedServerNetwork("sctp", smux, nil)
+	srv := diamtest.NewUnstartedServerNetwork("sctp", smux, testDict)
 	tm := testutil.SCTPTimeout
 	srv.Config.ReadTimeout = tm
 	srv.Config.WriteTimeout = tm

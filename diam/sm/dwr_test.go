@@ -8,11 +8,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/diamtest"
-	"github.com/gomaja/go-diameter/diam/dict"
 	"github.com/gomaja/go-diameter/diam/internal/logtest"
 	"github.com/gomaja/go-diameter/diam/sm/smparser"
 )
@@ -20,8 +21,14 @@ import (
 // These tests use dictionary, settings and functions from sm_test.go.
 
 func TestHandleDWR(t *testing.T) {
-	sm := mustNewStateMachine(t, serverSettings)
-	srv := diamtest.NewServer(sm, dict.Default)
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings := cloneTestSettings(serverSettings,
+		testDict)
+	clientSettings := cloneTestSettings(clientSettings,
+		testDict)
+
+	sm := mustNewStateMachine(t, serverSettings, testDict)
+	srv := diamtest.NewServer(sm, testDict)
 	defer srv.Close()
 	mc := make(chan *diam.Message, 1)
 	mux := diam.NewServeMux()
@@ -31,13 +38,13 @@ func TestHandleDWR(t *testing.T) {
 	mux.HandleFunc("DWA", func(c diam.Conn, m *diam.Message) {
 		mc <- m
 	})
-	cli, err := diam.Dial(srv.Addr, mux, dict.Default)
+	cli, err := diam.Dial(srv.Addr, mux, testDict)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer cli.Close()
 	// Send CER first.
-	m := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
+	m := diam.NewRequest(diam.CapabilitiesExchange, 0, testDict)
 	mustSMClientAVP(t, m, avp.OriginHost, avp.Mbit, 0, clientSettings.OriginHost)
 	mustSMClientAVP(t, m, avp.OriginRealm, avp.Mbit, 0, clientSettings.OriginRealm)
 	mustSMClientAVP(t, m, avp.HostIPAddress, avp.Mbit, 0, localhostAddress)
@@ -59,7 +66,7 @@ func TestHandleDWR(t *testing.T) {
 		t.Fatal("No CEA received")
 	}
 	// Send DWR.
-	m = diam.NewRequest(diam.DeviceWatchdog, 0, dict.Default)
+	m = diam.NewRequest(diam.DeviceWatchdog, 0, testDict)
 	mustSMClientAVP(t, m, avp.OriginHost, avp.Mbit, 0, clientSettings.OriginHost)
 	mustSMClientAVP(t, m, avp.OriginRealm, avp.Mbit, 0, clientSettings.OriginRealm)
 	mustSMClientAVP(t, m, avp.OriginStateID, avp.Mbit, 0, datatype.Unsigned32(1))
@@ -89,9 +96,15 @@ func TestHandleDWR(t *testing.T) {
 }
 
 func TestHandleDWR_Fail(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings := cloneTestSettings(serverSettings,
+		testDict)
+	clientSettings := cloneTestSettings(clientSettings,
+		testDict)
+
 	records := logtest.New()
-	sm := mustNewStateMachine(t, serverSettings)
-	srv := diamtest.NewUnstartedServer(sm, dict.Default)
+	sm := mustNewStateMachine(t, serverSettings, testDict)
+	srv := diamtest.NewUnstartedServer(sm, testDict)
 	srv.Config.Logger = records.Logger()
 	srv.Start()
 	defer srv.Close()
@@ -103,13 +116,13 @@ func TestHandleDWR_Fail(t *testing.T) {
 	mux.HandleFunc("DWA", func(c diam.Conn, m *diam.Message) {
 		mc <- m
 	})
-	cli, err := diam.Dial(srv.Addr, mux, dict.Default)
+	cli, err := diam.Dial(srv.Addr, mux, testDict)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer cli.Close()
 	// Send CER first.
-	m := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
+	m := diam.NewRequest(diam.CapabilitiesExchange, 0, testDict)
 	mustSMClientAVP(t, m, avp.OriginHost, avp.Mbit, 0, clientSettings.OriginHost)
 	mustSMClientAVP(t, m, avp.OriginRealm, avp.Mbit, 0, clientSettings.OriginRealm)
 	mustSMClientAVP(t, m, avp.HostIPAddress, avp.Mbit, 0, localhostAddress)
@@ -131,7 +144,7 @@ func TestHandleDWR_Fail(t *testing.T) {
 		t.Fatal("No CEA received")
 	}
 	// Send broken DWR (missing Origin-Host, etc).
-	m = diam.NewRequest(diam.DeviceWatchdog, 0, dict.Default)
+	m = diam.NewRequest(diam.DeviceWatchdog, 0, testDict)
 	_, err = m.WriteTo(cli)
 	if err != nil {
 		t.Fatal(err)

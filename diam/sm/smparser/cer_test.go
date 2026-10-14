@@ -5,6 +5,7 @@
 package smparser
 
 import (
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
 	//"strings"
 	"errors"
 	"testing"
@@ -12,7 +13,6 @@ import (
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
-	"github.com/gomaja/go-diameter/diam/dict"
 )
 
 func mustCERAVP(t *testing.T, m *diam.Message, code uint32, flags uint8, vendor uint32, data datatype.Type) {
@@ -25,7 +25,9 @@ func mustCERAVP(t *testing.T, m *diam.Message, code uint32, flags uint8, vendor 
 // These tests use a custom dictionary loaded by sm_test.go.
 
 func TestCER_MissingOriginHost(t *testing.T) {
-	m := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
+	testDict := newParserTestDictionary(creditcontrol.Dictionary())
+
+	m := diam.NewRequest(diam.CapabilitiesExchange, 0, testDict)
 	cer := new(CER)
 	_, err := cer.Parse(m, ParseOptions{Role: Client})
 	if err == nil {
@@ -37,7 +39,9 @@ func TestCER_MissingOriginHost(t *testing.T) {
 }
 
 func TestCER_MissingOriginRealm(t *testing.T) {
-	m := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
+	testDict := newParserTestDictionary(creditcontrol.Dictionary())
+
+	m := diam.NewRequest(diam.CapabilitiesExchange, 0, testDict)
 	mustCERAVP(t, m, avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("foobar"))
 	cer := new(CER)
 	_, err := cer.Parse(m, ParseOptions{Role: Client})
@@ -50,7 +54,9 @@ func TestCER_MissingOriginRealm(t *testing.T) {
 }
 
 func TestCER_MissingApplication(t *testing.T) {
-	m := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
+	testDict := newParserTestDictionary(creditcontrol.Dictionary())
+
+	m := diam.NewRequest(diam.CapabilitiesExchange, 0, testDict)
 	mustCERAVP(t, m, avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("foobar"))
 	mustCERAVP(t, m, avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("test"))
 	mustCERAVP(t, m, avp.OriginStateID, avp.Mbit, 0, datatype.Unsigned32(1))
@@ -65,7 +71,9 @@ func TestCER_MissingApplication(t *testing.T) {
 }
 
 func TestCER_NoCommonApplication(t *testing.T) {
-	m := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
+	testDict := newParserTestDictionary(creditcontrol.Dictionary())
+
+	m := diam.NewRequest(diam.CapabilitiesExchange, 0, testDict)
 	mustCERAVP(t, m, avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("foobar"))
 	mustCERAVP(t, m, avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("test"))
 	mustCERAVP(t, m, avp.OriginStateID, avp.Mbit, 0, datatype.Unsigned32(1))
@@ -81,7 +89,9 @@ func TestCER_NoCommonApplication(t *testing.T) {
 }
 
 func TestCER_NoCommonSecurity(t *testing.T) {
-	m := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
+	testDict := newParserTestDictionary(creditcontrol.Dictionary())
+
+	m := diam.NewRequest(diam.CapabilitiesExchange, 0, testDict)
 	mustCERAVP(t, m, avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("foobar"))
 	mustCERAVP(t, m, avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("test"))
 	mustCERAVP(t, m, avp.OriginStateID, avp.Mbit, 0, datatype.Unsigned32(1))
@@ -97,7 +107,9 @@ func TestCER_NoCommonSecurity(t *testing.T) {
 }
 
 func TestCER_AcctAppID(t *testing.T) {
-	m := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
+	testDict := newParserTestDictionary(creditcontrol.Dictionary())
+
+	m := diam.NewRequest(diam.CapabilitiesExchange, 0, testDict)
 	mustCERAVP(t, m, avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("foobar"))
 	mustCERAVP(t, m, avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("test"))
 	mustCERAVP(t, m, avp.OriginStateID, avp.Mbit, 0, datatype.Unsigned32(1))
@@ -115,7 +127,9 @@ func TestCER_AcctAppID(t *testing.T) {
 }
 
 func TestCER_FailedAcctAppID(t *testing.T) {
-	m := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
+	testDict := newParserTestDictionary(creditcontrol.Dictionary())
+
+	m := diam.NewRequest(diam.CapabilitiesExchange, 0, testDict)
 	mustCERAVP(t, m, avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("foobar"))
 	mustCERAVP(t, m, avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("test"))
 	mustCERAVP(t, m, avp.OriginStateID, avp.Mbit, 0, datatype.Unsigned32(1))
@@ -131,7 +145,9 @@ func TestCER_FailedAcctAppID(t *testing.T) {
 }
 
 func TestCER_AcctNotAuthAppID(t *testing.T) {
-	m := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
+	testDict := newParserTestDictionary(creditcontrol.Dictionary())
+
+	m := diam.NewRequest(diam.CapabilitiesExchange, 0, testDict)
 	mustCERAVP(t, m, avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("foobar"))
 	mustCERAVP(t, m, avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("test"))
 	mustCERAVP(t, m, avp.OriginStateID, avp.Mbit, 0, datatype.Unsigned32(1))
@@ -147,7 +163,9 @@ func TestCER_AcctNotAuthAppID(t *testing.T) {
 }
 
 func TestCER_AuthAppID(t *testing.T) {
-	m := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
+	testDict := newParserTestDictionary(creditcontrol.Dictionary())
+
+	m := diam.NewRequest(diam.CapabilitiesExchange, 0, testDict)
 	mustCERAVP(t, m, avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("foobar"))
 	mustCERAVP(t, m, avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("test"))
 	mustCERAVP(t, m, avp.OriginStateID, avp.Mbit, 0, datatype.Unsigned32(1))
@@ -165,7 +183,9 @@ func TestCER_AuthAppID(t *testing.T) {
 }
 
 func TestCER_FailedAuthAppID(t *testing.T) {
-	m := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
+	testDict := newParserTestDictionary(creditcontrol.Dictionary())
+
+	m := diam.NewRequest(diam.CapabilitiesExchange, 0, testDict)
 	mustCERAVP(t, m, avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("foobar"))
 	mustCERAVP(t, m, avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("test"))
 	mustCERAVP(t, m, avp.OriginStateID, avp.Mbit, 0, datatype.Unsigned32(1))
@@ -181,7 +201,9 @@ func TestCER_FailedAuthAppID(t *testing.T) {
 }
 
 func TestCER_AuthNotAcctAppID(t *testing.T) {
-	m := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
+	testDict := newParserTestDictionary(creditcontrol.Dictionary())
+
+	m := diam.NewRequest(diam.CapabilitiesExchange, 0, testDict)
 	mustCERAVP(t, m, avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("foobar"))
 	mustCERAVP(t, m, avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("test"))
 	mustCERAVP(t, m, avp.OriginStateID, avp.Mbit, 0, datatype.Unsigned32(1))
@@ -197,7 +219,9 @@ func TestCER_AuthNotAcctAppID(t *testing.T) {
 }
 
 func TestCER_VSAcctAppID(t *testing.T) {
-	m := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
+	testDict := newParserTestDictionary(creditcontrol.Dictionary())
+
+	m := diam.NewRequest(diam.CapabilitiesExchange, 0, testDict)
 	mustCERAVP(t, m, avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("foobar"))
 	mustCERAVP(t, m, avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("test"))
 	mustCERAVP(t, m, avp.OriginStateID, avp.Mbit, 0, datatype.Unsigned32(1))
@@ -219,7 +243,9 @@ func TestCER_VSAcctAppID(t *testing.T) {
 }
 
 func TestCER_FailedVSAcctAppID(t *testing.T) {
-	m := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
+	testDict := newParserTestDictionary(creditcontrol.Dictionary())
+
+	m := diam.NewRequest(diam.CapabilitiesExchange, 0, testDict)
 	mustCERAVP(t, m, avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("foobar"))
 	mustCERAVP(t, m, avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("test"))
 	mustCERAVP(t, m, avp.OriginStateID, avp.Mbit, 0, datatype.Unsigned32(1))
@@ -239,7 +265,9 @@ func TestCER_FailedVSAcctAppID(t *testing.T) {
 }
 
 func TestCER_VSAuthAppID(t *testing.T) {
-	m := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
+	testDict := newParserTestDictionary(creditcontrol.Dictionary())
+
+	m := diam.NewRequest(diam.CapabilitiesExchange, 0, testDict)
 	mustCERAVP(t, m, avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("foobar"))
 	mustCERAVP(t, m, avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("test"))
 	mustCERAVP(t, m, avp.OriginStateID, avp.Mbit, 0, datatype.Unsigned32(1))
@@ -261,7 +289,9 @@ func TestCER_VSAuthAppID(t *testing.T) {
 }
 
 func TestCER_FailedVSAuthAppID(t *testing.T) {
-	m := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
+	testDict := newParserTestDictionary(creditcontrol.Dictionary())
+
+	m := diam.NewRequest(diam.CapabilitiesExchange, 0, testDict)
 	mustCERAVP(t, m, avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("foobar"))
 	mustCERAVP(t, m, avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("test"))
 	mustCERAVP(t, m, avp.OriginStateID, avp.Mbit, 0, datatype.Unsigned32(1))
@@ -281,8 +311,10 @@ func TestCER_FailedVSAuthAppID(t *testing.T) {
 }
 
 func TestCER_InbandSecurity_TLSActive(t *testing.T) {
+	testDict := newParserTestDictionary(creditcontrol.Dictionary())
+
 	// When TLS is already active, Inband-Security-Id=1 should be accepted.
-	m := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
+	m := diam.NewRequest(diam.CapabilitiesExchange, 0, testDict)
 	mustCERAVP(t, m, avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("foobar"))
 	mustCERAVP(t, m, avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("test"))
 	mustCERAVP(t, m, avp.OriginStateID, avp.Mbit, 0, datatype.Unsigned32(1))
@@ -296,8 +328,10 @@ func TestCER_InbandSecurity_TLSActive(t *testing.T) {
 }
 
 func TestCER_InbandSecurity_NoTLS(t *testing.T) {
+	testDict := newParserTestDictionary(creditcontrol.Dictionary())
+
 	// When TLS is NOT active, Inband-Security-Id=1 should still be rejected.
-	m := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
+	m := diam.NewRequest(diam.CapabilitiesExchange, 0, testDict)
 	mustCERAVP(t, m, avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("foobar"))
 	mustCERAVP(t, m, avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("test"))
 	mustCERAVP(t, m, avp.OriginStateID, avp.Mbit, 0, datatype.Unsigned32(1))

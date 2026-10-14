@@ -7,18 +7,21 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
-	"github.com/gomaja/go-diameter/diam/dict"
 	"github.com/gomaja/go-diameter/diam/internal/base"
 )
 
 // RFC 6733 §§6.2 and 7.1.5: Manager shares the error-answer builder;
 // undecodable Session-Id must not prevent the 5014 answer.
 func TestManagerErrorAnswersOnWire(t *testing.T) {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
 	t.Run("length7", func(t *testing.T) {
-		settings := testSettings("local.example.net")
+		settings := testSettings("local.example.net", testDict)
 		settings.RejectUnknownMandatoryAVPs = true
 		m, err := New(Config{Settings: settings})
 		if err != nil {
@@ -34,7 +37,7 @@ func TestManagerErrorAnswersOnWire(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer func() { _ = conn.Close() }()
-		cer, err := base.BuildCER(dict.Default, testBase("known.example.net"))
+		cer, err := base.BuildCER(testDict, testBase("known.example.net"))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -42,7 +45,7 @@ func TestManagerErrorAnswersOnWire(t *testing.T) {
 		if a := read(t, conn); code(t, a) != diam.Success {
 			t.Fatal(a)
 		}
-		r := diam.NewMessage(diam.SessionTermination, diam.RequestFlag|diam.ProxiableFlag, 0, 0x12345678, 0x87654321, dict.Default)
+		r := diam.NewMessage(diam.SessionTermination, diam.RequestFlag|diam.ProxiableFlag, 0, 0x12345678, 0x87654321, testDict)
 		expected := uint32(diam.InvalidAVPLength)
 		offending := uint32(avp.SessionID)
 		r.AddAVP(diam.NewAVP(avp.SessionID, avp.Mbit, 0, datatype.UTF8String("sid")))
@@ -78,7 +81,9 @@ func TestManagerErrorAnswersOnWire(t *testing.T) {
 // RFC 6733 §§7.1.3 and 7.2: an unknown peer receives a 3010 error answer,
 // using the generic answer-message grammar, before its transport closes.
 func TestUnknownPeerCEACarriesEBit(t *testing.T) {
-	m, err := New(Config{Settings: testSettings("local.example.net")})
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
+	m, err := New(Config{Settings: testSettings("local.example.net", testDict)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,7 +97,7 @@ func TestUnknownPeerCEACarriesEBit(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = c.Close() })
-	cer, err := base.BuildCER(dict.Default, testBase("other.example.net"))
+	cer, err := base.BuildCER(testDict, testBase("other.example.net"))
 	if err != nil {
 		t.Fatal(err)
 	}

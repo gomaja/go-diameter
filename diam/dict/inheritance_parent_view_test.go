@@ -91,15 +91,7 @@ func TestInheritanceParentNameAgreement(t *testing.T) {
 			}
 		})
 	}
-	t.Run("Sh Cx", func(t *testing.T) {
-		p := New(Sh)
-		if a, err := p.FindAVPByName(16777217, "User-Data"); err != nil || a.Code != 702 {
-			t.Fatalf("Sh User-Data = %v, %v", a, err)
-		}
-		if a, err := p.FindAVP(16777217, 606, 10415); err != nil || a.Name != "User-Data" {
-			t.Fatalf("Cx User-Data in Sh = %v, %v", a, err)
-		}
-	})
+
 }
 
 func TestInheritanceOwnNameResolvesParentDisagreement(t *testing.T) {

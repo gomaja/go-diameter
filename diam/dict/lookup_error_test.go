@@ -1,30 +1,34 @@
-package dict
+package dict_test
 
 import (
 	"errors"
 	"fmt"
 	"testing"
+
+	"github.com/gomaja/go-diameter/diam/dict"
 )
 
 func TestLookupMissContract(t *testing.T) {
-	for label, lookup := range map[string]*Snapshot{"empty": New().Snapshot(), "loaded": Default.Snapshot()} {
+	reference := newAllTestParser(t)
+
+	for label, lookup := range map[string]*dict.Snapshot{"empty": newTestParser(t).Snapshot(), "loaded": reference.Snapshot()} {
 		t.Run(label, func(t *testing.T) {
 			a, err := lookup.FindAVP(4, 999999, 10415)
-			if a != nil || !errors.Is(err, ErrNotFound) {
+			if a != nil || !errors.Is(err, dict.ErrNotFound) {
 				t.Errorf("code miss = %v, %v; want nil, ErrNotFound", a, err)
 			}
 			if err == nil || err.Error() != "application 4: AVP code 999999 vendor 10415: dictionary entry not found" {
 				t.Errorf("code miss context: %v", err)
 			}
 			a, err = lookup.FindAVPByName(4, "Not-Defined")
-			if a != nil || !errors.Is(err, ErrNotFound) {
+			if a != nil || !errors.Is(err, dict.ErrNotFound) {
 				t.Errorf("name miss = %v, %v", a, err)
 			}
 			if err == nil || err.Error() != `application 4: AVP name "Not-Defined": dictionary entry not found` {
 				t.Errorf("name miss context: %v", err)
 			}
 			c, err := lookup.FindCommand(4, 999999)
-			if c != nil || !errors.Is(err, ErrNotFound) {
+			if c != nil || !errors.Is(err, dict.ErrNotFound) {
 				t.Errorf("command miss = %v, %v", c, err)
 			}
 			if err == nil || err.Error() != "application 4: command code 999999: dictionary entry not found" {
@@ -32,7 +36,7 @@ func TestLookupMissContract(t *testing.T) {
 			}
 		})
 	}
-	for label, lookup := range map[string]vendorLookup{"parser": Default, "snapshot": Default.Snapshot()} {
+	for label, lookup := range map[string]vendorLookup{"parser": reference, "snapshot": reference.Snapshot()} {
 		t.Run(label, func(t *testing.T) {
 			for _, tc := range []struct {
 				code, vendor               uint32
@@ -48,14 +52,14 @@ func TestLookupMissContract(t *testing.T) {
 				if e != nil || err == nil || err.Error() != tc.wantEnum {
 					t.Errorf("enum = %v, %v; want %s", e, err, tc.wantEnum)
 				}
-				if tc.code != 284 && !errors.Is(fmt.Errorf("outer: %w", err), ErrNotFound) {
+				if tc.code != 284 && !errors.Is(fmt.Errorf("outer: %w", err), dict.ErrNotFound) {
 					t.Errorf("enum sentinel: %v", err)
 				}
 				r, err := lookup.Rule(4, tc.code, tc.vendor, tc.member)
 				if r != nil || err == nil || err.Error() != tc.wantRule {
 					t.Errorf("rule = %v, %v; want %s", r, err, tc.wantRule)
 				}
-				if (tc.code == 284 || tc.code == 999999) && !errors.Is(fmt.Errorf("outer: %w", err), ErrNotFound) {
+				if (tc.code == 284 || tc.code == 999999) && !errors.Is(fmt.Errorf("outer: %w", err), dict.ErrNotFound) {
 					t.Errorf("rule sentinel: %v", err)
 				}
 			}

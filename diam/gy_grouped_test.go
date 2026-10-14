@@ -8,6 +8,8 @@ import (
 	"bytes"
 	"testing"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/dict"
@@ -16,14 +18,21 @@ import (
 // buildGyCCA constructs a Gy Credit-Control-Answer with multiple
 // Multiple-Services-Credit-Control AVPs containing deeply nested grouped
 // structures (Granted-Service-Unit, Used-Service-Unit, CC-Money, Unit-Value).
-func buildGyCCA() *Message {
+func buildGyCCA(parsers ...*dict.Parser) *Message {
+	var testDict *dict.Parser
+	if len(parsers) > 0 {
+		testDict = parsers[0]
+	} else {
+		testDict = newTestDictionary(creditcontrol.Dictionary())
+	}
+
 	m := NewMessage(
 		CreditControl,
 		0, // Answer (no RequestFlag)
 		CHARGING_CONTROL_APP_ID,
 		0x1df4b75e,
 		0xb1b50a4b,
-		dict.Default,
+		testDict,
 	)
 
 	// Mandatory top-level AVPs
@@ -113,7 +122,9 @@ func mustGyAVP(m *Message, code uint32, flags uint8, vendor uint32, data datatyp
 // containing up to 4 levels of nesting, serializes it, parses it back,
 // and verifies every nested value survives the round trip.
 func TestGyNestedGroupedRoundTrip(t *testing.T) {
-	original := buildGyCCA()
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
+	original := buildGyCCA(testDict)
 
 	// Serialize to wire format.
 	wireBytes, err := original.Serialize()
@@ -122,7 +133,7 @@ func TestGyNestedGroupedRoundTrip(t *testing.T) {
 	}
 
 	// Parse back from wire format.
-	parsed, err := ReadMessage(bytes.NewReader(wireBytes), dict.Default)
+	parsed, err := ReadMessage(bytes.NewReader(wireBytes), testDict)
 	if err != nil {
 		t.Fatalf("ReadMessage failed: %v", err)
 	}
@@ -196,7 +207,9 @@ func TestGyNestedGroupedRoundTrip(t *testing.T) {
 // BenchmarkGyNestedGroupedRead benchmarks parsing a Gy CCA with multiple
 // deeply nested MSCC grouped AVPs.
 func BenchmarkGyNestedGroupedRead(b *testing.B) {
-	original := buildGyCCA()
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
+	original := buildGyCCA(testDict)
 	wireBytes, err := original.Serialize()
 	if err != nil {
 		b.Fatal(err)
@@ -204,7 +217,7 @@ func BenchmarkGyNestedGroupedRead(b *testing.B) {
 	reader := bytes.NewReader(wireBytes)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		if _, err := ReadMessage(reader, dict.Default); err != nil {
+		if _, err := ReadMessage(reader, testDict); err != nil {
 			b.Fatal(err)
 		}
 		if _, err := reader.Seek(0, 0); err != nil {

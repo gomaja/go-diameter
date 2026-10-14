@@ -77,7 +77,7 @@ func TestStrictDictionaryXML(t *testing.T) {
 }
 
 func TestStrictDictionaryXMLLoadIsAtomic(t *testing.T) {
-	p := New()
+	p := newTestParser(t)
 	before := p.Snapshot()
 	bad := strings.Replace(strictXMLSample, `max="1"`, `mmax="1"`, 1)
 	if err := p.Load(strings.NewReader(bad)); err == nil {

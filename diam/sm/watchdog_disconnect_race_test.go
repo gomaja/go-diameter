@@ -7,8 +7,9 @@ import (
 	"testing/synctest"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam"
-	"github.com/gomaja/go-diameter/diam/dict"
 	"github.com/gomaja/go-diameter/diam/sm/smpeer"
 )
 
@@ -37,9 +38,11 @@ func (c *watchdogRegistrationConn) DispatchDone() <-chan struct{} {
 // RFC 6733 §5.6: a Disconnect that finishes before watchdog registration
 // leaves Closed as the durable indication that supervision cannot start.
 func TestAcceptedWatchdogDisconnectFinishesBeforeRegistration(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	synctest.Test(t, func(t *testing.T) {
 		cfg := newAcceptedWatchdogSettings()
-		sm := mustNewStateMachine(t, &cfg)
+		sm := mustNewStateMachine(t, &cfg, testDict)
 		c := &watchdogRegistrationConn{
 			disconnectCleanupConn: newDisconnectCleanupConn(),
 			lookupEntered:         make(chan struct{}), allowLookup: make(chan struct{}),
@@ -49,12 +52,12 @@ func TestAcceptedWatchdogDisconnectFinishesBeforeRegistration(t *testing.T) {
 		defer cleanup()
 		defer close(c.done)
 		handled := make(chan struct{})
-		go func() { sm.ServeDIAM(c, regressionCER(t, dict.Default, 1001)); close(handled) }()
+		go func() { sm.ServeDIAM(c, regressionCER(t, testDict, 1001)); close(handled) }()
 		<-c.lookupEntered // The first Closed check has passed; registration has not.
 		<-c.writes        // CEA
 		disconnected := make(chan error, 1)
 		go func() { disconnected <- sm.Disconnect(c, DisconnectRebooting, time.Hour) }()
-		dpr, err := diam.ReadMessage(bytes.NewReader(<-c.writes), dict.Default)
+		dpr, err := diam.ReadMessage(bytes.NewReader(<-c.writes), testDict)
 		if err != nil || dpr.Header.CommandCode != diam.DisconnectPeer {
 			t.Fatalf("DPR: %v, %v", dpr, err)
 		}
@@ -93,6 +96,8 @@ func (c *disconnectCleanupConn) Close() {
 // RFC 6733 §5.6: Disconnect enters Closing before its DPR. The deferred
 // start after OnHandshake must observe that state until Close publishes Closed.
 func TestAcceptedWatchdogDisconnectCleanupCannotRestart(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	cfg := newAcceptedWatchdogSettings()
 	cfg.WatchdogInterval = time.Hour
 	handshakeEntered := make(chan struct{})
@@ -101,7 +106,7 @@ func TestAcceptedWatchdogDisconnectCleanupCannotRestart(t *testing.T) {
 		close(handshakeEntered)
 		<-allowHandshake
 	}
-	sm := mustNewStateMachine(t, &cfg)
+	sm := mustNewStateMachine(t, &cfg, testDict)
 	c := newDisconnectCleanupConn()
 	cleanup := sm.HandleAccept(c)
 	defer cleanup()
@@ -109,7 +114,7 @@ func TestAcceptedWatchdogDisconnectCleanupCannotRestart(t *testing.T) {
 	unblockHandshake := func() { releaseHandshake.Do(func() { close(allowHandshake) }) }
 	unblockClose := func() { releaseClose.Do(func() { close(c.allowClose) }) }
 	handlerDone := make(chan struct{})
-	request := regressionCER(t, dict.Default, 1001)
+	request := regressionCER(t, testDict, 1001)
 	go func() { sm.ServeDIAM(c, request); close(handlerDone) }()
 	disconnectDone := make(chan error, 1)
 	disconnectStarted, disconnectRead := false, false
@@ -129,14 +134,14 @@ func TestAcceptedWatchdogDisconnectCleanupCannotRestart(t *testing.T) {
 			}
 		}
 	}()
-	cea, err := diam.ReadMessage(bytes.NewReader(<-c.writes), dict.Default)
+	cea, err := diam.ReadMessage(bytes.NewReader(<-c.writes), testDict)
 	if err != nil || !testResultCode(cea, diam.Success) {
 		t.Fatalf("CEA: %v, %v", cea, err)
 	}
 	<-handshakeEntered
 	disconnectStarted = true
 	go func() { disconnectDone <- sm.Disconnect(c, DisconnectRebooting, time.Hour) }()
-	dpr, err := diam.ReadMessage(bytes.NewReader(<-c.writes), dict.Default)
+	dpr, err := diam.ReadMessage(bytes.NewReader(<-c.writes), testDict)
 	if err != nil || dpr.Header.CommandCode != diam.DisconnectPeer || dpr.Header.CommandFlags&diam.RequestFlag == 0 {
 		t.Fatalf("DPR: %v, %v", dpr, err)
 	}

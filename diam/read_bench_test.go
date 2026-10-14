@@ -4,14 +4,16 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/gomaja/go-diameter/diam/dict"
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
 )
 
 func BenchmarkReadMessageParallel(b *testing.B) {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
 	b.RunParallel(func(pb *testing.PB) {
 		reader := bytes.NewReader(testMessage)
 		for pb.Next() {
-			if _, err := ReadMessage(reader, dict.Default); err != nil {
+			if _, err := ReadMessage(reader, testDict); err != nil {
 				b.Error(err)
 				return
 			}

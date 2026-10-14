@@ -10,10 +10,13 @@ import (
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
+	"github.com/gomaja/go-diameter/diam/dict"
 )
 
 func TestDWA(t *testing.T) {
-	m := diam.NewMessage(diam.CapabilitiesExchange, 0, 0, 0, 0, nil)
+	testDict := newParserTestDictionary(dict.Base())
+
+	m := diam.NewMessage(diam.CapabilitiesExchange, 0, 0, 0, 0, testDict)
 	mustDWAAVP(t, m, avp.ResultCode, avp.Mbit, 0, datatype.Unsigned32(diam.Success))
 	mustDWAAVP(t, m, avp.OriginStateID, avp.Mbit, 0, datatype.Unsigned32(1))
 	dwa := new(DWA)

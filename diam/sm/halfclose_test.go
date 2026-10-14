@@ -6,15 +6,18 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/diamtest"
-	"github.com/gomaja/go-diameter/diam/dict"
 )
 
 // RFC 6733 §5.6: requests received before Peer-Disc must finish processing.
 // Repeat across fresh connections to exercise reader/handler scheduling without
 // introducing sleeps or requiring a particular scheduling order.
 func TestHalfCloseAnswersPendingRequests(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	for _, mode := range []int{0, 1, -1} {
 		for _, kind := range []string{"CER", "DWR"} {
 			t.Run(fmt.Sprintf("%d/%s", mode, kind), func(t *testing.T) {
@@ -22,8 +25,8 @@ func TestHalfCloseAnswersPendingRequests(t *testing.T) {
 				answered := 0
 				for range runs {
 					func() {
-						sm := mustNewStateMachine(t, testMessageErrorSettings())
-						srv := diamtest.NewUnstartedServer(sm, dict.Default)
+						sm := mustNewStateMachine(t, testMessageErrorSettings(testDict), testDict)
+						srv := diamtest.NewUnstartedServer(sm, testDict)
 						srv.Config.MaxConcurrentHandlers = mode
 						srv.Start()
 						defer srv.Close()
@@ -35,12 +38,12 @@ func TestHalfCloseAnswersPendingRequests(t *testing.T) {
 						if err := c.SetDeadline(time.Now().Add(5 * time.Second)); err != nil {
 							t.Fatal(err)
 						}
-						request := regressionCER(t, dict.Default, 1001)
+						request := regressionCER(t, testDict, 1001)
 						if _, err := request.WriteTo(c); err != nil {
 							t.Fatal(err)
 						}
 						if kind == "DWR" {
-							a, err := diam.ReadMessage(c, dict.Default)
+							a, err := diam.ReadMessage(c, testDict)
 							if err != nil || !testResultCode(a, diam.Success) {
 								t.Fatalf("CEA=%v err=%v", a, err)
 							}
@@ -52,7 +55,7 @@ func TestHalfCloseAnswersPendingRequests(t *testing.T) {
 						if err := c.(*net.TCPConn).CloseWrite(); err != nil {
 							t.Fatal(err)
 						}
-						a, err := diam.ReadMessage(c, dict.Default)
+						a, err := diam.ReadMessage(c, testDict)
 						if err == nil && testResultCode(a, diam.Success) && a.Header.CommandCode == request.Header.CommandCode &&
 							a.Header.HopByHopID == request.Header.HopByHopID && a.Header.EndToEndID == request.Header.EndToEndID {
 							answered++

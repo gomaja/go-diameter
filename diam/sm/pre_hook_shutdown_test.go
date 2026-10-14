@@ -12,19 +12,22 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/diamtest"
-	"github.com/gomaja/go-diameter/diam/dict"
 	"github.com/gomaja/go-diameter/diam/internal/logtest"
 	"github.com/gomaja/go-diameter/diam/sm/smpeer"
 )
 
 func TestPreHookShutdownDeadline(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	for _, mode := range []int{0, 1, -1} {
 		for _, hook := range []string{"CER", "DWR"} {
 			t.Run(fmt.Sprintf("%d/%s", mode, hook), func(t *testing.T) {
 				logs := logtest.New()
-				cfg := testMessageErrorSettings()
+				cfg := testMessageErrorSettings(testDict)
 				entered := make(chan diam.Conn, 1)
 				release := make(chan struct{})
 				var once sync.Once
@@ -39,8 +42,8 @@ func TestPreHookShutdownDeadline(t *testing.T) {
 				cfg.OnCEA = func(diam.Conn, *diam.Message) { cea.Add(1) }
 				cfg.OnDWA = func(diam.Conn, *diam.Message) { dwa.Add(1) }
 				cfg.OnHandshake = func(diam.Conn, *smpeer.Metadata) { handshake.Add(1) }
-				sm := mustNewStateMachine(t, cfg)
-				srv := diamtest.NewUnstartedServer(sm, dict.Default)
+				sm := mustNewStateMachine(t, cfg, testDict)
+				srv := diamtest.NewUnstartedServer(sm, testDict)
 				srv.Config.Logger = logs.Logger()
 				srv.Config.MaxConcurrentHandlers = mode
 				srv.Start()
@@ -54,11 +57,11 @@ func TestPreHookShutdownDeadline(t *testing.T) {
 				if err := c.SetDeadline(time.Now().Add(5 * time.Second)); err != nil {
 					t.Fatal(err)
 				}
-				if _, err := regressionCER(t, dict.Default, 1001).WriteTo(c); err != nil {
+				if _, err := regressionCER(t, testDict, 1001).WriteTo(c); err != nil {
 					t.Fatal(err)
 				}
 				if hook == "DWR" {
-					a, err := diam.ReadMessage(c, dict.Default)
+					a, err := diam.ReadMessage(c, testDict)
 					if err != nil || !testResultCode(a, diam.Success) {
 						t.Fatalf("CEA=%v err=%v", a, err)
 					}

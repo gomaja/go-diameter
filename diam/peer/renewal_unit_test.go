@@ -10,10 +10,11 @@ import (
 	"testing/synctest"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
-	"github.com/gomaja/go-diameter/diam/dict"
 	"github.com/gomaja/go-diameter/diam/internal/base"
 	"github.com/gomaja/go-diameter/diam/internal/logtest"
 	"github.com/gomaja/go-diameter/diam/sm/smpeer"
@@ -41,17 +42,19 @@ func TestManagerRenewalInterfaces(t *testing.T) {
 }
 
 func renewalCompositionActor(t *testing.T, state PeerState, local string, responder, activeR, activeI bool) (*Manager, *actor, *session, *session, *fakeClock) {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
 	t.Helper()
 	clock := &fakeClock{}
-	settings := testSettings(local)
+	settings := testSettings(local, testDict)
 	settings.AuthApplicationID = []*diam.AVP{diam.NewAVP(avp.AuthApplicationID, avp.Mbit, 0, datatype.Unsigned32(4)), diam.NewAVP(avp.AuthApplicationID, avp.Mbit, 0, datatype.Unsigned32(5))}
 	m, err := New(Config{Settings: settings, Clock: clock, Logger: logtest.New().Logger()})
 	if err != nil {
 		t.Fatal(err)
 	}
 	a := &actor{m: m, cfg: PeerConfig{Host: "known.example.net", NoAutoReconnect: true}, state: state, watchdog: WatchdogInitial, nextGen: 17, pendingGen: 11, dialing: state == WaitConnAck || state == WaitConnAckElect, events: make(chan event, 16), done: make(chan struct{})}
-	i := &session{m: m, c: newFakeConn(), actor: a, gen: 11, writes: make(chan writeRequest, 16), closed: make(chan struct{}), meta: &smpeer.Metadata{OriginHost: "known.example.net", OriginRealm: "initiator.example.net", Applications: []uint32{4}}}
-	r := &session{m: m, c: newFakeConn(), actor: a, gen: 7, inbound: true, writes: make(chan writeRequest, 16), ingress: make(chan incoming, 16), closed: make(chan struct{}), cerRequest: reviewCER(t), meta: &smpeer.Metadata{OriginHost: "known.example.net", OriginRealm: "old.example.net", Applications: []uint32{4}}}
+	i := &session{m: m, c: newFakeConn(testDict), actor: a, gen: 11, writes: make(chan writeRequest, 16), closed: make(chan struct{}), meta: &smpeer.Metadata{OriginHost: "known.example.net", OriginRealm: "initiator.example.net", Applications: []uint32{4}}}
+	r := &session{m: m, c: newFakeConn(testDict), actor: a, gen: 7, inbound: true, writes: make(chan writeRequest, 16), ingress: make(chan incoming, 16), closed: make(chan struct{}), cerRequest: reviewCER(t), meta: &smpeer.Metadata{OriginHost: "known.example.net", OriginRealm: "old.example.net", Applications: []uint32{4}}}
 	if state == WaitICEA || state == WaitReturns || activeI {
 		a.i = i
 	}
@@ -75,7 +78,7 @@ func renewalCompositionActor(t *testing.T, state PeerState, local string, respon
 		}
 	}
 	if state == WaitICEA || state == WaitReturns {
-		request, err := base.BuildCER(dict.Default, m.baseSettings(i.c))
+		request, err := base.BuildCER(testDict, m.baseSettings(i.c))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -139,6 +142,8 @@ func renewalCompositionCEA(t *testing.T, m *Manager, a *actor, i *session) {
 }
 
 func TestManagerRenewalReplacementCERStateTable(t *testing.T) {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
 	for _, tc := range []struct {
 		state, wantRetired, wantReplacement PeerState
 		responder, activeR, activeI         bool
@@ -169,7 +174,7 @@ func TestManagerRenewalReplacementCERStateTable(t *testing.T) {
 					if p := a.snapshot(); p.State != tc.wantRetired {
 						t.Fatalf("retirement=%s want%s", p.State, tc.wantRetired)
 					}
-					freshConn := &capabilityWireConn{fakeConn: newFakeConn(), wire: make(chan []byte, 16)}
+					freshConn := &capabilityWireConn{fakeConn: newFakeConn(testDict), wire: make(chan []byte, 16)}
 					cleanup := m.HandleAccept(freshConn)
 					defer cleanup()
 					fresh := m.getSession(freshConn)
@@ -222,7 +227,7 @@ func TestManagerRenewalReplacementCERStateTable(t *testing.T) {
 						}
 					} else {
 						wire := renewalScriptReceive(t, freshConn.wire, "replacement CEA")
-						answer, err := diam.ReadMessage(bytes.NewReader(wire), dict.Default)
+						answer, err := diam.ReadMessage(bytes.NewReader(wire), testDict)
 						if err != nil {
 							t.Fatal(err)
 						}
@@ -605,6 +610,7 @@ func TestManagerRenewalWriteTimeout(t *testing.T) {
 				t.Fatal(err)
 			}
 			srv := &diam.Server{WriteTimeout: configured}
+			srv.Dict = m.cfg.Settings.Dict
 			if err = m.BindServer(srv); err != nil {
 				t.Fatal(err)
 			}

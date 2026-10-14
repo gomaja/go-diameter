@@ -1,4 +1,4 @@
-package dict
+package dict_test
 
 import (
 	"encoding/json"
@@ -10,6 +10,8 @@ import (
 // their named descendants, including Gx's TS 29.212 V20.0.0 Table 5.4.0.1
 // overrides. Source clauses and the original CCF are retained in the fixture.
 func TestGxCopiedSpec(t *testing.T) {
+	reference := newAllTestParser(t)
+
 	var spec struct {
 		Roots []string
 		AVPs  []struct {
@@ -41,7 +43,7 @@ func TestGxCopiedSpec(t *testing.T) {
 	}
 	for _, want := range spec.AVPs {
 		t.Run(want.Name, func(t *testing.T) {
-			a := gxLookup(t, want.Name)
+			a := gxLookup(t, reference, want.Name)
 			if a.Code != want.Code || a.VendorID != want.Vendor || a.Data.TypeName != want.Type {
 				t.Errorf("identity/type = %d/%d/%s, want %d/%d/%s", a.Code, a.VendorID, a.Data.TypeName, want.Code, want.Vendor, want.Type)
 			}

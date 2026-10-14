@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func TestParentAppIDsAcyclic(t *testing.T) {
+func TestBaseParentAppIDsAcyclic(t *testing.T) {
 	if err := Default.Snapshot().validateParents(); err != nil {
 		t.Fatal(err)
 	}

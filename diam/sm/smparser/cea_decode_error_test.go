@@ -24,7 +24,7 @@ func TestCEANonStrictMalformedHostIPAddress(t *testing.T) {
 		{"reserved family", []byte{255, 255, 1}, diam.InvalidAVPValue},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			p := dict.New(dict.Base)
+			p := newTestDictionary(dict.Base())
 			p.SetStrict(false)
 			answer := diam.NewMessage(diam.CapabilitiesExchange, 0, 0, 1, 2, p)
 			answer.AddAVP(diam.NewAVP(avp.ResultCode, avp.Mbit, 0, datatype.Unsigned32(diam.Success)))

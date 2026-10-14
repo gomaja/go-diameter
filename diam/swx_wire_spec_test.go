@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/swx"
+
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/dict"
@@ -138,9 +140,16 @@ func swxWireFlags(t *testing.T, must string) uint8 {
 	return flags
 }
 
-func swxFindAVP(t *testing.T, name string) *dict.AVP {
+func swxFindAVP(t *testing.T, name string, parsers ...*dict.Parser) *dict.AVP {
+	var testDict *dict.Parser
+	if len(parsers) > 0 {
+		testDict = parsers[0]
+	} else {
+		testDict = newTestDictionary(swx.Dictionary())
+	}
+
 	t.Helper()
-	a, err := dict.Default.FindAVPByName(swxWireAppID, name)
+	a, err := testDict.FindAVPByName(swxWireAppID, name)
 	if err == nil {
 		return a
 	}
@@ -148,10 +157,10 @@ func swxFindAVP(t *testing.T, name string) *dict.AVP {
 		s = strings.ToUpper(strings.ReplaceAll(s, "3GPP", "TGPP"))
 		return strings.NewReplacer("-", "", "_", "", " ", "").Replace(s)
 	}
-	for _, app := range dict.Default.Apps() {
+	for _, app := range testDict.Apps() {
 		for _, candidate := range app.AVP {
 			if normalize(candidate.Name) == normalize(name) {
-				if a, err = dict.Default.FindAVPByName(swxWireAppID, candidate.Name); err == nil {
+				if a, err = testDict.FindAVPByName(swxWireAppID, candidate.Name); err == nil {
 					return a
 				}
 			}
@@ -226,10 +235,12 @@ func swxSampleData(t *testing.T, a *dict.AVP, depth int) datatype.Type {
 // TS 29.273 V19.2.0 Tables 8.2.3.0/1 and 8.2.3.0/2: all SWx-local AVPs and
 // recursively copied registry definitions have independent wire identities.
 func TestSWxAVPWireRoundTrip(t *testing.T) {
+	testDict := newTestDictionary(swx.Dictionary())
+
 	definitions, _ := swxWireSpec(t)
 	for _, want := range definitions {
 		t.Run(want.Name, func(t *testing.T) {
-			a, err := dict.Default.FindAVP(swxWireAppID, want.Code, want.Vendor)
+			a, err := testDict.FindAVP(swxWireAppID, want.Code, want.Vendor)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -237,16 +248,16 @@ func TestSWxAVPWireRoundTrip(t *testing.T) {
 				t.Fatalf("type %s, want %s", a.Data.TypeName, want.Type)
 			}
 			data := swxSampleData(t, a, 0)
-			m := NewRequest(303, swxWireAppID, dict.Default)
+			m := NewRequest(303, swxWireAppID, testDict)
 			if _, err := m.NewAVPByName(a.Name, swxWireFlags(t, a.Must), data); err != nil {
 				t.Fatal(err)
 			}
-			assertRefreshWire(t, m, want.Code, swxWireFlags(t, want.Must), want.Vendor, data)
+			assertRefreshWire(t, m, want.Code, swxWireFlags(t, want.Must), want.Vendor, data, testDict)
 			wire, err := m.Serialize()
 			if err != nil {
 				t.Fatal(err)
 			}
-			received, err := ReadMessage(bytes.NewReader(wire), dict.Default)
+			received, err := ReadMessage(bytes.NewReader(wire), testDict)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -258,7 +269,14 @@ func TestSWxAVPWireRoundTrip(t *testing.T) {
 	}
 }
 
-func swxCommandMessage(t *testing.T, spec swxWireCommandSpec) *Message {
+func swxCommandMessage(t *testing.T, spec swxWireCommandSpec, parsers ...*dict.Parser) *Message {
+	var testDict *dict.Parser
+	if len(parsers) > 0 {
+		testDict = parsers[0]
+	} else {
+		testDict = newTestDictionary(swx.Dictionary())
+	}
+
 	t.Helper()
 	flags := uint8(0)
 	if spec.Proxiable {
@@ -267,13 +285,13 @@ func swxCommandMessage(t *testing.T, spec swxWireCommandSpec) *Message {
 	if spec.Request {
 		flags |= RequestFlag
 	}
-	m := NewMessage(spec.Code, flags, swxWireAppID, 0x12345678, 0x87654321, dict.Default)
+	m := NewMessage(spec.Code, flags, swxWireAppID, 0x12345678, 0x87654321, testDict)
 	for _, rule := range spec.Rules {
 		if rule.Name == "AVP" {
 			continue
 		}
 		for i := 0; i < rule.Min; i++ {
-			a := swxFindAVP(t, rule.Name)
+			a := swxFindAVP(t, rule.Name, testDict)
 			m.AddAVP(NewAVP(a.Code, swxWireFlags(t, a.Must)&^swxWireFlags(t, rule.MustNot), a.VendorID, swxSampleData(t, a, 0)))
 		}
 	}
@@ -283,10 +301,12 @@ func swxCommandMessage(t *testing.T, spec swxWireCommandSpec) *Message {
 // TS 29.273 V19.2.0 §§8.2.2.1–8.2.2.4: the four SWx command pairs use the
 // source CCF's required AVPs, fixed placement, and P bit on actual bytes.
 func TestSWxCommandWireAndBoundaries(t *testing.T) {
+	testDict := newTestDictionary(swx.Dictionary())
+
 	_, commands := swxWireSpec(t)
 	for _, spec := range commands {
 		t.Run(fmt.Sprintf("%s/request=%t", spec.Section, spec.Request), func(t *testing.T) {
-			m := swxCommandMessage(t, spec)
+			m := swxCommandMessage(t, spec, testDict)
 			if err := m.ValidateOutgoing(); err != nil {
 				t.Fatalf("valid command: %v", err)
 			}
@@ -294,7 +314,7 @@ func TestSWxCommandWireAndBoundaries(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			got, err := ReadMessage(bytes.NewReader(wire), dict.Default)
+			got, err := ReadMessage(bytes.NewReader(wire), testDict)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -323,8 +343,8 @@ func TestSWxCommandWireAndBoundaries(t *testing.T) {
 				if rule.Name == "AVP" || rule.Min == 0 {
 					continue
 				}
-				m := swxCommandMessage(t, spec)
-				a := swxFindAVP(t, rule.Name)
+				m := swxCommandMessage(t, spec, testDict)
+				a := swxFindAVP(t, rule.Name, testDict)
 				for i, item := range m.AVP {
 					if item.Code == a.Code && item.VendorID == a.VendorID {
 						m.AVP = append(m.AVP[:i], m.AVP[i+1:]...)
@@ -340,8 +360,8 @@ func TestSWxCommandWireAndBoundaries(t *testing.T) {
 				if rule.Name == "AVP" || rule.Fixed || rule.Max == nil {
 					continue
 				}
-				m := swxCommandMessage(t, spec)
-				a := swxFindAVP(t, rule.Name)
+				m := swxCommandMessage(t, spec, testDict)
+				a := swxFindAVP(t, rule.Name, testDict)
 				count := 0
 				for _, item := range m.AVP {
 					if item.Code == a.Code && item.VendorID == a.VendorID {
@@ -407,18 +427,20 @@ func swxWireName(name string) string {
 // TS 29.273 V19.2.0 §8.2.3 and the source clauses recorded in the
 // copied fixture govern required, optional, repeated, and extension members.
 func TestSWxGroupedBoundaries(t *testing.T) {
+	testDict := newTestDictionary(swx.Dictionary())
+
 	definitions, _ := swxWireSpec(t)
 	for _, spec := range definitions {
 		if spec.Type != "Grouped" {
 			continue
 		}
 		t.Run(spec.Name, func(t *testing.T) {
-			definition, err := dict.Default.FindAVP(swxWireAppID, spec.Code, spec.Vendor)
+			definition, err := testDict.FindAVP(swxWireAppID, spec.Code, spec.Vendor)
 			if err != nil {
 				t.Fatal(err)
 			}
 			check := func(items []*AVP) *ValidationError {
-				return validateAVPs(items, definition.Data.Rule, swxWireAppID, dict.Default.Snapshot())
+				return validateAVPs(items, definition.Data.Rule, swxWireAppID, testDict.Snapshot())
 			}
 			fresh := func() []*AVP {
 				return swxSampleData(t, definition, 0).(*GroupedAVP).AVP
@@ -441,7 +463,7 @@ func TestSWxGroupedBoundaries(t *testing.T) {
 					}
 					continue
 				}
-				child := swxFindAVP(t, rule.Name)
+				child := swxFindAVP(t, rule.Name, testDict)
 				withCount := func(count int) []*AVP {
 					var items []*AVP
 					inserted := false
@@ -499,6 +521,8 @@ func TestSWxGroupedBoundaries(t *testing.T) {
 // Sender-only parent restrictions must reject each prohibited member flag,
 // while the permitted form remains valid under the effective SWx dictionary.
 func TestSWxScopedMemberFlags(t *testing.T) {
+	testDict := newTestDictionary(swx.Dictionary())
+
 	_, commands := swxWireSpec(t)
 	for _, command := range commands {
 		for _, rule := range command.Rules {
@@ -509,8 +533,8 @@ func TestSWxScopedMemberFlags(t *testing.T) {
 				if swxWireFlags(t, rule.MustNot)&bit == 0 {
 					continue
 				}
-				m := swxCommandMessage(t, command)
-				definition := swxFindAVP(t, rule.Name)
+				m := swxCommandMessage(t, command, testDict)
+				definition := swxFindAVP(t, rule.Name, testDict)
 				child := NewAVP(definition.Code, swxWireFlags(t, definition.Must)&^swxWireFlags(t, rule.MustNot), definition.VendorID, swxSampleData(t, definition, 0))
 				m.AddAVP(child)
 				if err := m.ValidateOutgoing(); err != nil {
@@ -528,6 +552,8 @@ func TestSWxScopedMemberFlags(t *testing.T) {
 // TS 29.229 V19.1.0 §7.2.1 requires Supported-Features to clear M in
 // answers; TS 29.273 V19.2.0 Table 8.2.3.0/2 reuses that definition.
 func TestSWxSupportedFeaturesFlagScope(t *testing.T) {
+	testDict := newTestDictionary(swx.Dictionary())
+
 	_, commands := swxWireSpec(t)
 	for _, command := range commands {
 		for _, rule := range command.Rules {
@@ -535,8 +561,8 @@ func TestSWxSupportedFeaturesFlagScope(t *testing.T) {
 				continue
 			}
 			for _, bit := range []uint8{0, avp.Mbit} {
-				m := swxCommandMessage(t, command)
-				definition := swxFindAVP(t, rule.Name)
+				m := swxCommandMessage(t, command, testDict)
+				definition := swxFindAVP(t, rule.Name, testDict)
 				m.AddAVP(NewAVP(definition.Code, swxWireFlags(t, definition.Must)|bit, definition.VendorID, swxSampleData(t, definition, 0)))
 				err := m.ValidateOutgoing()
 				if !command.Request && bit != 0 {
@@ -550,7 +576,7 @@ func TestSWxSupportedFeaturesFlagScope(t *testing.T) {
 				if wireErr != nil {
 					t.Fatal(wireErr)
 				}
-				received, readErr := ReadMessage(bytes.NewReader(wire), dict.Default)
+				received, readErr := ReadMessage(bytes.NewReader(wire), testDict)
 				if readErr != nil {
 					t.Fatal(readErr)
 				}
@@ -590,6 +616,8 @@ func TestSWxSupportedFeaturesFlagScope(t *testing.T) {
 // TS 29.336 V20.0.0 Table 8.4.1-1 and §8.4.5 require M,V on SCEF-ID.
 // TS 29.273 V19.2.0 Table 8.2.3.0/2 does not import S6a's M-bit override.
 func TestSWxSCEFIDSAAOutgoing(t *testing.T) {
+	testDict := newTestDictionary(swx.Dictionary())
+
 	_, commands := swxWireSpec(t)
 	var saa swxWireCommandSpec
 	for _, command := range commands {
@@ -609,7 +637,7 @@ func TestSWxSCEFIDSAAOutgoing(t *testing.T) {
 		{"missing_M", avp.Vbit, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			m := swxCommandMessage(t, saa)
+			m := swxCommandMessage(t, saa, testDict)
 			scef := NewAVP(avp.SCEFID, tc.flags, 10415, datatype.DiameterIdentity("scef.example.net"))
 			apn := NewAVP(avp.APNConfiguration, avp.Mbit|avp.Vbit, 10415, &GroupedAVP{AVP: []*AVP{
 				NewAVP(avp.ContextIdentifier, avp.Mbit|avp.Vbit, 10415, datatype.Unsigned32(1)),
@@ -633,7 +661,7 @@ func TestSWxSCEFIDSAAOutgoing(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			received, err := ReadMessage(bytes.NewReader(wire), dict.Default)
+			received, err := ReadMessage(bytes.NewReader(wire), testDict)
 			if err != nil {
 				t.Fatal(err)
 			}

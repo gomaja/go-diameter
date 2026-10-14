@@ -8,6 +8,15 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gomaja/go-diameter/diam/dict/all"
+
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+	"github.com/gomaja/go-diameter/diam/dict/cx"
+	"github.com/gomaja/go-diameter/diam/dict/nasreq"
+	"github.com/gomaja/go-diameter/diam/dict/rorf"
+	"github.com/gomaja/go-diameter/diam/dict/s6a"
+	"github.com/gomaja/go-diameter/diam/dict/s6c"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
@@ -20,6 +29,9 @@ type capabilityGroup struct {
 }
 
 func TestCapabilityConfigurationValidationBoundaries(t *testing.T) {
+	testDict := newSMTestDictionary(dict.Base())
+	serverSettings := cloneTestSettings(serverSettings, testDict)
+
 	invalid := diam.NewAVP(avp.VendorSpecificApplicationID, avp.Mbit, 0, &diam.GroupedAVP{AVP: []*diam.AVP{
 		diam.NewAVP(avp.AuthApplicationID, avp.Mbit, 0, datatype.Unsigned32(4)),
 	}})
@@ -28,14 +40,17 @@ func TestCapabilityConfigurationValidationBoundaries(t *testing.T) {
 	if _, err := New(&settings); err == nil || !strings.Contains(err.Error(), "exactly one Vendor-Id") {
 		t.Fatalf("sm.New malformed VSAI error = %v", err)
 	}
-	client := &Client{Handler: mustNew(serverSettings), VendorSpecificApplicationID: []*diam.AVP{invalid}}
+	client := &Client{Handler: mustNew(serverSettings), VendorSpecificApplicationID: []*diam.AVP{invalid}, Dict: testDict}
 	if _, err := client.Dial("127.0.0.1:1"); err == nil || !strings.Contains(err.Error(), "exactly one Vendor-Id") {
 		t.Fatalf("Client.Dial malformed VSAI error = %v", err)
 	}
 }
 
 func TestClientCapabilitiesSnapshotPrecedesTransport(t *testing.T) {
-	dictionary := dict.New(dict.Base)
+	testDict := newSMTestDictionary(dict.Base())
+	clientSettings := cloneTestSettings(clientSettings, testDict)
+
+	dictionary := newTestDictionary(dict.Base())
 	if err := dictionary.Load(strings.NewReader(`<diameter><application id="16777999" type="auth" name="Private"/></diameter>`)); err != nil {
 		t.Fatal(err)
 	}
@@ -146,14 +161,17 @@ func smSupportedVendor(id uint32) *diam.AVP {
 // RFC 6733 §§5.3.6, 6.11 and TS 29.229 V19.1.0 §5.6: ETSI AVPs are
 // supported for Cx, while 3GPP is the Cx application vendor.
 func TestCxSupportedVendors(t *testing.T) {
+	testDict := newSMTestDictionary(dict.Base())
+	serverSettings := cloneTestSettings(serverSettings, testDict)
+
 	for _, tc := range []struct {
 		name       string
 		dictionary *dict.Parser
 		offerCx    bool
 		want       []uint32
 	}{
-		{"base-only", dict.New(dict.Base), false, nil},
-		{"Cx", dict.New(dict.Base, dict.NASREQ, dict.Cx), true, []uint32{10415, 13019}},
+		{"base-only", newTestDictionary(dict.Base()), false, nil},
+		{"Cx", newTestDictionary(dict.Base(), nasreq.Dictionary(), cx.Dictionary()), true, []uint32{10415, 13019}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			settings := *serverSettings
@@ -197,17 +215,20 @@ func TestCxSupportedVendors(t *testing.T) {
 }
 
 func TestClientCERAdvertisedVendorsFollowOffers(t *testing.T) {
+	testDict := newSMTestDictionary(all.Dictionary())
+	serverSettings := cloneTestSettings(serverSettings, testDict)
+
 	for _, tc := range []struct {
 		name       string
 		dictionary *dict.Parser
 		offer      *diam.AVP
 		want       []uint32
 	}{
-		{"no-offer", dict.Default, nil, []uint32{5535, 10415, 13019, 45687}},
-		{"Default-S6a-only", dict.Default, smVendorApp(16777251, 10415), []uint32{10415}},
-		{"Default-Cx-only", dict.Default, smVendorApp(16777216, 10415), []uint32{10415, 13019}},
-		{"S6a-bundle", dict.New(dict.Base, dict.NASREQ, dict.CreditControl, dict.RoRf, dict.S6c, dict.S6a), smVendorApp(16777251, 10415), []uint32{10415}},
-		{"Cx-bundle", dict.New(dict.Base, dict.NASREQ, dict.Cx), smVendorApp(16777216, 10415), []uint32{10415, 13019}},
+		{"no-offer", testDict, nil, []uint32{5535, 10415, 13019, 45687}},
+		{"All-S6a-only", testDict, smVendorApp(16777251, 10415), []uint32{10415}},
+		{"All-Cx-only", testDict, smVendorApp(16777216, 10415), []uint32{10415, 13019}},
+		{"S6a-bundle", newTestDictionary(dict.Base(), nasreq.Dictionary(), creditcontrol.Dictionary(), rorf.Dictionary(), s6c.Dictionary(), s6a.Dictionary()), smVendorApp(16777251, 10415), []uint32{10415}},
+		{"Cx-bundle", newTestDictionary(dict.Base(), nasreq.Dictionary(), cx.Dictionary()), smVendorApp(16777216, 10415), []uint32{10415, 13019}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			settings := *serverSettings
@@ -227,7 +248,10 @@ func TestClientCERAdvertisedVendorsFollowOffers(t *testing.T) {
 }
 
 func TestS6aBundledCapabilities(t *testing.T) {
-	dictionary := dict.New(dict.Base, dict.NASREQ, dict.CreditControl, dict.RoRf, dict.S6c, dict.S6a)
+	testDict := newSMTestDictionary(dict.Base())
+	serverSettings := cloneTestSettings(serverSettings, testDict)
+
+	dictionary := newTestDictionary(dict.Base(), nasreq.Dictionary(), creditcontrol.Dictionary(), rorf.Dictionary(), s6c.Dictionary(), s6a.Dictionary())
 	settings := *serverSettings
 	settings.Dict = dictionary
 	settings.HostIPAddresses = []datatype.Address{localhostAddress}
@@ -256,7 +280,10 @@ func TestS6aBundledCapabilities(t *testing.T) {
 }
 
 func TestSMConfiguredSupportedVendors(t *testing.T) {
-	dictionary := dict.New(dict.Base, dict.NASREQ, dict.Cx)
+	testDict := newSMTestDictionary(dict.Base())
+	serverSettings := cloneTestSettings(serverSettings, testDict)
+
+	dictionary := newTestDictionary(dict.Base(), nasreq.Dictionary(), cx.Dictionary())
 	for _, tc := range []struct {
 		name           string
 		manufacturer   uint32

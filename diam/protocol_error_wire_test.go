@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/dict"
 	"github.com/gomaja/go-diameter/diam/internal/logtest"
@@ -140,7 +142,7 @@ func TestProtocolErrorB16StrictAnswerDecodeWire(t *testing.T) {
 	records := logtest.New()
 	handler := &protocolObserverHandler{onEvent: func(e ProtocolErrorEvent) { events <- e }}
 	accepted := make(chan Conn, 1)
-	dictionary := dict.New(dict.Base)
+	dictionary := newTestDictionary(dict.Base())
 	dictionary.SetStrict(true)
 	addr := reportingTCPServer(t, &Server{Handler: handler, Dict: dictionary, Logger: records.Logger(), OnNewConnection: func(c Conn) { accepted <- c }})
 	remote := reportingDial(t, addr)
@@ -169,6 +171,8 @@ func TestProtocolErrorB16StrictAnswerDecodeWire(t *testing.T) {
 }
 
 func TestProtocolErrorServerLeavesHandledNotificationToOwner(t *testing.T) {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
 	for _, fatal := range []bool{false, true} {
 		t.Run(fmt.Sprintf("fatal=%t", fatal), func(t *testing.T) {
 			events := make(chan ProtocolErrorEvent, 3)
@@ -191,7 +195,7 @@ func TestProtocolErrorServerLeavesHandledNotificationToOwner(t *testing.T) {
 			}
 			_ = receiveProtocolEvent(t, events)
 			if !fatal {
-				if _, err := NewRequest(DeviceWatchdog, 0, dict.Default).WriteTo(remote); err != nil {
+				if _, err := NewRequest(DeviceWatchdog, 0, testDict).WriteTo(remote); err != nil {
 					t.Fatal(err)
 				}
 				ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
@@ -220,6 +224,8 @@ func TestProtocolErrorServerLeavesHandledNotificationToOwner(t *testing.T) {
 }
 
 func TestServeMuxProtocolObserverRoutesSnapshot(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	for _, route := range []string{"index", "name", "fallback", "unknown header", "unknown command"} {
 		t.Run(route, func(t *testing.T) {
 			local, remote := net.Pipe()
@@ -234,7 +240,7 @@ func TestServeMuxProtocolObserverRoutesSnapshot(t *testing.T) {
 				}
 				mux.Handle("late", HandlerFunc(func(Conn, *Message) {}))
 			}}
-			m := NewRequest(CapabilitiesExchange, 0, dict.Default)
+			m := NewRequest(CapabilitiesExchange, 0, testDict)
 			e := ProtocolErrorEvent{Conn: c, Message: protocolMessageMetadata(m), Err: NewProtocolError(ProtocolMalformedMessage, 5004)}
 			switch route {
 			case "index":
@@ -366,6 +372,8 @@ func TestProtocolErrorServerCallbackBackpressure(t *testing.T) {
 }
 
 func TestProtocolErrorA18ConcurrentDispatch(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	events := make(chan ProtocolErrorEvent, 2)
 	release := make(chan struct{})
 	t.Cleanup(func() {
@@ -380,9 +388,9 @@ func TestProtocolErrorA18ConcurrentDispatch(t *testing.T) {
 	addr := reportingTCPServer(t, &Server{Handler: handler, Logger: logtest.New().Logger(), MaxConcurrentHandlers: -1, OnNewConnection: func(c Conn) { accepted <- c }})
 	remote := reportingDial(t, addr)
 	original := <-accepted
-	first := NewRequest(DeviceWatchdog, 0, dict.Default)
+	first := NewRequest(DeviceWatchdog, 0, testDict)
 	first.Header.HopByHopID = 11
-	second := NewRequest(DeviceWatchdog, 0, dict.Default)
+	second := NewRequest(DeviceWatchdog, 0, testDict)
 	second.Header.HopByHopID = 22
 	if _, err := first.WriteTo(remote); err != nil {
 		t.Fatal(err)
@@ -419,6 +427,8 @@ func TestProtocolErrorServerFirstObserverWins(t *testing.T) {
 }
 
 func TestProtocolErrorServerIgnoresTransportAndConfigurationErrors(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	for _, cause := range []error{io.EOF, io.ErrUnexpectedEOF, net.ErrClosed, bodyTimeout{}, errors.New("local dictionary has no AVPs")} {
 		t.Run(cause.Error(), func(t *testing.T) {
 			local, remote := net.Pipe()
@@ -426,7 +436,7 @@ func TestProtocolErrorServerIgnoresTransportAndConfigurationErrors(t *testing.T)
 			events := 0
 			h := &protocolObserverHandler{onEvent: func(ProtocolErrorEvent) { events++ }}
 			c := (&Server{Handler: h, Logger: logtest.New().Logger()}).newConn(local)
-			if c.handleReadError(NewRequest(DeviceWatchdog, 0, dict.Default), cause) || events != 0 {
+			if c.handleReadError(NewRequest(DeviceWatchdog, 0, testDict), cause) || events != 0 {
 				t.Fatalf("local error continued or notified: %v count=%d", cause, events)
 			}
 		})
@@ -434,6 +444,8 @@ func TestProtocolErrorServerIgnoresTransportAndConfigurationErrors(t *testing.T)
 }
 
 func TestProtocolErrorDecoderWrappingCloseStillNotifies(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	for _, cause := range []error{io.EOF, net.ErrClosed} {
 		t.Run(cause.Error(), func(t *testing.T) {
 			local, remote := net.Pipe()
@@ -442,7 +454,7 @@ func TestProtocolErrorDecoderWrappingCloseStillNotifies(t *testing.T) {
 			h := &protocolObserverHandler{onEvent: func(e ProtocolErrorEvent) { events <- e }}
 			c := (&Server{Handler: h, Logger: logtest.New().Logger()}).newConn(local)
 			cause := &avpDecodeError{resultCode: InvalidAVPValue, err: cause}
-			if c.handleReadError(NewRequest(DeviceWatchdog, 0, dict.Default), cause) {
+			if c.handleReadError(NewRequest(DeviceWatchdog, 0, testDict), cause) {
 				t.Fatal("strict answer decode continued")
 			}
 			e := receiveProtocolEvent(t, events)
@@ -454,6 +466,8 @@ func TestProtocolErrorDecoderWrappingCloseStillNotifies(t *testing.T) {
 }
 
 func TestProtocolErrorFallbackSnapshotsBeforeHandlerMutation(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	local, remote := net.Pipe()
 	defer func() { _ = local.Close(); _ = remote.Close() }()
 	events := make(chan ProtocolErrorEvent, 1)
@@ -464,7 +478,7 @@ func TestProtocolErrorFallbackSnapshotsBeforeHandlerMutation(t *testing.T) {
 		return errors.New("synthetic failure")
 	}}
 	c := (&Server{Handler: handler, Logger: logtest.New().Logger()}).newConn(local)
-	m := NewRequest(DeviceWatchdog, 0, dict.Default)
+	m := NewRequest(DeviceWatchdog, 0, testDict)
 	originalHeader := *m.Header
 	if c.handleReadError(m, &MessageError{ResultCode: InvalidAVPValue, Err: errors.New("synthetic decode")}) {
 		t.Fatal("failed handler continued")

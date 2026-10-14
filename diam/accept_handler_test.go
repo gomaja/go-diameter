@@ -25,10 +25,12 @@ func (h *acceptLifecycleHandler) HandleAccept(diam.Conn) func() {
 }
 
 func TestAcceptHandlerOnlyRunsForAcceptedConnections(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	h := &acceptLifecycleHandler{opened: make(chan struct{}, 2), done: make(chan struct{}, 2)}
-	srv := diamtest.NewServer(h, dict.Default)
+	srv := diamtest.NewServer(h, testDict)
 	defer srv.Close()
-	client, err := diam.Dial(srv.Addr, h, dict.Default)
+	client, err := diam.Dial(srv.Addr, h, testDict)
 	if err != nil {
 		t.Fatal(err)
 	}

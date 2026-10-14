@@ -4,16 +4,20 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/gomaja/go-diameter/diam/dict/all"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
-	"github.com/gomaja/go-diameter/diam/dict"
 )
 
 // RFC 6733 §§5.3.6, 6.11: pin CER vendors for every application in Default.
 // Base alone declares no vendors; the loaded TS 32.299 V19.0.0 §§7.2–7.5
 // contribution to application 3 declares the four Rf charging suppliers.
 func TestBaseRefreshApplicationVendors(t *testing.T) {
+	testDict := newSMTestDictionary(all.Dictionary())
+	serverSettings := cloneTestSettings(serverSettings, testDict)
+
 	for _, tc := range []struct {
 		id      uint32
 		vendors []uint32
@@ -27,8 +31,8 @@ func TestBaseRefreshApplicationVendors(t *testing.T) {
 	} {
 		t.Run(fmt.Sprint(tc.id), func(t *testing.T) {
 			settings := *serverSettings
-			settings.Dict = dict.Default
-			client := &Client{Handler: mustNew(&settings), Dict: dict.Default,
+			settings.Dict = testDict
+			client := &Client{Handler: mustNew(&settings), Dict: testDict,
 				AuthApplicationID: []*diam.AVP{}, AcctApplicationID: []*diam.AVP{}, VendorSpecificApplicationID: []*diam.AVP{},
 			}
 			switch {
@@ -44,7 +48,7 @@ func TestBaseRefreshApplicationVendors(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			got := readSMCapabilities(t, request, dict.Default)
+			got := readSMCapabilities(t, request, testDict)
 			checkSMVendors(t, got.supported, tc.vendors)
 		})
 	}

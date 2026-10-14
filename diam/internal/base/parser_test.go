@@ -11,7 +11,9 @@ import (
 )
 
 func TestCapabilityParsersReusableWithoutStateMachine(t *testing.T) {
-	request := diam.NewMessage(diam.CapabilitiesExchange, diam.RequestFlag, 0, 1, 2, dict.Default)
+	testDict := newTestDictionary(dict.Base())
+
+	request := diam.NewMessage(diam.CapabilitiesExchange, diam.RequestFlag, 0, 1, 2, testDict)
 	for _, field := range []struct {
 		code  uint32
 		value datatype.Type
@@ -40,6 +42,8 @@ func TestCapabilityParsersReusableWithoutStateMachine(t *testing.T) {
 }
 
 func TestRelayCERAlwaysHasCommonApplications(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	relay := diam.NewAVP(avp.AuthApplicationID, avp.Mbit, 0, datatype.Unsigned32(0xffffffff))
 	for _, tc := range []struct {
 		name     string
@@ -52,7 +56,7 @@ func TestRelayCERAlwaysHasCommonApplications(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			parsed := &base.Application{AuthApplicationID: []*diam.AVP{relay}}
-			_, err := parsed.ParseWithApplicationIDs(dict.Default, base.Server, tc.localIDs)
+			_, err := parsed.ParseWithApplicationIDs(testDict, base.Server, tc.localIDs)
 			if err != tc.wantErr {
 				t.Fatalf("relay with local applications %v: error = %v, want %v", tc.localIDs, err, tc.wantErr)
 			}
@@ -61,7 +65,9 @@ func TestRelayCERAlwaysHasCommonApplications(t *testing.T) {
 }
 
 func TestWatchdogParsersReusableWithoutStateMachine(t *testing.T) {
-	request := diam.NewMessage(diam.DeviceWatchdog, diam.RequestFlag, 0, 3, 4, dict.Default)
+	testDict := newTestDictionary(dict.Base())
+
+	request := diam.NewMessage(diam.DeviceWatchdog, diam.RequestFlag, 0, 3, 4, testDict)
 	parsed := new(base.DWR)
 	if err := parsed.Parse(request); err != base.ErrMissingOriginHost {
 		t.Fatalf("error = %v", err)

@@ -13,6 +13,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+	"github.com/gomaja/go-diameter/diam/dict/nasreq"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
@@ -22,17 +25,19 @@ import (
 )
 
 func newProtocolDeliveryWire(t *testing.T, mode int, admit bool, configure func(*Settings), serverOptions ...func(*diam.Server)) *protocolWire {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	t.Helper()
 	p := &protocolWire{events: make(chan diam.ProtocolErrorEvent, 16), logs: logtest.New()}
-	cfg := testMessageErrorSettings()
+	cfg := testMessageErrorSettings(testDict)
 	cfg.OnProtocolError = func(event diam.ProtocolErrorEvent) { p.events <- event }
 	if configure != nil {
 		configure(cfg)
 	}
-	p.sm = mustNewStateMachine(t, cfg)
+	p.sm = mustNewStateMachine(t, cfg, testDict)
 	dictionary := cfg.Dict
 	if dictionary == nil {
-		dictionary = dict.Default
+		dictionary = testDict
 	}
 	server := diamtest.NewUnstartedServer(p.sm, dictionary)
 	server.Config.MaxConcurrentHandlers = mode
@@ -56,7 +61,7 @@ func newProtocolDeliveryWire(t *testing.T, mode int, admit bool, configure func(
 	p.conn = protocolGenerationAwait(t, opened)
 	if admit {
 		writeValidSMErrorCER(t, p.peer)
-		answer, err := diam.ReadMessage(p.peer, dict.Default)
+		answer, err := diam.ReadMessage(p.peer, testDict)
 		if err != nil || !testResultCode(answer, diam.Success) {
 			t.Fatalf("handshake = %v, %v", answer, err)
 		}
@@ -65,6 +70,8 @@ func newProtocolDeliveryWire(t *testing.T, mode int, admit bool, configure func(
 }
 
 func TestProtocolErrorCallbackPanicBoundaries(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	for _, variant := range []string{"handler", "concurrent_handler", "reader", "timer"} {
 		t.Run(variant, func(t *testing.T) {
 			events := make(chan diam.ProtocolErrorEvent, 4)
@@ -91,7 +98,7 @@ func TestProtocolErrorCallbackPanicBoundaries(t *testing.T) {
 					wire = append(wire, 0, 0, 1, 2, avp.Mbit, 0xff, 0xff, 0xff)
 					writeSMErrorWire(t, p.peer, wire)
 					header, _ = diam.DecodeHeader(wire)
-					answer, err := diam.ReadMessage(p.peer, dict.Default)
+					answer, err := diam.ReadMessage(p.peer, testDict)
 					if err != nil || !testResultCode(answer, diam.InvalidAVPLength) || answer.Header.HopByHopID != header.HopByHopID {
 						t.Fatalf("malformed request answer = %v, %v", answer, err)
 					}
@@ -133,6 +140,8 @@ func TestProtocolErrorCallbackPanicBoundaries(t *testing.T) {
 }
 
 func TestProtocolErrorBlockingCallbackFollowsAnswerAndLogs(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	entered := make(chan diam.ProtocolErrorEvent, 1)
 	release := make(chan struct{})
 	var once sync.Once
@@ -141,9 +150,9 @@ func TestProtocolErrorBlockingCallbackFollowsAnswerAndLogs(t *testing.T) {
 		cfg.OnProtocolError = func(event diam.ProtocolErrorEvent) { entered <- event; <-release }
 	})
 	t.Cleanup(unblock)
-	request := diam.NewMessage(0xfedc, diam.RequestFlag, 0, 0x86b0, 0x86b1, dict.Default)
+	request := diam.NewMessage(0xfedc, diam.RequestFlag, 0, 0x86b0, 0x86b1, testDict)
 	header := p.send(t, request)
-	answer, err := diam.ReadMessage(p.peer, dict.Default)
+	answer, err := diam.ReadMessage(p.peer, testDict)
 	if err != nil || !testResultCode(answer, diam.CommandUnsupported) || answer.Header.HopByHopID != header.HopByHopID {
 		t.Fatalf("unsupported command answer = %v, %v", answer, err)
 	}
@@ -170,7 +179,7 @@ func TestProtocolErrorBlockingCallbackFollowsAnswerAndLogs(t *testing.T) {
 	if err := p.peer.SetReadDeadline(time.Now().Add(3 * time.Second)); err != nil {
 		t.Fatal(err)
 	}
-	answer, err = diam.ReadMessage(p.peer, dict.Default)
+	answer, err = diam.ReadMessage(p.peer, testDict)
 	if err != nil || !testResultCode(answer, diam.Success) || answer.Header.HopByHopID != requestHeader.HopByHopID {
 		t.Fatalf("following DWA after callback return = %v, %v", answer, err)
 	}
@@ -215,6 +224,8 @@ func TestProtocolErrorCallbacksOverlapOnSameConnection(t *testing.T) {
 }
 
 func TestProtocolErrorWatchdogCallbackCanStopSupervision(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	for _, invalid := range []bool{false, true} {
 		t.Run(fmt.Sprintf("invalid=%t", invalid), func(t *testing.T) {
 			events := make(chan diam.ProtocolErrorEvent, 1)
@@ -222,7 +233,7 @@ func TestProtocolErrorWatchdogCallbackCanStopSupervision(t *testing.T) {
 			var machine atomic.Pointer[StateMachine]
 			p := newProtocolDeliveryWire(t, 0, true, func(cfg *Settings) {
 				cfg.EnableWatchdog, cfg.WatchdogInterval = true, time.Hour
-				cfg.Dict = dict.New(dict.Base, dict.NASREQ)
+				cfg.Dict = newTestDictionary(dict.Base(), nasreq.Dictionary())
 				cfg.Dict.SetStrict(false)
 				cfg.AuthApplicationID = []*diam.AVP{diam.NewAVP(avp.AuthApplicationID, avp.Mbit, 0, datatype.Unsigned32(1001))}
 				if invalid {
@@ -241,7 +252,7 @@ func TestProtocolErrorWatchdogCallbackCanStopSupervision(t *testing.T) {
 				}
 			})
 			machine.Store(p.sm)
-			m := diam.NewMessage(diam.DeviceWatchdog, 0, 0, 0x86a0, 0x86a1, dict.Default)
+			m := diam.NewMessage(diam.DeviceWatchdog, 0, 0, 0x86a0, 0x86a1, testDict)
 			var payload datatype.Type = datatype.Unsigned32(diam.UnableToComply)
 			kind, code, logMessage := diam.ProtocolRejectedDWA, uint32(diam.UnableToComply), "sm: rejected DWA"
 			if invalid {
@@ -264,12 +275,14 @@ func TestProtocolErrorWatchdogCallbackCanStopSupervision(t *testing.T) {
 }
 
 func TestProtocolErrorCallbackMayCloseConnectionAfterAnswer(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	events := make(chan diam.ProtocolErrorEvent, 1)
 	p := newProtocolDeliveryWire(t, 0, true, func(cfg *Settings) {
 		cfg.OnProtocolError = func(event diam.ProtocolErrorEvent) { event.Conn.Close(); events <- event }
 	})
-	header := p.send(t, diam.NewMessage(0xfedc, diam.RequestFlag, 0, 0x86f0, 0x86f1, dict.Default))
-	answer, err := diam.ReadMessage(p.peer, dict.Default)
+	header := p.send(t, diam.NewMessage(0xfedc, diam.RequestFlag, 0, 0x86f0, 0x86f1, testDict))
+	answer, err := diam.ReadMessage(p.peer, testDict)
 	if err != nil || !testResultCode(answer, diam.CommandUnsupported) || answer.Header.HopByHopID != header.HopByHopID {
 		t.Fatalf("answer before callback close = %v, %v", answer, err)
 	}

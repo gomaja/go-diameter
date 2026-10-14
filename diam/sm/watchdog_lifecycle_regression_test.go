@@ -7,8 +7,9 @@ import (
 	"testing/synctest"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam"
-	"github.com/gomaja/go-diameter/diam/dict"
 	"github.com/gomaja/go-diameter/diam/internal/logtest"
 	"github.com/gomaja/go-diameter/diam/sm/smpeer"
 )
@@ -17,6 +18,8 @@ import (
 // startWatchdog registers the supervisor. stopWatchdog is then a no-op and the
 // deferred startWatchdog begins supervision inside Closing.
 func TestAcceptedWatchdogDisconnectDuringOnHandshake(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	synctest.Test(t, func(t *testing.T) {
 		cfg := newAcceptedWatchdogSettings()
 		entered := make(chan diam.Conn, 1)
@@ -29,7 +32,7 @@ func TestAcceptedWatchdogDisconnectDuringOnHandshake(t *testing.T) {
 		c := <-entered
 		result := make(chan error, 1)
 		go func() { result <- sm.Disconnect(c, DisconnectRebooting, time.Hour) }()
-		dpr, err := diam.ReadMessage(peer, dict.Default)
+		dpr, err := diam.ReadMessage(peer, testDict)
 		if err != nil || dpr.Header.CommandCode != diam.DisconnectPeer {
 			t.Fatalf("DPR: %v, %v", dpr, err)
 		}
@@ -37,7 +40,7 @@ func TestAcceptedWatchdogDisconnectDuringOnHandshake(t *testing.T) {
 		synctest.Wait()
 		_, supervised := sm.watchdogs.Load(c)
 		got := make(chan *diam.Message, 1)
-		go func() { m, _ := diam.ReadMessage(peer, dict.Default); got <- m }()
+		go func() { m, _ := diam.ReadMessage(peer, testDict); got <- m }()
 		select {
 		case m := <-got:
 			if m != nil {

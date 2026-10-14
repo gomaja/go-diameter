@@ -10,6 +10,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+	"github.com/gomaja/go-diameter/diam/dict/nasreq"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
@@ -27,6 +30,8 @@ type protocolWire struct {
 }
 
 func TestProtocolErrorRetainedWire(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	tests := []struct {
 		name      string
 		configure func(*Settings)
@@ -43,13 +48,13 @@ func TestProtocolErrorRetainedWire(t *testing.T) {
 			return m
 		}, diam.ProtocolMalformedMessage, 5014, true, "diam: malformed message", slog.LevelWarn},
 		{"A2_malformed_answer", nil, func(t *testing.T) *diam.Message {
-			m := diam.NewMessage(diam.DeviceWatchdog, 0, 0, 17, 18, dict.Default)
+			m := diam.NewMessage(diam.DeviceWatchdog, 0, 0, 17, 18, testDict)
 			m.AddAVP(diam.NewAVP(avp.OriginHost, avp.Mbit, 0, datatype.Unknown([]byte{0})))
 			return m
 		}, diam.ProtocolUnexpectedMessage, 0, false, "sm: unhandled answer discarded", slog.LevelWarn},
 		{"A3_invalid_header_request", nil, func(t *testing.T) *diam.Message { m := regressionDWR(t); m.Header.ApplicationID = 9; return m }, diam.ProtocolInvalidHeader, 3008, true, "sm: invalid message header", slog.LevelWarn},
 		{"A3_invalid_header_answer", nil, func(t *testing.T) *diam.Message {
-			return diam.NewMessage(diam.DeviceWatchdog, 0, 9, 17, 18, dict.Default)
+			return diam.NewMessage(diam.DeviceWatchdog, 0, 9, 17, 18, testDict)
 		}, diam.ProtocolInvalidHeader, 3008, false, "sm: invalid message header", slog.LevelWarn},
 		{"A4_unknown_mandatory", func(c *Settings) { c.RejectUnknownMandatoryAVPs = true }, func(t *testing.T) *diam.Message {
 			m := regressionDWR(t)
@@ -58,18 +63,18 @@ func TestProtocolErrorRetainedWire(t *testing.T) {
 		}, diam.ProtocolUnsupportedAVP, 5001, true, "sm: unsupported mandatory AVP", slog.LevelWarn},
 		{"A5_invalid_request", func(c *Settings) { c.ValidateRequests = true }, func(t *testing.T) *diam.Message { m := regressionDWR(t); m.AVP = m.AVP[:1]; return m }, diam.ProtocolInvalidRequest, 5005, true, "sm: invalid request", slog.LevelWarn},
 		{"A6_unsupported_command", nil, func(*testing.T) *diam.Message {
-			return diam.NewMessage(0xfedc, diam.RequestFlag, 0, 17, 18, dict.Default)
+			return diam.NewMessage(0xfedc, diam.RequestFlag, 0, 17, 18, testDict)
 		}, diam.ProtocolUnsupportedCommand, 3001, true, "sm: unsupported command answered", slog.LevelInfo},
 		{"A7_unsupported_application", nil, func(*testing.T) *diam.Message {
-			return diam.NewMessage(0xfedc, diam.RequestFlag, 0xfefe, 17, 18, dict.Default)
+			return diam.NewMessage(0xfedc, diam.RequestFlag, 0xfefe, 17, 18, testDict)
 		}, diam.ProtocolUnsupportedApplication, 3007, true, "sm: unsupported command answered", slog.LevelInfo},
 		{"A7_validation_precedence", func(c *Settings) { c.ValidateRequests = true }, func(*testing.T) *diam.Message {
-			return diam.NewMessage(0xfedc, diam.RequestFlag, 0xfefe, 17, 18, dict.Default)
+			return diam.NewMessage(0xfedc, diam.RequestFlag, 0xfefe, 17, 18, testDict)
 		}, diam.ProtocolUnsupportedApplication, 3007, true, "sm: unsupported command answered", slog.LevelInfo},
 		{"A9_invalid_DWA", func(c *Settings) {
 			c.EnableWatchdog = true
 			c.WatchdogInterval = time.Hour
-			c.Dict = dict.New(dict.Base, dict.NASREQ)
+			c.Dict = newTestDictionary(dict.Base(), nasreq.Dictionary())
 			c.Dict.SetStrict(false)
 			c.AcctApplicationID = []*diam.AVP{diam.NewAVP(avp.AcctApplicationID, avp.Mbit, 0, datatype.Unsigned32(1001))}
 			// Inject a dictionary/type mismatch to reach the parser's failure
@@ -78,23 +83,23 @@ func TestProtocolErrorRetainedWire(t *testing.T) {
 				t.Fatal(err)
 			}
 		}, func(*testing.T) *diam.Message {
-			m := diam.NewMessage(diam.DeviceWatchdog, 0, 0, 17, 18, dict.Default)
+			m := diam.NewMessage(diam.DeviceWatchdog, 0, 0, 17, 18, testDict)
 			m.AddAVP(diam.NewAVP(avp.ResultCode, avp.Mbit, 0, localhostAddress))
 			return m
 		}, diam.ProtocolInvalidDWA, 0, false, "sm: invalid DWA", slog.LevelWarn},
 		{"A10_rejected_DWA", func(c *Settings) { c.EnableWatchdog = true; c.WatchdogInterval = time.Hour }, func(*testing.T) *diam.Message {
-			m := diam.NewMessage(diam.DeviceWatchdog, 0, 0, 17, 18, dict.Default)
+			m := diam.NewMessage(diam.DeviceWatchdog, 0, 0, 17, 18, testDict)
 			m.AddAVP(diam.NewAVP(avp.ResultCode, avp.Mbit, 0, datatype.Unsigned32(5012)))
 			return m
 		}, diam.ProtocolRejectedDWA, 5012, false, "sm: rejected DWA", slog.LevelWarn},
 		{"A11_invalid_DPR", nil, func(*testing.T) *diam.Message {
-			return diam.NewMessage(diam.DisconnectPeer, diam.RequestFlag, 0, 17, 18, dict.Default)
+			return diam.NewMessage(diam.DisconnectPeer, diam.RequestFlag, 0, 17, 18, testDict)
 		}, diam.ProtocolInvalidDPR, 0, false, "sm: invalid DPR", slog.LevelWarn},
 		{"A13_unmatched_DPA", nil, func(*testing.T) *diam.Message {
-			return diam.NewMessage(diam.DisconnectPeer, 0, 0, 17, 18, dict.Default)
+			return diam.NewMessage(diam.DisconnectPeer, 0, 0, 17, 18, testDict)
 		}, diam.ProtocolUnexpectedMessage, 0, false, "", slog.LevelWarn},
-		{"A14_admitted_CER", nil, func(t *testing.T) *diam.Message { return regressionCER(t, dict.Default, 1001) }, diam.ProtocolUnexpectedMessage, 0, false, "sm: ignoring CER on admitted connection; accepted CER renewal is disabled or ineligible", slog.LevelWarn},
-		{"A16_unhandled_answer", nil, func(*testing.T) *diam.Message { return diam.NewMessage(0xfedc, 0, 0, 17, 18, dict.Default) }, diam.ProtocolUnexpectedMessage, 0, false, "sm: unhandled answer discarded", slog.LevelWarn},
+		{"A14_admitted_CER", nil, func(t *testing.T) *diam.Message { return regressionCER(t, testDict, 1001) }, diam.ProtocolUnexpectedMessage, 0, false, "sm: ignoring CER on admitted connection; accepted CER renewal is disabled or ineligible", slog.LevelWarn},
+		{"A16_unhandled_answer", nil, func(*testing.T) *diam.Message { return diam.NewMessage(0xfedc, 0, 0, 17, 18, testDict) }, diam.ProtocolUnexpectedMessage, 0, false, "sm: unhandled answer discarded", slog.LevelWarn},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -102,7 +107,7 @@ func TestProtocolErrorRetainedWire(t *testing.T) {
 			m := tc.message(t)
 			h := p.send(t, m)
 			if tc.answer {
-				a, err := diam.ReadMessage(p.peer, dict.Default)
+				a, err := diam.ReadMessage(p.peer, testDict)
 				if err != nil || !testResultCode(a, tc.code) || a.Header.HopByHopID != h.HopByHopID || a.Header.EndToEndID != h.EndToEndID || a.Header.CommandFlags&diam.ErrorFlag != map[bool]uint8{true: diam.ErrorFlag, false: 0}[tc.code >= 3000 && tc.code < 4000] {
 					t.Fatalf("answer=%v err=%v", a, err)
 				}
@@ -134,6 +139,8 @@ func TestProtocolErrorRetainedWire(t *testing.T) {
 }
 
 func TestProtocolErrorMalformedWire(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	for _, answer := range []bool{false, true} {
 		t.Run(fmt.Sprintf("A1_A2_answer=%t", answer), func(t *testing.T) {
 			p := newProtocolWire(t, nil, true)
@@ -146,7 +153,7 @@ func TestProtocolErrorMalformedWire(t *testing.T) {
 			writeSMErrorWire(t, p.peer, wire)
 			h, _ := diam.DecodeHeader(wire)
 			if !answer {
-				a, err := diam.ReadMessage(p.peer, dict.Default)
+				a, err := diam.ReadMessage(p.peer, testDict)
 				if err != nil || !testResultCode(a, 5014) {
 					t.Fatalf("error answer=%v %v", a, err)
 				}
@@ -168,18 +175,20 @@ func TestProtocolErrorMalformedWire(t *testing.T) {
 }
 
 func newProtocolWire(t *testing.T, configure func(*Settings), admit bool) *protocolWire {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	t.Helper()
 	p := &protocolWire{events: make(chan diam.ProtocolErrorEvent, 32), logs: logtest.New()}
-	cfg := testMessageErrorSettings()
+	cfg := testMessageErrorSettings(testDict)
 	cfg.OnProtocolError = func(e diam.ProtocolErrorEvent) { p.events <- e }
 	if configure != nil {
 		configure(cfg)
 	}
-	p.sm = mustNewStateMachine(t, cfg)
+	p.sm = mustNewStateMachine(t, cfg, testDict)
 	opened := make(chan diam.Conn, 1)
 	dictionary := cfg.Dict
 	if dictionary == nil {
-		dictionary = dict.Default
+		dictionary = testDict
 	}
 	srv := diamtest.NewUnstartedServer(p.sm, dictionary)
 	srv.Config.Logger = p.logs.Logger()
@@ -202,7 +211,7 @@ func newProtocolWire(t *testing.T, configure func(*Settings), admit bool) *proto
 	}
 	if admit {
 		writeValidSMErrorCER(t, p.peer)
-		if m, err := diam.ReadMessage(p.peer, dict.Default); err != nil || !testResultCode(m, diam.Success) {
+		if m, err := diam.ReadMessage(p.peer, testDict); err != nil || !testResultCode(m, diam.Success) {
 			t.Fatalf("handshake: %v %v", m, err)
 		}
 	}
@@ -246,20 +255,24 @@ func assertProtocolEvent(t *testing.T, e diam.ProtocolErrorEvent, c diam.Conn, h
 }
 
 func (p *protocolWire) usable(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	t.Helper()
 	m := regressionDWR(t)
 	m.Header.HopByHopID = 0x99887766
 	m.Header.EndToEndID = 0x88776655
 	p.send(t, m)
-	a, err := diam.ReadMessage(p.peer, dict.Default)
+	a, err := diam.ReadMessage(p.peer, testDict)
 	if err != nil || a.Header.HopByHopID != 0x99887766 || a.Header.EndToEndID != 0x88776655 || !testResultCode(a, diam.Success) || p.conn.Closed() {
 		t.Fatalf("following DWR: %v %v closed=%t", a, err, p.conn.Closed())
 	}
 }
 
 func TestProtocolErrorA8InvalidDWR(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	p := newProtocolWire(t, nil, true)
-	m := diam.NewMessage(diam.DeviceWatchdog, diam.RequestFlag, 0, 0x1234, 0x5678, dict.Default)
+	m := diam.NewMessage(diam.DeviceWatchdog, diam.RequestFlag, 0, 0x1234, 0x5678, testDict)
 	m.AddAVP(diam.NewAVP(avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("peer.example")))
 	h := p.send(t, m)
 	e := protocolEvent(t, p.events)

@@ -7,13 +7,13 @@ import (
 )
 
 func TestAVPPresence(t *testing.T) {
-	p := New(Base)
+	p := newTestParser(t, Base())
 	if err := p.Load(strings.NewReader(vendorLookupXML)); err != nil {
 		t.Fatal(err)
 	}
 	for label, lookup := range map[string]interface {
 		AVP(uint32, uint32, uint32) (*AVP, bool)
-	}{"parser": p, "snapshot": p.Snapshot(), "empty": New()} {
+	}{"parser": p, "snapshot": p.Snapshot(), "empty": newTestParser(t)} {
 		for _, tc := range []struct {
 			app, code, vendor uint32
 			name              string
@@ -49,7 +49,7 @@ func nameDefinitionXML() string {
 }
 
 func TestAVPPresenceTerminatesOnCycle(t *testing.T) {
-	p := New(Base)
+	p := newTestParser(t, Base())
 	err := p.Load(strings.NewReader(`<diameter><application id="40" inherits="41"/><application id="41" inherits="40"/></diameter>`))
 	if !errors.Is(err, ErrParentCycle) {
 		t.Fatalf("cycle error = %v", err)

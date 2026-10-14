@@ -4,6 +4,12 @@ import (
 	"bytes"
 	"testing"
 
+	"github.com/gomaja/go-diameter/diam/dict/s13"
+
+	"github.com/gomaja/go-diameter/diam/dict/nasreq"
+	"github.com/gomaja/go-diameter/diam/dict/s6a"
+	"github.com/gomaja/go-diameter/diam/dict/swx"
+
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/dict"
@@ -73,12 +79,19 @@ func s6a3GPP(code uint32, data datatype.Type) *AVP {
 	return NewAVP(code, avp.Mbit|avp.Vbit, 10415, data)
 }
 
-func s6aWireMessage(code, app uint32, request bool, extras []*AVP) *Message {
+func s6aWireMessage(code, app uint32, request bool, extras []*AVP, parsers ...*dict.Parser) *Message {
+	var testDict *dict.Parser
+	if len(parsers) > 0 {
+		testDict = parsers[0]
+	} else {
+		testDict = newTestDictionary(s6a.Dictionary(), s13.Dictionary())
+	}
+
 	flags := uint8(ProxiableFlag)
 	if request {
 		flags |= RequestFlag
 	}
-	m := NewMessage(code, flags, app, 0x12345678, 0x87654321, dict.Default)
+	m := NewMessage(code, flags, app, 0x12345678, 0x87654321, testDict)
 	m.AddAVP(s6aBase(263, datatype.UTF8String("session;123")))
 	if !request {
 		m.AddAVP(s6aBase(268, datatype.Unsigned32(2001)))
@@ -103,6 +116,8 @@ func s6aLoadAVP(loadType, loadValue uint32) *AVP {
 }
 
 func TestS6aS13CommandWireRoundTrip(t *testing.T) {
+	testDict := newTestDictionary(s6a.Dictionary(), s13.Dictionary())
+
 	for _, tc := range s6aS13WireCommands {
 		for _, request := range []bool{true, false} {
 			direction := "answer"
@@ -116,7 +131,7 @@ func TestS6aS13CommandWireRoundTrip(t *testing.T) {
 				} else if tc.app == 16777251 && (tc.code == 316 || tc.code == 318 || tc.code == 321 || tc.code == 323) {
 					extras = []*AVP{s6aLoadAVP(0, 37), s6aLoadAVP(1, 52)}
 				}
-				original := s6aWireMessage(tc.code, tc.app, request, extras)
+				original := s6aWireMessage(tc.code, tc.app, request, extras, testDict)
 				if err := original.Validate(); err != nil {
 					t.Fatalf("constructed message: %v", err)
 				}
@@ -124,7 +139,7 @@ func TestS6aS13CommandWireRoundTrip(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				decoded, err := ReadMessage(bytes.NewReader(wire), dict.Default)
+				decoded, err := ReadMessage(bytes.NewReader(wire), testDict)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -151,14 +166,16 @@ func TestS6aS13CommandWireRoundTrip(t *testing.T) {
 // TS 29.272 V19.6.0 §§7.2.3 and 7.2.19: Session-Id is fixed first,
 // Terminal-Information is required in ECR, and User-Name is optional with max 1.
 func TestS6aS13CommandValidationBoundaries(t *testing.T) {
+	testDict := newTestDictionary(s6a.Dictionary(), s13.Dictionary())
+
 	t.Run("required_terminal_information", func(t *testing.T) {
-		m := s6aWireMessage(324, 16777252, true, []*AVP{s6aBase(283, datatype.DiameterIdentity("example.net"))})
+		m := s6aWireMessage(324, 16777252, true, []*AVP{s6aBase(283, datatype.DiameterIdentity("example.net"))}, testDict)
 		if err := m.Validate(); err == nil || err.ResultCode != MissingAVP {
 			t.Fatalf("got %v, want MissingAVP", err)
 		}
 	})
 	t.Run("optional_user_name", func(t *testing.T) {
-		m := s6aWireMessage(324, 16777252, true, s6aS13WireCommands[8].requestExtras)
+		m := s6aWireMessage(324, 16777252, true, s6aS13WireCommands[8].requestExtras, testDict)
 		if err := m.Validate(); err != nil {
 			t.Fatal(err)
 		}
@@ -172,14 +189,14 @@ func TestS6aS13CommandValidationBoundaries(t *testing.T) {
 		}
 	})
 	t.Run("fixed_session_id", func(t *testing.T) {
-		m := s6aWireMessage(324, 16777252, true, s6aS13WireCommands[8].requestExtras)
+		m := s6aWireMessage(324, 16777252, true, s6aS13WireCommands[8].requestExtras, testDict)
 		m.AVP[0], m.AVP[1] = m.AVP[1], m.AVP[0]
 		if err := m.Validate(); err == nil || err.ResultCode != AVPNotAllowed {
 			t.Fatalf("got %v, want AVPNotAllowed", err)
 		}
 	})
 	t.Run("proxiable_header", func(t *testing.T) {
-		m := s6aWireMessage(324, 16777252, true, s6aS13WireCommands[8].requestExtras)
+		m := s6aWireMessage(324, 16777252, true, s6aS13WireCommands[8].requestExtras, testDict)
 		m.Header.CommandFlags &^= ProxiableFlag
 		if err := m.Validate(); err == nil || err.ResultCode != InvalidHDRBits {
 			t.Fatalf("got %v, want InvalidHDRBits", err)
@@ -190,7 +207,9 @@ func TestS6aS13CommandValidationBoundaries(t *testing.T) {
 // TS 29.272 V19.6.0 Table 7.3.1/2 NOTE 1 delegates this flag policy to
 // TS 29.061 V20.1.0 Table 9a: V required, M forbidden.
 func TestS6aChargingCharacteristicsFlags(t *testing.T) {
-	for _, p := range []*dict.Parser{dict.Default, dict.New(dict.S6a), dict.New(dict.SWx)} {
+	testDict := newTestDictionary(s6a.Dictionary(), s13.Dictionary())
+
+	for _, p := range []*dict.Parser{testDict, newTestDictionary(s6a.Dictionary(), s13.Dictionary()), newTestDictionary(swx.Dictionary())} {
 		a, err := p.FindAVP(16777251, 13, 10415)
 		if err != nil {
 			t.Fatal(err)
@@ -205,7 +224,7 @@ func TestS6aChargingCharacteristicsFlags(t *testing.T) {
 			}
 		}
 		member := NewAVP(13, avp.Vbit, 10415, datatype.UTF8String("0800"))
-		m := s6aWireMessage(316, 16777251, false, []*AVP{s6a3GPP(1400, &GroupedAVP{AVP: []*AVP{member}})})
+		m := s6aWireMessage(316, 16777251, false, []*AVP{s6a3GPP(1400, &GroupedAVP{AVP: []*AVP{member}})}, testDict)
 		m.dictionary = p
 		if err := m.ValidateOutgoing(); err != nil {
 			t.Fatalf("V-only Charging-Characteristics in ULA: %v", err)
@@ -230,7 +249,7 @@ func TestS6aChargingCharacteristicsFlags(t *testing.T) {
 
 // RFC 6733 §§4.1, 9.7.1: NASREQ's AVPs do not extend base accounting.
 func TestNASREQAccountingNASPortUnknownMandatory(t *testing.T) {
-	p := dict.New(dict.NASREQ)
+	p := newTestDictionary(nasreq.Dictionary())
 	m := NewRequest(271, 3, p)
 	m.AddAVP(NewAVP(5, avp.Mbit, 0, datatype.Unsigned32(17)))
 	wire, err := m.Serialize()

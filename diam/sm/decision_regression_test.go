@@ -11,10 +11,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/diamtest"
-	"github.com/gomaja/go-diameter/diam/dict"
 	"github.com/gomaja/go-diameter/diam/internal/logtest"
 	"github.com/gomaja/go-diameter/diam/sm/smpeer"
 )
@@ -60,14 +61,16 @@ func TestHandshakeFailureHasOneDecisionRecord(t *testing.T) {
 }
 
 func TestCEARejectionRecordsBeforePublishingFailure(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	logs := logtest.New()
 	entered, release := make(chan struct{}), make(chan struct{})
 	c := loggerHandshakeConn{newHandshakeConn(), slog.New(blockingSMLog{logs, entered, release})}
-	sm := mustNewStateMachine(t, testMessageErrorSettings())
+	sm := mustNewStateMachine(t, testMessageErrorSettings(testDict), testDict)
 	activity := newWatchdogActivity()
 	done := make(chan struct{})
 	go func() {
-		handleCEA(sm, activity)(c, diam.NewMessage(diam.CapabilitiesExchange, 0, 0, 1, 2, dict.Default))
+		handleCEA(sm, activity)(c, diam.NewMessage(diam.CapabilitiesExchange, 0, 0, 1, 2, testDict))
 		close(done)
 	}()
 	select {
@@ -118,14 +121,16 @@ func TestEmptyStateMachineRegistrationPanicPrefix(t *testing.T) {
 }
 
 func TestErrorAnswerFailureOwnedByStateMachine(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	for _, unsupported := range []bool{false, true} {
 		t.Run(fmt.Sprintf("unsupported=%t", unsupported), func(t *testing.T) {
 			logs := logtest.New()
 			c := loggerHandshakeConn{newHandshakeConn(), logs.Logger()}
 			c.writeErr = errors.New("answer write failed")
 			c.SetContext(smpeer.NewContext(context.Background(), &smpeer.Metadata{}))
-			sm := mustNewStateMachine(t, testMessageErrorSettings())
-			m := diam.NewMessage(0xfedc, diam.RequestFlag, 0, 1, 2, dict.Default)
+			sm := mustNewStateMachine(t, testMessageErrorSettings(testDict), testDict)
+			m := diam.NewMessage(0xfedc, diam.RequestFlag, 0, 1, 2, testDict)
 			c.afterClose = func() {
 				records := logs.Records()
 				if len(records) != 1 || records[0].Level != slog.LevelError {
@@ -163,9 +168,11 @@ func (l failedAnswerListener) Accept() (net.Conn, error) {
 }
 
 func TestMalformedAnswerWriteFailureLogsOnce(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	logs := logtest.New()
-	sm := mustNewStateMachine(t, testMessageErrorSettings())
-	srv := diamtest.NewUnstartedServer(sm, dict.Default)
+	sm := mustNewStateMachine(t, testMessageErrorSettings(testDict), testDict)
+	srv := diamtest.NewUnstartedServer(sm, testDict)
 	srv.Listener = failedAnswerListener{srv.Listener}
 	srv.Config.Logger = logs.Logger()
 	srv.Start()
@@ -206,20 +213,22 @@ func admissionWiring(name string, sm *StateMachine) diam.Handler {
 // RFC 6733 §5.6.1 rejects non-CER traffic even when optional HandleAccept
 // discovery cannot reach the state machine through the server's handler.
 func TestPreHandshakeMessagesRejectedInEveryWiring(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	for _, wiring := range []string{"direct", "opaque", "mux"} {
 		for _, kind := range []string{"DWR", "application request", "application answer", "CEA"} {
 			t.Run(wiring+"/"+kind, func(t *testing.T) {
 				logs := logtest.New()
-				sm := mustNewStateMachine(t, testMessageErrorSettings())
+				sm := mustNewStateMachine(t, testMessageErrorSettings(testDict), testDict)
 				sm.HandleFunc("ALL", func(diam.Conn, *diam.Message) { t.Error("pre-handshake application handler invoked") })
 				m := regressionDWR(t)
 				switch kind {
 				case "application request":
-					m = diam.NewMessage(diam.CreditControl, diam.RequestFlag, 4, 1, 2, dict.Default)
+					m = diam.NewMessage(diam.CreditControl, diam.RequestFlag, 4, 1, 2, testDict)
 				case "application answer":
-					m = diam.NewMessage(diam.CreditControl, 0, 4, 1, 2, dict.Default)
+					m = diam.NewMessage(diam.CreditControl, 0, 4, 1, 2, testDict)
 				case "CEA":
-					m = diam.NewMessage(diam.CapabilitiesExchange, 0, 0, 1, 2, dict.Default)
+					m = diam.NewMessage(diam.CapabilitiesExchange, 0, 0, 1, 2, testDict)
 				}
 				// Inspect synchronously at Close to prove that the decision precedes it.
 				c := loggerHandshakeConn{newHandshakeConn(), logs.Logger()}
@@ -250,9 +259,11 @@ func TestPreHandshakeMessagesRejectedInEveryWiring(t *testing.T) {
 }
 
 func TestHandshakeAllowsMessagesInEveryWiring(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	for _, wiring := range []string{"direct", "opaque", "mux"} {
 		t.Run(wiring, func(t *testing.T) {
-			sm := mustNewStateMachine(t, testMessageErrorSettings())
+			sm := mustNewStateMachine(t, testMessageErrorSettings(testDict), testDict)
 			calls := 0
 			sm.HandleFunc("ALL", func(diam.Conn, *diam.Message) { calls++ })
 			c := newHandshakeConn()
@@ -261,13 +272,13 @@ func TestHandshakeAllowsMessagesInEveryWiring(t *testing.T) {
 				defer cleanup()
 			}
 			h := admissionWiring(wiring, sm)
-			h.ServeDIAM(c, regressionCER(t, dict.Default, 1001))
+			h.ServeDIAM(c, regressionCER(t, testDict, 1001))
 			if !admittedPeer(c) {
 				t.Fatal("valid CER did not admit peer")
 			}
 			h.ServeDIAM(c, regressionDWR(t))
-			h.ServeDIAM(c, diam.NewMessage(diam.CreditControl, diam.RequestFlag, 4, 1, 2, dict.Default))
-			h.ServeDIAM(c, diam.NewMessage(diam.CreditControl, 0, 4, 1, 2, dict.Default))
+			h.ServeDIAM(c, diam.NewMessage(diam.CreditControl, diam.RequestFlag, 4, 1, 2, testDict))
+			h.ServeDIAM(c, diam.NewMessage(diam.CreditControl, 0, 4, 1, 2, testDict))
 			if c.closed.Load() || c.writeSeq.Load() != 2 || calls != 2 {
 				t.Fatalf("admitted peer: closed=%t writes=%d application calls=%d", c.closed.Load(), c.writeSeq.Load(), calls)
 			}
@@ -304,14 +315,16 @@ func TestDirectErrorAnswerPreservesWriteFailure(t *testing.T) {
 }
 
 func TestPreHandshakeRejectionTCPInEveryWiring(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	for _, wiring := range []string{"direct", "opaque", "mux"} {
 		for _, request := range []bool{false, true} {
 			for _, command := range []uint32{diam.DeviceWatchdog, diam.CreditControl} {
 				t.Run(fmt.Sprintf("%s/request=%t/command=%d", wiring, request, command), func(t *testing.T) {
 					logs := logtest.New()
-					sm := mustNewStateMachine(t, testMessageErrorSettings())
+					sm := mustNewStateMachine(t, testMessageErrorSettings(testDict), testDict)
 					sm.HandleFunc("ALL", func(diam.Conn, *diam.Message) { t.Error("pre-handshake handler invoked") })
-					srv := diamtest.NewUnstartedServer(admissionWiring(wiring, sm), dict.Default)
+					srv := diamtest.NewUnstartedServer(admissionWiring(wiring, sm), testDict)
 					srv.Config.Logger = logs.Logger()
 					srv.Start()
 					defer srv.Close()
@@ -330,7 +343,7 @@ func TestPreHandshakeRejectionTCPInEveryWiring(t *testing.T) {
 					if command == diam.CreditControl {
 						app = 4
 					}
-					if _, err := diam.NewMessage(command, flags, app, 1, 2, dict.Default).WriteTo(c); err != nil {
+					if _, err := diam.NewMessage(command, flags, app, 1, 2, testDict).WriteTo(c); err != nil {
 						t.Fatal(err)
 					}
 					var b [1]byte
@@ -348,11 +361,13 @@ func TestPreHandshakeRejectionTCPInEveryWiring(t *testing.T) {
 }
 
 func TestUnhandledPreHandshakeMessagesRejected(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	for _, wiring := range []string{"direct", "opaque", "mux"} {
 		for _, request := range []bool{false, true} {
 			t.Run(fmt.Sprintf("%s/request=%t", wiring, request), func(t *testing.T) {
 				logs := logtest.New()
-				sm := mustNewStateMachine(t, testMessageErrorSettings())
+				sm := mustNewStateMachine(t, testMessageErrorSettings(testDict), testDict)
 				c := loggerHandshakeConn{newHandshakeConn(), logs.Logger()}
 				if wiring == "direct" {
 					cleanup := sm.HandleAccept(c)
@@ -362,7 +377,7 @@ func TestUnhandledPreHandshakeMessagesRejected(t *testing.T) {
 				if request {
 					flags = diam.RequestFlag
 				}
-				admissionWiring(wiring, sm).ServeDIAM(c, diam.NewMessage(0xfedc, flags, 0, 1, 2, dict.Default))
+				admissionWiring(wiring, sm).ServeDIAM(c, diam.NewMessage(0xfedc, flags, 0, 1, 2, testDict))
 				if !c.closed.Load() || c.writeSeq.Load() != 0 {
 					t.Errorf("unhandled pre-handshake closed=%t writes=%d", c.closed.Load(), c.writeSeq.Load())
 				}

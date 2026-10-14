@@ -5,19 +5,22 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/gomaja/go-diameter/diam/dict/all"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
-	"github.com/gomaja/go-diameter/diam/dict"
 	"github.com/gomaja/go-diameter/diam/internal/base"
 )
 
 // RFC 6733 §6.2 applies to every answer, including all error classes.
 // Iterate every effective command, including inherited common commands.
 func TestErrorAnswerEveryCommand(t *testing.T) {
+	testDict := newTestDictionary(all.Dictionary())
+
 	codes := map[uint32]bool{}
 	apps := map[uint32]bool{}
-	for _, a := range dict.Default.Apps() {
+	for _, a := range testDict.Apps() {
 		apps[a.ID] = true
 		for _, c := range a.Command {
 			codes[c.Code] = true
@@ -26,7 +29,7 @@ func TestErrorAnswerEveryCommand(t *testing.T) {
 	seen := 0
 	for app := range apps {
 		for code := range codes {
-			c, err := dict.Default.FindCommand(app, code)
+			c, err := testDict.FindCommand(app, code)
 			if err != nil || len(c.Answer.Rule) == 0 {
 				continue
 			}
@@ -38,7 +41,7 @@ func TestErrorAnswerEveryCommand(t *testing.T) {
 						if c.Request.Proxiable != nil && *c.Request.Proxiable {
 							flags |= diam.ProxiableFlag
 						}
-						r := diam.NewMessage(code, flags, app, 0x12345678, 0x87654321, dict.Default)
+						r := diam.NewMessage(code, flags, app, 0x12345678, 0x87654321, testDict)
 						if kind == "present" {
 							r.AddAVP(diam.NewAVP(avp.SessionID, avp.Mbit, 0, datatype.UTF8String("original")))
 						}
@@ -78,7 +81,7 @@ func TestErrorAnswerEveryCommand(t *testing.T) {
 						if err != nil {
 							t.Fatal(err)
 						}
-						got, err := diam.ReadMessage(bytes.NewReader(wire), dict.Default)
+						got, err := diam.ReadMessage(bytes.NewReader(wire), testDict)
 						if err != nil {
 							t.Fatal(err)
 						}
@@ -95,7 +98,9 @@ func TestErrorAnswerEveryCommand(t *testing.T) {
 
 // RFC 6733 §6.2 requires the proxy chain in both protocol and application errors.
 func TestErrorAnswerProxyInfo(t *testing.T) {
-	r := diam.NewRequest(diam.SessionTermination, 0, dict.Default)
+	testDict := newTestDictionary(all.Dictionary())
+
+	r := diam.NewRequest(diam.SessionTermination, 0, testDict)
 	for _, state := range []string{"first", "second"} {
 		r.AddAVP(diam.NewAVP(avp.ProxyInfo, avp.Mbit, 0, &diam.GroupedAVP{AVP: []*diam.AVP{diam.NewAVP(avp.ProxyHost, avp.Mbit, 0, datatype.DiameterIdentity("proxy.example")), diam.NewAVP(avp.ProxyState, avp.Mbit, 0, datatype.OctetString(state))}}))
 	}

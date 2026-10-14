@@ -8,9 +8,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/datatype"
-	"github.com/gomaja/go-diameter/diam/dict"
 	"github.com/gomaja/go-diameter/diam/internal/base"
 	"github.com/gomaja/go-diameter/diam/internal/logtest"
 )
@@ -93,6 +94,8 @@ func assertFailureRecord(t *testing.T, records *logtest.Recorder, level slog.Lev
 }
 
 func TestActorFailureAttributionAndLevels(t *testing.T) {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
 	t.Run("without session", func(t *testing.T) {
 		a, _, records := failureReportingActor(t)
 		a.fail(errors.New("peer: state timeout"))
@@ -131,7 +134,7 @@ func TestActorFailureAttributionAndLevels(t *testing.T) {
 				} else {
 					a.m.cfg.Settings.HostIPAddresses = []datatype.Address{{}}
 				}
-				requestDict := dict.Default
+				requestDict := testDict
 				req := diam.NewRequest(diam.DeviceWatchdog, 0, requestDict)
 				switch operation {
 				case "CER":
@@ -154,6 +157,8 @@ func TestActorFailureAttributionAndLevels(t *testing.T) {
 }
 
 func TestManagerLocalFailureLevels(t *testing.T) {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
 	for _, operation := range []string{"DPA answer", "rejected CER answer", "build rejected CER answer", "unsupported answer", "error answer", "ingress", "message-error ingress", "write"} {
 		t.Run(operation, func(t *testing.T) {
 			a, s, records := failureReportingActor(t)
@@ -166,7 +171,7 @@ func TestManagerLocalFailureLevels(t *testing.T) {
 			req := reviewDWR(t)
 			switch operation {
 			case "DPA answer":
-				dpr, err := base.BuildDPR(dict.Default, testBase("known.example.net"), 0)
+				dpr, err := base.BuildDPR(testDict, testBase("known.example.net"), 0)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -177,7 +182,7 @@ func TestManagerLocalFailureLevels(t *testing.T) {
 				a.m.cfg.Settings.HostIPAddresses = []datatype.Address{{}}
 				a.m.rejectCER(s, reviewCER(t), diam.UnknownPeer, errors.New("unknown peer"))
 			case "unsupported answer":
-				a.m.unsupported(s, diam.NewRequest(999, 0, dict.Default))
+				a.m.unsupported(s, diam.NewRequest(999, 0, testDict))
 			case "error answer":
 				a.onWire(event{s: s, msg: req, messageErr: &diam.MessageError{ResultCode: diam.InvalidAVPValue}})
 			case "ingress":

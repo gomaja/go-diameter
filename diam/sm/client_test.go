@@ -17,6 +17,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
@@ -50,12 +52,16 @@ func TestClient_Dial_MissingStateMachine(t *testing.T) {
 }
 
 func TestClient_Dial_InvalidAddress(t *testing.T) {
+	testDict := newSMTestDictionary(dict.Base())
+	clientSettings := cloneTestSettings(clientSettings,
+		testDict)
+
 	cli := &Client{
-		Handler: mustNewStateMachine(t, clientSettings),
+		Handler: mustNewStateMachine(t, clientSettings, testDict),
 		AcctApplicationID: []*diam.AVP{
 			diam.NewAVP(avp.AcctApplicationID, avp.Mbit, 0,
 				datatype.Unsigned32(0)),
-		},
+		}, Dict: testDict,
 	}
 	c, err := cli.Dial(":0")
 	if err == nil {
@@ -65,11 +71,15 @@ func TestClient_Dial_InvalidAddress(t *testing.T) {
 }
 
 func TestClient_DialTLS_InvalidAddress(t *testing.T) {
+	testDict := newSMTestDictionary(dict.Base())
+	clientSettings := cloneTestSettings(clientSettings,
+		testDict)
+
 	cli := &Client{
-		Handler: mustNewStateMachine(t, clientSettings),
+		Handler: mustNewStateMachine(t, clientSettings, testDict),
 		AcctApplicationID: []*diam.AVP{
 			diam.NewAVP(avp.AcctApplicationID, avp.Mbit, 0, datatype.Unsigned32(0)),
-		},
+		}, Dict: testDict,
 	}
 	c, err := cli.DialTLS(":0", "", "")
 	if err == nil {
@@ -79,10 +89,14 @@ func TestClient_DialTLS_InvalidAddress(t *testing.T) {
 }
 
 func TestClient_ServerCarriesTLSConfig(t *testing.T) {
+	testDict := newSMTestDictionary(dict.Base())
+	clientSettings := cloneTestSettings(clientSettings,
+		testDict)
+
 	tlsConfig := &tls.Config{MinVersion: tls.VersionTLS13}
 	cli := &Client{
-		Handler:   mustNewStateMachine(t, clientSettings),
-		TLSConfig: tlsConfig,
+		Handler:   mustNewStateMachine(t, clientSettings, testDict),
+		TLSConfig: tlsConfig, Dict: testDict,
 	}
 
 	srv := cli.server("tcp", "example.net:3868", nil, nil)
@@ -92,10 +106,16 @@ func TestClient_ServerCarriesTLSConfig(t *testing.T) {
 }
 
 func TestClient_Handshake(t *testing.T) {
-	srv := diamtest.NewServer(mustNewStateMachine(t, serverSettings), dict.Default)
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings := cloneTestSettings(serverSettings,
+		testDict)
+	clientSettings := cloneTestSettings(clientSettings,
+		testDict)
+
+	srv := diamtest.NewServer(mustNewStateMachine(t, serverSettings, testDict), testDict)
 	defer srv.Close()
 	cli := &Client{
-		Handler: mustNewStateMachine(t, clientSettings),
+		Handler: mustNewStateMachine(t, clientSettings, testDict),
 		SupportedVendorID: []*diam.AVP{
 			diam.NewAVP(avp.SupportedVendorID, avp.Mbit, 0, clientSettings.VendorID),
 		},
@@ -112,7 +132,7 @@ func TestClient_Handshake(t *testing.T) {
 					diam.NewAVP(avp.AuthApplicationID, avp.Mbit, 0, datatype.Unsigned32(4)),
 				},
 			}),
-		},
+		}, Dict: testDict,
 	}
 	c, err := cli.Dial(srv.Addr)
 	if err != nil {
@@ -126,11 +146,19 @@ func TestClient_Handshake_CustomIP_TCP(t *testing.T) {
 }
 
 func testClient_Handshake_CustomIP(t *testing.T, network string) {
-	srv := diamtest.NewServerNetwork(network, mustNewStateMachine(t, serverSettings), dict.Default)
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings := cloneTestSettings(serverSettings,
+		testDict)
+	clientSettings := cloneTestSettings(clientSettings,
+		testDict)
+	clientSettings2 := cloneTestSettings(clientSettings2,
+		testDict)
+
+	srv := diamtest.NewServerNetwork(network, mustNewStateMachine(t, serverSettings, testDict), testDict)
 	defer srv.Close()
 	cli := &Client{
 		RetransmitInterval: testutil.NetworkTimeout(network, 3*time.Second),
-		Handler:            mustNewStateMachine(t, clientSettings2),
+		Handler:            mustNewStateMachine(t, clientSettings2, testDict),
 		SupportedVendorID: []*diam.AVP{
 			diam.NewAVP(avp.SupportedVendorID, avp.Mbit, 0, clientSettings.VendorID),
 		},
@@ -147,7 +175,7 @@ func testClient_Handshake_CustomIP(t *testing.T, network string) {
 					diam.NewAVP(avp.AuthApplicationID, avp.Mbit, 0, datatype.Unsigned32(4)),
 				},
 			}),
-		},
+		}, Dict: testDict,
 	}
 	c, err := cli.DialNetwork(network, srv.Addr)
 	if err != nil {
@@ -157,10 +185,16 @@ func testClient_Handshake_CustomIP(t *testing.T, network string) {
 }
 
 func TestClient_Handshake_Notify(t *testing.T) {
-	srv := diamtest.NewServer(mustNewStateMachine(t, serverSettings), dict.Default)
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings := cloneTestSettings(serverSettings,
+		testDict)
+	clientSettings := cloneTestSettings(clientSettings,
+		testDict)
+
+	srv := diamtest.NewServer(mustNewStateMachine(t, serverSettings, testDict), testDict)
 	defer srv.Close()
 	cli := &Client{
-		Handler: mustNewStateMachine(t, clientSettings),
+		Handler: mustNewStateMachine(t, clientSettings, testDict),
 		SupportedVendorID: []*diam.AVP{
 			diam.NewAVP(avp.SupportedVendorID, avp.Mbit, 0, clientSettings.VendorID),
 		},
@@ -177,7 +211,7 @@ func TestClient_Handshake_Notify(t *testing.T) {
 					diam.NewAVP(avp.AuthApplicationID, avp.Mbit, 0, datatype.Unsigned32(4)),
 				},
 			}),
-		},
+		}, Dict: testDict,
 	}
 	handshakeOK := testHandshakeNotifications(cli.Handler)
 	c, err := cli.Dial(srv.Addr)
@@ -193,19 +227,23 @@ func TestClient_Handshake_Notify(t *testing.T) {
 }
 
 func TestClient_Handshake_FailParseCEA(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	clientSettings := cloneTestSettings(clientSettings,
+		testDict)
+
 	mux := diam.NewServeMux()
 	mux.HandleFunc("CER", func(c diam.Conn, m *diam.Message) {
 		a := m.Answer(diam.Success)
 		// Missing Origin-Host and other mandatory AVPs.
 		mustWriteSMClientMessage(t, a, c)
 	})
-	srv := diamtest.NewServer(mux, dict.Default)
+	srv := diamtest.NewServer(mux, testDict)
 	defer srv.Close()
 	cli := &Client{
-		Handler: mustNewStateMachine(t, clientSettings),
+		Handler: mustNewStateMachine(t, clientSettings, testDict),
 		AcctApplicationID: []*diam.AVP{
 			diam.NewAVP(avp.AcctApplicationID, avp.Mbit, 0, datatype.Unsigned32(3)),
-		},
+		}, Dict: testDict,
 	}
 	_, err := cli.Dial(srv.Addr)
 	if err != smparser.ErrMissingOriginHost {
@@ -214,6 +252,10 @@ func TestClient_Handshake_FailParseCEA(t *testing.T) {
 }
 
 func TestClient_Handshake_FailedResultCode(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	clientSettings := cloneTestSettings(clientSettings,
+		testDict)
+
 	mux := diam.NewServeMux()
 	mux.HandleFunc("CER", func(c diam.Conn, m *diam.Message) {
 		cer := new(smparser.CER)
@@ -229,13 +271,13 @@ func TestClient_Handshake_FailedResultCode(t *testing.T) {
 		a.AddAVP(cer.AcctApplicationID[0]) // The one we send below.
 		mustWriteSMClientMessage(t, a, c)
 	})
-	srv := diamtest.NewServer(mux, dict.Default)
+	srv := diamtest.NewServer(mux, testDict)
 	defer srv.Close()
 	cli := &Client{
-		Handler: mustNewStateMachine(t, clientSettings),
+		Handler: mustNewStateMachine(t, clientSettings, testDict),
 		AcctApplicationID: []*diam.AVP{
 			diam.NewAVP(avp.AcctApplicationID, avp.Mbit, 0, datatype.Unsigned32(3)),
-		},
+		}, Dict: testDict,
 	}
 	_, err := cli.Dial(srv.Addr)
 	if err == nil {
@@ -251,21 +293,25 @@ func TestClient_Handshake_FailedResultCode(t *testing.T) {
 }
 
 func TestClient_Handshake_RetransmitTimeout(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	clientSettings := cloneTestSettings(clientSettings,
+		testDict)
+
 	mux := diam.NewServeMux()
 	var retransmits uint32
 	mux.HandleFunc("CER", func(c diam.Conn, m *diam.Message) {
 		// Do nothing to force timeout.
 		atomic.AddUint32(&retransmits, 1)
 	})
-	srv := diamtest.NewServer(mux, dict.Default)
+	srv := diamtest.NewServer(mux, testDict)
 	defer srv.Close()
 	cli := &Client{
-		Handler:            mustNewStateMachine(t, clientSettings),
+		Handler:            mustNewStateMachine(t, clientSettings, testDict),
 		MaxRetransmits:     3,
 		RetransmitInterval: time.Millisecond,
 		AcctApplicationID: []*diam.AVP{
 			diam.NewAVP(avp.AcctApplicationID, avp.Mbit, 0, datatype.Unsigned32(3)),
-		},
+		}, Dict: testDict,
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
@@ -290,14 +336,20 @@ func TestClient_Handshake_RetransmitTimeout(t *testing.T) {
 }
 
 func TestClient_Watchdog(t *testing.T) {
-	srv := diamtest.NewServer(mustNewStateMachine(t, serverSettings), dict.Default)
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings := cloneTestSettings(serverSettings,
+		testDict)
+	clientSettings := cloneTestSettings(clientSettings,
+		testDict)
+
+	srv := diamtest.NewServer(mustNewStateMachine(t, serverSettings, testDict), testDict)
 	defer srv.Close()
 	resp := make(chan struct{}, 1)
 	cli := &Client{
 		EnableWatchdog:   true,
 		WatchdogInterval: 100 * time.Millisecond,
 		watchdogTiming:   &watchdogTiming{floor: time.Millisecond},
-		Handler:          mustNewStateMachine(t, clientSettings),
+		Handler:          mustNewStateMachine(t, clientSettings, testDict),
 		OnWatchdogEvent: func(event WatchdogEvent) {
 			if event == WatchdogAnswerReceived {
 				resp <- struct{}{}
@@ -305,7 +357,7 @@ func TestClient_Watchdog(t *testing.T) {
 		},
 		AcctApplicationID: []*diam.AVP{
 			diam.NewAVP(avp.AcctApplicationID, avp.Mbit, 0, datatype.Unsigned32(3)),
-		},
+		}, Dict: testDict,
 	}
 	c, err := cli.Dial(srv.Addr)
 	if err != nil {
@@ -322,7 +374,13 @@ func TestClient_Watchdog(t *testing.T) {
 }
 
 func TestClient_WatchdogObserverSuccess(t *testing.T) {
-	srv := diamtest.NewServer(mustNewStateMachine(t, serverSettings), dict.Default)
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings := cloneTestSettings(serverSettings,
+		testDict)
+	clientSettings := cloneTestSettings(clientSettings,
+		testDict)
+
+	srv := diamtest.NewServer(mustNewStateMachine(t, serverSettings, testDict), testDict)
 	defer srv.Close()
 
 	events := make(chan WatchdogEvent, 4)
@@ -330,11 +388,11 @@ func TestClient_WatchdogObserverSuccess(t *testing.T) {
 		EnableWatchdog:   true,
 		WatchdogInterval: 20 * time.Millisecond,
 		watchdogTiming:   &watchdogTiming{floor: time.Millisecond},
-		Handler:          mustNewStateMachine(t, clientSettings),
+		Handler:          mustNewStateMachine(t, clientSettings, testDict),
 		OnWatchdogEvent:  func(event WatchdogEvent) { events <- event },
 		AcctApplicationID: []*diam.AVP{
 			diam.NewAVP(avp.AcctApplicationID, avp.Mbit, 0, datatype.Unsigned32(3)),
-		},
+		}, Dict: testDict,
 	}
 	c, err := cli.Dial(srv.Addr)
 	if err != nil {
@@ -355,7 +413,13 @@ func TestClient_WatchdogObserverSuccess(t *testing.T) {
 }
 
 func TestClient_WatchdogSlowObserverDoesNotTimeoutSuccessfulAnswer(t *testing.T) {
-	srv := diamtest.NewServer(mustNewStateMachine(t, serverSettings), dict.Default)
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings := cloneTestSettings(serverSettings,
+		testDict)
+	clientSettings := cloneTestSettings(clientSettings,
+		testDict)
+
+	srv := diamtest.NewServer(mustNewStateMachine(t, serverSettings, testDict), testDict)
 	defer srv.Close()
 
 	answerStarted := make(chan struct{})
@@ -368,7 +432,7 @@ func TestClient_WatchdogSlowObserverDoesNotTimeoutSuccessfulAnswer(t *testing.T)
 		WatchdogInterval:   250 * time.Millisecond,
 		watchdogTiming:     &watchdogTiming{floor: time.Millisecond},
 		RetransmitInterval: 500 * time.Millisecond,
-		Handler:            mustNewStateMachine(t, clientSettings),
+		Handler:            mustNewStateMachine(t, clientSettings, testDict),
 		OnWatchdogEvent: func(event WatchdogEvent) {
 			if event == WatchdogTimedOut {
 				timedOut <- struct{}{}
@@ -383,7 +447,7 @@ func TestClient_WatchdogSlowObserverDoesNotTimeoutSuccessfulAnswer(t *testing.T)
 		},
 		AcctApplicationID: []*diam.AVP{
 			diam.NewAVP(avp.AcctApplicationID, avp.Mbit, 0, datatype.Unsigned32(3)),
-		},
+		}, Dict: testDict,
 	}
 	c, err := cli.Dial(srv.Addr)
 	if err != nil {
@@ -422,12 +486,18 @@ func TestClient_WatchdogSlowObserverDoesNotTimeoutSuccessfulAnswer(t *testing.T)
 }
 
 func TestClient_Watchdog_Timeout(t *testing.T) {
-	sm := mustNewStateMachine(t, serverSettings)
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings := cloneTestSettings(serverSettings,
+		testDict)
+	clientSettings := cloneTestSettings(clientSettings,
+		testDict)
+
+	sm := mustNewStateMachine(t, serverSettings, testDict)
 	var once sync.Once
 	sm.dwrHandler = handshakeOK(func(c diam.Conn, m *diam.Message) {
 		once.Do(func() { mustWriteSMClientMessage(t, m.Answer(diam.UnableToComply), c) })
 	})
-	srv := diamtest.NewServer(sm, dict.Default)
+	srv := diamtest.NewServer(sm, testDict)
 	defer srv.Close()
 	events := make(chan WatchdogEvent, 2)
 	cli := &Client{
@@ -436,7 +506,7 @@ func TestClient_Watchdog_Timeout(t *testing.T) {
 		EnableWatchdog:     true,
 		WatchdogInterval:   50 * time.Millisecond,
 		watchdogTiming:     &watchdogTiming{floor: time.Millisecond},
-		Handler:            mustNewStateMachine(t, clientSettings),
+		Handler:            mustNewStateMachine(t, clientSettings, testDict),
 		OnWatchdogEvent: func(event WatchdogEvent) {
 			if event == WatchdogInvalidAnswer || event == WatchdogTimedOut {
 				events <- event
@@ -444,7 +514,7 @@ func TestClient_Watchdog_Timeout(t *testing.T) {
 		},
 		AcctApplicationID: []*diam.AVP{
 			diam.NewAVP(avp.AcctApplicationID, avp.Mbit, 0, datatype.Unsigned32(3)),
-		},
+		}, Dict: testDict,
 	}
 	c, err := cli.Dial(srv.Addr)
 	if err != nil {
@@ -588,13 +658,17 @@ func TestClient_Conn_LocalAddresses_SCTPMultihomed(t *testing.T) {
 }
 
 func TestClientCustomLocalAddrRequiresIPLiteral(t *testing.T) {
+	testDict := newSMTestDictionary(dict.Base())
+	clientSettings := cloneTestSettings(clientSettings,
+		testDict)
+
 	for _, tc := range []struct{ local, wantErr string }{
 		{"diameter.example.net:3868", "failed to parse local IP"},
 		{"", "empty local address"},
 		{"192.0.2.1", "missing local address port"},
 	} {
 		t.Run(tc.local, func(t *testing.T) {
-			cli := &Client{Handler: mustNewStateMachine(t, clientSettings)}
+			cli := &Client{Handler: mustNewStateMachine(t, clientSettings, testDict), Dict: testDict}
 			conn := newTestLocalAddrDiamConn(tc.local)
 			got, err := cli.handshake(conn, newWatchdogActivity())
 			if got != nil || err == nil || !strings.Contains(err.Error(), tc.wantErr) {
@@ -605,6 +679,12 @@ func TestClientCustomLocalAddrRequiresIPLiteral(t *testing.T) {
 }
 
 func TestClient_InbandSecurityID_Default(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings := cloneTestSettings(serverSettings,
+		testDict)
+	clientSettings := cloneTestSettings(clientSettings,
+		testDict)
+
 	// RFC 6733 §6.10: the default zero value is omitted from CER.
 	received := make(chan bool, 1)
 	mux := diam.NewServeMux()
@@ -621,13 +701,13 @@ func TestClient_InbandSecurityID_Default(t *testing.T) {
 		mustSMClientAVP(t, cea, avp.AcctApplicationID, avp.Mbit, 0, datatype.Unsigned32(3))
 		mustWriteSMClientMessage(t, cea, c)
 	})
-	srv := diamtest.NewServer(mux, dict.Default)
+	srv := diamtest.NewServer(mux, testDict)
 	defer srv.Close()
 	cli := &Client{
-		Handler: mustNewStateMachine(t, clientSettings),
+		Handler: mustNewStateMachine(t, clientSettings, testDict),
 		AcctApplicationID: []*diam.AVP{
 			diam.NewAVP(avp.AcctApplicationID, avp.Mbit, 0, datatype.Unsigned32(3)),
-		},
+		}, Dict: testDict,
 	}
 	c, err := cli.Dial(srv.Addr)
 	if err != nil {
@@ -640,6 +720,12 @@ func TestClient_InbandSecurityID_Default(t *testing.T) {
 }
 
 func TestClient_InbandSecurityID_TLS(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings := cloneTestSettings(serverSettings,
+		testDict)
+	clientSettings := cloneTestSettings(clientSettings,
+		testDict)
+
 	// Verify that setting InbandSecurityID=1 sends that value in CER.
 	received := make(chan uint32, 1)
 	mux := diam.NewServeMux()
@@ -660,16 +746,17 @@ func TestClient_InbandSecurityID_TLS(t *testing.T) {
 		mustSMClientAVP(t, cea, avp.AcctApplicationID, avp.Mbit, 0, datatype.Unsigned32(3))
 		mustWriteSMClientMessage(t, cea, c)
 	})
-	srv := diamtest.NewUnstartedServer(mux, dict.Default)
+	srv := diamtest.NewUnstartedServer(mux, testDict)
 	srv.StartTLS()
 	defer srv.Close()
 	cli := &Client{
-		Handler: mustNewStateMachine(t, clientSettings),
+		Handler: mustNewStateMachine(t, clientSettings, testDict),
 		AcctApplicationID: []*diam.AVP{
 			diam.NewAVP(avp.AcctApplicationID, avp.Mbit, 0, datatype.Unsigned32(3)),
 		},
 		InbandSecurityID: 1,
-		TLSConfig:        &tls.Config{InsecureSkipVerify: true}, // #nosec G402 -- test server certificate
+		TLSConfig:        &tls.Config{InsecureSkipVerify: true}, Dict: // #nosec G402 -- test server certificate
+		testDict,
 	}
 	c, err := cli.DialTLS(srv.Addr, "", "")
 	if err != nil {

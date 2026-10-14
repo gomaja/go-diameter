@@ -528,7 +528,7 @@ func (c *conn) endDispatch() {
 }
 
 // dictionary returns the dictionary parser associated to the Server instance
-// or dict.Default.
+// or the shared, initially base-only dict.Default.
 func (c *conn) dictionary() *dict.Parser {
 	if c.server.Dict == nil {
 		return dict.Default
@@ -681,7 +681,7 @@ func (w *response) TLS() *tls.ConnectionState {
 }
 
 // Dictionary returns the dictionary parser associated to this connection.
-// If none was provided then it returns the default dictionary.
+// If none was provided, it returns the shared, initially base-only dict.Default.
 func (w *response) Dictionary() *dict.Parser {
 	return w.conn.dictionary()
 }
@@ -968,7 +968,7 @@ type Server struct {
 	// serving or dialing starts and do not replace it while Server is in use.
 	// Each connection captures one root for dispatch and protocol notification.
 	Handler      Handler
-	Dict         *dict.Parser  // diameter dictionaries for this server
+	Dict         *dict.Parser  // Selected parser; nil uses the shared, initially base-only dict.Default
 	ReadTimeout  time.Duration // maximum duration before timing out read of the request
 	WriteTimeout time.Duration // maximum duration before timing out write of the response
 	// TLSHandshakeTimeout limits the TLS handshake of connections accepted by
@@ -1412,7 +1412,8 @@ func (srv *Server) Serve(l net.Listener) error {
 //
 // If handler is nil, DefaultServeMux is used.
 //
-// If dict is nil, dict.Default is used.
+// If dict is nil, the shared, initially base-only dict.Default is used.
+// Pass an explicitly selected parser for application dictionaries.
 func ListenAndServeNetwork(network, addr string, handler Handler, dp *dict.Parser) error {
 	server := &Server{Network: network, Addr: addr, Handler: handler, Dict: dp}
 	return server.ListenAndServe()
@@ -1424,7 +1425,8 @@ func ListenAndServeNetwork(network, addr string, handler Handler, dp *dict.Parse
 //
 // If handler is nil, DefaultServeMux is used.
 //
-// If dict is nil, dict.Default is used.
+// If dict is nil, the shared, initially base-only dict.Default is used.
+// Pass an explicitly selected parser for application dictionaries.
 func ListenAndServe(addr string, handler Handler, dp *dict.Parser) error {
 	return ListenAndServeNetwork("tcp", addr, handler, dp)
 }

@@ -41,6 +41,7 @@ import (
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/dict"
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
 	"github.com/gomaja/go-diameter/diam/sm"
 	"github.com/gomaja/go-diameter/diam/sm/smpeer"
 )
@@ -63,13 +64,17 @@ func main() {
 		flag.Usage()
 	}
 
-	// Load our custom dictionary on top of the default one.
-	err := dict.Default.Load(bytes.NewReader([]byte(helloDictionary)))
+	// Load the custom application into this process's selected parser.
+	dictionary, err := dict.New(creditcontrol.Dictionary())
 	if err != nil {
+		log.Fatal(err)
+	}
+	if err := dictionary.Load(bytes.NewReader([]byte(helloDictionary))); err != nil {
 		log.Fatal(err)
 	}
 
 	cfg := &sm.Settings{
+		Dict:             dictionary,
 		OriginHost:       datatype.DiameterIdentity(*host),
 		OriginRealm:      datatype.DiameterIdentity(*realm),
 		VendorID:         13,
@@ -88,12 +93,12 @@ func main() {
 	}
 
 	cli := &sm.Client{
-		Dict:               dict.Default,
+		Dict:               dictionary,
 		Handler:            mux,
 		MaxRetransmits:     3,
 		RetransmitInterval: time.Second,
 		EnableWatchdog:     true,
-		WatchdogInterval:   5 * time.Second,
+		WatchdogInterval:   6 * time.Second,
 		AcctApplicationID: []*diam.AVP{
 			// Advertise that we want support accounting application with id 999
 			diam.NewAVP(avp.AcctApplicationID, avp.Mbit, 0, datatype.Unsigned32(helloApplication)),
@@ -179,7 +184,7 @@ func sendHMR(c diam.Conn, cfg *sm.Settings) error {
 		return errors.New("peer metadata unavailable")
 	}
 	sid := "session;" + strconv.Itoa(int(rand.Uint32()))
-	m := diam.NewRequest(helloMessage, helloApplication, nil)
+	m := diam.NewRequest(helloMessage, helloApplication, c.Dictionary())
 	if err := addAVP(m, avp.SessionID, avp.Mbit, 0, datatype.UTF8String(sid)); err != nil {
 		return err
 	}

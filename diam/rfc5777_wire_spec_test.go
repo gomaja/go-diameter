@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/dict"
@@ -117,7 +119,14 @@ func rfc5777Message(t *testing.T, a *AVP) *Message {
 	return m
 }
 
-func rfc5777ValidateWire(t *testing.T, m *Message, want uint32) {
+func rfc5777ValidateWire(t *testing.T, m *Message, want uint32, parsers ...*dict.Parser) {
+	var testDict *dict.Parser
+	if len(parsers) > 0 {
+		testDict = parsers[0]
+	} else {
+		testDict = newTestDictionary(creditcontrol.Dictionary())
+	}
+
 	t.Helper()
 	check := func(m *Message) {
 		err := m.ValidateOutgoing()
@@ -134,7 +143,7 @@ func rfc5777ValidateWire(t *testing.T, m *Message, want uint32) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	decoded, err := ReadMessage(bytes.NewReader(b), dict.Default)
+	decoded, err := ReadMessage(bytes.NewReader(b), testDict)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -151,16 +160,18 @@ func rfc5777ValidateWire(t *testing.T, m *Message, want uint32) {
 // RFC 5777 §§3–6, Verified Errata 2333–2336: every AVP and enum value
 // is built from the source fixture, encoded and decoded through the product.
 func TestRFC5777AVPWireRoundTrip(t *testing.T) {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
 	specs, lookup := rfc5777WireSpec(t)
 	for _, a := range specs {
 		t.Run(a.Name, func(t *testing.T) {
 			data := rfc5777Data(t, a, lookup)
 			for _, flags := range []uint8{0, avp.Mbit} {
 				m := rfc5777Message(t, NewAVP(a.Code, flags, 0, data))
-				wireMessage := NewRequest(272, 4, dict.Default)
+				wireMessage := NewRequest(272, 4, testDict)
 				wireMessage.AddAVP(NewAVP(a.Code, flags, 0, data))
-				assertRefreshWire(t, wireMessage, a.Code, flags, 0, data)
-				rfc5777ValidateWire(t, m, 0)
+				assertRefreshWire(t, wireMessage, a.Code, flags, 0, data, testDict)
+				rfc5777ValidateWire(t, m, 0, testDict)
 			}
 			for value := range a.Items {
 				n, err := strconv.ParseInt(value, 10, 32)
@@ -169,10 +180,10 @@ func TestRFC5777AVPWireRoundTrip(t *testing.T) {
 				}
 				data := datatype.Enumerated(n)
 				m := rfc5777Message(t, NewAVP(a.Code, 0, 0, data))
-				wireMessage := NewRequest(272, 4, dict.Default)
+				wireMessage := NewRequest(272, 4, testDict)
 				wireMessage.AddAVP(NewAVP(a.Code, 0, 0, data))
-				assertRefreshWire(t, wireMessage, a.Code, 0, 0, data)
-				rfc5777ValidateWire(t, m, 0)
+				assertRefreshWire(t, wireMessage, a.Code, 0, 0, data, testDict)
+				rfc5777ValidateWire(t, m, 0, testDict)
 			}
 		})
 	}
@@ -182,6 +193,8 @@ func TestRFC5777AVPWireRoundTrip(t *testing.T) {
 // permit omission, and * permits repetitions. Wildcards use known non-members
 // so deleting an extension point cannot silently pass as an unknown AVP.
 func TestRFC5777GroupedMemberBoundaries(t *testing.T) {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
 	specs, lookup := rfc5777WireSpec(t)
 	for _, a := range specs {
 		if a.Type != "Grouped" {
@@ -214,7 +227,7 @@ func TestRFC5777GroupedMemberBoundaries(t *testing.T) {
 							} else if rule.Max != nil && count > *rule.Max {
 								want = AVPOccursTooManyTimes
 							}
-							rfc5777ValidateWire(t, rfc5777Message(t, NewAVP(a.Code, 0, 0, g)), want)
+							rfc5777ValidateWire(t, rfc5777Message(t, NewAVP(a.Code, 0, 0, g)), want, testDict)
 						})
 					}
 				})
@@ -225,13 +238,15 @@ func TestRFC5777GroupedMemberBoundaries(t *testing.T) {
 
 // RFC 8506 §8.68 reaches the complete RFC 5777 §3.2 condition/action tree.
 func TestRFC5777FinalUnitClosure(t *testing.T) {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
 	_, lookup := rfc5777WireSpec(t)
 	classifier := rfc5777Member(t, "Classifier", lookup)
 	rule := NewAVP(509, 0, 0, &GroupedAVP{AVP: []*AVP{classifier, rfc5777Member(t, "Time-Of-Day-Condition", lookup), rfc5777Member(t, "Excess-Treatment", lookup)}})
 	final := NewAVP(669, 0, 0, &GroupedAVP{AVP: []*AVP{NewAVP(449, avp.Mbit, 0, datatype.Enumerated(2)), rule}})
-	m := creditControlCommandMessage(t, loadCreditControlWireSpec(t).Commands[1])
+	m := creditControlCommandMessage(t, loadCreditControlWireSpec(t).Commands[1], testDict)
 	m.AddAVP(final)
-	rfc5777ValidateWire(t, m, 0)
+	rfc5777ValidateWire(t, m, 0, testDict)
 	classifier.Data.(*GroupedAVP).AVP = nil
-	rfc5777ValidateWire(t, m, MissingAVP)
+	rfc5777ValidateWire(t, m, MissingAVP, testDict)
 }

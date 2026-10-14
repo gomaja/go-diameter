@@ -1,4 +1,4 @@
-package dict
+package dict_test
 
 import (
 	"encoding/json"
@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"unicode"
+
+	"github.com/gomaja/go-diameter/diam/dict"
 )
 
 type s6aGroupedRuleSpec struct {
@@ -25,6 +27,8 @@ type s6aGroupedAVPSpec struct {
 // The fixture contains all machine-extracted 61 grouped ABNF blocks in TS 29.272 V19.6.0
 // §7.3, including the S6a/S6d-specific forms of reused AVPs.
 func TestS6aGroupedABNFSpec(t *testing.T) {
+	reference := newAllTestParser(t)
+
 	b, err := os.ReadFile("testdata/s6a_grouped_spec.json")
 	if err != nil {
 		t.Fatal(err)
@@ -38,15 +42,15 @@ func TestS6aGroupedABNFSpec(t *testing.T) {
 	}
 	for _, tc := range expected {
 		t.Run(tc.Section+"/"+tc.Name, func(t *testing.T) {
-			checkS6aGroupedGrammar(t, 16777251, tc)
+			checkS6aGroupedGrammar(t, reference, 16777251, tc)
 			if tc.Name == "Terminal-Information" {
-				checkS6aGroupedGrammar(t, 16777252, tc)
+				checkS6aGroupedGrammar(t, reference, 16777252, tc)
 			}
 		})
 	}
 }
 
-func checkS6aGroupedGrammar(t *testing.T, appID uint32, tc s6aGroupedAVPSpec) {
+func checkS6aGroupedGrammar(t *testing.T, reference *dict.Parser, appID uint32, tc s6aGroupedAVPSpec) {
 	t.Helper()
 	name := tc.Name
 	if name == "Monitoring Event Report" { // §7.3.196 uses spaces in its ABNF label.
@@ -55,7 +59,7 @@ func checkS6aGroupedGrammar(t *testing.T, appID uint32, tc s6aGroupedAVPSpec) {
 	if name == "Service-Type" { // §7.3.94's AVP is 3GPP Service-Type.
 		name = "TGPP-Service-Type"
 	}
-	avp, err := Default.FindAVPByName(appID, name)
+	avp, err := reference.FindAVPByName(appID, name)
 	if err != nil {
 		t.Fatalf("TS 29.272 V19.6.0 %s app %d: %v", tc.Section, appID, err)
 	}
@@ -116,7 +120,7 @@ func normalizeS6aABNFName(s string) string {
 	return b.String()
 }
 
-func actualRuleMax(r *Rule) string {
+func actualRuleMax(r *dict.Rule) string {
 	if !r.MaxSet {
 		return "unbounded"
 	}

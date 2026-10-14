@@ -8,11 +8,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/diamtest"
-	"github.com/gomaja/go-diameter/diam/dict"
 	"github.com/gomaja/go-diameter/diam/internal/testutil"
 	"github.com/gomaja/go-diameter/diam/sm/smpeer"
 )
@@ -24,18 +25,24 @@ func TestHandleCER_HandshakeMetadataTCP(t *testing.T) {
 }
 
 func testHandleCER_HandshakeMetadata(t *testing.T, network string) {
-	sm := mustNewStateMachine(t, serverSettings)
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings := cloneTestSettings(serverSettings,
+		testDict)
+	clientSettings := cloneTestSettings(clientSettings,
+		testDict)
+
+	sm := mustNewStateMachine(t, serverSettings, testDict)
 	smHandshakes := testHandshakeNotifications(sm)
-	srv := diamtest.NewServerNetwork(network, sm, dict.Default)
+	srv := diamtest.NewServerNetwork(network, sm, testDict)
 	defer srv.Close()
 
 	hsc := smHandshakes
-	cli, err := diam.DialNetworkTimeout(network, srv.Addr, nil, dict.Default, testutil.NetworkTimeout(network, 0))
+	cli, err := diam.DialNetworkTimeout(network, srv.Addr, nil, testDict, testutil.NetworkTimeout(network, 0))
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	m := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
+	m := diam.NewRequest(diam.CapabilitiesExchange, 0, testDict)
 	mustSMClientAVP(t, m, avp.OriginHost, avp.Mbit, 0, clientSettings.OriginHost)
 	mustSMClientAVP(t, m, avp.OriginRealm, avp.Mbit, 0, clientSettings.OriginRealm)
 	mustSMClientAVP(t, m, avp.HostIPAddress, avp.Mbit, 0, localhostAddress)
@@ -71,19 +78,25 @@ func testHandleCER_HandshakeMetadata(t *testing.T, network string) {
 }
 
 func TestHandleCER_HandshakeMetadata_CustomIP(t *testing.T) {
-	sm := mustNewStateMachine(t, serverSettings2)
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings2 := cloneTestSettings(serverSettings2,
+		testDict)
+	clientSettings := cloneTestSettings(clientSettings,
+		testDict)
+
+	sm := mustNewStateMachine(t, serverSettings2, testDict)
 	smHandshakes := testHandshakeNotifications(sm)
-	srv := diamtest.NewServer(sm, dict.Default)
+	srv := diamtest.NewServer(sm, testDict)
 	defer srv.Close()
 
 	hsc := smHandshakes
-	cli, err := diam.Dial(srv.Addr, nil, dict.Default)
+	cli, err := diam.Dial(srv.Addr, nil, testDict)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer cli.Close()
 
-	m := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
+	m := diam.NewRequest(diam.CapabilitiesExchange, 0, testDict)
 	mustSMClientAVP(t, m, avp.OriginHost, avp.Mbit, 0, clientSettings.OriginHost)
 	mustSMClientAVP(t, m, avp.OriginRealm, avp.Mbit, 0, clientSettings.OriginRealm)
 	mustSMClientAVP(t, m, avp.HostIPAddress, avp.Mbit, 0, localhostAddress)
@@ -114,20 +127,26 @@ func TestHandleCER_HandshakeMetadata_CustomIP(t *testing.T) {
 }
 
 func TestHandleCER_Acct(t *testing.T) {
-	sm := mustNewStateMachine(t, serverSettings)
-	srv := diamtest.NewServer(sm, dict.Default)
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings := cloneTestSettings(serverSettings,
+		testDict)
+	clientSettings := cloneTestSettings(clientSettings,
+		testDict)
+
+	sm := mustNewStateMachine(t, serverSettings, testDict)
+	srv := diamtest.NewServer(sm, testDict)
 	defer srv.Close()
 	mc := make(chan *diam.Message, 1)
 	mux := diam.NewServeMux()
 	mux.HandleFunc("CEA", func(c diam.Conn, m *diam.Message) {
 		mc <- m
 	})
-	cli, err := diam.Dial(srv.Addr, mux, dict.Default)
+	cli, err := diam.Dial(srv.Addr, mux, testDict)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer cli.Close()
-	m := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
+	m := diam.NewRequest(diam.CapabilitiesExchange, 0, testDict)
 	mustSMClientAVP(t, m, avp.OriginHost, avp.Mbit, 0, clientSettings.OriginHost)
 	mustSMClientAVP(t, m, avp.OriginRealm, avp.Mbit, 0, clientSettings.OriginRealm)
 	mustSMClientAVP(t, m, avp.HostIPAddress, avp.Mbit, 0, localhostAddress)
@@ -151,20 +170,26 @@ func TestHandleCER_Acct(t *testing.T) {
 }
 
 func TestHandleCER_Acct_Fail(t *testing.T) {
-	sm := mustNewStateMachine(t, serverSettings)
-	srv := diamtest.NewServer(sm, dict.Default)
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings := cloneTestSettings(serverSettings,
+		testDict)
+	clientSettings := cloneTestSettings(clientSettings,
+		testDict)
+
+	sm := mustNewStateMachine(t, serverSettings, testDict)
+	srv := diamtest.NewServer(sm, testDict)
 	defer srv.Close()
 	mc := make(chan *diam.Message, 1)
 	mux := diam.NewServeMux()
 	mux.HandleFunc("CEA", func(c diam.Conn, m *diam.Message) {
 		mc <- m
 	})
-	cli, err := diam.Dial(srv.Addr, mux, dict.Default)
+	cli, err := diam.Dial(srv.Addr, mux, testDict)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer cli.Close()
-	m := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
+	m := diam.NewRequest(diam.CapabilitiesExchange, 0, testDict)
 	mustSMClientAVP(t, m, avp.OriginHost, avp.Mbit, 0, clientSettings.OriginHost)
 	mustSMClientAVP(t, m, avp.OriginRealm, avp.Mbit, 0, clientSettings.OriginRealm)
 	mustSMClientAVP(t, m, avp.HostIPAddress, avp.Mbit, 0, localhostAddress)
@@ -188,20 +213,26 @@ func TestHandleCER_Acct_Fail(t *testing.T) {
 }
 
 func TestHandleCER_Acct_Fail_CustomIP(t *testing.T) {
-	sm := mustNewStateMachine(t, serverSettings2)
-	srv := diamtest.NewServer(sm, dict.Default)
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings2 := cloneTestSettings(serverSettings2,
+		testDict)
+	clientSettings := cloneTestSettings(clientSettings,
+		testDict)
+
+	sm := mustNewStateMachine(t, serverSettings2, testDict)
+	srv := diamtest.NewServer(sm, testDict)
 	defer srv.Close()
 	mc := make(chan *diam.Message, 1)
 	mux := diam.NewServeMux()
 	mux.HandleFunc("CEA", func(c diam.Conn, m *diam.Message) {
 		mc <- m
 	})
-	cli, err := diam.Dial(srv.Addr, mux, dict.Default)
+	cli, err := diam.Dial(srv.Addr, mux, testDict)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer cli.Close()
-	m := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
+	m := diam.NewRequest(diam.CapabilitiesExchange, 0, testDict)
 	mustSMClientAVP(t, m, avp.OriginHost, avp.Mbit, 0, clientSettings.OriginHost)
 	mustSMClientAVP(t, m, avp.OriginRealm, avp.Mbit, 0, clientSettings.OriginRealm)
 	mustSMClientAVP(t, m, avp.HostIPAddress, avp.Mbit, 0, localhostAddress)
@@ -225,20 +256,26 @@ func TestHandleCER_Acct_Fail_CustomIP(t *testing.T) {
 }
 
 func TestHandleCER_VS_Acct(t *testing.T) {
-	sm := mustNewStateMachine(t, serverSettings)
-	srv := diamtest.NewServer(sm, dict.Default)
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings := cloneTestSettings(serverSettings,
+		testDict)
+	clientSettings := cloneTestSettings(clientSettings,
+		testDict)
+
+	sm := mustNewStateMachine(t, serverSettings, testDict)
+	srv := diamtest.NewServer(sm, testDict)
 	defer srv.Close()
 	mc := make(chan *diam.Message, 1)
 	mux := diam.NewServeMux()
 	mux.HandleFunc("CEA", func(c diam.Conn, m *diam.Message) {
 		mc <- m
 	})
-	cli, err := diam.Dial(srv.Addr, mux, dict.Default)
+	cli, err := diam.Dial(srv.Addr, mux, testDict)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer cli.Close()
-	m := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
+	m := diam.NewRequest(diam.CapabilitiesExchange, 0, testDict)
 	mustSMClientAVP(t, m, avp.OriginHost, avp.Mbit, 0, clientSettings.OriginHost)
 	mustSMClientAVP(t, m, avp.OriginRealm, avp.Mbit, 0, clientSettings.OriginRealm)
 	mustSMClientAVP(t, m, avp.HostIPAddress, avp.Mbit, 0, localhostAddress)
@@ -266,20 +303,26 @@ func TestHandleCER_VS_Acct(t *testing.T) {
 }
 
 func TestHandleCER_VS_Acct_Fail(t *testing.T) {
-	sm := mustNewStateMachine(t, serverSettings)
-	srv := diamtest.NewServer(sm, dict.Default)
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings := cloneTestSettings(serverSettings,
+		testDict)
+	clientSettings := cloneTestSettings(clientSettings,
+		testDict)
+
+	sm := mustNewStateMachine(t, serverSettings, testDict)
+	srv := diamtest.NewServer(sm, testDict)
 	defer srv.Close()
 	mc := make(chan *diam.Message, 1)
 	mux := diam.NewServeMux()
 	mux.HandleFunc("CEA", func(c diam.Conn, m *diam.Message) {
 		mc <- m
 	})
-	cli, err := diam.Dial(srv.Addr, mux, dict.Default)
+	cli, err := diam.Dial(srv.Addr, mux, testDict)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer cli.Close()
-	m := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
+	m := diam.NewRequest(diam.CapabilitiesExchange, 0, testDict)
 	mustSMClientAVP(t, m, avp.OriginHost, avp.Mbit, 0, clientSettings.OriginHost)
 	mustSMClientAVP(t, m, avp.OriginRealm, avp.Mbit, 0, clientSettings.OriginRealm)
 	mustSMClientAVP(t, m, avp.HostIPAddress, avp.Mbit, 0, localhostAddress)
@@ -307,20 +350,26 @@ func TestHandleCER_VS_Acct_Fail(t *testing.T) {
 }
 
 func TestHandleCER_Auth(t *testing.T) {
-	sm := mustNewStateMachine(t, serverSettings)
-	srv := diamtest.NewServer(sm, dict.Default)
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings := cloneTestSettings(serverSettings,
+		testDict)
+	clientSettings := cloneTestSettings(clientSettings,
+		testDict)
+
+	sm := mustNewStateMachine(t, serverSettings, testDict)
+	srv := diamtest.NewServer(sm, testDict)
 	defer srv.Close()
 	mc := make(chan *diam.Message, 1)
 	mux := diam.NewServeMux()
 	mux.HandleFunc("CEA", func(c diam.Conn, m *diam.Message) {
 		mc <- m
 	})
-	cli, err := diam.Dial(srv.Addr, mux, dict.Default)
+	cli, err := diam.Dial(srv.Addr, mux, testDict)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer cli.Close()
-	m := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
+	m := diam.NewRequest(diam.CapabilitiesExchange, 0, testDict)
 	mustSMClientAVP(t, m, avp.OriginHost, avp.Mbit, 0, clientSettings.OriginHost)
 	mustSMClientAVP(t, m, avp.OriginRealm, avp.Mbit, 0, clientSettings.OriginRealm)
 	mustSMClientAVP(t, m, avp.HostIPAddress, avp.Mbit, 0, localhostAddress)
@@ -344,20 +393,26 @@ func TestHandleCER_Auth(t *testing.T) {
 }
 
 func TestHandleCER_Auth_Fail(t *testing.T) {
-	sm := mustNewStateMachine(t, serverSettings)
-	srv := diamtest.NewServer(sm, dict.Default)
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings := cloneTestSettings(serverSettings,
+		testDict)
+	clientSettings := cloneTestSettings(clientSettings,
+		testDict)
+
+	sm := mustNewStateMachine(t, serverSettings, testDict)
+	srv := diamtest.NewServer(sm, testDict)
 	defer srv.Close()
 	mc := make(chan *diam.Message, 1)
 	mux := diam.NewServeMux()
 	mux.HandleFunc("CEA", func(c diam.Conn, m *diam.Message) {
 		mc <- m
 	})
-	cli, err := diam.Dial(srv.Addr, mux, dict.Default)
+	cli, err := diam.Dial(srv.Addr, mux, testDict)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer cli.Close()
-	m := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
+	m := diam.NewRequest(diam.CapabilitiesExchange, 0, testDict)
 	mustSMClientAVP(t, m, avp.OriginHost, avp.Mbit, 0, clientSettings.OriginHost)
 	mustSMClientAVP(t, m, avp.OriginRealm, avp.Mbit, 0, clientSettings.OriginRealm)
 	mustSMClientAVP(t, m, avp.HostIPAddress, avp.Mbit, 0, localhostAddress)
@@ -385,20 +440,26 @@ func TestHandleCER_VS_AuthTCP(t *testing.T) {
 }
 
 func testHandleCER_VS_Auth(t *testing.T, network string) {
-	sm := mustNewStateMachine(t, serverSettings)
-	srv := diamtest.NewServerNetwork(network, sm, dict.Default)
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings := cloneTestSettings(serverSettings,
+		testDict)
+	clientSettings := cloneTestSettings(clientSettings,
+		testDict)
+
+	sm := mustNewStateMachine(t, serverSettings, testDict)
+	srv := diamtest.NewServerNetwork(network, sm, testDict)
 	defer srv.Close()
 	mc := make(chan *diam.Message, 1)
 	mux := diam.NewServeMux()
 	mux.HandleFunc("CEA", func(c diam.Conn, m *diam.Message) {
 		mc <- m
 	})
-	cli, err := diam.DialNetworkTimeout(network, srv.Addr, mux, dict.Default, testutil.NetworkTimeout(network, 0))
+	cli, err := diam.DialNetworkTimeout(network, srv.Addr, mux, testDict, testutil.NetworkTimeout(network, 0))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer cli.Close()
-	m := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
+	m := diam.NewRequest(diam.CapabilitiesExchange, 0, testDict)
 	mustSMClientAVP(t, m, avp.OriginHost, avp.Mbit, 0, clientSettings.OriginHost)
 	mustSMClientAVP(t, m, avp.OriginRealm, avp.Mbit, 0, clientSettings.OriginRealm)
 	mustSMClientAVP(t, m, avp.HostIPAddress, avp.Mbit, 0, localhostAddress)
@@ -430,20 +491,26 @@ func TestHandleCER_VS_Auth_FailTCP(t *testing.T) {
 }
 
 func testHandleCER_VS_Auth_Fail(t *testing.T, network string) {
-	sm := mustNewStateMachine(t, serverSettings)
-	srv := diamtest.NewServerNetwork(network, sm, dict.Default)
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings := cloneTestSettings(serverSettings,
+		testDict)
+	clientSettings := cloneTestSettings(clientSettings,
+		testDict)
+
+	sm := mustNewStateMachine(t, serverSettings, testDict)
+	srv := diamtest.NewServerNetwork(network, sm, testDict)
 	defer srv.Close()
 	mc := make(chan *diam.Message, 1)
 	mux := diam.NewServeMux()
 	mux.HandleFunc("CEA", func(c diam.Conn, m *diam.Message) {
 		mc <- m
 	})
-	cli, err := diam.DialNetwork(network, srv.Addr, mux, dict.Default)
+	cli, err := diam.DialNetwork(network, srv.Addr, mux, testDict)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer cli.Close()
-	m := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
+	m := diam.NewRequest(diam.CapabilitiesExchange, 0, testDict)
 	mustSMClientAVP(t, m, avp.OriginHost, avp.Mbit, 0, clientSettings.OriginHost)
 	mustSMClientAVP(t, m, avp.OriginRealm, avp.Mbit, 0, clientSettings.OriginRealm)
 	mustSMClientAVP(t, m, avp.HostIPAddress, avp.Mbit, 0, localhostAddress)
@@ -471,20 +538,26 @@ func testHandleCER_VS_Auth_Fail(t *testing.T, network string) {
 }
 
 func TestHandleCER_InbandSecurity(t *testing.T) {
-	sm := mustNewStateMachine(t, serverSettings)
-	srv := diamtest.NewServer(sm, dict.Default)
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings := cloneTestSettings(serverSettings,
+		testDict)
+	clientSettings := cloneTestSettings(clientSettings,
+		testDict)
+
+	sm := mustNewStateMachine(t, serverSettings, testDict)
+	srv := diamtest.NewServer(sm, testDict)
 	defer srv.Close()
 	mc := make(chan *diam.Message, 1)
 	mux := diam.NewServeMux()
 	mux.HandleFunc("CEA", func(c diam.Conn, m *diam.Message) {
 		mc <- m
 	})
-	cli, err := diam.Dial(srv.Addr, mux, dict.Default)
+	cli, err := diam.Dial(srv.Addr, mux, testDict)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer cli.Close()
-	m := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
+	m := diam.NewRequest(diam.CapabilitiesExchange, 0, testDict)
 	mustSMClientAVP(t, m, avp.OriginHost, avp.Mbit, 0, clientSettings.OriginHost)
 	mustSMClientAVP(t, m, avp.OriginRealm, avp.Mbit, 0, clientSettings.OriginRealm)
 	mustSMClientAVP(t, m, avp.HostIPAddress, avp.Mbit, 0, localhostAddress)

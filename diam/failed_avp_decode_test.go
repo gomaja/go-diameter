@@ -16,6 +16,8 @@ import (
 )
 
 func TestReadMessageAcceptsFailedAVPPayloads(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	for _, nested := range []bool{false, true} {
 		for _, leaf := range [][]byte{rawAVP(avp.InbandSecurityID, []byte{1, 2}), rawAVP(avp.HostIPAddress, []byte{255, 255, 1})} {
 			payload := leaf
@@ -23,7 +25,7 @@ func TestReadMessageAcceptsFailedAVPPayloads(t *testing.T) {
 				payload = rawAVP(avp.VendorSpecificApplicationID, leaf)
 			}
 			body := append(rawAVP(avp.FailedAVP, payload), rawAVP(avp.OriginHost, []byte("after.example"))...)
-			m, err := ReadMessage(bytes.NewReader(testFramedMessage(t, 0, body)), dict.Default)
+			m, err := ReadMessage(bytes.NewReader(testFramedMessage(t, 0, body)), testDict)
 			if err != nil || m.DecodeErr != nil {
 				t.Fatalf("Failed-AVP payload rejected: %v, DecodeErr=%v", err, m.DecodeErr)
 			}
@@ -53,10 +55,12 @@ func TestReadMessageAcceptsFailedAVPPayloads(t *testing.T) {
 }
 
 func TestReadMessageMalformedAnswerReturnsDecodeErr(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	for _, body := range [][]byte{rawAVP(avp.InbandSecurityID, []byte{1, 2}), rawAVP(avp.HostIPAddress, []byte{255, 255, 1})} {
 		// Failed-AVP payload leniency must not extend to its siblings.
 		body = append(rawAVP(avp.FailedAVP, rawAVP(avp.HostIPAddress, []byte{255, 255, 1})), body...)
-		m, err := ReadMessage(bytes.NewReader(testFramedMessage(t, 0, body)), dict.Default)
+		m, err := ReadMessage(bytes.NewReader(testFramedMessage(t, 0, body)), testDict)
 		var me *MessageError
 		if err == nil || errors.As(err, &me) || err != m.DecodeErr {
 			t.Fatalf("malformed answer error = %T(%v), want plain DecodeErr", err, err)
@@ -68,7 +72,7 @@ func TestReadMessageMalformedAnswerReturnsDecodeErr(t *testing.T) {
 }
 
 func TestFailedAVPLeniencyIsVendorScoped(t *testing.T) {
-	d := dict.New(dict.Base)
+	d := newTestDictionary(dict.Base())
 	if err := d.Load(strings.NewReader(`<diameter><application id="0"><avp name="Vendor-Group" code="279" vendor-id="10415"><data type="Grouped"/></avp></application></diameter>`)); err != nil {
 		t.Fatal(err)
 	}
@@ -81,7 +85,7 @@ func TestFailedAVPLeniencyIsVendorScoped(t *testing.T) {
 }
 
 func TestFailedAVPStillEnforcesFramingAndDepth(t *testing.T) {
-	d := dict.New(dict.Base)
+	d := newTestDictionary(dict.Base())
 	d.SetMaxGroupedDepth(2)
 	for _, tc := range []struct {
 		name    string

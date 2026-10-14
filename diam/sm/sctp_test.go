@@ -12,9 +12,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/diamtest"
-	"github.com/gomaja/go-diameter/diam/dict"
 	"github.com/gomaja/go-diameter/diam/internal/testutil"
 )
 
@@ -48,9 +49,11 @@ func TestStateMachineSCTP(t *testing.T) {
 }
 
 func TestStateMachineMessageErrorSCTPStream(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	requireSCTP(t)
-	settings := testMessageErrorSettings()
-	server := diamtest.NewServerNetwork("sctp", mustNewStateMachine(t, settings), dict.Default)
+	settings := testMessageErrorSettings(testDict)
+	server := diamtest.NewServerNetwork("sctp", mustNewStateMachine(t, settings, testDict), testDict)
 	defer server.Close()
 
 	answers := make(chan *diam.Message, 1)
@@ -58,7 +61,7 @@ func TestStateMachineMessageErrorSCTPStream(t *testing.T) {
 	handler.Handle("CEA", diam.HandlerFunc(func(_ diam.Conn, message *diam.Message) {
 		answers <- message
 	}))
-	client, err := diam.DialNetworkTimeout("sctp", server.Addr, handler, dict.Default, testutil.SCTPTimeout)
+	client, err := diam.DialNetworkTimeout("sctp", server.Addr, handler, testDict, testutil.SCTPTimeout)
 	if err != nil {
 		t.Fatal(err)
 	}

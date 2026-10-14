@@ -6,22 +6,25 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/diamtest"
-	"github.com/gomaja/go-diameter/diam/dict"
 )
 
 func TestUnknownMandatoryAVPAnswerTCP(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	for _, nested := range []bool{false, true} {
 		t.Run(map[bool]string{false: "top", true: "nested"}[nested], func(t *testing.T) {
-			settings := testMessageErrorSettings()
+			settings := testMessageErrorSettings(testDict)
 			settings.RejectUnknownMandatoryAVPs = true
-			sm := mustNewStateMachine(t, settings)
+			sm := mustNewStateMachine(t, settings, testDict)
 			seen := make(chan struct{}, 1)
 			sm.HandleFunc("RAR", func(_ diam.Conn, _ *diam.Message) { seen <- struct{}{} })
-			srv := diamtest.NewServer(sm, dict.Default)
+			srv := diamtest.NewServer(sm, testDict)
 			defer srv.Close()
 			conn := dialHandshakeUnknownTest(t, srv.Addr)
 			defer func() { _ = conn.Close() }()
@@ -32,7 +35,7 @@ func TestUnknownMandatoryAVPAnswerTCP(t *testing.T) {
 			if err := conn.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
 				t.Fatal(err)
 			}
-			answer, err := diam.ReadMessage(conn, dict.Default)
+			answer, err := diam.ReadMessage(conn, testDict)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -84,6 +87,8 @@ func TestUnknownMandatoryAVPAnswerTCP(t *testing.T) {
 }
 
 func TestUnknownAVPToleranceTCP(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	for _, tc := range []struct {
 		name    string
 		enabled bool
@@ -94,12 +99,12 @@ func TestUnknownAVPToleranceTCP(t *testing.T) {
 		{"default-off-optional", false, 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			settings := testMessageErrorSettings()
+			settings := testMessageErrorSettings(testDict)
 			settings.RejectUnknownMandatoryAVPs = tc.enabled
-			sm := mustNewStateMachine(t, settings)
+			sm := mustNewStateMachine(t, settings, testDict)
 			seen := make(chan struct{}, 1)
 			sm.HandleFunc("RAR", func(_ diam.Conn, _ *diam.Message) { seen <- struct{}{} })
-			srv := diamtest.NewServer(sm, dict.Default)
+			srv := diamtest.NewServer(sm, testDict)
 			defer srv.Close()
 			conn := dialHandshakeUnknownTest(t, srv.Addr)
 			defer func() { _ = conn.Close() }()
@@ -114,7 +119,7 @@ func TestUnknownAVPToleranceTCP(t *testing.T) {
 			if err := conn.SetReadDeadline(time.Now().Add(150 * time.Millisecond)); err != nil {
 				t.Fatal(err)
 			}
-			_, err := diam.ReadMessage(conn, dict.Default)
+			_, err := diam.ReadMessage(conn, testDict)
 			var nerr net.Error
 			if !errors.As(err, &nerr) || !nerr.Timeout() {
 				t.Fatalf("unexpected response: %v", err)
@@ -124,10 +129,12 @@ func TestUnknownAVPToleranceTCP(t *testing.T) {
 }
 
 func TestUnknownMandatoryAnswerIsNotAnswered(t *testing.T) {
-	settings := testMessageErrorSettings()
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
+	settings := testMessageErrorSettings(testDict)
 	settings.RejectUnknownMandatoryAVPs = true
-	sm := mustNewStateMachine(t, settings)
-	srv := diamtest.NewServer(sm, dict.Default)
+	sm := mustNewStateMachine(t, settings, testDict)
+	srv := diamtest.NewServer(sm, testDict)
 	defer srv.Close()
 	conn := dialHandshakeUnknownTest(t, srv.Addr)
 	defer func() { _ = conn.Close() }()
@@ -139,7 +146,7 @@ func TestUnknownMandatoryAnswerIsNotAnswered(t *testing.T) {
 	if err := conn.SetReadDeadline(time.Now().Add(150 * time.Millisecond)); err != nil {
 		t.Fatal(err)
 	}
-	_, err := diam.ReadMessage(conn, dict.Default)
+	_, err := diam.ReadMessage(conn, testDict)
 	var nerr net.Error
 	if !errors.As(err, &nerr) || !nerr.Timeout() {
 		t.Fatalf("unexpected response: %v", err)
@@ -147,10 +154,12 @@ func TestUnknownMandatoryAnswerIsNotAnswered(t *testing.T) {
 }
 
 func TestUnknownMandatoryMultipleFailuresOneContainer(t *testing.T) {
-	settings := testMessageErrorSettings()
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
+	settings := testMessageErrorSettings(testDict)
 	settings.RejectUnknownMandatoryAVPs = true
-	sm := mustNewStateMachine(t, settings)
-	srv := diamtest.NewServer(sm, dict.Default)
+	sm := mustNewStateMachine(t, settings, testDict)
+	srv := diamtest.NewServer(sm, testDict)
 	defer srv.Close()
 	conn := dialHandshakeUnknownTest(t, srv.Addr)
 	defer func() { _ = conn.Close() }()
@@ -162,7 +171,7 @@ func TestUnknownMandatoryMultipleFailuresOneContainer(t *testing.T) {
 	if err := conn.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
 		t.Fatal(err)
 	}
-	answer, err := diam.ReadMessage(conn, dict.Default)
+	answer, err := diam.ReadMessage(conn, testDict)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -185,7 +194,9 @@ func TestUnknownMandatoryMultipleFailuresOneContainer(t *testing.T) {
 }
 
 func unknownRequest(nested bool, mandatory uint8) *diam.Message {
-	m := diam.NewMessage(diam.ReAuth, diam.RequestFlag|diam.ProxiableFlag, 0, 0x11223344, 0x55667788, dict.Default)
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
+	m := diam.NewMessage(diam.ReAuth, diam.RequestFlag|diam.ProxiableFlag, 0, 0x11223344, 0x55667788, testDict)
 	m.AddAVP(diam.NewAVP(avp.SessionID, avp.Mbit, 0, datatype.UTF8String("test-session")))
 	m.AddAVP(diam.NewAVP(avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("peer.example")))
 	m.AddAVP(diam.NewAVP(avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("example")))
@@ -203,6 +214,8 @@ func unknownRequest(nested bool, mandatory uint8) *diam.Message {
 }
 
 func dialHandshakeUnknownTest(t *testing.T, addr string) net.Conn {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	t.Helper()
 	conn, err := net.DialTimeout("tcp", addr, time.Second)
 	if err != nil {
@@ -212,7 +225,7 @@ func dialHandshakeUnknownTest(t *testing.T, addr string) net.Conn {
 	if err := conn.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := diam.ReadMessage(conn, dict.Default); err != nil {
+	if _, err := diam.ReadMessage(conn, testDict); err != nil {
 		t.Fatal(err)
 	}
 	return conn

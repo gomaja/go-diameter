@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gomaja/go-diameter/diam/dict/all"
+
 	"github.com/gomaja/go-diameter/diam/dict"
 )
 
@@ -11,6 +13,8 @@ import (
 // R, and P exactly when the request's Command Code Format carries PXY
 // (RFC 6733 §§3, 3.2), as the dictionary's definition records it.
 func TestNewRequestSetsTheFlagsItsCommandRequires(t *testing.T) {
+	testDict := newTestDictionary(all.Dictionary())
+
 	unstated, err := dict.NewParser()
 	if err != nil {
 		t.Fatal(err)
@@ -30,17 +34,18 @@ func TestNewRequestSetsTheFlagsItsCommandRequires(t *testing.T) {
 		want       uint8
 	}{
 		// RFC 8506 §3.1, 3GPP TS 29.272 §§7.2.3, 7.2.5, RFC 6733 §9.7.1.
-		{"CCR", CreditControl, 4, dict.Default, rp},
-		{"CCR, nil dictionary", CreditControl, 4, nil, rp},
-		{"AIR", AuthenticationInformation, TGPP_S6A_APP_ID, dict.Default, rp},
-		{"ULR", UpdateLocation, TGPP_S6A_APP_ID, dict.Default, rp},
-		{"ACR", Accounting, 0, dict.Default, rp},
+		{"CCR", CreditControl, 4, testDict, rp},
+		// The shared nil fallback contains only base command definitions.
+		{"CCR, nil dictionary", CreditControl, 4, nil, RequestFlag},
+		{"AIR", AuthenticationInformation, TGPP_S6A_APP_ID, testDict, rp},
+		{"ULR", UpdateLocation, TGPP_S6A_APP_ID, testDict, rp},
+		{"ACR", Accounting, 0, testDict, rp},
 		// RFC 6733 §§5.3.1, 5.5.1, 5.4.1: hop-by-hop, not proxiable.
-		{"CER", CapabilitiesExchange, 0, dict.Default, RequestFlag},
-		{"DWR", DeviceWatchdog, 0, dict.Default, RequestFlag},
-		{"DPR", DisconnectPeer, 0, dict.Default, RequestFlag},
+		{"CER", CapabilitiesExchange, 0, testDict, RequestFlag},
+		{"DWR", DeviceWatchdog, 0, testDict, RequestFlag},
+		{"DPR", DisconnectPeer, 0, testDict, RequestFlag},
 		// Nothing tells NewRequest the P bit of these.
-		{"command the dictionary does not define", 0xfedc, 999, dict.Default, RequestFlag},
+		{"command the dictionary does not define", 0xfedc, 999, testDict, RequestFlag},
 		{"definition without a P bit", 999, 999, unstated, RequestFlag},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -65,9 +70,11 @@ func TestNewRequestSetsTheFlagsItsCommandRequires(t *testing.T) {
 // Message.Validate requires: it rejects a P bit that disagrees with the
 // command grammar with 3008 (RFC 6733 §7.1.3).
 func TestNewRequestPassesTheHeaderCheckOfEveryBundledCommand(t *testing.T) {
-	for _, app := range dict.Default.Apps() {
+	testDict := newTestDictionary(all.Dictionary())
+
+	for _, app := range testDict.Apps() {
 		for _, cmd := range app.Command {
-			m := NewRequest(cmd.Code, app.ID, dict.Default)
+			m := NewRequest(cmd.Code, app.ID, testDict)
 			if err := m.Validate(); err != nil && err.ResultCode == InvalidHDRBits {
 				t.Errorf("application %d %s: NewRequest flags %#x: %v", app.ID, cmd, m.Header.CommandFlags, err)
 			}

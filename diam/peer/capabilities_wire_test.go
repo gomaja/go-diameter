@@ -8,6 +8,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/all"
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+	"github.com/gomaja/go-diameter/diam/dict/cx"
+	"github.com/gomaja/go-diameter/diam/dict/nasreq"
+	"github.com/gomaja/go-diameter/diam/dict/rorf"
+	"github.com/gomaja/go-diameter/diam/dict/s6a"
+	"github.com/gomaja/go-diameter/diam/dict/s6c"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
@@ -45,6 +53,7 @@ func peerCapabilitiesOnWire(t *testing.T, dictionary *dict.Parser) (*diam.Messag
 	defer func() { _ = localListener.Close() }()
 	server := &diam.Server{Dict: dictionary}
 	defer closeManager(t, manager, server)
+	server.Dict = manager.cfg.Settings.Dict
 	if err := manager.BindServer(server); err != nil {
 		t.Fatal(err)
 	}
@@ -85,15 +94,17 @@ func peerCapabilitiesOnWire(t *testing.T, dictionary *dict.Parser) (*diam.Messag
 }
 
 func TestPeerCapabilitiesOnWire(t *testing.T) {
+	testDict := newTestDictionary(all.Dictionary())
+
 	for _, tc := range []struct {
 		name                string
 		dictionary          *dict.Parser
 		auth, vendors, apps []uint32
 	}{
-		{"Default", dict.Default, []uint32{1, 4}, []uint32{5535, 10415, 13019, 45687}, []uint32{16777216, 16777217, 16777236, 16777238, 16777251, 16777252, 16777265, 16777302, 16777312, 16777313}},
-		{"S6a", dict.New(dict.Base, dict.NASREQ, dict.CreditControl, dict.RoRf, dict.S6c, dict.S6a), []uint32{1, 4}, []uint32{5535, 10415, 13019, 45687}, []uint32{16777251, 16777312}},
-		{"Cx", dict.New(dict.Base, dict.NASREQ, dict.Cx), []uint32{1}, []uint32{10415, 13019}, []uint32{16777216}},
-		{"CreditControl-RoRf", dict.New(dict.Base, dict.NASREQ, dict.CreditControl, dict.RoRf), []uint32{1, 4}, []uint32{5535, 13019, 45687}, nil},
+		{"All", testDict, []uint32{1, 4}, []uint32{5535, 10415, 13019, 45687}, []uint32{16777216, 16777217, 16777236, 16777238, 16777251, 16777252, 16777265, 16777302, 16777312, 16777313}},
+		{"S6a", newTestDictionary(dict.Base(), nasreq.Dictionary(), creditcontrol.Dictionary(), rorf.Dictionary(), s6c.Dictionary(), s6a.Dictionary()), []uint32{1, 4}, []uint32{5535, 10415, 13019, 45687}, []uint32{16777251, 16777312}},
+		{"Cx", newTestDictionary(dict.Base(), nasreq.Dictionary(), cx.Dictionary()), []uint32{1}, []uint32{10415, 13019}, []uint32{16777216}},
+		{"CreditControl-RoRf", newTestDictionary(dict.Base(), nasreq.Dictionary(), creditcontrol.Dictionary(), rorf.Dictionary()), []uint32{1, 4}, []uint32{5535, 13019, 45687}, nil},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			request, answer := peerCapabilitiesOnWire(t, tc.dictionary)

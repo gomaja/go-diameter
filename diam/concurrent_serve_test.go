@@ -18,9 +18,16 @@ import (
 )
 
 // cerPayload builds a minimal CER payload usable by the test mux.
-func cerPayload(tb testing.TB) []byte {
+func cerPayload(tb testing.TB, parsers ...*dict.Parser) []byte {
+	var testDict *dict.Parser
+	if len(parsers) > 0 {
+		testDict = parsers[0]
+	} else {
+		testDict = newTestDictionary(dict.Base())
+	}
+
 	tb.Helper()
-	msg := NewRequest(257, 0, dict.Default)
+	msg := NewRequest(257, 0, testDict)
 	mustPayloadAVP(tb, msg, avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("test"))
 	mustPayloadAVP(tb, msg, avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("test"))
 	mustPayloadAVP(tb, msg, avp.HostIPAddress, avp.Mbit, 0, datatype.AddressFromIP(netip.MustParseAddr("127.0.0.1")))
@@ -68,6 +75,8 @@ func closeTestConn(tb testing.TB, conn net.Conn) {
 // messages, sequential dispatch would take >= 1s; concurrent should be
 // dramatically faster.
 func TestConcurrentServeThroughput(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	var received int64
 	const total = 1000
 
@@ -90,7 +99,7 @@ func TestConcurrentServeThroughput(t *testing.T) {
 	}
 	defer closeTestConn(t, conn)
 
-	payload := cerPayload(t)
+	payload := cerPayload(t, testDict)
 	start := time.Now()
 	for i := 0; i < total; i++ {
 		if _, err := conn.Write(payload); err != nil {
@@ -118,6 +127,8 @@ func TestConcurrentServeThroughput(t *testing.T) {
 // concurrently-dispatched handler does not crash the server and that
 // subsequent messages are still processed.
 func TestConcurrentServePanicRecovery(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	var received int64
 
 	mux := NewServeMux()
@@ -140,7 +151,7 @@ func TestConcurrentServePanicRecovery(t *testing.T) {
 	}
 	defer closeTestConn(t, conn)
 
-	payload := cerPayload(t)
+	payload := cerPayload(t, testDict)
 	for i := 0; i < 3; i++ {
 		if _, err := conn.Write(payload); err != nil {
 			t.Fatal(err)
@@ -162,6 +173,8 @@ func TestConcurrentServePanicRecovery(t *testing.T) {
 // TestConcurrentServeBounded verifies that MaxConcurrentHandlers caps the
 // number of simultaneously-running handlers.
 func TestConcurrentServeBounded(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	const limit = 4
 	const total = 20
 
@@ -194,7 +207,7 @@ func TestConcurrentServeBounded(t *testing.T) {
 	}
 	defer closeTestConn(t, conn)
 
-	payload := cerPayload(t)
+	payload := cerPayload(t, testDict)
 	for i := 0; i < total; i++ {
 		if _, err := conn.Write(payload); err != nil {
 			t.Fatal(err)

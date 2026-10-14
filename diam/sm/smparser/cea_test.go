@@ -7,10 +7,11 @@ package smparser
 import (
 	"testing"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
-	"github.com/gomaja/go-diameter/diam/dict"
 )
 
 func mustCEAAVP(t *testing.T, m *diam.Message, code uint32, flags uint8, vendor uint32, data datatype.Type) {
@@ -21,7 +22,9 @@ func mustCEAAVP(t *testing.T, m *diam.Message, code uint32, flags uint8, vendor 
 }
 
 func TestCEA_MissingResultCode(t *testing.T) {
-	m := diam.NewMessage(diam.CapabilitiesExchange, 0, 0, 0, 0, nil)
+	testDict := newParserTestDictionary(creditcontrol.Dictionary())
+
+	m := diam.NewMessage(diam.CapabilitiesExchange, 0, 0, 0, 0, testDict)
 	cea := new(CEA)
 	err := cea.Parse(m, ParseOptions{Role: Client})
 	if err == nil {
@@ -33,7 +36,9 @@ func TestCEA_MissingResultCode(t *testing.T) {
 }
 
 func TestCEA_MissingOriginHost(t *testing.T) {
-	m := diam.NewMessage(diam.CapabilitiesExchange, 0, 0, 0, 0, nil)
+	testDict := newParserTestDictionary(creditcontrol.Dictionary())
+
+	m := diam.NewMessage(diam.CapabilitiesExchange, 0, 0, 0, 0, testDict)
 	mustCEAAVP(t, m, avp.ResultCode, avp.Mbit, 0, datatype.Unsigned32(diam.Success))
 	cea := new(CEA)
 	err := cea.Parse(m, ParseOptions{Role: Client})
@@ -46,7 +51,9 @@ func TestCEA_MissingOriginHost(t *testing.T) {
 }
 
 func TestCEA_MissingOriginRealm(t *testing.T) {
-	m := diam.NewMessage(diam.CapabilitiesExchange, 0, 0, 0, 0, nil)
+	testDict := newParserTestDictionary(creditcontrol.Dictionary())
+
+	m := diam.NewMessage(diam.CapabilitiesExchange, 0, 0, 0, 0, testDict)
 	mustCEAAVP(t, m, avp.ResultCode, avp.Mbit, 0, datatype.Unsigned32(diam.Success))
 	mustCEAAVP(t, m, avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("foobar"))
 	cea := new(CEA)
@@ -60,7 +67,9 @@ func TestCEA_MissingOriginRealm(t *testing.T) {
 }
 
 func TestCEA_MissingApplication(t *testing.T) {
-	m := diam.NewMessage(diam.CapabilitiesExchange, 0, 0, 0, 0, dict.Default)
+	testDict := newParserTestDictionary(creditcontrol.Dictionary())
+
+	m := diam.NewMessage(diam.CapabilitiesExchange, 0, 0, 0, 0, testDict)
 	mustCEAAVP(t, m, avp.ResultCode, avp.Mbit, 0, datatype.Unsigned32(diam.Success))
 	mustCEAAVP(t, m, avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("foobar"))
 	mustCEAAVP(t, m, avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("test"))
@@ -76,7 +85,9 @@ func TestCEA_MissingApplication(t *testing.T) {
 }
 
 func TestCEA_MissingApplicationWithError(t *testing.T) {
-	m := diam.NewMessage(diam.CapabilitiesExchange, 0, 0, 0, 0, dict.Default)
+	testDict := newParserTestDictionary(creditcontrol.Dictionary())
+
+	m := diam.NewMessage(diam.CapabilitiesExchange, 0, 0, 0, 0, testDict)
 	mustCEAAVP(t, m, avp.ResultCode, avp.Mbit, 0, datatype.Unsigned32(diam.ResourcesExceeded))
 	mustCEAAVP(t, m, avp.FailedAVP, avp.Mbit, 0, &diam.GroupedAVP{
 		AVP: []*diam.AVP{
@@ -113,7 +124,9 @@ func TestCEA_MissingApplicationWithError(t *testing.T) {
 }
 
 func TestCEA_NoCommonApplication(t *testing.T) {
-	m := diam.NewMessage(diam.CapabilitiesExchange, 0, 0, 0, 0, dict.Default)
+	testDict := newParserTestDictionary(creditcontrol.Dictionary())
+
+	m := diam.NewMessage(diam.CapabilitiesExchange, 0, 0, 0, 0, testDict)
 	mustCEAAVP(t, m, avp.ResultCode, avp.Mbit, 0, datatype.Unsigned32(diam.Success))
 	mustCEAAVP(t, m, avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("foobar"))
 	mustCEAAVP(t, m, avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("test"))
@@ -130,7 +143,9 @@ func TestCEA_NoCommonApplication(t *testing.T) {
 }
 
 func TestCEA_FailedAcctAppID(t *testing.T) {
-	m := diam.NewMessage(diam.CapabilitiesExchange, 0, 0, 0, 0, nil)
+	testDict := newParserTestDictionary(creditcontrol.Dictionary())
+
+	m := diam.NewMessage(diam.CapabilitiesExchange, 0, 0, 0, 0, testDict)
 	mustCEAAVP(t, m, avp.ResultCode, avp.Mbit, 0, datatype.Unsigned32(diam.Success))
 	mustCEAAVP(t, m, avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("foobar"))
 	mustCEAAVP(t, m, avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("test"))
@@ -147,7 +162,9 @@ func TestCEA_FailedAcctAppID(t *testing.T) {
 }
 
 func TestCEA(t *testing.T) {
-	m := diam.NewMessage(diam.CapabilitiesExchange, 0, 0, 0, 0, nil)
+	testDict := newParserTestDictionary(creditcontrol.Dictionary())
+
+	m := diam.NewMessage(diam.CapabilitiesExchange, 0, 0, 0, 0, testDict)
 	mustCEAAVP(t, m, avp.ResultCode, avp.Mbit, 0, datatype.Unsigned32(diam.Success))
 	mustCEAAVP(t, m, avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("foobar"))
 	mustCEAAVP(t, m, avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("test"))
@@ -173,7 +190,9 @@ func TestCEA(t *testing.T) {
 
 // TestCommonAppIdCEA tests that at least one CEA AppID exist in the default dictionary
 func TestCommonAppIdCEA(t *testing.T) {
-	m := diam.NewMessage(diam.CapabilitiesExchange, 0, 0, 0, 0, nil)
+	testDict := newParserTestDictionary(creditcontrol.Dictionary())
+
+	m := diam.NewMessage(diam.CapabilitiesExchange, 0, 0, 0, 0, testDict)
 	mustCEAAVP(t, m, avp.ResultCode, avp.Mbit, 0, datatype.Unsigned32(diam.Success))
 	mustCEAAVP(t, m, avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("foobar"))
 	mustCEAAVP(t, m, avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("test"))
@@ -270,7 +289,9 @@ func TestCommonAppIdCEA(t *testing.T) {
 // TestCEACapabilityAVPs verifies that the capability AVPs from RFC 6733 §5.3.2
 // (Vendor-Id, Product-Name, Supported-Vendor-Id) are parsed into the CEA struct.
 func TestCEACapabilityAVPs(t *testing.T) {
-	m := diam.NewMessage(diam.CapabilitiesExchange, 0, 0, 0, 0, nil)
+	testDict := newParserTestDictionary(creditcontrol.Dictionary())
+
+	m := diam.NewMessage(diam.CapabilitiesExchange, 0, 0, 0, 0, testDict)
 	mustCEAAVP(t, m, avp.ResultCode, avp.Mbit, 0, datatype.Unsigned32(diam.Success))
 	mustCEAAVP(t, m, avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("foobar"))
 	mustCEAAVP(t, m, avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("test"))
@@ -308,7 +329,9 @@ func TestCEACapabilityAVPs(t *testing.T) {
 
 // TestCommonAppIdCEA tests that at least one CEA AppID exist in the default dictionary
 func TestCEAAutAndAcct(t *testing.T) {
-	m := diam.NewMessage(diam.CapabilitiesExchange, 0, 0, 0, 0, nil)
+	testDict := newParserTestDictionary(creditcontrol.Dictionary())
+
+	m := diam.NewMessage(diam.CapabilitiesExchange, 0, 0, 0, 0, testDict)
 	mustCEAAVP(t, m, avp.ResultCode, avp.Mbit, 0, datatype.Unsigned32(diam.Success))
 	mustCEAAVP(t, m, avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("foobar"))
 	mustCEAAVP(t, m, avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("test"))

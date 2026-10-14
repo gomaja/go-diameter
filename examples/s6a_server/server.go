@@ -28,6 +28,8 @@ import (
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
+	"github.com/gomaja/go-diameter/diam/dict"
+	"github.com/gomaja/go-diameter/diam/dict/s6a"
 	"github.com/gomaja/go-diameter/diam/sm"
 )
 
@@ -45,7 +47,13 @@ func main() {
 	networkType := flag.String("network_type", "tcp", "protocol type tcp/sctp")
 	flag.Parse()
 
+	dictionary, err := dict.New(s6a.Dictionary())
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	settings := &sm.Settings{
+		Dict:             dictionary,
 		OriginHost:       datatype.DiameterIdentity(*host),
 		OriginRealm:      datatype.DiameterIdentity(*realm),
 		VendorID:         13,
@@ -53,7 +61,7 @@ func main() {
 		FirmwareRevision: 1,
 	}
 
-	// Create the state machine (mux) and set .CollectGarbage(context.Background(), &protos.Void{})its message handlers.
+	// Create the state machine (mux) and set its message handlers.
 	mux, err := sm.New(settings)
 	if err != nil {
 		log.Fatal(err)
@@ -67,7 +75,7 @@ func main() {
 		go func() { log.Fatal(http.ListenAndServe(*ppaddr, nil)) }()
 	}
 
-	err = listen(*networkType, *addr, *certFile, *keyFile, mux)
+	err = listen(*networkType, *addr, *certFile, *keyFile, mux, dictionary)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -260,14 +268,14 @@ func handleULR(settings sm.Settings) diam.HandlerFunc {
 	}
 }
 
-func listen(networkType, addr, cert, key string, handler diam.Handler) error {
+func listen(networkType, addr, cert, key string, handler diam.Handler, dictionary *dict.Parser) error {
 	// Start listening for connections.
 	if len(cert) > 0 && len(key) > 0 {
 		log.Println("Starting secure diameter server on", addr)
-		return diam.ListenAndServeNetworkTLS(networkType, addr, cert, key, handler, nil)
+		return diam.ListenAndServeNetworkTLS(networkType, addr, cert, key, handler, dictionary)
 	}
 	log.Println("Starting diameter server on", addr)
-	return diam.ListenAndServeNetwork(networkType, addr, handler, nil)
+	return diam.ListenAndServeNetwork(networkType, addr, handler, dictionary)
 }
 
 func handleALL(c diam.Conn, m *diam.Message) {

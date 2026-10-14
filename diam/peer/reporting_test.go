@@ -12,10 +12,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
-	"github.com/gomaja/go-diameter/diam/dict"
 	"github.com/gomaja/go-diameter/diam/internal/logtest"
 	"github.com/gomaja/go-diameter/diam/sm"
 	"github.com/gomaja/go-diameter/diam/sm/smpeer"
@@ -53,11 +54,13 @@ func TestManagerRejectsIgnoredSettingsHooks(t *testing.T) {
 }
 
 func TestManagerLogsEveryUnhandledMessage(t *testing.T) {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
 	const total = 1200
 	for _, limit := range []int{0, -1} {
 		t.Run(fmt.Sprint(limit), func(t *testing.T) {
 			records := logtest.New()
-			m, err := New(Config{Settings: testSettings("local.example.net"), Logger: records.Logger(), Limits: Limits{Events: 8192}})
+			m, err := New(Config{Settings: testSettings("local.example.net", testDict), Logger: records.Logger(), Limits: Limits{Events: 8192}})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -68,7 +71,8 @@ func TestManagerLogsEveryUnhandledMessage(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			server := &diam.Server{Dict: dict.Default, MaxConcurrentHandlers: limit}
+			server := &diam.Server{Dict: testDict, MaxConcurrentHandlers: limit}
+			server.Dict = m.cfg.Settings.Dict
 			if err = m.BindServer(server); err != nil {
 				t.Fatal(err)
 			}
@@ -84,7 +88,7 @@ func TestManagerLogsEveryUnhandledMessage(t *testing.T) {
 				t.Fatal("handshake failed")
 			}
 			for i := uint32(1); i <= total; i++ {
-				req := diam.NewMessage(999, diam.RequestFlag, 0, i, i+total, dict.Default)
+				req := diam.NewMessage(999, diam.RequestFlag, 0, i, i+total, testDict)
 				write(t, c, req)
 				ans := read(t, c)
 				if code(t, ans) != diam.CommandUnsupported || ans.Header.CommandFlags&diam.ErrorFlag == 0 || ans.Header.CommandFlags&diam.RequestFlag != 0 || ans.Header.HopByHopID != i || ans.Header.EndToEndID != i+total {
@@ -133,15 +137,17 @@ func (h *blockingReportHandler) Handle(ctx context.Context, r slog.Record) error
 	return h.Recorder.Handle(ctx, r)
 }
 func TestManagerRecordsAreSynchronous(t *testing.T) {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
 	h := &blockingReportHandler{Recorder: logtest.New(), entered: make(chan struct{}), release: make(chan struct{})}
-	m, err := New(Config{Settings: testSettings("local.example.net"), Logger: slog.New(h)})
+	m, err := New(Config{Settings: testSettings("local.example.net", testDict), Logger: slog.New(h)})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer closeManager(t, m, nil)
 	returned := make(chan struct{})
 	failure := &diam.MessageError{ResultCode: diam.InvalidAVPLength}
-	go func() { m.report(nil, diam.NewRequest(999, 0, dict.Default), failure); close(returned) }()
+	go func() { m.report(nil, diam.NewRequest(999, 0, testDict), failure); close(returned) }()
 	select {
 	case <-h.entered:
 	case <-time.After(time.Second):
@@ -249,6 +255,7 @@ func TestManagerConnLoggerOwnership(t *testing.T) {
 				if strings.HasPrefix(mode, "nil") {
 					srv.Logger = nil
 				}
+				srv.Dict = m.cfg.Settings.Dict
 				if err = m.BindServer(srv); err != nil {
 					t.Fatal(err)
 				}
@@ -288,22 +295,24 @@ func TestManagerConnLoggerOwnership(t *testing.T) {
 }
 
 func TestManagerMessageErrorAdmissionFailures(t *testing.T) {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
 	for _, managed := range []bool{false, true} {
 		t.Run(fmt.Sprint(managed), func(t *testing.T) {
 			records := logtest.New()
-			m, err := New(Config{Settings: testSettings("local.example.net"), Logger: records.Logger()})
+			m, err := New(Config{Settings: testSettings("local.example.net", testDict), Logger: records.Logger()})
 			if err != nil {
 				t.Fatal(err)
 			}
 			defer closeManager(t, m, nil)
-			c := newFakeConn()
+			c := newFakeConn(testDict)
 			defer c.Close()
 			if managed {
 				s := &session{m: m, c: c, ingress: make(chan incoming, 1), closed: make(chan struct{})}
 				s.ingress <- incoming{}
 				m.sessions[c] = s
 			}
-			msg := diam.NewRequest(999, 0, dict.Default)
+			msg := diam.NewRequest(999, 0, testDict)
 			err = m.HandleMessageError(c, msg, &diam.MessageError{ResultCode: diam.InvalidAVPLength})
 			if !managed {
 				if !errors.Is(err, errors.ErrUnsupported) {
@@ -328,8 +337,10 @@ func TestManagerMessageErrorAdmissionFailures(t *testing.T) {
 }
 
 func TestManagerMessageErrorAdmissionFailureOwnsServerClose(t *testing.T) {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
 	records := logtest.New()
-	m, err := New(Config{Settings: testSettings("local.example.net"), Logger: records.Logger()})
+	m, err := New(Config{Settings: testSettings("local.example.net", testDict), Logger: records.Logger()})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -339,7 +350,7 @@ func TestManagerMessageErrorAdmissionFailureOwnsServerClose(t *testing.T) {
 		t.Fatal(err)
 	}
 	ready := make(chan diam.Conn, 1)
-	srv := &diam.Server{Dict: dict.Default, Handler: m, Logger: records.Logger(), OnNewConnection: func(c diam.Conn) {
+	srv := &diam.Server{Dict: testDict, Handler: m, Logger: records.Logger(), OnNewConnection: func(c diam.Conn) {
 		// A full queue with no consumer makes admission failure deterministic.
 		s := &session{m: m, c: c, ingress: make(chan incoming, 1), closed: make(chan struct{})}
 		s.ingress <- incoming{}
@@ -357,7 +368,7 @@ func TestManagerMessageErrorAdmissionFailureOwnsServerClose(t *testing.T) {
 	defer func() { _ = remote.Close() }()
 	c := <-ready
 	// A complete frame with a one-byte Unsigned32 is recoverably malformed.
-	msg := diam.NewRequest(diam.DeviceWatchdog, 0, dict.Default)
+	msg := diam.NewRequest(diam.DeviceWatchdog, 0, testDict)
 	msg.AddAVP(diam.NewAVP(avp.OriginStateID, avp.Mbit, 0, datatype.Unsigned32(1)))
 	wire, err := msg.Serialize()
 	if err != nil {

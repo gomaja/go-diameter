@@ -1,4 +1,4 @@
-package dict
+package dict_test
 
 import (
 	"encoding/json"
@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/gomaja/go-diameter/diam/dict"
 )
 
 type rxCopiedSpec struct {
@@ -32,6 +34,8 @@ func loadRxCopiedSpec(t *testing.T) rxCopiedSpec {
 // TS 29.214 V20.0.0 Table 5.4.0.1: imported definitions and every named
 // descendant are pinned to their source registry and grouped grammar.
 func TestRxCopiedSpec(t *testing.T) {
+	reference := newAllTestParser(t)
+
 	s := loadRxCopiedSpec(t)
 	names := map[string]bool{}
 	for _, want := range s.AVPs {
@@ -48,7 +52,7 @@ func TestRxCopiedSpec(t *testing.T) {
 	}
 	for _, want := range s.AVPs {
 		t.Run(want.Name, func(t *testing.T) {
-			a := rxLookup(t, want.Name)
+			a := rxLookup(t, reference, want.Name)
 			rxCheckAVP(t, a, want)
 			for _, rule := range want.Rules {
 				if rule.Name != "AVP" && !names[rxName(rule.Name)] {
@@ -62,6 +66,8 @@ func TestRxCopiedSpec(t *testing.T) {
 // RFC 8506 §8.52 includes one optional extension AVP. All consumers must
 // inherit the same definition from application 4, including Rx.
 func TestRxUserEquipmentInfoExtensionInheritance(t *testing.T) {
+	reference := newAllTestParser(t)
+
 	var want rxAVPSpec
 	for _, a := range loadRxCopiedSpec(t).AVPs {
 		if a.Name == "User-Equipment-Info-Extension" {
@@ -74,7 +80,7 @@ func TestRxUserEquipmentInfoExtensionInheritance(t *testing.T) {
 	}
 	for _, app := range []uint32{4, 16777236, 16777238, 16777251, 16777265, 16777302, 16777312, 16777313} {
 		t.Run(strconv.FormatUint(uint64(app), 10), func(t *testing.T) {
-			a, err := Default.FindAVP(app, 653, 0)
+			a, err := reference.FindAVP(app, 653, 0)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -89,21 +95,23 @@ func TestRxUserEquipmentInfoExtensionInheritance(t *testing.T) {
 // TS 29.214 V20.0.0 Table 5.4.0.1: the stated application-specific M
 // policy applies to reused roots, including the nested unit and Load members.
 func TestRxReusedMPolicy(t *testing.T) {
+	reference := newAllTestParser(t)
+
 	for _, want := range loadRxSpec(t).Reused {
 		t.Run(want.Name, func(t *testing.T) {
-			a := rxLookup(t, want.Name)
+			a := rxLookup(t, reference, want.Name)
 			if !want.ClearM {
 				return
 			}
-			if rxFlags(t, a.Must)&flagM != 0 || rxFlags(t, a.MustNot)&flagM == 0 {
+			if rxFlags(t, a.Must)&dict.FlagMForTesting != 0 || rxFlags(t, a.MustNot)&dict.FlagMForTesting == 0 {
 				t.Errorf("%s: M must be cleared, flags %+v", a.Name, a)
 			}
 			if !want.NestedClearM {
 				return
 			}
 			visited := map[string]bool{}
-			var walk func(*AVP)
-			walk = func(group *AVP) {
+			var walk func(*dict.AVP)
+			walk = func(group *dict.AVP) {
 				if visited[group.Name] || group.Data.TypeName != "Grouped" {
 					return
 				}
@@ -111,10 +119,10 @@ func TestRxReusedMPolicy(t *testing.T) {
 				wildcardClearsM := false
 				for _, r := range group.Data.Rule {
 					if r.AVP == "AVP" {
-						wildcardClearsM = rxFlags(t, r.MustNot)&flagM != 0
+						wildcardClearsM = rxFlags(t, r.MustNot)&dict.FlagMForTesting != 0
 						continue
 					}
-					member := rxLookup(t, r.AVP)
+					member := rxLookup(t, reference, r.AVP)
 					walk(member)
 				}
 				if group.Name == "Load" && !wildcardClearsM {

@@ -20,7 +20,8 @@ import (
 // DialNetwork connects to the peer pointed to by network & addr and returns the Conn that
 // can be used to send diameter messages. Incoming messages are handled
 // by the handler, which is typically nil and DefaultServeMux is used.
-// If dict is nil, dict.Default is used.
+// If dict is nil, the shared, initially base-only dict.Default is used.
+// Pass an explicitly selected parser for application dictionaries.
 func DialNetwork(network, addr string, handler Handler, dp *dict.Parser) (Conn, error) {
 	return DialExt(network, addr, handler, dp, 0, nil)
 }
@@ -47,7 +48,8 @@ func DialNetworkTimeout(network, addr string, handler Handler, dp *dict.Parser, 
 // Dial connects to the peer pointed to by addr and returns the Conn that
 // can be used to send diameter messages. Incoming messages are handled
 // by the handler, which is typically nil and DefaultServeMux is used.
-// If dict is nil, dict.Default is used.
+// If dict is nil, the shared, initially base-only dict.Default is used.
+// Pass an explicitly selected parser for application dictionaries.
 func Dial(addr string, handler Handler, dp *dict.Parser) (Conn, error) {
 	return DialNetwork("tcp", addr, handler, dp)
 }
@@ -60,7 +62,8 @@ func DialTimeout(addr string, handler Handler, dp *dict.Parser, timeout time.Dur
 // addr and returns the Conn that can be used to send diameter messages.
 // Incoming messages are handled by the handler, which is typically nil and
 // DefaultServeMux is used. Allows binding dailer socket to given laddr.
-// If dict is nil, dict.Default is used.
+// If dict is nil, the shared, initially base-only dict.Default is used.
+// Pass an explicitly selected parser for application dictionaries.
 func DialExt(
 	network, addr string, handler Handler, dp *dict.Parser, timeout time.Duration, laddr net.Addr) (Conn, error) {
 

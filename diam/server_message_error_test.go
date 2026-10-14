@@ -66,7 +66,7 @@ func TestServerContinuesAfterHandledNonFatalMessageError(t *testing.T) {
 		t.Fatalf("reported error = %T(%v), want handled MessageError", report, report)
 	}
 
-	valid := NewRequest(DeviceWatchdog, 0, dict.Default)
+	valid := NewRequest(DeviceWatchdog, 0, newTestDictionary(dict.Base()))
 	valid.AddAVP(NewAVP(avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("peer.example")))
 	valid.AddAVP(NewAVP(avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("example")))
 	wire, err := valid.Serialize()
@@ -230,7 +230,7 @@ func assertServerRoutesMessageError(
 func startPipeServer(t *testing.T, handler Handler, records ...*logtest.Recorder) (net.Conn, <-chan struct{}) {
 	t.Helper()
 	local, remote := net.Pipe()
-	srv := &Server{Handler: handler, Dict: dict.Default}
+	srv := &Server{Handler: handler, Dict: newTestDictionary(dict.Base())}
 	if len(records) > 0 {
 		srv.Logger = records[0].Logger()
 	}

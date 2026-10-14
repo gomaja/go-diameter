@@ -1,4 +1,4 @@
-package dict
+package dict_test
 
 import (
 	"encoding/json"
@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/gomaja/go-diameter/diam/dict"
 )
 
 type syRuleSpec struct {
@@ -50,9 +52,9 @@ func loadSySpec(t *testing.T) sySpec {
 func syNormalized(s string) string {
 	return normalizeS6aABNFName(strings.ReplaceAll(s, "3GPP", "TGPP"))
 }
-func syLookup(t *testing.T, name string) *AVP {
+func syLookup(t *testing.T, reference *dict.Parser, name string) *dict.AVP {
 	t.Helper()
-	a, err := Default.FindAVPByName(16777302, name)
+	a, err := reference.FindAVPByName(16777302, name)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,7 +62,7 @@ func syLookup(t *testing.T, name string) *AVP {
 }
 
 func syFlags(s string) string {
-	flags, err := parseFlags(s)
+	flags, err := dict.ParseFlagsForTesting(s)
 	if err != nil {
 		return "invalid:" + s
 	}
@@ -69,10 +71,12 @@ func syFlags(s string) string {
 
 // TS 29.219 V19.0.0 Table 5.3.0.1 and §§5.3.1–5.3.7.
 func TestSyAVPSpec(t *testing.T) {
+	reference := newAllTestParser(t)
+
 	s := loadSySpec(t)
 	for _, want := range s.AVPs {
 		t.Run(want.Section+"/"+want.Name, func(t *testing.T) {
-			got, err := Default.FindAVP(16777302, want.Code, want.Vendor)
+			got, err := reference.FindAVP(16777302, want.Code, want.Vendor)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -95,7 +99,7 @@ func TestSyAVPSpec(t *testing.T) {
 		})
 	}
 }
-func syCheckRules(t *testing.T, got []*Rule, want []syRuleSpec) {
+func syCheckRules(t *testing.T, got []*dict.Rule, want []syRuleSpec) {
 	t.Helper()
 	if len(got) != len(want) {
 		t.Errorf("member count %d, want %d", len(got), len(want))
@@ -117,9 +121,11 @@ func syCheckRules(t *testing.T, got []*Rule, want []syRuleSpec) {
 
 // TS 29.219 V19.0.0 §§5.6.2–5.6.7; RFC 6733 §3.2 CCF.
 func TestSyCommandSpec(t *testing.T) {
+	reference := newAllTestParser(t)
+
 	for _, want := range loadSySpec(t).Commands {
 		t.Run(want.Section, func(t *testing.T) {
-			c, err := Default.FindCommand(16777302, want.Code)
+			c, err := reference.FindCommand(16777302, want.Code)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -138,6 +144,8 @@ func TestSyCommandSpec(t *testing.T) {
 // TS 29.219 V19.0.0 Table 5.4: every reused root and named descendant
 // is pinned against its defining document, including parent-scoped flags.
 func TestSyReusedSpec(t *testing.T) {
+	reference := newAllTestParser(t)
+
 	var spec struct {
 		Roots []string
 		AVPs  []syAVPSpec
@@ -163,7 +171,7 @@ func TestSyReusedSpec(t *testing.T) {
 	}
 	for _, want := range spec.AVPs {
 		t.Run(want.Name, func(t *testing.T) {
-			a := syLookup(t, want.Name)
+			a := syLookup(t, reference, want.Name)
 			if a.Code != want.Code || a.VendorID != want.Vendor || a.Data.TypeName != want.Type {
 				t.Errorf("identity/type %d/%d/%s, want %d/%d/%s", a.Code, a.VendorID, a.Data.TypeName, want.Code, want.Vendor, want.Type)
 			}
@@ -190,7 +198,9 @@ func TestSyReusedSpec(t *testing.T) {
 
 // TS 29.219 V19.0.0 §5.1.5 and Table 5.4; RFC 6733 §5.3.6.
 func TestSyVendorsAndCoverage(t *testing.T) {
-	a, err := Default.App(16777302)
+	reference := newAllTestParser(t)
+
+	a, err := reference.App(16777302)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -215,8 +225,8 @@ func TestSyVendorsAndCoverage(t *testing.T) {
 		t.Fatalf("local coverage %d commands/%d AVPs", len(a.Command), len(a.AVP))
 	}
 	for _, local := range a.AVP {
-		inherited, err := Default.FindAVP(4, local.Code, local.VendorID)
-		if err == nil && sameAVP(local, inherited) {
+		inherited, err := reference.FindAVP(4, local.Code, local.VendorID)
+		if err == nil && dict.SameAVPForTesting(local, inherited) {
 			t.Errorf("redundant local copy %s", local.Name)
 		}
 	}

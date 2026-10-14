@@ -15,6 +15,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
+	"github.com/gomaja/go-diameter/diam/dict/nasreq"
+	"github.com/gomaja/go-diameter/diam/dict/rorf"
+
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/dict"
@@ -35,6 +40,8 @@ func rawAVP(code uint32, payload []byte) []byte {
 // pooled buffer that the next call reuses. Ownership is checked on a
 // caller-owned buffer because sync.Pool reuse is not guaranteed.
 func TestDecodeFallbackDoesNotAliasInput(t *testing.T) {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
 	badU32 := []byte{0x11, 0x11, 0x11, 0x11, 0x11} // 5 bytes for an Unsigned32
 	// A Rating-Group header that declares 64 bytes inside a 12-byte payload.
 	overlong := []byte{0, 0, 0x01, 0xb0, avp.Mbit, 0, 0, 64, 0x11, 0x11, 0x11, 0x11}
@@ -47,42 +54,42 @@ func TestDecodeFallbackDoesNotAliasInput(t *testing.T) {
 			name: "scalar size mismatch",
 			data: rawAVP(avp.CCRequestNumber, badU32),
 			decode: func(a *AVP, b []byte) error {
-				return a.DecodeFromBytes(b, CHARGING_CONTROL_APP_ID, dict.Default)
+				return a.DecodeFromBytes(b, CHARGING_CONTROL_APP_ID, testDict)
 			},
 		},
 		{
 			name: "scalar invalid value",
 			data: rawAVP(avp.HostIPAddress, []byte{255, 255, 0x11}),
 			decode: func(a *AVP, b []byte) error {
-				return a.DecodeFromBytes(b, 0, dict.Default)
+				return a.DecodeFromBytes(b, 0, testDict)
 			},
 		},
 		{
 			name: "grouped invalid value",
 			data: rawAVP(avp.VendorSpecificApplicationID, rawAVP(avp.HostIPAddress, []byte{255, 255, 0x11})),
 			decode: func(a *AVP, b []byte) error {
-				return a.DecodeFromBytes(b, 0, dict.Default)
+				return a.DecodeFromBytes(b, 0, testDict)
 			},
 		},
 		{
 			name: "grouped member fails to decode",
 			data: rawAVP(avp.MultipleServicesCreditControl, rawAVP(avp.RatingGroup, badU32)),
 			decode: func(a *AVP, b []byte) error {
-				return a.DecodeFromBytes(b, CHARGING_CONTROL_APP_ID, dict.Default)
+				return a.DecodeFromBytes(b, CHARGING_CONTROL_APP_ID, testDict)
 			},
 		},
 		{
 			name: "grouped member overruns its parent",
 			data: rawAVP(avp.MultipleServicesCreditControl, overlong),
 			decode: func(a *AVP, b []byte) error {
-				return a.DecodeFromBytes(b, CHARGING_CONTROL_APP_ID, dict.Default)
+				return a.DecodeFromBytes(b, CHARGING_CONTROL_APP_ID, testDict)
 			},
 		},
 		{
 			name: "grouped nesting limit",
 			data: nestedGroupedAVP(dict.DefaultMaxGroupedDepth + 1),
 			decode: func(a *AVP, b []byte) error {
-				return a.DecodeFromBytes(b, CHARGING_CONTROL_APP_ID, dict.Default)
+				return a.DecodeFromBytes(b, CHARGING_CONTROL_APP_ID, testDict)
 			},
 		},
 	} {
@@ -112,6 +119,8 @@ func TestDecodeFallbackDoesNotAliasInput(t *testing.T) {
 // member with a framing or payload error. Failed-AVP also retains undecodable
 // members on a successful decode; those members must own their payloads.
 func TestDecodedMembersDoNotAliasInput(t *testing.T) {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
 	badU32 := []byte{0x11, 0x11, 0x11, 0x11, 0x11} // 5 bytes for an Unsigned32
 	owned := func(t *testing.T, buf []byte, data datatype.Type) {
 		t.Helper()
@@ -130,7 +139,7 @@ func TestDecodedMembersDoNotAliasInput(t *testing.T) {
 
 	t.Run("DecodeGroupedFromBytes members", func(t *testing.T) {
 		buf := append(rawAVP(avp.RatingGroup, []byte{0, 0, 0, 1}), rawAVP(avp.CCRequestNumber, badU32)...)
-		g, err := DecodeGroupedFromBytes(buf, CHARGING_CONTROL_APP_ID, dict.Default)
+		g, err := DecodeGroupedFromBytes(buf, CHARGING_CONTROL_APP_ID, testDict)
 		if err == nil || len(g.AVP) != 2 {
 			t.Fatalf("got %d members, err = %v; want 2 members and an error", len(g.AVP), err)
 		}
@@ -151,20 +160,20 @@ func TestDecodedMembersDoNotAliasInput(t *testing.T) {
 				var err error
 				switch mode {
 				case "DecodeAVP":
-					a, err = DecodeAVP(buf, 0, dict.Default)
+					a, err = DecodeAVP(buf, 0, testDict)
 				case "DecodeFromBytes":
 					a = &AVP{}
-					err = a.DecodeFromBytes(buf, 0, dict.Default)
+					err = a.DecodeFromBytes(buf, 0, testDict)
 				case "DecodeGroupedFromBytes":
 					var g *GroupedAVP
-					g, err = DecodeGroupedFromBytes(buf, 0, dict.Default)
+					g, err = DecodeGroupedFromBytes(buf, 0, testDict)
 					if err == nil {
 						a = g.AVP[0]
 					}
 				case "ReadMessage":
 					reader := &decodeInputReader{Reader: bytes.NewReader(testFramedMessage(t, 0, buf))}
 					var m *Message
-					m, err = ReadMessage(reader, dict.Default)
+					m, err = ReadMessage(reader, testDict)
 					if err == nil {
 						a = m.AVP[0]
 					}
@@ -198,7 +207,7 @@ func TestDecodedMembersDoNotAliasInput(t *testing.T) {
 		parent[4] = avp.Mbit
 		putUint24(parent[5:8], uint32(8+len(member)))
 		buf := append(append(parent, member...), 0, 0, 0)
-		_, err := DecodeAVP(buf, CHARGING_CONTROL_APP_ID, dict.Default)
+		_, err := DecodeAVP(buf, CHARGING_CONTROL_APP_ID, testDict)
 		var lengthErr *avpLengthError
 		if !errors.As(err, &lengthErr) {
 			t.Fatalf("err = %v, want an AVP length error", err)
@@ -227,7 +236,7 @@ func TestDecodedMembersDoNotAliasInput(t *testing.T) {
 				buf = rawAVP(avp.VendorSpecificApplicationID, buf)
 			}
 			reader := &decodeInputReader{Reader: bytes.NewReader(testFramedMessage(t, RequestFlag, buf))}
-			m, err := ReadMessage(reader, dict.Default)
+			m, err := ReadMessage(reader, testDict)
 			me := requirePayloadMessageError(t, m, err, tc.result)
 			want, err := me.FailedAVP.Serialize()
 			if err != nil {
@@ -256,11 +265,13 @@ func TestDecodedMembersDoNotAliasInput(t *testing.T) {
 // message is copied once, not once per enclosing Grouped AVP: copying at
 // every level allocated 33 times the message size.
 func TestDecodeGroupedNestingLimitBoundsAllocation(t *testing.T) {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
 	b := nestedMSCC(200000) // 1.6 MB
 	var before, after runtime.MemStats
 	runtime.GC()
 	runtime.ReadMemStats(&before)
-	_, err := readMessageBytes(t, b, dict.Default)
+	_, err := readMessageBytes(t, b, testDict)
 	runtime.ReadMemStats(&after)
 	if err == nil || !strings.Contains(err.Error(), errGroupedTooDeep.Error()) {
 		t.Fatalf("err = %v, want the nesting limit error", err)
@@ -331,18 +342,20 @@ func readMessageBytes(t *testing.T, b []byte, d *dict.Parser) (*Message, error) 
 
 func lenientParser(t *testing.T, limit int) *dict.Parser {
 	t.Helper()
-	p := dict.New(dict.Base, dict.NASREQ, dict.CreditControl, dict.RoRf)
+	p := newTestDictionary(dict.Base(), nasreq.Dictionary(), creditcontrol.Dictionary(), rorf.Dictionary())
 	p.SetStrict(false)
 	p.SetMaxGroupedDepth(limit)
 	return p
 }
 
 func TestDecodeGroupedNestingLimit(t *testing.T) {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
 	limit := dict.DefaultMaxGroupedDepth
-	if _, err := readNested(t, limit, dict.Default); err != nil {
+	if _, err := readNested(t, limit, testDict); err != nil {
 		t.Fatalf("depth %d: unexpected error: %v", limit, err)
 	}
-	_, err := readNested(t, limit+1, dict.Default)
+	_, err := readNested(t, limit+1, testDict)
 	if err == nil || !strings.Contains(err.Error(), errGroupedTooDeep.Error()) {
 		t.Fatalf("depth %d: err = %v, want the nesting limit error", limit+1, err)
 	}
@@ -383,11 +396,13 @@ func TestDecodeGroupedNestingLimitKeepsMessage(t *testing.T) {
 // TestDecodeGroupedNestingLimitBoundsWork decodes nesting that took seconds
 // before the limit existed: each level walked everything beneath it.
 func TestDecodeGroupedNestingLimitBoundsWork(t *testing.T) {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
 	// Without the limit this took about 10 s; with it, milliseconds even
 	// under the race detector, so the bound leaves room for a loaded runner.
 	b := nestedMSCC(30000)
 	start := time.Now()
-	_, err := readMessageBytes(t, b, dict.Default)
+	_, err := readMessageBytes(t, b, testDict)
 	elapsed := time.Since(start)
 	if err == nil || !strings.Contains(err.Error(), errGroupedTooDeep.Error()) {
 		t.Fatalf("err = %v, want the nesting limit error", err)
@@ -428,23 +443,25 @@ func TestDecodeGroupedNestingLimitFromParser(t *testing.T) {
 // TestDecodeGroupedNestingLimitDirectEntryPoints covers the exported
 // decoders that do not go through ReadMessage.
 func TestDecodeGroupedNestingLimitDirectEntryPoints(t *testing.T) {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
 	limit := dict.DefaultMaxGroupedDepth
 	nested := nestedGroupedAVP
-	if _, err := DecodeAVP(nested(limit), CHARGING_CONTROL_APP_ID, dict.Default); err != nil {
+	if _, err := DecodeAVP(nested(limit), CHARGING_CONTROL_APP_ID, testDict); err != nil {
 		t.Fatalf("DecodeAVP at the limit: %v", err)
 	}
 	// Each enclosing Grouped AVP reports its member's error by text.
-	_, err := DecodeAVP(nested(limit+1), CHARGING_CONTROL_APP_ID, dict.Default)
+	_, err := DecodeAVP(nested(limit+1), CHARGING_CONTROL_APP_ID, testDict)
 	if err == nil || !strings.Contains(err.Error(), errGroupedTooDeep.Error()) {
 		t.Fatalf("DecodeAVP past the limit: err = %v", err)
 	}
 	// The payload of the outermost Grouped AVP is level 1.
 	payload := nested(limit + 1)[8:]
-	if _, err := DecodeGroupedFromBytes(payload, CHARGING_CONTROL_APP_ID, dict.Default); err == nil ||
+	if _, err := DecodeGroupedFromBytes(payload, CHARGING_CONTROL_APP_ID, testDict); err == nil ||
 		!strings.Contains(err.Error(), errGroupedTooDeep.Error()) {
 		t.Fatalf("DecodeGroupedFromBytes past the limit: err = %v", err)
 	}
-	if _, err := DecodeGrouped(datatype.Grouped(nested(limit)[8:]), CHARGING_CONTROL_APP_ID, dict.Default); err != nil {
+	if _, err := DecodeGrouped(datatype.Grouped(nested(limit)[8:]), CHARGING_CONTROL_APP_ID, testDict); err != nil {
 		t.Fatalf("DecodeGrouped at the limit: %v", err)
 	}
 }

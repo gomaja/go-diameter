@@ -6,20 +6,23 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/gomaja/go-diameter/diam/dict/all"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
-	"github.com/gomaja/go-diameter/diam/dict"
 	"github.com/gomaja/go-diameter/diam/internal/base"
 )
 
 func capabilityFields(t *testing.T, m *diam.Message) []string {
+	testDict := newTestDictionary(all.Dictionary())
+
 	t.Helper()
 	wire, err := m.Serialize()
 	if err != nil {
 		t.Fatal(err)
 	}
-	decoded, err := diam.ReadMessage(bytes.NewReader(wire), dict.Default)
+	decoded, err := diam.ReadMessage(bytes.NewReader(wire), testDict)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -40,6 +43,8 @@ func capabilityFields(t *testing.T, m *diam.Message) []string {
 }
 
 func TestCapabilityMetadataFallbacks(t *testing.T) {
+	testDict := newTestDictionary(all.Dictionary())
+
 	for _, tc := range []struct {
 		name string
 		apps []base.LocalApplication
@@ -57,7 +62,7 @@ func TestCapabilityMetadataFallbacks(t *testing.T) {
 			cfg := fixtureSettings()
 			cfg.AcctApplicationID = nil
 			cfg.Applications = tc.apps
-			cer, err := base.BuildCER(dict.Default, cfg)
+			cer, err := base.BuildCER(testDict, cfg)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -75,6 +80,8 @@ func TestCapabilityMetadataFallbacks(t *testing.T) {
 }
 
 func TestExplicitCapabilitiesVerbatim(t *testing.T) {
+	testDict := newTestDictionary(all.Dictionary())
+
 	cfg := fixtureSettings()
 	cfg.VendorID = 10415
 	cfg.Applications = []base.LocalApplication{{ID: 4, Vendor: 0, AppType: "auth"}, {ID: 16777251, Vendor: 10415, AppType: "auth"}}
@@ -83,7 +90,7 @@ func TestExplicitCapabilitiesVerbatim(t *testing.T) {
 	cfg.VendorSpecificApplicationID = []*diam.AVP{capabilityGroup(4, 13019), capabilityGroup(4, 13019)}
 	cfg.SupportedVendorID = []*diam.AVP{diam.NewAVP(avp.SupportedVendorID, avp.Mbit, 0, datatype.Unsigned32(13019)), diam.NewAVP(avp.SupportedVendorID, avp.Mbit, 0, datatype.Unsigned32(10415)), diam.NewAVP(avp.SupportedVendorID, avp.Mbit, 0, datatype.Unsigned32(13019))}
 	want := []string{"265=13019", "265=10415", "265=13019", "258=16777251", "258=4", "259=999", "[266=13019 258=4]", "[266=13019 258=4]"}
-	cer, err := base.BuildCER(dict.Default, cfg)
+	cer, err := base.BuildCER(testDict, cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -99,11 +106,13 @@ func TestExplicitCapabilitiesVerbatim(t *testing.T) {
 }
 
 func TestApplicationAuthorIncludesDeviceVendor(t *testing.T) {
+	testDict := newTestDictionary(all.Dictionary())
+
 	cfg := fixtureSettings()
 	cfg.VendorID = 10415
 	cfg.AcctApplicationID = nil
 	cfg.Applications = []base.LocalApplication{{ID: 16777216, Vendor: 10415, SupportedVendors: []uint32{10415, 13019, 13019}}}
-	cer, err := base.BuildCER(dict.Default, cfg)
+	cer, err := base.BuildCER(testDict, cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -114,6 +123,8 @@ func TestApplicationAuthorIncludesDeviceVendor(t *testing.T) {
 }
 
 func TestEmptyExplicitApplicationsDisableInference(t *testing.T) {
+	testDict := newTestDictionary(all.Dictionary())
+
 	for _, kind := range []string{"auth", "acct", "vendor"} {
 		t.Run(kind, func(t *testing.T) {
 			cfg := fixtureSettings()
@@ -126,7 +137,7 @@ func TestEmptyExplicitApplicationsDisableInference(t *testing.T) {
 			case "vendor":
 				cfg.VendorSpecificApplicationID = []*diam.AVP{}
 			}
-			cer, err := base.BuildCER(dict.Default, cfg)
+			cer, err := base.BuildCER(testDict, cfg)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -147,6 +158,8 @@ func TestEmptyExplicitApplicationsDisableInference(t *testing.T) {
 }
 
 func TestInferredSuppliersFollowAdvertisedApplications(t *testing.T) {
+	testDict := newTestDictionary(all.Dictionary())
+
 	cfg := fixtureSettings()
 	cfg.VendorID = 13019
 	cfg.AcctApplicationID = nil
@@ -155,7 +168,7 @@ func TestInferredSuppliersFollowAdvertisedApplications(t *testing.T) {
 		{ID: 16777251, Vendor: 9999, AppType: "auth", SupportedVendors: []uint32{7777}},
 	}
 	cfg.AuthApplicationID = []*diam.AVP{diam.NewAVP(avp.AuthApplicationID, avp.Mbit, 0, datatype.Unsigned32(16777216))}
-	cer, err := base.BuildCER(dict.Default, cfg)
+	cer, err := base.BuildCER(testDict, cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -164,7 +177,7 @@ func TestInferredSuppliersFollowAdvertisedApplications(t *testing.T) {
 		t.Errorf("fields=%v, want %v", got, want)
 	}
 	cfg.SupportedVendorID = []*diam.AVP{}
-	cer, err = base.BuildCER(dict.Default, cfg)
+	cer, err = base.BuildCER(testDict, cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -210,7 +223,7 @@ func TestCapabilitiesDoNotRequireDictionaryMetadata(t *testing.T) {
 	cfg := fixtureSettings()
 	cfg.AcctApplicationID = nil
 	cfg.Applications = []base.LocalApplication{{ID: 999}, {ID: 16777999}}
-	cer, err := base.BuildCER(dict.New(), cfg)
+	cer, err := base.BuildCER(newTestDictionary(), cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -226,6 +239,8 @@ func TestCapabilitiesDoNotRequireDictionaryMetadata(t *testing.T) {
 }
 
 func TestExplicitCapabilitiesPreserveEncoding(t *testing.T) {
+	testDict := newTestDictionary(all.Dictionary())
+
 	cfg := fixtureSettings()
 	cfg.AcctApplicationID = nil
 	// RFC 6733 §6.11 permits extension AVPs. Preserve their vendor flag and
@@ -243,7 +258,7 @@ func TestExplicitCapabilitiesPreserveEncoding(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cer, err := base.BuildCER(dict.Default, cfg)
+	cer, err := base.BuildCER(testDict, cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -256,7 +271,7 @@ func TestExplicitCapabilitiesPreserveEncoding(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		decoded, err := diam.ReadMessage(bytes.NewReader(wire), dict.Default)
+		decoded, err := diam.ReadMessage(bytes.NewReader(wire), testDict)
 		if err != nil {
 			t.Fatal(err)
 		}

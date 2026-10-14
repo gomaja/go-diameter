@@ -13,8 +13,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam"
-	"github.com/gomaja/go-diameter/diam/dict"
 )
 
 // Run only in an isolated privileged container: this test creates a veth pair
@@ -141,6 +142,8 @@ func TestClientSCTPCancellationBlackhole(t *testing.T) {
 }
 
 func TestSCTPCancellationPeer(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	if os.Getenv("DIAM_SCTP_PEER") == "" {
 		return
 	}
@@ -162,7 +165,7 @@ func TestSCTPCancellationPeer(t *testing.T) {
 			t.Fatalf("ClientHello record = %x: %v", b[:n], err)
 		}
 	} else {
-		m, err := diam.ReadMessage(c, dict.Default)
+		m, err := diam.ReadMessage(c, testDict)
 		if err != nil || m.Header.CommandCode != diam.CapabilitiesExchange {
 			t.Fatalf("CER = %v: %v", m, err)
 		}

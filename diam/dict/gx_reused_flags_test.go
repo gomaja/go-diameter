@@ -1,4 +1,4 @@
-package dict
+package dict_test
 
 import (
 	"bytes"
@@ -6,26 +6,30 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+
+	"github.com/gomaja/go-diameter/diam/dict"
 )
 
 // TS 29.214 V20.0.0 §§5.3.34, 5.3.49, 5.3.62; RFC 8583 §7.3.
 func TestGxReusedDefinitionsMatchSources(t *testing.T) {
+	reference := newAllTestParser(t)
+
 	for _, app := range []uint32{16777238, 16777236} {
 		t.Run(fmt.Sprint(app), func(t *testing.T) {
-			a, err := Default.FindAVPByName(app, "Callee-Information")
+			a, err := reference.FindAVPByName(app, "Callee-Information")
 			if err != nil {
 				t.Fatal(err)
 			}
 			want := []s6aGroupedRuleSpec{{Name: "Called-Party-Address", Max: new(1)}, {Name: "Requested-Party-Address"}, {Name: "Called-Asserted-Identity"}, {Name: "AVP"}}
 			gxCheckRules(t, a.Data.Rule, want)
-			a, err = Default.FindAVPByName(app, "Required-Access-Info")
+			a, err = reference.FindAVPByName(app, "Required-Access-Info")
 			if err != nil {
 				t.Fatal(err)
 			}
 			if len(a.Data.Enum) != 3 || a.Data.Enum[2].Code != 2 || a.Data.Enum[2].Name != "UE_SAT_INFO" {
 				t.Errorf("Required-Access-Info: %+v", a.Data.Enum)
 			}
-			a, err = Default.FindAVPByName(app, "Content-Version")
+			a, err = reference.FindAVPByName(app, "Content-Version")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -34,7 +38,7 @@ func TestGxReusedDefinitionsMatchSources(t *testing.T) {
 			}
 		})
 	}
-	for _, app := range Default.Apps() {
+	for _, app := range reference.Apps() {
 		for _, a := range app.AVP {
 			if a.Name == "Load-Value" && a.Data.TypeName != "Unsigned64" {
 				t.Errorf("application %d Load-Value = %s", app.ID, a.Data.TypeName)
@@ -44,21 +48,23 @@ func TestGxReusedDefinitionsMatchSources(t *testing.T) {
 }
 
 func TestGxFlagSetsAreExact(t *testing.T) {
+	reference := newAllTestParser(t)
+
 	for _, bad := range []string{"M.V", "M|V", "M,X", "M V", "MANDATORY", "m", "V;M", "M,?"} {
 		if gxFlags(bad) == gxFlags("M,V") || gxFlags(bad) == gxFlags("M") || gxFlags(bad) == gxFlags("") {
 			t.Errorf("invalid flag set %q normalized to valid flags %q", bad, gxFlags(bad))
 		}
 	}
-	for _, app := range Default.Apps() {
+	for _, app := range reference.Apps() {
 		for _, a := range app.AVP {
 			for _, s := range []string{a.Must, a.May, a.MustNot} {
-				if _, err := parseFlags(s); err != nil {
+				if _, err := dict.ParseFlagsForTesting(s); err != nil {
 					t.Errorf("%s: %v", a.Name, err)
 				}
 			}
 		}
 	}
-	a, err := Default.FindAVPByName(16777238, "Event-Trigger")
+	a, err := reference.FindAVPByName(16777238, "Event-Trigger")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -73,7 +79,7 @@ func TestLoadRejectsUnknownFlags(t *testing.T) {
 	for _, attr := range []string{"must", "may", "must-not"} {
 		for _, bad := range []string{"M.V", "X", "M V", "M|V", "M,X", "m", "M\u00a0V"} {
 			t.Run(attr+"/"+bad, func(t *testing.T) {
-				p := new(Parser)
+				p := new(dict.Parser)
 				before := p.Snapshot()
 				src := fmt.Sprintf(`<diameter><application id="42"><avp name="Bad" code="99" %s="%s"><data type="Unsigned32"/></avp></application></diameter>`, attr, bad)
 				if err := p.Load(strings.NewReader(src)); err == nil || !strings.Contains(err.Error(), "unknown flag") {
@@ -88,7 +94,7 @@ func TestLoadRejectsUnknownFlags(t *testing.T) {
 }
 
 func TestGroupedMemberFlagRuleXML(t *testing.T) {
-	var rule Rule
+	var rule dict.Rule
 	if err := xml.Unmarshal([]byte(`<rule avp="SourceID" max="1" must-not="M"/>`), &rule); err != nil {
 		t.Fatal(err)
 	}
@@ -104,7 +110,7 @@ func TestGroupedMemberFlagRuleXML(t *testing.T) {
 func TestLoadAcceptsValidFlags(t *testing.T) {
 	for _, value := range []string{"", "-", "M", "V", "P", "M,V", "MV", " P, VM ", "M,M"} {
 		for _, attr := range []string{"must", "may", "must-not"} {
-			p := new(Parser)
+			p := new(dict.Parser)
 			src := fmt.Sprintf(`<diameter><application id="42"><avp name="Example" code="99" %s="%s"><data type="Unsigned32"/></avp></application></diameter>`, attr, value)
 			if err := p.Load(strings.NewReader(src)); err != nil {
 				t.Errorf("%s=%q: %v", attr, value, err)
@@ -113,9 +119,9 @@ func TestLoadAcceptsValidFlags(t *testing.T) {
 	}
 }
 func TestMemberFlagsRegistration(t *testing.T) {
-	p := new(Parser)
+	p := new(dict.Parser)
 	a := vendorAVP("Group", 70001, "Grouped")
-	a.Data.Rule = []*Rule{{AVP: "AVP", MustNot: "M.X"}}
+	a.Data.Rule = []*dict.Rule{{AVP: "AVP", MustNot: "M.X"}}
 	if err := p.RegisterAVP(4, a); err == nil || !strings.Contains(err.Error(), "unknown flag") {
 		t.Fatalf("RegisterAVP: %v", err)
 	}
@@ -149,9 +155,9 @@ func FuzzDictionaryFlagRules(f *testing.F) {
 		if err := xml.Unmarshal([]byte(`<avp must="`+value.String()+`"/>`), &attr); err != nil || attr.Must != s {
 			return
 		}
-		p := new(Parser)
+		p := new(dict.Parser)
 		err := p.Load(strings.NewReader(src))
-		_, flagErr := parseFlags(s)
+		_, flagErr := dict.ParseFlagsForTesting(s)
 		if err == nil && flagErr != nil {
 			t.Fatalf("accepted malformed rule %q: %v", s, flagErr)
 		}

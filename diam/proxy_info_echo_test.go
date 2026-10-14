@@ -12,7 +12,9 @@ import (
 
 // RFC 6733 §6.2: a local handler must copy a present Session-Id.
 func TestOutgoingAnswerRequiresSessionID(t *testing.T) {
-	r := NewRequest(SessionTermination, 0, dict.Default)
+	testDict := newTestDictionary(dict.Base())
+
+	r := NewRequest(SessionTermination, 0, testDict)
 	r.AddAVP(NewAVP(avp.SessionID, avp.Mbit, 0, datatype.UTF8String("present")))
 	a := r.Answer(UnableToComply)
 	a.AddAVP(NewAVP(avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("host.example")))
@@ -31,10 +33,12 @@ func TestOutgoingAnswerRequiresSessionID(t *testing.T) {
 
 // RFC 6733 §6.2: echo once, without sharing mutable data with the request.
 func TestAnswerCopiesProxyInfo(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	state := NewAVP(avp.ProxyState, avp.Mbit, 0, datatype.OctetString("original"))
 	nested := NewAVP(999999, 0, 0, &GroupedAVP{AVP: []*AVP{NewAVP(999998, 0, 0, datatype.Unknown{1, 2, 3})}})
 	p := NewAVP(avp.ProxyInfo, avp.Mbit, 0, &GroupedAVP{AVP: []*AVP{NewAVP(avp.ProxyHost, avp.Mbit, 0, datatype.DiameterIdentity("proxy.example")), state, nested}})
-	r := NewRequest(SessionTermination, 0, dict.Default)
+	r := NewRequest(SessionTermination, 0, testDict)
 	r.AddAVP(p)
 	before := append([]byte(nil), p.Data.Serialize()...)
 	a := r.Answer(Success)
@@ -53,7 +57,9 @@ func TestAnswerCopiesProxyInfo(t *testing.T) {
 
 // Peer echoes bypass sending checks; newly constructed malformed groups do not.
 func TestProxyInfoEchoValidation(t *testing.T) {
-	r := NewRequest(DeviceWatchdog, 0, dict.Default)
+	testDict := newTestDictionary(dict.Base())
+
+	r := NewRequest(DeviceWatchdog, 0, testDict)
 	r.AddAVP(NewAVP(avp.ProxyInfo, 1, 0, &GroupedAVP{}))
 	a := r.Answer(UnableToComply)
 	a.AddAVP(NewAVP(avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("host.example")))
@@ -69,12 +75,13 @@ func TestProxyInfoEchoValidation(t *testing.T) {
 
 // RFC 6733 §6.2's exception applies only to error answers, never requests (N13).
 func TestErrorBuilderSessionOptionScope(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
 	_, commands := baseWireSpec(t)
 	for _, c := range commands {
 		if !c.Request || c.Rules[0].Name != "Session-Id" {
 			continue
 		}
-		m := baseCommandMessage(t, 0, c)
+		m := baseCommandMessage(t, 0, c, testDict)
 		m.AVP = m.AVP[1:]
 		m.AddAVP(NewAVP(avp.ResultCode, avp.Mbit, 0, datatype.Unsigned32(UnableToComply)))
 		if err := m.ValidateErrorAnswer(validation.WithoutSessionID()); err == nil || err.ResultCode != MissingAVP {
@@ -82,7 +89,7 @@ func TestErrorBuilderSessionOptionScope(t *testing.T) {
 		}
 	}
 	for _, result := range []uint32{1001, 2001, 3001, 4001, 5001, 5999, 6000} {
-		m := baseMissingAnswer()
+		m := baseMissingAnswer(testDict)
 		m.AVP = m.AVP[:3]
 		m.AVP[0].Data = datatype.Unsigned32(result)
 		err := m.ValidateErrorAnswer(validation.WithoutSessionID())
@@ -108,7 +115,9 @@ func TestErrorBuilderSessionOptionScope(t *testing.T) {
 }
 
 func TestProxyInfoEchoScope(t *testing.T) {
-	r := NewRequest(DeviceWatchdog, 0, dict.Default)
+	testDict := newTestDictionary(dict.Base())
+
+	r := NewRequest(DeviceWatchdog, 0, testDict)
 	r.AddAVP(NewAVP(avp.ProxyInfo, avp.Mbit, 0, &GroupedAVP{}))
 	a := r.Answer(Success)
 	a.AddAVP(NewAVP(avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("host.example")))
@@ -139,6 +148,8 @@ func TestProxyInfoEchoScope(t *testing.T) {
 }
 
 func FuzzProxyInfoEcho(f *testing.F) {
+	testDict := newTestDictionary(dict.Base())
+
 	f.Add([]byte{1, 2, 3}, uint8(0x41))
 	f.Add([]byte{}, uint8(0))
 	f.Fuzz(func(t *testing.T, payload []byte, flags uint8) {
@@ -146,14 +157,14 @@ func FuzzProxyInfoEcho(f *testing.F) {
 			t.Skip()
 		}
 		flags &^= avp.Vbit
-		r := NewRequest(DeviceWatchdog, 0, dict.Default)
+		r := NewRequest(DeviceWatchdog, 0, testDict)
 		p := NewAVP(avp.ProxyInfo, flags, 0, &GroupedAVP{AVP: []*AVP{NewAVP(999999, flags, 0, datatype.Unknown(payload))}})
 		r.AddAVP(p)
 		wire, err := r.Serialize()
 		if err != nil {
 			t.Fatal(err)
 		}
-		decoded, err := ReadMessage(bytes.NewReader(wire), dict.Default)
+		decoded, err := ReadMessage(bytes.NewReader(wire), testDict)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -181,10 +192,12 @@ func FuzzProxyInfoEcho(f *testing.F) {
 // RFC 6733 §§4.1, 6.2: clear reserved flags at every depth without changing
 // vendor identity, M/P bits, payloads, or the request's storage.
 func TestProxyInfoEchoClearsReservedFlags(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	leaf := NewAVP(999999, 0xff, 10415, datatype.Unknown{0, 1, 255})
 	nested := NewAVP(avp.ProxyInfo, 0x7f, 0, &GroupedAVP{AVP: []*AVP{leaf}})
 	parent := NewAVP(avp.ProxyInfo, 0x3f, 0, &GroupedAVP{AVP: []*AVP{nested}})
-	r := NewRequest(DeviceWatchdog, 0, dict.Default)
+	r := NewRequest(DeviceWatchdog, 0, testDict)
 	r.AddAVP(parent)
 	before := append([]byte(nil), parent.Data.Serialize()...)
 	a := r.Answer(Success)
@@ -203,7 +216,9 @@ func TestProxyInfoEchoClearsReservedFlags(t *testing.T) {
 // covers an echoed Proxy-Info only as Answer copied it: a caller that alters
 // it afterwards is sending its own AVP, which the sending rules check.
 func TestProxyInfoEchoExemptionEndsOnChange(t *testing.T) {
-	r := NewRequest(DeviceWatchdog, 0, dict.Default)
+	testDict := newTestDictionary(dict.Base())
+
+	r := NewRequest(DeviceWatchdog, 0, testDict)
 	// The peer cleared M on Proxy-Info, which our sending rules require.
 	r.AddAVP(NewAVP(avp.ProxyInfo, 0, 0, &GroupedAVP{AVP: []*AVP{
 		NewAVP(avp.ProxyHost, avp.Mbit, 0, datatype.DiameterIdentity("proxy.example")),

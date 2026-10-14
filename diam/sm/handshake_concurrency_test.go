@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
@@ -35,7 +37,7 @@ type handshakeConn struct {
 }
 
 func newHandshakeConn() *handshakeConn {
-	return &handshakeConn{messageErrorCaptureConn: &messageErrorCaptureConn{}, ctx: context.Background(), writes: make(chan []byte, 4)}
+	return &handshakeConn{messageErrorCaptureConn: &messageErrorCaptureConn{dictionary: newTestDictionary(dict.Base())}, ctx: context.Background(), writes: make(chan []byte, 4)}
 }
 func (c *handshakeConn) Context() context.Context       { c.mu.Lock(); defer c.mu.Unlock(); return c.ctx }
 func (c *handshakeConn) SetContext(ctx context.Context) { c.mu.Lock(); c.ctx = ctx; c.mu.Unlock() }
@@ -59,16 +61,21 @@ func (c *handshakeConn) Close() {
 	}
 }
 func regressionDWR(t *testing.T) *diam.Message {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	clientSettings := cloneTestSettings(clientSettings, testDict)
+
 	t.Helper()
-	m := diam.NewRequest(diam.DeviceWatchdog, 0, dict.Default)
+	m := diam.NewRequest(diam.DeviceWatchdog, 0, testDict)
 	mustSMClientAVP(t, m, avp.OriginHost, avp.Mbit, 0, clientSettings.OriginHost)
 	mustSMClientAVP(t, m, avp.OriginRealm, avp.Mbit, 0, clientSettings.OriginRealm)
 	return m
 }
 
 func TestAcceptedHandshakePublishedBeforeCEA(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	t.Run("blocked-write", func(t *testing.T) {
-		sm := mustNewStateMachine(t, testMessageErrorSettings())
+		sm := mustNewStateMachine(t, testMessageErrorSettings(testDict), testDict)
 		c := newHandshakeConn()
 		release := make(chan struct{})
 		c.afterWrite = func(seq int32) {
@@ -78,7 +85,7 @@ func TestAcceptedHandshakePublishedBeforeCEA(t *testing.T) {
 		}
 		cleanup := sm.HandleAccept(c)
 		defer cleanup()
-		cer := regressionCER(t, dict.Default, 1001)
+		cer := regressionCER(t, testDict, 1001)
 		done := make(chan struct{})
 		go func() { defer close(done); sm.ServeDIAM(c, cer) }()
 		defer func() { close(release); <-done }()
@@ -93,7 +100,7 @@ func TestAcceptedHandshakePublishedBeforeCEA(t *testing.T) {
 		}
 		select {
 		case wire := <-c.writes:
-			answer, err := diam.ReadMessage(bytes.NewReader(wire), dict.Default)
+			answer, err := diam.ReadMessage(bytes.NewReader(wire), testDict)
 			if err != nil || answer.Header.CommandCode != diam.DeviceWatchdog || !testResultCode(answer, diam.Success) {
 				t.Fatalf("DWA = %v, %v", answer, err)
 			}
@@ -102,11 +109,11 @@ func TestAcceptedHandshakePublishedBeforeCEA(t *testing.T) {
 		}
 	})
 	t.Run("concurrent-loopback", func(t *testing.T) {
-		srv := diamtest.NewUnstartedServer(mustNewStateMachine(t, testMessageErrorSettings()), dict.Default)
+		srv := diamtest.NewUnstartedServer(mustNewStateMachine(t, testMessageErrorSettings(testDict), testDict), testDict)
 		srv.Config.MaxConcurrentHandlers = -1
 		srv.Start()
 		defer srv.Close()
-		cer, dwr := regressionCER(t, dict.Default, 1001), regressionDWR(t)
+		cer, dwr := regressionCER(t, testDict, 1001), regressionDWR(t)
 		for i := 0; i < 300; i++ {
 			func() {
 				c, err := net.DialTimeout("tcp", srv.Addr, time.Second)
@@ -121,7 +128,7 @@ func TestAcceptedHandshakePublishedBeforeCEA(t *testing.T) {
 					if _, err = req.WriteTo(c); err != nil {
 						t.Fatal(err)
 					}
-					answer, err := diam.ReadMessage(c, dict.Default)
+					answer, err := diam.ReadMessage(c, testDict)
 					if err != nil || answer.Header.CommandCode != req.Header.CommandCode || !testResultCode(answer, diam.Success) {
 						t.Fatalf("exchange %d, command %d: answer=%v err=%v", i, req.Header.CommandCode, answer, err)
 					}
@@ -133,23 +140,27 @@ func TestAcceptedHandshakePublishedBeforeCEA(t *testing.T) {
 }
 
 func TestCERWriteFailureClosesConnection(t *testing.T) {
-	sm := mustNewStateMachine(t, testMessageErrorSettings())
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
+	sm := mustNewStateMachine(t, testMessageErrorSettings(testDict), testDict)
 	c := newHandshakeConn()
 	c.writeErr = errors.New("CEA write failed")
 	cleanup := sm.HandleAccept(c)
 	defer cleanup()
-	sm.ServeDIAM(c, regressionCER(t, dict.Default, 1001))
+	sm.ServeDIAM(c, regressionCER(t, testDict, 1001))
 	if !c.closed.Load() {
 		t.Fatal("failed CEA write left the connection open")
 	}
 }
 
 func TestExpiredHandshakeCannotSendSuccessCEA(t *testing.T) {
-	settings := testMessageErrorSettings()
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
+	settings := testMessageErrorSettings(testDict)
 	settings.HandshakeTimeout = 100 * time.Millisecond
 	var onCEACalls int
 	settings.OnCEA = func(diam.Conn, *diam.Message) { onCEACalls++ }
-	sm := mustNewStateMachine(t, settings)
+	sm := mustNewStateMachine(t, settings, testDict)
 	c := newHandshakeConn()
 	closing, release, done := make(chan struct{}), make(chan struct{}), make(chan struct{})
 	c.afterClose = func() { close(closing); <-release; close(done) }
@@ -161,7 +172,7 @@ func TestExpiredHandshakeCannotSendSuccessCEA(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("handshake timer did not close")
 	}
-	sm.ServeDIAM(c, regressionCER(t, dict.Default, 1001))
+	sm.ServeDIAM(c, regressionCER(t, testDict, 1001))
 	select {
 	case <-c.writes:
 		t.Fatal("expired handshake sent a success CEA")
@@ -176,7 +187,7 @@ func TestExpiredHandshakeCannotSendSuccessCEA(t *testing.T) {
 }
 
 func TestCERNilSettingsDictionaryUsesConnectionCapabilities(t *testing.T) {
-	dictionary := dict.New(dict.Base)
+	dictionary := newTestDictionary(dict.Base())
 	if err := dictionary.Load(bytes.NewBufferString(`<diameter><application id="16777999" name="Private" type="auth"/></diameter>`)); err != nil {
 		t.Fatal(err)
 	}

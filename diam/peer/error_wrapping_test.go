@@ -7,8 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gomaja/go-diameter/diam/dict"
-
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
@@ -47,7 +45,7 @@ func TestControlBuildErrorsPreserveCause(t *testing.T) {
 			if kind == iAck {
 				a.state = WaitConnAck
 			}
-			msg := diam.NewRequest(diam.DeviceWatchdog, 0, dict.New())
+			msg := diam.NewRequest(diam.DeviceWatchdog, 0, newTestDictionary())
 			if kind != iAck {
 				for len(s.writes) < cap(s.writes) {
 					s.writes <- writeRequest{msg: msg}

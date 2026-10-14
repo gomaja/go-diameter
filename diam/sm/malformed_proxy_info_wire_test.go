@@ -6,23 +6,26 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/diamtest"
-	"github.com/gomaja/go-diameter/diam/dict"
 )
 
 // RFC 6733 §§4.1, 6.2: echoed peer data retains everything except reserved flag bits.
 func TestMalformedProxyInfoAnsweredOnTCP(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	for _, kind := range []string{"m-clear", "reserved", "host-m-clear", "extension-reserved", "state-missing", "host-duplicate", "empty"} {
 		for _, result := range []uint32{3001, 5014, 5001, 5005} {
 			t.Run(fmt.Sprintf("%s/%d", kind, result), func(t *testing.T) {
-				settings := testMessageErrorSettings()
+				settings := testMessageErrorSettings(testDict)
 				settings.RejectUnknownMandatoryAVPs = true
 				settings.ValidateRequests = true
-				h := mustNewStateMachine(t, settings)
-				srv := diamtest.NewServer(h, dict.Default)
+				h := mustNewStateMachine(t, settings, testDict)
+				srv := diamtest.NewServer(h, testDict)
 				defer srv.Close()
 				conn := dialHandshakeUnknownTest(t, srv.Addr)
 				defer func() { _ = conn.Close() }()
@@ -67,7 +70,7 @@ func TestMalformedProxyInfoAnsweredOnTCP(t *testing.T) {
 				if err = conn.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
 					t.Fatal(err)
 				}
-				a, err := diam.ReadMessage(conn, dict.Default)
+				a, err := diam.ReadMessage(conn, testDict)
 				if err != nil {
 					t.Fatal(err)
 				}

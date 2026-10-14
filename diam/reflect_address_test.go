@@ -12,9 +12,12 @@ import (
 
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
+	"github.com/gomaja/go-diameter/diam/dict"
 )
 
 func TestReflectAddress(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	for _, literal := range []string{"192.0.2.1", "2001:db8::1", "::ffff:192.0.2.1"} {
 		t.Run(literal, func(t *testing.T) {
 			ip := netip.MustParseAddr(literal)
@@ -30,7 +33,7 @@ func TestReflectAddress(t *testing.T) {
 					IP datatype.Address `avp:"Host-IP-Address"`
 				}{addr},
 			} {
-				m := NewRequest(CapabilitiesExchange, 0, nil)
+				m := NewRequest(CapabilitiesExchange, 0, testDict)
 				if err := m.Marshal(input); err != nil {
 					t.Fatal(err)
 				}
@@ -62,8 +65,10 @@ func TestReflectAddress(t *testing.T) {
 }
 
 func TestReflectAddressFamilies(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	for _, addr := range []datatype.Address{{Family: datatype.AddressFamilyE164, Value: []byte("1234")}, {Family: 1234, Value: make([]byte, 16)}} {
-		m := NewRequest(CapabilitiesExchange, 0, nil)
+		m := NewRequest(CapabilitiesExchange, 0, testDict)
 		input := struct {
 			Addresses []datatype.Address `avp:"Host-IP-Address"`
 		}{[]datatype.Address{addr, addr.Clone()}}
@@ -98,11 +103,11 @@ func TestReflectAddressFamilies(t *testing.T) {
 	}{}, &struct {
 		IP string `avp:"Host-IP-Address"`
 	}{"1.2.3.4"}} {
-		if err := NewRequest(CapabilitiesExchange, 0, nil).Marshal(input); err == nil {
+		if err := NewRequest(CapabilitiesExchange, 0, testDict).Marshal(input); err == nil {
 			t.Fatalf("marshal accepted %T", input)
 		}
 	}
-	m := NewRequest(CapabilitiesExchange, 0, nil)
+	m := NewRequest(CapabilitiesExchange, 0, testDict)
 	m.AddAVP(NewAVP(avp.HostIPAddress, avp.Mbit, 0, datatype.Address{Family: datatype.AddressFamilyIPv4, Value: []byte{1}}))
 	var dst struct {
 		IP netip.Addr `avp:"Host-IP-Address"`
@@ -113,7 +118,9 @@ func TestReflectAddressFamilies(t *testing.T) {
 }
 
 func TestReflectAddressOmitEmpty(t *testing.T) {
-	m := NewRequest(CapabilitiesExchange, 0, nil)
+	testDict := newTestDictionary(dict.Base())
+
+	m := NewRequest(CapabilitiesExchange, 0, testDict)
 	input := struct {
 		Address datatype.Address `avp:"Host-IP-Address,omitempty"`
 		IP      netip.Addr       `avp:"Host-IP-Address,omitempty"`

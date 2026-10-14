@@ -38,6 +38,8 @@ func waitShutdownConns(t *testing.T, srv *Server) {
 }
 
 func TestServerShutdownDrainsInFlightHandler(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	entered := make(chan struct{})
 	release := make(chan struct{})
 	answers := make(chan struct{}, 1)
@@ -60,12 +62,12 @@ func TestServerShutdownDrainsInFlightHandler(t *testing.T) {
 	addr, serveDone := shutdownTestServer(t, srv)
 	mux := NewServeMux()
 	mux.HandleFunc("DWA", func(Conn, *Message) { answers <- struct{}{} })
-	client, err := Dial(addr, mux, dict.Default)
+	client, err := Dial(addr, mux, testDict)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer client.Close()
-	request := NewRequest(DeviceWatchdog, 0, dict.Default)
+	request := NewRequest(DeviceWatchdog, 0, testDict)
 	if _, err := request.WriteTo(client); err != nil {
 		t.Fatal(err)
 	}
@@ -121,10 +123,12 @@ func TestServerShutdownDrainsInFlightHandler(t *testing.T) {
 }
 
 func TestServerShutdownClosesIdleConnection(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	accepted := make(chan struct{}, 1)
 	srv := &Server{OnNewConnection: func(Conn) { accepted <- struct{}{} }}
 	addr, serveDone := shutdownTestServer(t, srv)
-	client, err := Dial(addr, NewServeMux(), dict.Default)
+	client, err := Dial(addr, NewServeMux(), testDict)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -156,6 +160,8 @@ func TestServerShutdownClosesIdleConnection(t *testing.T) {
 }
 
 func TestServerShutdownDeadlineForcesTransportClose(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	entered := make(chan struct{})
 	release := make(chan struct{})
 	srv := &Server{Handler: HandlerFunc(func(Conn, *Message) {
@@ -163,12 +169,12 @@ func TestServerShutdownDeadlineForcesTransportClose(t *testing.T) {
 		<-release
 	})}
 	addr, serveDone := shutdownTestServer(t, srv)
-	client, err := Dial(addr, NewServeMux(), dict.Default)
+	client, err := Dial(addr, NewServeMux(), testDict)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer client.Close()
-	if _, err := NewRequest(DeviceWatchdog, 0, dict.Default).WriteTo(client); err != nil {
+	if _, err := NewRequest(DeviceWatchdog, 0, testDict).WriteTo(client); err != nil {
 		t.Fatal(err)
 	}
 	select {
@@ -199,6 +205,8 @@ func TestServerShutdownDeadlineForcesTransportClose(t *testing.T) {
 }
 
 func TestServerShutdownWaitsForActionAfterPeerClose(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	accepted := make(chan struct{}, 1)
 	entered := make(chan struct{}, 1)
 	release := make(chan struct{})
@@ -208,7 +216,7 @@ func TestServerShutdownWaitsForActionAfterPeerClose(t *testing.T) {
 		<-release
 	}
 	addr, _ := shutdownTestServer(t, srv)
-	client, err := Dial(addr, NewServeMux(), dict.Default)
+	client, err := Dial(addr, NewServeMux(), testDict)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -3,14 +3,17 @@ package base
 import (
 	"testing"
 
+	"github.com/gomaja/go-diameter/diam/dict/cx"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
-	"github.com/gomaja/go-diameter/diam/dict"
 )
 
 func TestRebuildAnswerAVPNestedValues(t *testing.T) {
-	dictionary := dict.Default
+	testDict := newTestDictionary(cx.Dictionary())
+
+	dictionary := testDict
 	leaf := diam.NewAVP(avp.PublicIdentity, avp.Pbit|0x1f, 10415, datatype.UTF8String("sip:user@example.net"))
 	unknown := diam.NewAVP(0xffffff, 0x3f, 99999, datatype.Unknown("extension"))
 	inner := diam.NewAVP(avp.VendorSpecificApplicationID, 0, 0, &diam.GroupedAVP{AVP: []*diam.AVP{leaf, unknown}})
@@ -33,6 +36,8 @@ func TestRebuildAnswerAVPNestedValues(t *testing.T) {
 }
 
 func TestRebuildAnswerAVPUnusableValues(t *testing.T) {
+	testDict := newTestDictionary(cx.Dictionary())
+
 	cycle := &diam.GroupedAVP{}
 	cyclic := &diam.AVP{Code: avp.VendorSpecificApplicationID, Data: cycle}
 	cycle.AVP = []*diam.AVP{cyclic}
@@ -46,7 +51,7 @@ func TestRebuildAnswerAVPUnusableValues(t *testing.T) {
 		"cycle":        cyclic,
 	} {
 		t.Run(name, func(t *testing.T) {
-			if got := rebuildAnswerAVP(received, diam.TGPP_CX_APP_ID, dict.Default, dict.Default.Snapshot(), 0); got != nil {
+			if got := rebuildAnswerAVP(received, diam.TGPP_CX_APP_ID, testDict, testDict.Snapshot(), 0); got != nil {
 				t.Fatalf("unusable value rebuilt as %v", got)
 			}
 		})
@@ -54,9 +59,11 @@ func TestRebuildAnswerAVPUnusableValues(t *testing.T) {
 }
 
 func TestRebuildAnswerAVPEvidence(t *testing.T) {
+	testDict := newTestDictionary(cx.Dictionary())
+
 	evidence := diam.NewAVP(avp.VendorID, 0x1f, 0, datatype.Unknown{1})
 	failed := diam.NewAVP(avp.FailedAVP, 0x1f, 0, &diam.GroupedAVP{AVP: []*diam.AVP{evidence}})
-	rebuilt := rebuildAnswerAVP(failed, 0, dict.Default, dict.Default.Snapshot(), 0)
+	rebuilt := rebuildAnswerAVP(failed, 0, testDict, testDict.Snapshot(), 0)
 	if rebuilt == nil || rebuilt.Flags != avp.Mbit || rebuilt.Data != failed.Data {
 		t.Fatalf("evidence changed: %v", rebuilt)
 	}
@@ -65,7 +72,7 @@ func TestRebuildAnswerAVPEvidence(t *testing.T) {
 		if group != nil && len(group.AVP) == 0 {
 			group.AVP = []*diam.AVP{bad}
 		}
-		if rebuilt := rebuildAnswerAVP(bad, 0, dict.Default, dict.Default.Snapshot(), 0); rebuilt != nil {
+		if rebuilt := rebuildAnswerAVP(bad, 0, testDict, testDict.Snapshot(), 0); rebuilt != nil {
 			t.Fatal("accepted malformed evidence tree")
 		}
 	}

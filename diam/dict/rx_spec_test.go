@@ -1,4 +1,4 @@
-package dict
+package dict_test
 
 import (
 	"encoding/json"
@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/gomaja/go-diameter/diam/dict"
 )
 
 const rxAppID = 16777236
@@ -47,9 +49,11 @@ type rxSpec struct {
 // TS 29.214 V20.0.0 Table 5.4.0.1: every reused AVP keeps its source
 // registry identity and receives the Rx-specific flag policy where stated.
 func TestRxReusedAVPSpec(t *testing.T) {
+	reference := newAllTestParser(t)
+
 	for _, want := range loadRxSpec(t).Reused {
 		t.Run(want.Name, func(t *testing.T) {
-			a := rxLookup(t, want.Name)
+			a := rxLookup(t, reference, want.Name)
 			if want.Metadata == nil {
 				t.Fatal("reused AVP lacks independently sourced metadata")
 			}
@@ -97,12 +101,12 @@ func rxName(s string) string {
 	return normalizeS6aABNFName(strings.ReplaceAll(s, "3GPP", "TGPP"))
 }
 
-func rxLookup(t *testing.T, name string) *AVP {
+func rxLookup(t *testing.T, reference *dict.Parser, name string) *dict.AVP {
 	t.Helper()
-	for _, app := range Default.Apps() {
+	for _, app := range reference.Apps() {
 		for _, a := range app.AVP {
 			if rxName(a.Name) == rxName(name) {
-				if found, err := Default.FindAVPByName(rxAppID, a.Name); err == nil {
+				if found, err := reference.FindAVPByName(rxAppID, a.Name); err == nil {
 					return found
 				}
 			}
@@ -114,14 +118,14 @@ func rxLookup(t *testing.T, name string) *AVP {
 
 func rxFlags(t *testing.T, s string) int {
 	t.Helper()
-	f, err := parseFlags(s)
+	f, err := dict.ParseFlagsForTesting(s)
 	if err != nil {
 		t.Fatalf("invalid flag set %q: %v", s, err)
 	}
 	return f
 }
 
-func rxCheckRules(t *testing.T, got []*Rule, want []rxRuleSpec) {
+func rxCheckRules(t *testing.T, got []*dict.Rule, want []rxRuleSpec) {
 	t.Helper()
 	if len(got) != len(want) {
 		t.Errorf("member count %d, want %d", len(got), len(want))
@@ -138,7 +142,7 @@ func rxCheckRules(t *testing.T, got []*Rule, want []rxRuleSpec) {
 	}
 }
 
-func rxCheckAVP(t *testing.T, got *AVP, want rxAVPSpec) {
+func rxCheckAVP(t *testing.T, got *dict.AVP, want rxAVPSpec) {
 	t.Helper()
 	if rxName(got.Name) != rxName(want.Name) || got.Code != want.Code || got.VendorID != want.Vendor || got.Data.TypeName != want.Type {
 		t.Errorf("identity/type %s/%d/%d/%s, want %s/%d/%d/%s", got.Name, got.Code, got.VendorID, got.Data.TypeName, want.Name, want.Code, want.Vendor, want.Type)
@@ -162,9 +166,11 @@ func rxCheckAVP(t *testing.T, got *AVP, want rxAVPSpec) {
 
 // TS 29.214 V20.0.0 Table 5.3.0.1 and §§5.3.1–5.3.83.
 func TestRxAVPSpec(t *testing.T) {
+	reference := newAllTestParser(t)
+
 	for _, want := range loadRxSpec(t).AVPs {
 		t.Run(want.Section+"/"+want.Name, func(t *testing.T) {
-			got, err := Default.FindAVP(rxAppID, want.Code, want.Vendor)
+			got, err := reference.FindAVP(rxAppID, want.Code, want.Vendor)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -175,9 +181,11 @@ func TestRxAVPSpec(t *testing.T) {
 
 // TS 29.214 V20.0.0 §§5.6.1–5.6.8.
 func TestRxCommandSpec(t *testing.T) {
+	reference := newAllTestParser(t)
+
 	for _, want := range loadRxSpec(t).Commands {
 		t.Run(want.Section, func(t *testing.T) {
-			c, err := Default.FindCommand(rxAppID, want.Code)
+			c, err := reference.FindCommand(rxAppID, want.Code)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -219,7 +227,9 @@ func TestRxFixtureCoverage(t *testing.T) {
 // TS 29.214 V20.0.0 Table 5.4.0.1 requires the ETSI supplier declaration
 // for Reservation-Priority while 3GPP remains the application vendor.
 func TestRxVendorDeclaration(t *testing.T) {
-	app, err := Default.App(rxAppID)
+	reference := newAllTestParser(t)
+
+	app, err := reference.App(rxAppID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -230,8 +240,10 @@ func TestRxVendorDeclaration(t *testing.T) {
 
 // TS 32.299 V19.0.0 Table 7.2.0.1 does not specify per-AVP encryption.
 func TestRxChargingEncryptionUnspecified(t *testing.T) {
+	reference := newAllTestParser(t)
+
 	for _, name := range []string{"Calling-Party-Address", "Called-Party-Address", "Called-Asserted-Identity", "Requested-Party-Address"} {
-		if a := rxLookup(t, name); a.MayEncrypt != "" {
+		if a := rxLookup(t, reference, name); a.MayEncrypt != "" {
 			t.Errorf("%s encryption = %q, want unspecified", name, a.MayEncrypt)
 		}
 	}

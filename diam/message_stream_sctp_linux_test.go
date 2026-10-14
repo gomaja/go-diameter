@@ -6,10 +6,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam/internal/testutil"
 )
 
 func TestMessageStreamSCTP(t *testing.T) {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
 	for index, tc := range []struct {
 		name  string
 		depth int
@@ -65,7 +69,7 @@ func TestMessageStreamSCTP(t *testing.T) {
 			if tc.depth < 0 {
 				c = opaqueConn{c}
 			}
-			m, err := ReadMessage(bytes.NewReader(testMessage), nil)
+			m, err := ReadMessage(bytes.NewReader(testMessage), testDict)
 			if err != nil {
 				t.Fatal(err)
 			}

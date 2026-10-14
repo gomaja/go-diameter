@@ -21,6 +21,8 @@ func capabilityGroup(id, vendor uint32) *diam.AVP {
 
 // RFC 6733 §§5.3.1–5.3.2, 6.11 and Verified Erratum 4808.
 func TestApplicationAdvertisementPolicy(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	for _, tc := range []struct {
 		id, author uint32
 		vendors    []uint32
@@ -35,7 +37,7 @@ func TestApplicationAdvertisementPolicy(t *testing.T) {
 		cfg.AcctApplicationID = nil
 		cfg.Applications = []base.LocalApplication{{ID: tc.id, AppType: "auth", Vendor: tc.author, SupportedVendors: tc.vendors}}
 		// With no explicit configuration, metadata determines the wire form.
-		cer, err := base.BuildCER(dict.Default, cfg)
+		cer, err := base.BuildCER(testDict, cfg)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -48,7 +50,7 @@ func TestApplicationAdvertisementPolicy(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			decoded, err := diam.ReadMessage(bytes.NewReader(wire), dict.Default)
+			decoded, err := diam.ReadMessage(bytes.NewReader(wire), testDict)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -78,6 +80,8 @@ func TestApplicationAdvertisementPolicy(t *testing.T) {
 }
 
 func TestSupportedVendorPolicy(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	for _, explicit := range []bool{false, true} {
 		cfg := fixtureSettings()
 		cfg.VendorID = 10415
@@ -96,7 +100,7 @@ func TestSupportedVendorPolicy(t *testing.T) {
 			}
 			want = []uint32{9000, 10415, 9000}
 		}
-		cer, err := base.BuildCER(dict.Default, cfg)
+		cer, err := base.BuildCER(testDict, cfg)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -133,13 +137,15 @@ func TestMalformedConfiguredApplications(t *testing.T) {
 }
 
 func TestVendorAccountingApplication(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	cfg := fixtureSettings()
 	cfg.AcctApplicationID = nil
 	cfg.Applications = []base.LocalApplication{{ID: 16777216, AppType: "acct", Vendor: 10415, SupportedVendors: []uint32{13019}}}
 	group := capabilityGroup(16777216, 10415)
 	group.Data.(*diam.GroupedAVP).AVP[1].Code = avp.AcctApplicationID
 	cfg.VendorSpecificApplicationID = []*diam.AVP{group}
-	cer, err := base.BuildCER(dict.Default, cfg)
+	cer, err := base.BuildCER(testDict, cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -152,7 +158,7 @@ func TestVendorAccountingApplication(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		decoded, err := diam.ReadMessage(bytes.NewReader(wire), dict.Default)
+		decoded, err := diam.ReadMessage(bytes.NewReader(wire), testDict)
 		if err != nil {
 			t.Fatal(err)
 		}

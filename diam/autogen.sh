@@ -4,7 +4,7 @@
 # found in the LICENSE file.
 #
 # Generate Diameter constants from our bundled dictionaries
-# (dict/bundled/*.xml, which package dict embeds as they are).
+# (the XML files listed in dict/sources.txt).
 #
 # Run `sh autogen.sh` to re-generate these files after changing
 # dictionary XML files.
@@ -26,7 +26,13 @@ fi
 LC_ALL=C
 export LC_ALL
 
-dict=dict/bundled/*.xml
+# This manifest lists shipped sources only, excluding fixtures and examples.
+dict=
+while IFS= read -r source; do
+ [ -n "$source" ] || continue
+ [ -f "dict/$source" ] || { echo "missing dictionary dict/$source" >&2; exit 1; }
+ dict="$dict dict/$source"
+done < dict/sources.txt
 
 # Read each opening tag as one record, including multiline tags. Extract each
 # attribute by name so XML attribute order cannot hide a declaration.

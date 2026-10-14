@@ -32,9 +32,16 @@ func baseWireSpec(t *testing.T) ([]rxWireAVPSpec, []rxWireCommandSpec) {
 	return s.AVPs, s.Commands
 }
 
-func baseFindAVP(t *testing.T, name string) *dict.AVP {
+func baseFindAVP(t *testing.T, name string, parsers ...*dict.Parser) *dict.AVP {
+	var testDict *dict.Parser
+	if len(parsers) > 0 {
+		testDict = parsers[0]
+	} else {
+		testDict = newTestDictionary(dict.Base())
+	}
+
 	t.Helper()
-	a, err := dict.Default.FindAVPByName(0, name)
+	a, err := testDict.FindAVPByName(0, name)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,11 +51,13 @@ func baseFindAVP(t *testing.T, name string) *dict.AVP {
 // RFC 6733 §4.5 and companion tables: every base AVP and enum value,
 // including nested Grouped encodings, in both effective application views.
 func TestBaseAVPWireRoundTrip(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	definitions, _ := baseWireSpec(t)
 	for _, app := range []uint32{0, 3} {
 		for _, want := range definitions {
 			t.Run(fmt.Sprintf("%d/%s", app, want.Name), func(t *testing.T) {
-				a, err := dict.Default.FindAVP(app, want.Code, want.Vendor)
+				a, err := testDict.FindAVP(app, want.Code, want.Vendor)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -60,11 +69,11 @@ func TestBaseAVPWireRoundTrip(t *testing.T) {
 					samples = append(samples, datatype.Enumerated(e.Code))
 				}
 				for _, data := range samples {
-					m := NewRequest(271, app, dict.Default)
+					m := NewRequest(271, app, testDict)
 					if _, err := m.NewAVPByName(a.Name, rxWireFlags(t, a.Must), data); err != nil {
 						t.Fatal(err)
 					}
-					assertRefreshWire(t, m, want.Code, rxWireFlags(t, want.Must), want.Vendor, data)
+					assertRefreshWire(t, m, want.Code, rxWireFlags(t, want.Must), want.Vendor, data, testDict)
 				}
 			})
 		}
@@ -137,7 +146,14 @@ func baseSampleData(t *testing.T, a *dict.AVP, depth int) datatype.Type {
 	}
 }
 
-func baseCommandMessage(t *testing.T, app uint32, spec rxWireCommandSpec) *Message {
+func baseCommandMessage(t *testing.T, app uint32, spec rxWireCommandSpec, parsers ...*dict.Parser) *Message {
+	var testDict *dict.Parser
+	if len(parsers) > 0 {
+		testDict = parsers[0]
+	} else {
+		testDict = newTestDictionary(dict.Base())
+	}
+
 	t.Helper()
 	flags := uint8(0)
 	if spec.Proxiable {
@@ -146,13 +162,13 @@ func baseCommandMessage(t *testing.T, app uint32, spec rxWireCommandSpec) *Messa
 	if spec.Request {
 		flags |= RequestFlag
 	}
-	m := NewMessage(spec.Code, flags, app, 0x12345678, 0x87654321, dict.Default)
+	m := NewMessage(spec.Code, flags, app, 0x12345678, 0x87654321, testDict)
 	for _, rule := range spec.Rules {
 		if rule.Name == "AVP" {
 			continue
 		}
 		for i := 0; i < rule.Min; i++ {
-			a := baseFindAVP(t, rule.Name)
+			a := baseFindAVP(t, rule.Name, testDict)
 			m.AddAVP(NewAVP(a.Code, rxWireFlags(t, a.Must), a.VendorID, baseSampleData(t, a, 0)))
 		}
 	}
@@ -161,11 +177,13 @@ func baseCommandMessage(t *testing.T, app uint32, spec rxWireCommandSpec) *Messa
 
 // RFC 6733 command CCF, with Verified Errata 4803 and 4808.
 func TestBaseCommandWireAndBoundaries(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	_, commands := baseWireSpec(t)
 	for _, app := range []uint32{0, 3} {
 		for _, spec := range commands {
 			t.Run(fmt.Sprintf("%d/%s", app, spec.Section), func(t *testing.T) {
-				m := baseCommandMessage(t, app, spec)
+				m := baseCommandMessage(t, app, spec, testDict)
 				if err := m.ValidateOutgoing(); err != nil {
 					t.Fatalf("valid command: %v", err)
 				}
@@ -173,7 +191,7 @@ func TestBaseCommandWireAndBoundaries(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				got, err := ReadMessage(bytes.NewReader(wire), dict.Default)
+				got, err := ReadMessage(bytes.NewReader(wire), testDict)
 				if err != nil || got.DecodeErr != nil {
 					t.Fatalf("decode: %v / %v", err, got.DecodeErr)
 				}
@@ -199,8 +217,8 @@ func TestBaseCommandWireAndBoundaries(t *testing.T) {
 					if rule.Name == "AVP" || rule.Min == 0 {
 						continue
 					}
-					m := baseCommandMessage(t, app, spec)
-					a := baseFindAVP(t, rule.Name)
+					m := baseCommandMessage(t, app, spec, testDict)
+					a := baseFindAVP(t, rule.Name, testDict)
 					for i, item := range m.AVP {
 						if item.Code == a.Code && item.VendorID == a.VendorID {
 							m.AVP = append(m.AVP[:i], m.AVP[i+1:]...)
@@ -216,8 +234,8 @@ func TestBaseCommandWireAndBoundaries(t *testing.T) {
 					if rule.Name == "AVP" || rule.Fixed || rule.Max == nil {
 						continue
 					}
-					m := baseCommandMessage(t, app, spec)
-					a := baseFindAVP(t, rule.Name)
+					m := baseCommandMessage(t, app, spec, testDict)
+					a := baseFindAVP(t, rule.Name, testDict)
 					count := 0
 					for _, item := range m.AVP {
 						if item.Code == a.Code && item.VendorID == a.VendorID {
@@ -241,33 +259,35 @@ func TestBaseCommandWireAndBoundaries(t *testing.T) {
 // Exercise extension points with understood AVPs, so deleting the wildcard
 // cannot pass merely because an unknown optional AVP is ignored.
 func TestBaseGroupedExtensions(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	for _, name := range []string{"Proxy-Info", "OC-Supported-Features", "OC-OLR", "Load"} {
 		t.Run(name, func(t *testing.T) {
-			a := baseFindAVP(t, name)
+			a := baseFindAVP(t, name, testDict)
 			g := baseSampleData(t, a, 0).(*GroupedAVP)
 			for i := 0; i < 2; i++ {
 				g.AVP = append(g.AVP, NewAVP(avp.UserName, avp.Mbit, 0, datatype.UTF8String("extension")))
 			}
 			for _, app := range []uint32{0, 3} {
-				if err := validateAVPs(g.AVP, a.Data.Rule, app, dict.Default.Snapshot()); err != nil {
+				if err := validateAVPs(g.AVP, a.Data.Rule, app, testDict.Snapshot()); err != nil {
 					t.Fatalf("extensions: %v", err)
 				}
-				m := NewRequest(271, app, dict.Default)
+				m := NewRequest(271, app, testDict)
 				m.AddAVP(NewAVP(a.Code, rxWireFlags(t, a.Must), 0, g))
-				assertRefreshWire(t, m, a.Code, rxWireFlags(t, a.Must), 0, g)
+				assertRefreshWire(t, m, a.Code, rxWireFlags(t, a.Must), 0, g, testDict)
 			}
 		})
 	}
 	// Failed-AVP's dictionary shape is pinned even though normal validation
 	// deliberately preserves malformed peer evidence under RFC 6733 §7.5.
-	a := baseFindAVP(t, "Failed-AVP")
+	a := baseFindAVP(t, "Failed-AVP", testDict)
 
 	for _, n := range []int{1, 2, 4} {
 		items := make([]*AVP, n)
 		for i := range items {
 			items[i] = NewAVP(avp.UserName, avp.Mbit, 0, datatype.UTF8String("evidence"))
 		}
-		if err := validateAVPs(items, a.Data.Rule, 0, dict.Default.Snapshot()); err != nil {
+		if err := validateAVPs(items, a.Data.Rule, 0, testDict.Snapshot()); err != nil {
 			t.Fatalf("%d evidence AVPs: %v", n, err)
 		}
 	}
@@ -275,11 +295,13 @@ func TestBaseGroupedExtensions(t *testing.T) {
 
 // Every command retains the unbounded *[ AVP ] from RFC 6733's CCF.
 func TestBaseCommandExtensions(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	_, commands := baseWireSpec(t)
 	for _, app := range []uint32{0, 3} {
 		for _, spec := range commands {
 			t.Run(fmt.Sprintf("%d/%d/%t", app, spec.Code, spec.Request), func(t *testing.T) {
-				m := baseCommandMessage(t, app, spec)
+				m := baseCommandMessage(t, app, spec, testDict)
 				for i := 0; i < 2; i++ {
 					m.AddAVP(NewAVP(avp.DRMP, 0, 0, datatype.Enumerated(i)))
 				}
@@ -290,7 +312,7 @@ func TestBaseCommandExtensions(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				got, err := ReadMessage(bytes.NewReader(wire), dict.Default)
+				got, err := ReadMessage(bytes.NewReader(wire), testDict)
 				if err != nil {
 					t.Fatal(err)
 				}

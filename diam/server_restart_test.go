@@ -8,6 +8,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/gomaja/go-diameter/diam/dict"
 )
 
 type restartRead struct {
@@ -62,6 +64,8 @@ func (h *restartHandler) ServeDIAM(c Conn, m *Message) {
 func (h *restartHandler) HandleRetire(Conn, RetirementReason) error { return nil }
 
 func TestAcceptedRestartPreservesNextCER(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	for _, mode := range []int{0, 1, 2, -1} {
 		t.Run(fmt.Sprint(mode), func(t *testing.T) {
 			local, remote := net.Pipe()
@@ -73,18 +77,18 @@ func TestAcceptedRestartPreservesNextCER(t *testing.T) {
 			finished := make(chan struct{})
 			go func() { c.serve(); close(finished) }()
 			defer func() { close(transport.reads); _ = remote.Close(); <-finished }()
-			payload := cerPayload(t)
+			payload := cerPayload(t, testDict)
 			transport.reads <- restartRead{data: payload}
 			if err := remote.SetDeadline(time.Now().Add(2 * time.Second)); err != nil {
 				t.Fatal(err)
 			}
-			if _, err := ReadMessage(remote, nil); err != nil {
+			if _, err := ReadMessage(remote, testDict); err != nil {
 				t.Fatalf("first CEA: %v", err)
 			}
 			old := <-h.conns
 			transport.reads <- restartRead{err: &TransportRestartError{AssociationID: 42, InboundStreams: 4, OutboundStreams: 4}}
 			transport.reads <- restartRead{data: payload}
-			if _, err := ReadMessage(remote, nil); err != nil {
+			if _, err := ReadMessage(remote, testDict); err != nil {
 				t.Fatalf("next CER lost after restart: %v", err)
 			}
 			next := <-h.conns
@@ -102,7 +106,7 @@ func TestAcceptedRestartPreservesNextCER(t *testing.T) {
 				t.Fatal("old Close closed replacement")
 			}
 			transport.reads <- restartRead{data: payload}
-			if _, err := ReadMessage(remote, nil); err != nil {
+			if _, err := ReadMessage(remote, testDict); err != nil {
 				t.Fatalf("old Close affected replacement transport: %v", err)
 			}
 			if third := <-h.conns; third != next {

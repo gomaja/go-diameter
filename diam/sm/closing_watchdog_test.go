@@ -7,6 +7,8 @@ import (
 	"testing/synctest"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/dict"
@@ -65,12 +67,14 @@ func TestAcceptedWatchdogClosingDWA(t *testing.T) {
 }
 
 func TestAcceptedWatchdogClosingActivity(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	synctest.Test(t, func(t *testing.T) {
 		cfg := newAcceptedWatchdogSettings()
-		sm := mustNewStateMachine(t, &cfg)
+		sm := mustNewStateMachine(t, &cfg, testDict)
 		c := newAcceptedWatchdogProbeConn()
 		defer close(c.done)
-		sm.ServeDIAM(c, regressionCER(t, dict.Default, 1001))
+		sm.ServeDIAM(c, regressionCER(t, testDict, 1001))
 		w := acceptedWatchdogState(t, sm, c)
 		sm.stopWatchdog(c)
 		<-w.exited
@@ -81,7 +85,7 @@ func TestAcceptedWatchdogClosingActivity(t *testing.T) {
 		routed := false
 		sm.Handle("ALL", diam.HandlerFunc(func(diam.Conn, *diam.Message) { routed = true }))
 		last := w.signals.last.Load()
-		answer := diam.NewRequest(999, 42, dict.Default).Answer(diam.Success)
+		answer := diam.NewRequest(999, 42, testDict).Answer(diam.Success)
 		sm.ServeDIAM(c, answer)
 		if !routed {
 			t.Fatal("application answer did not reach its handler")
@@ -201,7 +205,7 @@ func TestAcceptedWatchdogEventsHoldStopLock(t *testing.T) {
 		if !w.send() {
 			t.Fatal("DWR publication failed")
 		}
-		request, err := diam.ReadMessage(bytes.NewReader(<-c.writes), dict.Default)
+		request, err := diam.ReadMessage(bytes.NewReader(<-c.writes), newSMTestDictionary(dict.Base()))
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -8,6 +8,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/s6c"
+	"github.com/gomaja/go-diameter/diam/dict/sgd"
+
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/dict"
@@ -35,37 +38,44 @@ func TestSMSGeneratedConstants(t *testing.T) {
 }
 
 func TestS6cMandatoryRoundTrip(t *testing.T) {
+	testDict :=
+
+		// 3GPP TS 29.338 V19.3.0 Tables 5.3.3.1/1 and 6.3.3.1/1.
+
+		newTestDictionary(s6c.Dictionary(), sgd.Dictionary())
 	for _, code := range []uint32{8388647, 8388648, 8388649} {
 		for _, request := range []bool{true, false} {
-			t.Run(fmt.Sprintf("%d/request=%t", code, request), func(t *testing.T) { smsRoundTrip(t, 16777312, code, request) })
+			t.Run(fmt.Sprintf("%d/request=%t", code, request), func(t *testing.T) { smsRoundTrip(t, 16777312, code, request, testDict) })
 		}
 	}
 }
 
 // 3GPP TS 29.338 V19.3.0 §§6.3.2.3-6.3.2.6, Table 6.3.2.2/1.
 func TestSGdMandatoryRoundTrip(t *testing.T) {
+	testDict := newTestDictionary(s6c.Dictionary(), sgd.Dictionary())
 	for _, code := range []uint32{8388645, 8388646} {
 		for _, request := range []bool{true, false} {
-			t.Run(fmt.Sprintf("%d/request=%t", code, request), func(t *testing.T) { smsRoundTrip(t, 16777313, code, request) })
+			t.Run(fmt.Sprintf("%d/request=%t", code, request), func(t *testing.T) { smsRoundTrip(t, 16777313, code, request, testDict) })
 		}
 	}
 }
 
 func TestSMSAVPTypesRoundTrip(t *testing.T) {
-	// 3GPP TS 29.338 V19.3.0 Tables 5.3.3.1/1 and 6.3.3.1/1.
-	app, err := dict.Default.App(16777312)
+	testDict := newTestDictionary(s6c.Dictionary(), sgd.Dictionary())
+
+	app, err := testDict.App(16777312)
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, d := range app.AVP {
 		t.Run(d.Name, func(t *testing.T) {
-			m := NewRequest(8388647, 16777312, dict.Default)
-			m.AddAVP(smsAVP(t, 16777312, d.Name))
+			m := NewRequest(8388647, 16777312, testDict)
+			m.AddAVP(smsAVP(t, 16777312, d.Name, testDict))
 			wire, err := m.Serialize()
 			if err != nil {
 				t.Fatal(err)
 			}
-			got, err := ReadMessage(bytes.NewReader(wire), dict.Default)
+			got, err := ReadMessage(bytes.NewReader(wire), testDict)
 			if err != nil || got.DecodeErr != nil {
 				t.Fatalf("decode: %v, %v", err, got.DecodeErr)
 			}
@@ -80,9 +90,16 @@ func TestSMSAVPTypesRoundTrip(t *testing.T) {
 	}
 }
 
-func smsRoundTrip(t *testing.T, appid, code uint32, request bool) {
+func smsRoundTrip(t *testing.T, appid, code uint32, request bool, parsers ...*dict.Parser) {
+	var testDict *dict.Parser
+	if len(parsers) > 0 {
+		testDict = parsers[0]
+	} else {
+		testDict = newTestDictionary(s6c.Dictionary(), sgd.Dictionary())
+	}
+
 	t.Helper()
-	command, err := dict.Default.FindCommand(appid, code)
+	command, err := testDict.FindCommand(appid, code)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,24 +109,24 @@ func smsRoundTrip(t *testing.T, appid, code uint32, request bool) {
 		flags = RequestFlag
 		rules = command.Request.Rule
 	}
-	msg := NewMessage(code, flags, appid, 1, 2, dict.Default)
+	msg := NewMessage(code, flags, appid, 1, 2, testDict)
 	for _, rule := range rules {
 		if !rule.Required || rule.AVP == "AVP" {
 			continue
 		}
-		a := smsAVP(t, appid, rule.AVP)
+		a := smsAVP(t, appid, rule.AVP, testDict)
 		msg.AddAVP(a)
 	}
 	// The SRR allows both subscriber identifiers; exercise their vendor scopes.
 	if appid == 16777312 && code == 8388647 && request {
-		msg.AddAVP(smsAVP(t, appid, "MSISDN"))
-		msg.AddAVP(smsAVP(t, appid, "User-Name"))
+		msg.AddAVP(smsAVP(t, appid, "MSISDN", testDict))
+		msg.AddAVP(smsAVP(t, appid, "User-Name", testDict))
 	}
 	wire, err := msg.Serialize()
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, err := ReadMessage(bytes.NewReader(wire), dict.Default)
+	got, err := ReadMessage(bytes.NewReader(wire), testDict)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -134,7 +151,7 @@ func smsRoundTrip(t *testing.T, appid, code uint32, request bool) {
 	defer func() { _ = right.Close() }()
 	done := make(chan error, 1)
 	go func() { _, e := msg.WriteTo(left); done <- e }()
-	networkGot, err := ReadMessage(right, dict.Default)
+	networkGot, err := ReadMessage(right, testDict)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -146,9 +163,16 @@ func smsRoundTrip(t *testing.T, appid, code uint32, request bool) {
 	}
 }
 
-func smsAVP(t *testing.T, appid uint32, name string) *AVP {
+func smsAVP(t *testing.T, appid uint32, name string, parsers ...*dict.Parser) *AVP {
+	var testDict *dict.Parser
+	if len(parsers) > 0 {
+		testDict = parsers[0]
+	} else {
+		testDict = newTestDictionary(s6c.Dictionary(), sgd.Dictionary())
+	}
+
 	t.Helper()
-	d, err := dict.Default.FindAVPByName(appid, name)
+	d, err := testDict.FindAVPByName(appid, name)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -165,23 +189,23 @@ func smsAVP(t *testing.T, appid uint32, name string) *AVP {
 		g := &GroupedAVP{}
 		for _, rule := range d.Data.Rule {
 			if rule.Required {
-				g.AddAVP(smsAVP(t, appid, rule.AVP))
+				g.AddAVP(smsAVP(t, appid, rule.AVP, testDict))
 			}
 		}
 		if name == "User-Identifier" {
-			g.AddAVP(smsAVP(t, appid, "User-Name"))
+			g.AddAVP(smsAVP(t, appid, "User-Name", testDict))
 		}
 		if name == "SM-Delivery-Outcome" {
-			g.AddAVP(smsAVP(t, appid, "MME-SM-Delivery-Outcome"))
+			g.AddAVP(smsAVP(t, appid, "MME-SM-Delivery-Outcome", testDict))
 		}
 		if name == "EPS-Location-Information" {
-			g.AddAVP(smsAVP(t, appid, "MME-Location-Information"))
+			g.AddAVP(smsAVP(t, appid, "MME-Location-Information", testDict))
 		}
 		if name == "MME-Location-Information" {
-			g.AddAVP(smsAVP(t, appid, "E-UTRAN-Cell-Global-Identity"))
+			g.AddAVP(smsAVP(t, appid, "E-UTRAN-Cell-Global-Identity", testDict))
 		}
 		if name == "SMSMI-Correlation-ID" {
-			g.AddAVP(smsAVP(t, appid, "HSS-ID"))
+			g.AddAVP(smsAVP(t, appid, "HSS-ID", testDict))
 		}
 		value = g
 	case "Unsigned32":

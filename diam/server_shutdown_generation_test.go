@@ -10,6 +10,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"testing/synctest"
+
+	"github.com/gomaja/go-diameter/diam/dict"
 )
 
 type shutdownRetirementTransport struct {
@@ -45,6 +47,8 @@ func (c *retirementShutdownContext) Done() <-chan struct{} {
 }
 
 func TestShutdownRetirementClosesPhysical(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	for _, stage := range []string{"retire", "reset"} {
 		for _, mode := range []int{0, -1} {
 			t.Run(fmt.Sprintf("%s/%d", stage, mode), func(t *testing.T) {
@@ -101,10 +105,10 @@ func TestShutdownRetirementClosesPhysical(t *testing.T) {
 						<-peerDone
 						<-observed
 					}()
-					raw.reads <- restartRead{data: cerPayload(t)}
+					raw.reads <- restartRead{data: cerPayload(t, testDict)}
 					<-callbackEntered
 					raw.reads <- restartRead{err: &TransportRestartError{AssociationID: 81}}
-					raw.reads <- restartRead{data: cerPayload(t)}
+					raw.reads <- restartRead{data: cerPayload(t, testDict)}
 					<-entered
 					ctx := &retirementShutdownContext{Context: context.Background(), entered: make(chan struct{}), served: served}
 					shutdown := make(chan error, 1)
@@ -195,6 +199,8 @@ func (l *shutdownBlockingListener) Close() error {
 }
 
 func TestShutdownMarksDrainingBeforeListenerClose(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	synctest.Test(t, func(t *testing.T) {
 		local, remote := net.Pipe()
 		defer func() { _ = remote.Close() }()
@@ -228,7 +234,7 @@ func TestShutdownMarksDrainingBeforeListenerClose(t *testing.T) {
 		}
 		served := make(chan struct{})
 		go func() { c.serve(); close(served) }()
-		raw.reads <- restartRead{data: cerPayload(t)}
+		raw.reads <- restartRead{data: cerPayload(t, testDict)}
 		<-callbackEntered
 		raw.reads <- restartRead{err: &TransportRestartError{AssociationID: 81}}
 		<-entered

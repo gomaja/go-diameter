@@ -1,4 +1,4 @@
-package dict
+package dict_test
 
 import (
 	"encoding/json"
@@ -23,6 +23,8 @@ type s6aEnumExpectation struct {
 // V20.0.0 §§5.3.17, 5.3.31, 5.3.46–5.3.47; transitive CSG enums
 // follow TS 32.299 V19.0.0 §§7.2.46A–7.2.46B.
 func TestS6aS13EnumeratedSpec(t *testing.T) {
+	reference := newAllTestParser(t)
+
 	b, err := os.ReadFile("testdata/s6a_enums_spec.json")
 	if err != nil {
 		t.Fatal(err)
@@ -40,7 +42,7 @@ func TestS6aS13EnumeratedSpec(t *testing.T) {
 			if name == "Equipment-Status" {
 				appID = 16777252 // TS 29.272 §7.2.21: S13/S13' only.
 			}
-			avp, err := Default.FindAVPByName(appID, name)
+			avp, err := reference.FindAVPByName(appID, name)
 			if err != nil {
 				t.Fatalf("%s: %v", want.Source, err)
 			}
@@ -116,6 +118,8 @@ func sortedCodes(m map[string]string) []string {
 // TS 29.272 V19.6.0 Table 7.3.1/1, §§7.3.151, 7.3.162, 7.3.175,
 // 7.3.177, 7.3.186, 7.3.201–7.3.202, 7.3.254–7.3.255.
 func TestS6aS13NewAVPMetadataSpec(t *testing.T) {
+	reference := newAllTestParser(t)
+
 	for _, tc := range []struct {
 		name, typ string
 		code      uint32
@@ -131,7 +135,7 @@ func TestS6aS13NewAVPMetadataSpec(t *testing.T) {
 		{"SF-Provisional-Indication", "Enumerated", 1730},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			avp, err := Default.FindAVPByName(16777251, tc.name)
+			avp, err := reference.FindAVPByName(16777251, tc.name)
 			if err != nil {
 				t.Fatal(err)
 			}

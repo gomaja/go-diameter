@@ -18,6 +18,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/gomaja/go-diameter/diam/dict"
 )
 
 type generationHandler struct {
@@ -73,11 +75,13 @@ func (f *generationFixture) send(t *testing.T, m *Message) {
 	f.transport.reads <- restartRead{data: b}
 }
 func (f *generationFixture) answer(t *testing.T) *Message {
+	testDict := newTestDictionary(dict.Base())
+
 	t.Helper()
 	if err := f.peer.SetDeadline(time.Now().Add(3 * time.Second)); err != nil {
 		t.Fatal(err)
 	}
-	m, err := ReadMessage(f.peer, nil)
+	m, err := ReadMessage(f.peer, testDict)
 	if err != nil {
 		t.Fatalf("answer: %v", err)
 	}
@@ -87,8 +91,10 @@ func (f *generationFixture) restart() {
 	f.transport.reads <- restartRead{err: &TransportRestartError{AssociationID: 7, InboundStreams: 8, OutboundStreams: 8}}
 }
 func generationCER(t *testing.T) *Message {
+	testDict := newTestDictionary(dict.Base())
+
 	t.Helper()
-	m, err := ReadMessage(bytes.NewReader(cerPayload(t)), nil)
+	m, err := ReadMessage(bytes.NewReader(cerPayload(t)), testDict)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -254,6 +260,8 @@ func testAcceptedTLSRestartClosesPhysical(t *testing.T, mode string) {
 }
 
 func TestAcceptedTLSCERRenewal(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	cert := generationCertificate(t)
 	local, remote := net.Pipe()
 	conns := make(chan Conn, 2)
@@ -279,7 +287,7 @@ func TestAcceptedTLSCERRenewal(t *testing.T) {
 		if _, err := generationCER(t).WriteTo(client); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := ReadMessage(client, nil); err != nil {
+		if _, err := ReadMessage(client, testDict); err != nil {
 			t.Fatalf("TLS CER %d: %v", i+1, err)
 		}
 	}
@@ -290,6 +298,8 @@ func TestAcceptedTLSCERRenewal(t *testing.T) {
 }
 
 func TestAcceptedGenerationIndependentDispatchAndHooks(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	for _, mode := range []int{2, -1} {
 		t.Run(fmt.Sprint(mode), func(t *testing.T) {
 			var accepts, cleanups, physical atomic.Int32
@@ -345,7 +355,7 @@ func TestAcceptedGenerationIndependentDispatchAndHooks(t *testing.T) {
 			defer unblock()
 			f.send(t, generationCER(t))
 			f.answer(t)
-			f.send(t, NewRequest(DeviceWatchdog, 0, nil))
+			f.send(t, NewRequest(DeviceWatchdog, 0, testDict))
 			awaitGeneration(t, entered, "application not entered")
 			f.restart()
 			f.send(t, generationCER(t))
@@ -387,6 +397,8 @@ func TestAcceptedGenerationIndependentDispatchAndHooks(t *testing.T) {
 }
 
 func TestRestartDiscardsInterruptedMessage(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	for _, offset := range []int{7, 25} {
 		t.Run(fmt.Sprint(offset), func(t *testing.T) {
 			seen := make(chan Conn, 2)
@@ -400,7 +412,7 @@ func TestRestartDiscardsInterruptedMessage(t *testing.T) {
 			f.send(t, generationCER(t))
 			f.answer(t)
 			<-seen
-			f.transport.reads <- restartRead{data: cerPayload(t)[:offset]}
+			f.transport.reads <- restartRead{data: cerPayload(t, testDict)[:offset]}
 			f.restart()
 			f.send(t, generationCER(t))
 			f.answer(t)
@@ -412,6 +424,8 @@ func TestRestartDiscardsInterruptedMessage(t *testing.T) {
 }
 
 func TestCERGenerationKeepsReadAhead(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	var calls atomic.Int32
 	// Leave room for a replay so a failed reply check can drain the reader.
 	seen := make(chan Conn, 4)
@@ -428,7 +442,7 @@ func TestCERGenerationKeepsReadAhead(t *testing.T) {
 	}}}
 	f := newGenerationFixture(t, srv)
 	// One underlying Read provides two CERs and subsequent application input.
-	requests := []*Message{generationCER(t), generationCER(t), NewRequest(DeviceWatchdog, 0, nil)}
+	requests := []*Message{generationCER(t), generationCER(t), NewRequest(DeviceWatchdog, 0, testDict)}
 	var data []byte
 	for i, m := range requests {
 		m.Header.HopByHopID = 0x81000001 + uint32(i)
@@ -728,6 +742,8 @@ func TestRenewalHookPanicsClosePhysicalOwner(t *testing.T) {
 }
 
 func TestRenewalHasFreshDispatchSlots(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	entered := make(chan struct{}, 2)
 	release := make(chan struct{})
 	var once sync.Once
@@ -749,7 +765,7 @@ func TestRenewalHasFreshDispatchSlots(t *testing.T) {
 	f.send(t, generationCER(t))
 	f.answer(t)
 	for range 2 {
-		f.send(t, NewRequest(DeviceWatchdog, 0, nil))
+		f.send(t, NewRequest(DeviceWatchdog, 0, testDict))
 		awaitGeneration(t, entered, "old application slot")
 	}
 	f.restart()

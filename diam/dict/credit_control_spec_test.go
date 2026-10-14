@@ -1,4 +1,4 @@
-package dict
+package dict_test
 
 import (
 	"bytes"
@@ -8,6 +8,9 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/gomaja/go-diameter/diam/dict"
+	"github.com/gomaja/go-diameter/diam/dict/all"
 )
 
 // The fixture records RFC 8506 §§3 and 8, with the §12 IANA registries.
@@ -63,14 +66,14 @@ func loadCreditControlSpec(t *testing.T) creditControlSpec {
 
 func creditControlFlagSet(t *testing.T, s string) int {
 	t.Helper()
-	flags, err := parseFlags(s)
+	flags, err := dict.ParseFlagsForTesting(s)
 	if err != nil {
 		t.Fatalf("invalid flag set %q: %v", s, err)
 	}
 	return flags
 }
 
-func checkCreditControlRules(t *testing.T, got []*Rule, want []creditControlRule) {
+func checkCreditControlRules(t *testing.T, got []*dict.Rule, want []creditControlRule) {
 	t.Helper()
 	if len(got) != len(want) {
 		t.Errorf("rule count %d, want %d", len(got), len(want))
@@ -93,6 +96,8 @@ func checkCreditControlRules(t *testing.T, got []*Rule, want []creditControlRule
 // RFC 8506 §8 table, §§8.1–8.68; current IANA AAA Parameters AVP values
 // allocated under §12. This exercises application 4 after inheritance loads.
 func TestCreditControlAVPSpec(t *testing.T) {
+	reference := newAllTestParser(t)
+
 	seen := map[uint32]bool{}
 	for _, want := range loadCreditControlSpec(t).AVPs {
 		t.Run(want.Section+"/"+want.Name, func(t *testing.T) {
@@ -100,7 +105,7 @@ func TestCreditControlAVPSpec(t *testing.T) {
 				t.Fatalf("duplicate fixture code %d", want.Code)
 			}
 			seen[want.Code] = true
-			got, err := Default.FindAVP(4, want.Code, 0)
+			got, err := reference.FindAVP(4, want.Code, 0)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -130,9 +135,11 @@ func TestCreditControlAVPSpec(t *testing.T) {
 // RFC 8506 §§3.1–3.2 remain intact within the charging union.
 // TestRoRfSharedGrammars pins every TS 32.299 addition and rejects extra rules.
 func TestCreditControlCommandSpec(t *testing.T) {
+	reference := newAllTestParser(t)
+
 	for _, want := range loadCreditControlSpec(t).Commands {
 		t.Run(want.Section, func(t *testing.T) {
-			command, err := Default.FindCommand(4, want.Code)
+			command, err := reference.FindCommand(4, want.Code)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -155,10 +162,12 @@ func TestCreditControlCommandSpec(t *testing.T) {
 // RFC 8506 §8 definitions flow into all seven charging descendants unless
 // that application or an intermediate parent provides an explicit override.
 func TestCreditControlInheritedAVPSpec(t *testing.T) {
+	reference := newAllTestParser(t)
+
 	for _, appID := range []uint32{16777236, 16777238, 16777251, 16777265, 16777302, 16777312, 16777313} {
 		inherited := 0
 		for _, want := range loadCreditControlSpec(t).AVPs {
-			got, err := Default.FindAVP(appID, want.Code, 0)
+			got, err := reference.FindAVP(appID, want.Code, 0)
 			if err != nil {
 				t.Errorf("app %d %s: %v", appID, want.Name, err)
 				continue
@@ -189,6 +198,8 @@ func TestCreditControlInheritedAVPSpec(t *testing.T) {
 // RFC 8506 §§3.1–3.2 and §8.68 reuse these Grouped AVPs. Require their
 // complete source grammars: RFC 6733 §§6.7.2, 7.5 and RFC 5777 §3.2.
 func TestCreditControlReferencedGroupedSources(t *testing.T) {
+	reference := newAllTestParser(t)
+
 	data, err := os.ReadFile("testdata/credit_control_reused_spec.json")
 	if err != nil {
 		t.Fatal(err)
@@ -217,7 +228,7 @@ func TestCreditControlReferencedGroupedSources(t *testing.T) {
 			if want.Source == "" || want.Type != "Grouped" || len(want.Rules) == 0 {
 				t.Fatal("missing source grammar")
 			}
-			got, err := Default.FindAVP(4, want.Code, 0)
+			got, err := reference.FindAVP(4, want.Code, 0)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -234,10 +245,12 @@ func TestCreditControlReferencedGroupedSources(t *testing.T) {
 // the source fixtures for RFC 7155 and RFC 6733, including Proxy-Info's two
 // required descendants and the complete RFC 5777 Filter-Rule closure.
 func TestCreditControlReusedSourceClosure(t *testing.T) {
-	checkCreditControlReusedSourceClosure(t, Default)
+	reference := newAllTestParser(t)
+
+	checkCreditControlReusedSourceClosure(t, reference)
 }
 
-func checkCreditControlReusedSourceClosure(t *testing.T, dictionary *Parser) {
+func checkCreditControlReusedSourceClosure(t *testing.T, dictionary *dict.Parser) {
 	t.Helper()
 	type sourceAVP struct {
 		Name, Type, Must, May string
@@ -337,7 +350,7 @@ func TestCreditControlReusedIANAEnumLabels(t *testing.T) {
 	if err := json.Unmarshal(b, &source); err != nil {
 		t.Fatal(err)
 	}
-	dictionary := New(AllBundled()...)
+	dictionary := newTestParser(t, all.Dictionary())
 	existing, err := dictionary.FindAVPByName(0, "Termination-Cause")
 	if err != nil {
 		t.Fatal(err)
@@ -353,13 +366,13 @@ func TestCreditControlReusedIANAEnumLabels(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			replacement.Data.Enum = append(replacement.Data.Enum, &Enum{Code: int32(n), Name: strings.ToUpper(strings.ReplaceAll(label, " ", "_"))})
+			replacement.Data.Enum = append(replacement.Data.Enum, &dict.Enum{Code: int32(n), Name: strings.ToUpper(strings.ReplaceAll(label, " ", "_"))})
 		}
 	}
 	if len(replacement.Data.Enum) != 30 {
 		t.Fatalf("incomplete IANA registry: %d", len(replacement.Data.Enum))
 	}
-	document, err := xml.Marshal(&File{App: []*App{{ID: 0, AVP: []*AVP{&replacement}}}})
+	document, err := xml.Marshal(&dict.File{App: []*dict.App{{ID: 0, AVP: []*dict.AVP{&replacement}}}})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -11,7 +11,9 @@ import (
 )
 
 func TestDisconnectValidatorsReusableWithoutStateMachine(t *testing.T) {
-	dpr := diam.NewMessage(diam.DisconnectPeer, diam.RequestFlag, 0, 7, 8, dict.Default)
+	testDict := newTestDictionary(dict.Base())
+
+	dpr := diam.NewMessage(diam.DisconnectPeer, diam.RequestFlag, 0, 7, 8, testDict)
 	for _, field := range []struct {
 		code  uint32
 		value datatype.Type

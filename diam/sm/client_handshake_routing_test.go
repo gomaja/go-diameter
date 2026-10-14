@@ -5,13 +5,17 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/diamtest"
-	"github.com/gomaja/go-diameter/diam/dict"
 	"github.com/gomaja/go-diameter/diam/sm/smparser"
 )
 
 func TestConcurrentClientDialsRouteCEAToTheirOwnHandshake(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings := cloneTestSettings(serverSettings, testDict)
+
 	const peers = 3
 	type result struct {
 		peer int
@@ -33,7 +37,7 @@ func TestConcurrentClientDialsRouteCEAToTheirOwnHandshake(t *testing.T) {
 	for i := 0; i < peers; i++ {
 		gate := make(chan struct{})
 		entered := make(chan struct{}, 1)
-		serverSM := mustNewStateMachine(t, serverSettings)
+		serverSM := mustNewStateMachine(t, serverSettings, testDict)
 		mux := diam.NewServeMux()
 		peer := i
 		mux.HandleFunc("CER", func(c diam.Conn, m *diam.Message) {
@@ -53,7 +57,7 @@ func TestConcurrentClientDialsRouteCEAToTheirOwnHandshake(t *testing.T) {
 				t.Errorf("peer %d CEA: %v", peer, err)
 			}
 		})
-		servers = append(servers, diamtest.NewServer(mux, dict.Default))
+		servers = append(servers, diamtest.NewServer(mux, testDict))
 		gates = append(gates, gate)
 		seen = append(seen, entered)
 	}
@@ -104,7 +108,10 @@ func TestConcurrentClientDialsRouteCEAToTheirOwnHandshake(t *testing.T) {
 }
 
 func TestConcurrentClientDialsWithDefaultSettings(t *testing.T) {
-	srv := diamtest.NewServer(mustNewStateMachine(t, serverSettings), dict.Default)
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings := cloneTestSettings(serverSettings, testDict)
+
+	srv := diamtest.NewServer(mustNewStateMachine(t, serverSettings, testDict), testDict)
 	defer srv.Close()
 	cli := newLivenessClient(t)
 	cli.EnableWatchdog = false

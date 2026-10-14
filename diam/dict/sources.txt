@@ -1,0 +1,14 @@
+base.xml
+creditcontrol/data/credit_control.xml
+cx/tgpp_cx.xml
+gx/gx_credit_control.xml
+nasreq/network_access_server.xml
+rorf/data/tgpp_ro_rf.xml
+rx/tgpp_rx.xml
+s13/tgpp_s13.xml
+s6a/tgpp_s6a.xml
+s6c/tgpp_s6c.xml
+sgd/tgpp_sgd.xml
+sh/tgpp_sh.xml
+swx/tgpp_swx.xml
+sy/diameter_sy.xml

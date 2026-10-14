@@ -13,6 +13,10 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+	"github.com/gomaja/go-diameter/diam/dict/nasreq"
+	"github.com/gomaja/go-diameter/diam/dict/rorf"
+
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/dict"
@@ -139,7 +143,9 @@ var testMessageWithVendorID = []byte{
 }
 
 func TestReadMessage(t *testing.T) {
-	msg, err := ReadMessage(bytes.NewReader(testMessage), dict.Default)
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
+	msg, err := ReadMessage(bytes.NewReader(testMessage), testDict)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -147,7 +153,9 @@ func TestReadMessage(t *testing.T) {
 }
 
 func TestReadMessageWithVendorID(t *testing.T) {
-	msg, err := ReadMessage(bytes.NewReader(testMessageWithVendorID), dict.Default)
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
+	msg, err := ReadMessage(bytes.NewReader(testMessageWithVendorID), testDict)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -155,6 +163,8 @@ func TestReadMessageWithVendorID(t *testing.T) {
 }
 
 func TestReadMessageUnknownCommandOrApplication(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	tests := []struct {
 		name    string
 		appID   uint32
@@ -178,7 +188,7 @@ func TestReadMessageUnknownCommandOrApplication(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			wantPayload := []byte("payload")
-			m := NewMessage(tt.command, tt.flags, tt.appID, 1, 2, dict.Default)
+			m := NewMessage(tt.command, tt.flags, tt.appID, 1, 2, testDict)
 			m.AddAVP(NewAVP(avp.SessionID, avp.Mbit, 0, datatype.UTF8String("sid")))
 			m.AddAVP(NewAVP(avp.ResultCode, avp.Mbit, 0, datatype.Unsigned32(Success)))
 			m.AddAVP(NewAVP(5, avp.Vbit, 10415, datatype.OctetString(wantPayload)))
@@ -187,7 +197,7 @@ func TestReadMessageUnknownCommandOrApplication(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			got, err := ReadMessage(bytes.NewReader(wire), dict.Default)
+			got, err := ReadMessage(bytes.NewReader(wire), testDict)
 			if err != nil {
 				t.Fatalf("ReadMessage returned error: %v", err)
 			}
@@ -218,11 +228,13 @@ func TestReadMessageUnknownCommandOrApplication(t *testing.T) {
 }
 
 func TestNewMessage(t *testing.T) {
-	want, err := ReadMessage(bytes.NewReader(testMessage), dict.Default)
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
+	want, err := ReadMessage(bytes.NewReader(testMessage), testDict)
 	if err != nil {
 		t.Fatal(err)
 	}
-	m := NewMessage(CapabilitiesExchange, RequestFlag, 0, 0xa8cc407d, 0xa8c1b2b4, dict.Default)
+	m := NewMessage(CapabilitiesExchange, RequestFlag, 0, 0xa8cc407d, 0xa8c1b2b4, testDict)
 	mustMessageAVP(t, m, avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("test"))
 	mustMessageAVP(t, m, avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("localhost"))
 	mustMessageAVP(t, m, avp.HostIPAddress, avp.Mbit, 0, datatype.AddressFromIP(netip.MustParseAddr("10.1.0.1")))
@@ -258,7 +270,9 @@ func TestNewMessage(t *testing.T) {
 }
 
 func TestMessageSerializationRejectsLengthBeyond24Bits(t *testing.T) {
-	m := NewRequest(CapabilitiesExchange, 0, dict.Default)
+	testDict := newTestDictionary(dict.Base())
+
+	m := NewRequest(CapabilitiesExchange, 0, testDict)
 	m.AddAVP(NewAVP(avp.SessionID, avp.Mbit, 0, oversizedMessageData(MaxMessageLength)))
 
 	tests := []struct {
@@ -306,7 +320,9 @@ func (d oversizedMessageData) Type() datatype.TypeID {
 func (d oversizedMessageData) String() string { return "oversized test data" }
 
 func TestMessageFindAVP(t *testing.T) {
-	m, _ := ReadMessage(bytes.NewReader(testMessage), dict.Default)
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
+	m, _ := ReadMessage(bytes.NewReader(testMessage), testDict)
 	a, err := m.FindAVP(avp.OriginStateID, 0)
 	if err != nil {
 		t.Fatal(err)
@@ -332,7 +348,9 @@ func TestMessageFindAVP(t *testing.T) {
 }
 
 func TestMessageFindAVPsWithPath(t *testing.T) {
-	m, _ := ReadMessage(bytes.NewReader(testMessage), dict.Default)
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
+	m, _ := ReadMessage(bytes.NewReader(testMessage), testDict)
 	if avps := m.FindAVPsWithPath(); len(avps) != len(m.AVP) {
 		t.Errorf("Received nr of AVPs: %d", len(avps))
 	}
@@ -373,7 +391,7 @@ func TestMessageWriteTo(t *testing.T) {
     </avp>
   </application>
 </diameter>`
-	parser := dict.New(dict.Base, dict.NASREQ, dict.CreditControl, dict.RoRf)
+	parser := newTestDictionary(dict.Base(), nasreq.Dictionary(), creditcontrol.Dictionary(), rorf.Dictionary())
 	if err := parser.Load(bytes.NewReader([]byte(mydictXML))); err != nil {
 		t.Fatal(err)
 	}
@@ -398,7 +416,9 @@ func TestMessageWriteTo(t *testing.T) {
 }
 
 func TestMessageContext(t *testing.T) {
-	m, _ := ReadMessage(bytes.NewReader(testMessage), dict.Default)
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
+	m, _ := ReadMessage(bytes.NewReader(testMessage), testDict)
 	want, _ := m.Dictionary().FindCommand(
 		m.Header.ApplicationID,
 		m.Header.CommandCode,
@@ -418,7 +438,9 @@ func TestMessageContext(t *testing.T) {
 }
 
 func TestMessageDeleteAVP(t *testing.T) {
-	m := NewRequest(CapabilitiesExchange, 0, dict.Default)
+	testDict := newTestDictionary(dict.Base())
+
+	m := NewRequest(CapabilitiesExchange, 0, testDict)
 	mustMessageAVP(t, m, avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("test"))
 	mustMessageAVP(t, m, avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("localhost"))
 	mustMessageAVP(t, m, avp.SupportedVendorID, avp.Mbit, 0, datatype.Unsigned32(10415))
@@ -438,7 +460,9 @@ func TestMessageDeleteAVP(t *testing.T) {
 }
 
 func TestMessageDeleteAVPNotFound(t *testing.T) {
-	m := NewRequest(CapabilitiesExchange, 0, dict.Default)
+	testDict := newTestDictionary(dict.Base())
+
+	m := NewRequest(CapabilitiesExchange, 0, testDict)
 	mustMessageAVP(t, m, avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("test"))
 
 	n := m.DeleteAVP(9999, 0)
@@ -451,9 +475,11 @@ func TestMessageDeleteAVPNotFound(t *testing.T) {
 }
 
 func BenchmarkReadMessage(b *testing.B) {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
 	reader := bytes.NewReader(testMessage)
 	for n := 0; n < b.N; n++ {
-		if _, err := ReadMessage(reader, dict.Default); err != nil {
+		if _, err := ReadMessage(reader, testDict); err != nil {
 			b.Fatal(err)
 		}
 		if _, err := reader.Seek(0, 0); err != nil {
@@ -463,7 +489,9 @@ func BenchmarkReadMessage(b *testing.B) {
 }
 
 func BenchmarkWriteMessage(b *testing.B) {
-	m, _ := ReadMessage(bytes.NewReader(testMessage), dict.Default)
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
+	m, _ := ReadMessage(bytes.NewReader(testMessage), testDict)
 	for n := 0; n < b.N; n++ {
 		if _, err := m.WriteTo(io.Discard); err != nil {
 			b.Fatal(err)

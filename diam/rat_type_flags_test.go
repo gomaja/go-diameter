@@ -3,6 +3,10 @@ package diam
 import (
 	"testing"
 
+	"github.com/gomaja/go-diameter/diam/dict/gx"
+	"github.com/gomaja/go-diameter/diam/dict/s6a"
+	"github.com/gomaja/go-diameter/diam/dict/swx"
+
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/dict"
@@ -10,9 +14,16 @@ import (
 
 // marshalRATType returns the RAT-Type AVP that Message.Marshal builds, with
 // the flags of its definition, in application app.
-func marshalRATType(t *testing.T, app uint32) *AVP {
+func marshalRATType(t *testing.T, app uint32, parsers ...*dict.Parser) *AVP {
+	var testDict *dict.Parser
+	if len(parsers) > 0 {
+		testDict = parsers[0]
+	} else {
+		testDict = newTestDictionary(gx.Dictionary(), swx.Dictionary(), s6a.Dictionary())
+	}
+
 	t.Helper()
-	m := NewMessage(0, 0, app, 1, 2, dict.Default)
+	m := NewMessage(0, 0, app, 1, 2, testDict)
 	if err := m.Marshal(&struct {
 		RATType datatype.Enumerated `avp:"RAT-Type"`
 	}{1000}); err != nil {
@@ -28,6 +39,8 @@ func marshalRATType(t *testing.T, app uint32) *AVP {
 // NOTE 1), so the Gx rule applies; S6a overrides it to M must (TS 29.272
 // V19.6.0 Table 7.3.1/2, NOTE 1).
 func TestRATTypeFlagsFollowEachApplication(t *testing.T) {
+	testDict := newTestDictionary(gx.Dictionary(), swx.Dictionary(), s6a.Dictionary())
+
 	for _, tc := range []struct {
 		name string
 		app  uint32
@@ -38,7 +51,7 @@ func TestRATTypeFlagsFollowEachApplication(t *testing.T) {
 		{"S6a", TGPP_S6A_APP_ID, avp.Vbit | avp.Mbit},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := marshalRATType(t, tc.app).Flags; got != tc.want {
+			if got := marshalRATType(t, tc.app, testDict).Flags; got != tc.want {
 				t.Fatalf("RAT-Type flags = %#x, want %#x", got, tc.want)
 			}
 		})
@@ -49,7 +62,9 @@ func TestRATTypeFlagsFollowEachApplication(t *testing.T) {
 // (TS 29.273 V19.2.0 §8.2.2.1) carrying RAT-Type as SWx defines it, V set
 // and M clear, passes Message.Validate.
 func TestSWxRATTypeWithoutMValidates(t *testing.T) {
-	m := NewRequest(MultimediaAuth, TGPP_SWX_APP_ID, dict.Default)
+	testDict := newTestDictionary(swx.Dictionary())
+
+	m := NewRequest(MultimediaAuth, TGPP_SWX_APP_ID, testDict)
 	for _, a := range []*AVP{
 		NewAVP(avp.SessionID, avp.Mbit, 0, datatype.UTF8String("aaa.example.org;1")),
 		NewAVP(avp.VendorSpecificApplicationID, avp.Mbit, 0, &GroupedAVP{AVP: []*AVP{

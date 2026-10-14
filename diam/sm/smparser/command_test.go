@@ -4,21 +4,6 @@
 
 package smparser
 
-import (
-	"bytes"
-
-	"github.com/gomaja/go-diameter/diam/dict"
-)
-
-func init() {
-	if err := dict.Default.Load(bytes.NewReader([]byte(acctDictionary))); err != nil {
-		panic(err)
-	}
-	if err := dict.Default.Load(bytes.NewReader([]byte(authDictionary))); err != nil {
-		panic(err)
-	}
-}
-
 var acctDictionary = `<?xml version="1.0" encoding="UTF-8"?>
 <diameter>
 	<application id="1001" type="acct">

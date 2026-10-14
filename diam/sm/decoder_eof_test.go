@@ -11,11 +11,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/diamtest"
-	"github.com/gomaja/go-diameter/diam/dict"
 	"github.com/gomaja/go-diameter/diam/internal/logtest"
 )
 
@@ -34,6 +35,8 @@ func (h *eofErrorObserver) HandleMessageError(c diam.Conn, m *diam.Message, err 
 // An AVP decoder's EOF is a payload failure, not an orderly transport close.
 // RFC 6733 §§7.1.5, 7.2, 7.5 and Verified Erratum 4615 require the error answer.
 func TestDecoderEOFGetsMessageErrorAnswer(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	original := datatype.Decoder[datatype.Unsigned32Type]
 	if err := datatype.RegisterDecoder(datatype.Unsigned32Type, func(b []byte) (datatype.Type, error) {
 		if len(b) != 0 {
@@ -51,9 +54,9 @@ func TestDecoderEOFGetsMessageErrorAnswer(t *testing.T) {
 		}
 	})
 	records := logtest.New()
-	settings := testMessageErrorSettings()
-	observer := &eofErrorObserver{inner: mustNewStateMachine(t, settings)}
-	srv := diamtest.NewUnstartedServer(observer, dict.Default)
+	settings := testMessageErrorSettings(testDict)
+	observer := &eofErrorObserver{inner: mustNewStateMachine(t, settings, testDict)}
+	srv := diamtest.NewUnstartedServer(observer, testDict)
 	srv.Config.Logger = records.Logger()
 	accepted := make(chan diam.Conn, 1)
 	srv.Config.OnNewConnection = func(c diam.Conn) { accepted <- c }
@@ -78,15 +81,15 @@ func TestDecoderEOFGetsMessageErrorAnswer(t *testing.T) {
 		t.Fatal(err)
 	}
 	writeValidSMErrorCER(t, c)
-	if a, err := diam.ReadMessage(c, dict.Default); err != nil || !testResultCode(a, diam.Success) {
+	if a, err := diam.ReadMessage(c, testDict); err != nil || !testResultCode(a, diam.Success) {
 		t.Fatalf("handshake: %v %v", a, err)
 	}
-	m := diam.NewMessage(diam.DeviceWatchdog, diam.RequestFlag, 0, 0x11223344, 0x55667788, dict.Default)
+	m := diam.NewMessage(diam.DeviceWatchdog, diam.RequestFlag, 0, 0x11223344, 0x55667788, testDict)
 	m.AddAVP(diam.NewAVP(avp.InbandSecurityID, avp.Mbit, 0, datatype.Unknown(nil)))
 	if _, err := m.WriteTo(c); err != nil {
 		t.Fatal(err)
 	}
-	a, err := diam.ReadMessage(c, dict.Default)
+	a, err := diam.ReadMessage(c, testDict)
 	if err != nil {
 		t.Fatalf("decoder EOF got no RFC 6733 §7 answer: %v", err)
 	}
@@ -123,7 +126,7 @@ func TestDecoderEOFGetsMessageErrorAnswer(t *testing.T) {
 	if _, err := regressionDWR(t).WriteTo(c); err != nil {
 		t.Fatal(err)
 	}
-	if a, err := diam.ReadMessage(c, dict.Default); err != nil || !testResultCode(a, diam.Success) {
+	if a, err := diam.ReadMessage(c, testDict); err != nil || !testResultCode(a, diam.Success) {
 		t.Fatalf("next DWA: %v %v", a, err)
 	}
 }

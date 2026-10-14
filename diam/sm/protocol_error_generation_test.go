@@ -8,10 +8,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/diamtest"
-	"github.com/gomaja/go-diameter/diam/dict"
 	"github.com/gomaja/go-diameter/diam/internal/logtest"
 	"github.com/gomaja/go-diameter/diam/sm/smpeer"
 )
@@ -24,15 +25,18 @@ type protocolGenerationWire struct {
 }
 
 func newProtocolGenerationWire(t *testing.T, notify func(diam.ProtocolErrorEvent)) *protocolGenerationWire {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings2 := cloneTestSettings(serverSettings2, testDict)
+
 	t.Helper()
 	handshakes := make(chan diam.Conn, 4)
 	restarts := make(chan acceptedRestartPair, 4)
 	cfg := *serverSettings2
 	cfg.OnProtocolError = notify
 	cfg.OnHandshake = func(c diam.Conn, _ *smpeer.Metadata) { handshakes <- c }
-	sm := mustNewStateMachine(t, &cfg)
+	sm := mustNewStateMachine(t, &cfg, testDict)
 	logs := logtest.New()
-	server := diamtest.NewUnstartedServer(sm, dict.Default)
+	server := diamtest.NewUnstartedServer(sm, testDict)
 	server.Config.Logger = logs.Logger()
 	server.Config.RenewAcceptedCER = true
 	server.Config.MaxConcurrentHandlers = -1
@@ -81,8 +85,11 @@ func protocolGenerationWrite(t *testing.T, peer net.Conn, m *diam.Message) diam.
 }
 
 func protocolGenerationInvalidDWR(t *testing.T, id uint32) *diam.Message {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	clientSettings := cloneTestSettings(clientSettings, testDict)
+
 	t.Helper()
-	m := diam.NewRequest(diam.DeviceWatchdog, 0, dict.Default)
+	m := diam.NewRequest(diam.DeviceWatchdog, 0, testDict)
 	m.Header.HopByHopID, m.Header.EndToEndID = id, id+1
 	mustSMClientAVP(t, m, avp.OriginHost, avp.Mbit, 0, clientSettings.OriginHost)
 	return m
@@ -103,11 +110,13 @@ func assertProtocolGenerationDWR(t *testing.T, event diam.ProtocolErrorEvent, c 
 }
 
 func (w *protocolGenerationWire) validDWR(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
 	t.Helper()
 	request := regressionDWR(t)
 	protocolGenerationWrite(t, w.peer, request)
 	_ = w.peer.SetReadDeadline(time.Now().Add(3 * time.Second))
-	answer, err := diam.ReadMessage(w.peer, dict.Default)
+	answer, err := diam.ReadMessage(w.peer, testDict)
 	if err != nil || answer.Header.CommandCode != diam.DeviceWatchdog || answer.Header.HopByHopID != request.Header.HopByHopID || !testResultCode(answer, diam.Success) {
 		t.Fatalf("valid DWR answer = %v, %v", answer, err)
 	}

@@ -11,6 +11,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+	"github.com/gomaja/go-diameter/diam/dict/nasreq"
+	"github.com/gomaja/go-diameter/diam/dict/rorf"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
@@ -20,6 +24,11 @@ import (
 )
 
 func regressionCER(t *testing.T, dictionary *dict.Parser, app uint32) *diam.Message {
+	testDict := newSMTestDictionary(dict.Base())
+	clientSettings := cloneTestSettings(clientSettings,
+		testDict,
+	)
+
 	t.Helper()
 	m := diam.NewRequest(diam.CapabilitiesExchange, 0, dictionary)
 	for _, field := range []struct {
@@ -74,16 +83,21 @@ func regressionClosed(t *testing.T, c net.Conn) {
 }
 
 func TestAcceptedConnectionRejectsMessagesBeforeCER(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	clientSettings := cloneTestSettings(clientSettings,
+		testDict,
+	)
+
 	for _, command := range []uint32{diam.DeviceWatchdog, 0xfedc} {
 		t.Run(fmt.Sprint(command), func(t *testing.T) {
-			srv := diamtest.NewServer(mustNewStateMachine(t, testMessageErrorSettings()), dict.Default)
+			srv := diamtest.NewServer(mustNewStateMachine(t, testMessageErrorSettings(testDict), testDict), testDict)
 			defer srv.Close()
 			c, err := net.DialTimeout("tcp", srv.Addr, time.Second)
 			if err != nil {
 				t.Fatal(err)
 			}
 			defer func() { _ = c.Close() }()
-			request := diam.NewRequest(command, 0, dict.Default)
+			request := diam.NewRequest(command, 0, testDict)
 			mustSMClientAVP(t, request, avp.OriginHost, avp.Mbit, 0, clientSettings.OriginHost)
 			mustSMClientAVP(t, request, avp.OriginRealm, avp.Mbit, 0, clientSettings.OriginRealm)
 			if _, err = request.WriteTo(c); err != nil {
@@ -95,17 +109,22 @@ func TestAcceptedConnectionRejectsMessagesBeforeCER(t *testing.T) {
 }
 
 func TestCERAcceptsAnyCommonSecurityValue(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings := cloneTestSettings(serverSettings,
+		testDict,
+	)
+
 	for _, values := range [][]uint32{nil, {0}, {0, 1}, {1, 0}, {1}, {2}} {
 		t.Run(fmt.Sprint(values), func(t *testing.T) {
-			srv := diamtest.NewServer(mustNewStateMachine(t, serverSettings), dict.Default)
+			srv := diamtest.NewServer(mustNewStateMachine(t, serverSettings, testDict), testDict)
 			defer srv.Close()
-			request := regressionCER(t, dict.Default, 1001)
+			request := regressionCER(t, testDict, 1001)
 			for _, v := range values {
 				if _, err := request.NewAVP(avp.InbandSecurityID, avp.Mbit, 0, datatype.Unsigned32(v)); err != nil {
 					t.Fatal(err)
 				}
 			}
-			answer, c := regressionExchange(t, srv, request, dict.Default)
+			answer, c := regressionExchange(t, srv, request, testDict)
 			want := uint32(diam.Success)
 			if len(values) == 1 && values[0] != 0 {
 				want = diam.NoCommonSecurity
@@ -122,7 +141,12 @@ func TestCERAcceptsAnyCommonSecurityValue(t *testing.T) {
 }
 
 func TestCERMalformedInbandSecurityReturnsFailedAVP(t *testing.T) {
-	dictionary := dict.New(dict.Base, dict.NASREQ, dict.CreditControl, dict.RoRf)
+	testDict := newSMTestDictionary(dict.Base())
+	serverSettings := cloneTestSettings(serverSettings,
+		testDict,
+	)
+
+	dictionary := newTestDictionary(dict.Base(), nasreq.Dictionary(), creditcontrol.Dictionary(), rorf.Dictionary())
 	dictionary.SetStrict(false)
 	settings := *serverSettings
 	observed := make(chan uint32, 2)
@@ -131,7 +155,7 @@ func TestCERMalformedInbandSecurityReturnsFailedAVP(t *testing.T) {
 			observed <- uint32(code.Data.(datatype.Unsigned32))
 		}
 	}
-	srv := diamtest.NewServer(mustNewStateMachine(t, &settings), dictionary)
+	srv := diamtest.NewServer(mustNewStateMachine(t, &settings, testDict), dictionary)
 	defer srv.Close()
 	request := regressionCER(t, dictionary, 1001)
 	wire, err := request.Serialize()
@@ -201,22 +225,27 @@ func TestCERMalformedInbandSecurityReturnsFailedAVP(t *testing.T) {
 }
 
 func TestCERUsesSettingsDictionaryForApplications(t *testing.T) {
-	narrow := dict.New(dict.Base)
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings := cloneTestSettings(serverSettings,
+		testDict,
+	)
+
+	narrow := newTestDictionary(dict.Base())
 	if err := narrow.Load(bytes.NewReader([]byte(acctDictionary))); err != nil {
 		t.Fatal(err)
 	}
 	settings := *serverSettings
 	settings.Dict = narrow
-	srv := diamtest.NewServer(mustNewStateMachine(t, &settings), dict.Default)
+	srv := diamtest.NewServer(mustNewStateMachine(t, &settings, testDict), testDict)
 	defer srv.Close()
-	request := regressionCER(t, dict.Default, 1001)
+	request := regressionCER(t, testDict, 1001)
 	for _, a := range request.AVP {
 		if a.Code == avp.AcctApplicationID {
 			a.Code = avp.AuthApplicationID
 			a.Data = datatype.Unsigned32(4)
 		}
 	}
-	answer, _ := regressionExchange(t, srv, request, dict.Default)
+	answer, _ := regressionExchange(t, srv, request, testDict)
 	if !testResultCode(answer, diam.NoCommonApplication) {
 		result, _ := answer.FindAVP(avp.ResultCode, 0)
 		t.Fatalf("Result-Code = %v, want 5010", result.Data)
@@ -228,6 +257,14 @@ func TestClientRefusesInbandTLSOnPlaintext(t *testing.T) {
 }
 
 func testClientRefusesInbandTLSOnPlaintext(t *testing.T, network string) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings := cloneTestSettings(serverSettings,
+		testDict,
+	)
+	clientSettings := cloneTestSettings(clientSettings,
+		testDict,
+	)
+
 	t.Helper()
 	seen := make(chan struct{}, 1)
 	mux := diam.NewServeMux()
@@ -253,12 +290,12 @@ func testClientRefusesInbandTLSOnPlaintext(t *testing.T, network string) {
 		_, _ = answer.WriteTo(c)
 	})
 	opened := make(chan diam.Conn, 1)
-	srv := diamtest.NewUnstartedServerNetwork(network, mux, dict.Default)
+	srv := diamtest.NewUnstartedServerNetwork(network, mux, testDict)
 	srv.Config.OnNewConnection = func(c diam.Conn) { opened <- c }
 	srv.Start()
 	defer srv.Close()
-	cli := &Client{Handler: mustNewStateMachine(t, clientSettings), InbandSecurityID: 1, RetransmitInterval: 100 * time.Millisecond,
-		AcctApplicationID: []*diam.AVP{diam.NewAVP(avp.AcctApplicationID, avp.Mbit, 0, datatype.Unsigned32(3))}}
+	cli := &Client{Handler: mustNewStateMachine(t, clientSettings, testDict), InbandSecurityID: 1, RetransmitInterval: 100 * time.Millisecond,
+		AcctApplicationID: []*diam.AVP{diam.NewAVP(avp.AcctApplicationID, avp.Mbit, 0, datatype.Unsigned32(3))}, Dict: testDict}
 	c, err := cli.DialNetwork(network, srv.Addr)
 	if c != nil {
 		c.Close()
@@ -285,11 +322,16 @@ func testClientRefusesInbandTLSOnPlaintext(t *testing.T, network string) {
 }
 
 func TestHandshakeTimeoutClosesSilentAcceptedConnections(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings := cloneTestSettings(serverSettings,
+		testDict,
+	)
+
 	for _, useTLS := range []bool{false, true} {
 		t.Run(fmt.Sprint(useTLS), func(t *testing.T) {
 			settings := *serverSettings
 			settings.HandshakeTimeout = 150 * time.Millisecond
-			srv := diamtest.NewUnstartedServer(mustNewStateMachine(t, &settings), dict.Default)
+			srv := diamtest.NewUnstartedServer(mustNewStateMachine(t, &settings, testDict), testDict)
 			if useTLS {
 				srv.StartTLS()
 			} else {
@@ -313,16 +355,24 @@ func TestHandshakeTimeoutClosesSilentAcceptedConnections(t *testing.T) {
 }
 
 func TestHandshakeTimeoutStopsAfterCER(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings := cloneTestSettings(serverSettings,
+		testDict,
+	)
+	clientSettings := cloneTestSettings(clientSettings,
+		testDict,
+	)
+
 	settings := *serverSettings
 	settings.HandshakeTimeout = 100 * time.Millisecond
-	srv := diamtest.NewServer(mustNewStateMachine(t, &settings), dict.Default)
+	srv := diamtest.NewServer(mustNewStateMachine(t, &settings, testDict), testDict)
 	defer srv.Close()
-	answer, c := regressionExchange(t, srv, regressionCER(t, dict.Default, 1001), dict.Default)
+	answer, c := regressionExchange(t, srv, regressionCER(t, testDict, 1001), testDict)
 	if !testResultCode(answer, diam.Success) {
 		t.Fatalf("CEA = %v", answer)
 	}
 	<-time.After(3 * settings.HandshakeTimeout)
-	request := diam.NewRequest(diam.DeviceWatchdog, 0, dict.Default)
+	request := diam.NewRequest(diam.DeviceWatchdog, 0, testDict)
 	for _, field := range []struct {
 		code uint32
 		data datatype.Type
@@ -337,7 +387,7 @@ func TestHandshakeTimeoutStopsAfterCER(t *testing.T) {
 	if err := c.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
 		t.Fatal(err)
 	}
-	dwa, err := diam.ReadMessage(c, dict.Default)
+	dwa, err := diam.ReadMessage(c, testDict)
 	if err != nil {
 		t.Fatalf("read DWA after timeout: %v", err)
 	}
@@ -347,9 +397,14 @@ func TestHandshakeTimeoutStopsAfterCER(t *testing.T) {
 }
 
 func TestNegativeHandshakeTimeoutLeavesSilentConnectionOpen(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings := cloneTestSettings(serverSettings,
+		testDict,
+	)
+
 	settings := *serverSettings
 	settings.HandshakeTimeout = -1
-	srv := diamtest.NewServer(mustNewStateMachine(t, &settings), dict.Default)
+	srv := diamtest.NewServer(mustNewStateMachine(t, &settings, testDict), testDict)
 	defer srv.Close()
 	c, err := net.DialTimeout("tcp", srv.Addr, time.Second)
 	if err != nil {
@@ -367,14 +422,16 @@ func TestNegativeHandshakeTimeoutLeavesSilentConnectionOpen(t *testing.T) {
 }
 
 func TestAcceptedConnectionRejectsMalformedNonCERWithoutAnswer(t *testing.T) {
-	srv := diamtest.NewServer(mustNewStateMachine(t, testMessageErrorSettings()), dict.Default)
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+
+	srv := diamtest.NewServer(mustNewStateMachine(t, testMessageErrorSettings(testDict), testDict), testDict)
 	defer srv.Close()
 	c, err := net.DialTimeout("tcp", srv.Addr, time.Second)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer func() { _ = c.Close() }()
-	request := diam.NewRequest(diam.DeviceWatchdog, 0, dict.Default)
+	request := diam.NewRequest(diam.DeviceWatchdog, 0, testDict)
 	wire, err := request.Serialize()
 	if err != nil {
 		t.Fatal(err)

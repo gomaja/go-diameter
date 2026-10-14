@@ -188,7 +188,8 @@ func readerBufferSlice(buf *bytes.Buffer, l int) []byte {
 // The whole message, its command and every AVP, is decoded against the
 // dict.Snapshot of dictionary current when ReadMessage starts, including its
 // strictness, so a dictionary change made meanwhile applies to all of the
-// message or to none of it. A nil dictionary means dict.Default.
+// message or to none of it. A nil dictionary means the shared, initially
+// base-only dict.Default.
 func ReadMessage(reader io.Reader, dictionary *dict.Parser) (*Message, error) {
 	buf := newReaderBuffer()
 	// Safe to pool: the built-in datatype decoders copy their bytes, and an
@@ -371,7 +372,7 @@ func NewMessage(cmd uint32, flags uint8, appid, hopbyhop, endtoend uint32, dicti
 // one Message.Validate checks the request against, so the flags pass its
 // check. A command that dictionary does not define, or whose definition
 // does not state the P bit, gets R alone. A nil dictionary means
-// dict.Default.
+// the shared, initially base-only dict.Default.
 //
 // Use NewMessage to choose every flag.
 func NewRequest(cmd uint32, appid uint32, dictionary *dict.Parser) *Message {
@@ -386,7 +387,8 @@ func NewRequest(cmd uint32, appid uint32, dictionary *dict.Parser) *Message {
 
 // Dictionary returns the dictionary parser object associated with this
 // message. This dictionary is used to encode and decode the message.
-// If no dictionary is associated then it returns the default dictionary.
+// If no dictionary is associated, it returns the shared, initially base-only
+// dict.Default. Application definitions require an explicitly selected parser.
 func (m *Message) Dictionary() *dict.Parser {
 	if m.dictionary == nil {
 		return dict.Default

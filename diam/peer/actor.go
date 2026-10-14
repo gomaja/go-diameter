@@ -854,6 +854,9 @@ func (a *actor) sendCEA(s *session) bool {
 	}
 	return true
 }
+
+// dictionary preserves the configured parser identity; its nil fallback is
+// the shared, initially base-only dict.Default.
 func (m *Manager) dictionary() *dict.Parser {
 	if m.cfg.Settings.Dict != nil {
 		return m.cfg.Settings.Dict

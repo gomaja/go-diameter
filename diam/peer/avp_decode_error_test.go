@@ -6,14 +6,17 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
-	"github.com/gomaja/go-diameter/diam/dict"
 	"github.com/gomaja/go-diameter/diam/internal/base"
 )
 
 func TestManagerPayloadErrorIncludesFailedAVP(t *testing.T) {
+	testDict := newTestDictionary(creditcontrol.Dictionary())
+
 	for _, tc := range []struct {
 		name    string
 		code    uint32
@@ -29,7 +32,7 @@ func TestManagerPayloadErrorIncludesFailedAVP(t *testing.T) {
 				stage = "CER"
 			}
 			t.Run(tc.name+"/"+stage, func(t *testing.T) {
-				manager, err := New(Config{Settings: testSettings("local.example.net")})
+				manager, err := New(Config{Settings: testSettings("local.example.net", testDict)})
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -44,7 +47,7 @@ func TestManagerPayloadErrorIncludesFailedAVP(t *testing.T) {
 				}
 				defer func() { _ = conn.Close() }()
 				t.Logf("TCP peer %s -> %s", conn.LocalAddr(), conn.RemoteAddr())
-				request, err := base.BuildCER(dict.Default, testBase("known.example.net"))
+				request, err := base.BuildCER(testDict, testBase("known.example.net"))
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -53,7 +56,7 @@ func TestManagerPayloadErrorIncludesFailedAVP(t *testing.T) {
 					if cea := read(t, conn); code(t, cea) != diam.Success {
 						t.Fatalf("CEA = %v", cea)
 					}
-					request, err = base.BuildDWR(dict.Default, testBase("known.example.net"), 0)
+					request, err = base.BuildDWR(testDict, testBase("known.example.net"), 0)
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -81,7 +84,7 @@ func TestManagerPayloadErrorIncludesFailedAVP(t *testing.T) {
 					t.Fatalf("Failed-AVP = %x, want %x", got, want)
 				}
 				if !first {
-					dwr, err := base.BuildDWR(dict.Default, testBase("known.example.net"), 0)
+					dwr, err := base.BuildDWR(testDict, testBase("known.example.net"), 0)
 					if err != nil {
 						t.Fatal(err)
 					}

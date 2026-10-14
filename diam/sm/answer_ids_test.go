@@ -4,14 +4,19 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/diamtest"
-	"github.com/gomaja/go-diameter/diam/dict"
 )
 
 func TestCERAndDWRAnswersCopyIdentifiers(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings := cloneTestSettings(serverSettings, testDict)
+	clientSettings := cloneTestSettings(clientSettings, testDict)
+
 	for _, tc := range []struct {
 		name     string
 		hop, end uint32
@@ -19,19 +24,19 @@ func TestCERAndDWRAnswersCopyIdentifiers(t *testing.T) {
 		{"zero", 0, 0}, {"nonzero", 71, 72},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			sm := mustNewStateMachine(t, serverSettings)
-			srv := diamtest.NewServer(sm, dict.Default)
+			sm := mustNewStateMachine(t, serverSettings, testDict)
+			srv := diamtest.NewServer(sm, testDict)
 			defer srv.Close()
 			answers := make(chan *diam.Message, 2)
 			mux := diam.NewServeMux()
 			mux.HandleFunc("CEA", func(_ diam.Conn, m *diam.Message) { answers <- m })
 			mux.HandleFunc("DWA", func(_ diam.Conn, m *diam.Message) { answers <- m })
-			cli, err := diam.Dial(srv.Addr, mux, dict.Default)
+			cli, err := diam.Dial(srv.Addr, mux, testDict)
 			if err != nil {
 				t.Fatal(err)
 			}
 			defer cli.Close()
-			cer := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
+			cer := diam.NewRequest(diam.CapabilitiesExchange, 0, testDict)
 			cer.Header.HopByHopID, cer.Header.EndToEndID = tc.hop, tc.end
 			mustSMClientAVP(t, cer, avp.OriginHost, avp.Mbit, 0, clientSettings.OriginHost)
 			mustSMClientAVP(t, cer, avp.OriginRealm, avp.Mbit, 0, clientSettings.OriginRealm)
@@ -57,7 +62,7 @@ func TestCERAndDWRAnswersCopyIdentifiers(t *testing.T) {
 				}
 			}
 			check(diam.CapabilitiesExchange)
-			dwr := diam.NewRequest(diam.DeviceWatchdog, 0, dict.Default)
+			dwr := diam.NewRequest(diam.DeviceWatchdog, 0, testDict)
 			dwr.Header.HopByHopID, dwr.Header.EndToEndID = tc.hop, tc.end
 			mustSMClientAVP(t, dwr, avp.OriginHost, avp.Mbit, 0, clientSettings.OriginHost)
 			mustSMClientAVP(t, dwr, avp.OriginRealm, avp.Mbit, 0, clientSettings.OriginRealm)

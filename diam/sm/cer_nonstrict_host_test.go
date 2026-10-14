@@ -6,6 +6,10 @@ import (
 	"io"
 	"testing"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+	"github.com/gomaja/go-diameter/diam/dict/nasreq"
+	"github.com/gomaja/go-diameter/diam/dict/rorf"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
@@ -15,7 +19,7 @@ import (
 
 func TestCERNonStrictMalformedHostIPAddressAnswer(t *testing.T) {
 	// RFC 6733 §§5.3, 7.1.5, 7.5 and Verified Erratum 4615.
-	p := dict.New(dict.Base, dict.NASREQ, dict.CreditControl, dict.RoRf)
+	p := newTestDictionary(dict.Base(), nasreq.Dictionary(), creditcontrol.Dictionary(), rorf.Dictionary())
 	p.SetStrict(false)
 	server := diamtest.NewServer(mustNewStateMachine(t, testMessageErrorSettings()), p)
 	defer server.Close()

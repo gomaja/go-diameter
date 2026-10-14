@@ -63,7 +63,7 @@ var (
 // LocalAddr.String must contain literal IP addresses. An unparseable host
 // causes the capability exchange handshake to fail.
 type Client struct {
-	Dict               *dict.Parser  // Dictionary parser (uses dict.Default if unset)
+	Dict               *dict.Parser  // Selected parser; nil uses the shared, initially base-only dict.Default
 	Handler            *StateMachine // Message handler
 	MaxRetransmits     uint          // Maximum CER handshake retransmissions before aborting
 	RetransmitInterval time.Duration // Interval between CER handshake retransmissions (default 1s)

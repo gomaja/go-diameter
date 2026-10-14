@@ -16,7 +16,7 @@ func TestLookupMissPreservesUnknownWirePayload(t *testing.T) {
 	for _, strict := range []bool{false, true} {
 		for _, nested := range []bool{false, true} {
 			t.Run(fmt.Sprintf("strict=%t/nested=%t", strict, nested), func(t *testing.T) {
-				p := dict.New(dict.Base)
+				p := newTestDictionary(dict.Base())
 				p.SetStrict(strict)
 				m := NewRequest(272, 4, p)
 				items := []*AVP{

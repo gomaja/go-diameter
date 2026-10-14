@@ -4,14 +4,18 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/diamtest"
-	"github.com/gomaja/go-diameter/diam/dict"
 )
 
 func dialHandshakeForDPR(t *testing.T, command string, handler diam.Handler, addr string) diam.Conn {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	clientSettings := cloneTestSettings(clientSettings, testDict)
+
 	t.Helper()
 	answers := make(chan *diam.Message, 1)
 	mux := diam.NewServeMux()
@@ -19,12 +23,12 @@ func dialHandshakeForDPR(t *testing.T, command string, handler diam.Handler, add
 	if handler != nil {
 		mux.HandleFunc(command, handler.ServeDIAM)
 	}
-	c, err := diam.Dial(addr, mux, dict.Default)
+	c, err := diam.Dial(addr, mux, testDict)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(c.Close)
-	cer := diam.NewRequest(diam.CapabilitiesExchange, 0, dict.Default)
+	cer := diam.NewRequest(diam.CapabilitiesExchange, 0, testDict)
 	mustSMClientAVP(t, cer, avp.OriginHost, avp.Mbit, 0, clientSettings.OriginHost)
 	mustSMClientAVP(t, cer, avp.OriginRealm, avp.Mbit, 0, clientSettings.OriginRealm)
 	mustSMClientAVP(t, cer, avp.HostIPAddress, avp.Mbit, 0, localhostAddress)
@@ -46,18 +50,22 @@ func dialHandshakeForDPR(t *testing.T, command string, handler diam.Handler, add
 }
 
 func TestPeerDPRAnsweredAndWaitsForPeerClose(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings := cloneTestSettings(serverSettings, testDict)
+	clientSettings := cloneTestSettings(clientSettings, testDict)
+
 	cfg := *serverSettings
 	cfg.DPRCloseTimeout = 80 * time.Millisecond
 	causes := make(chan DisconnectCause, 1)
 	cfg.OnDPR = func(_ diam.Conn, cause DisconnectCause) { causes <- cause }
-	sm := mustNewStateMachine(t, &cfg)
+	sm := mustNewStateMachine(t, &cfg, testDict)
 	smHandshakes := testHandshakeNotifications(sm)
-	srv := diamtest.NewServer(sm, dict.Default)
+	srv := diamtest.NewServer(sm, testDict)
 	defer srv.Close()
 	answers := make(chan *diam.Message, 1)
 	c := dialHandshakeForDPR(t, "DPA", diam.HandlerFunc(func(_ diam.Conn, m *diam.Message) { answers <- m }), srv.Addr)
 	peer := <-smHandshakes
-	dpr := diam.NewRequest(diam.DisconnectPeer, 0, dict.Default)
+	dpr := diam.NewRequest(diam.DisconnectPeer, 0, testDict)
 	mustSMClientAVP(t, dpr, avp.OriginHost, avp.Mbit, 0, clientSettings.OriginHost)
 	mustSMClientAVP(t, dpr, avp.OriginRealm, avp.Mbit, 0, clientSettings.OriginRealm)
 	mustSMClientAVP(t, dpr, avp.DisconnectCause, avp.Mbit, 0, datatype.Enumerated(0))
@@ -98,8 +106,11 @@ func TestPeerDPRAnsweredAndWaitsForPeerClose(t *testing.T) {
 }
 
 func TestValidateDPRRequiredAVPs(t *testing.T) {
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	clientSettings := cloneTestSettings(clientSettings, testDict)
+
 	makeDPR := func() *diam.Message {
-		m := diam.NewRequest(diam.DisconnectPeer, 0, dict.Default)
+		m := diam.NewRequest(diam.DisconnectPeer, 0, testDict)
 		mustSMClientAVP(t, m, avp.OriginHost, avp.Mbit, 0, clientSettings.OriginHost)
 		mustSMClientAVP(t, m, avp.OriginRealm, avp.Mbit, 0, clientSettings.OriginRealm)
 		return m
@@ -132,18 +143,22 @@ func TestValidateDPRRequiredAVPs(t *testing.T) {
 }
 
 func TestPeerDPRBeforeHandshakeGetsNoDPA(t *testing.T) {
-	sm := mustNewStateMachine(t, serverSettings)
-	srv := diamtest.NewServer(sm, dict.Default)
+	testDict := newSMTestDictionary(creditcontrol.Dictionary())
+	serverSettings := cloneTestSettings(serverSettings, testDict)
+	clientSettings := cloneTestSettings(clientSettings, testDict)
+
+	sm := mustNewStateMachine(t, serverSettings, testDict)
+	srv := diamtest.NewServer(sm, testDict)
 	defer srv.Close()
 	answers := make(chan *diam.Message, 1)
 	mux := diam.NewServeMux()
 	mux.HandleFunc("DPA", func(_ diam.Conn, m *diam.Message) { answers <- m })
-	c, err := diam.Dial(srv.Addr, mux, dict.Default)
+	c, err := diam.Dial(srv.Addr, mux, testDict)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer c.Close()
-	m := diam.NewRequest(diam.DisconnectPeer, 0, dict.Default)
+	m := diam.NewRequest(diam.DisconnectPeer, 0, testDict)
 	mustSMClientAVP(t, m, avp.OriginHost, avp.Mbit, 0, clientSettings.OriginHost)
 	mustSMClientAVP(t, m, avp.OriginRealm, avp.Mbit, 0, clientSettings.OriginRealm)
 	mustSMClientAVP(t, m, avp.DisconnectCause, avp.Mbit, 0, datatype.Enumerated(0))

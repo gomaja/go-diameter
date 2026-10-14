@@ -14,6 +14,7 @@ import (
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
+	"github.com/gomaja/go-diameter/diam/dict"
 	"github.com/gomaja/go-sctp"
 )
 
@@ -41,7 +42,11 @@ func main() {
 	cmux.Handle("CEA", handleCEA(errc))
 	cmux.Handle("DWR", handleDWR(errc))
 
-	var err error
+	dictionary, err := dict.New(dict.Base())
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	if len(*laddr) > 0 {
 		localAddr, err = sctp.ResolveAddr("sctp", *laddr)
 		if err != nil {
@@ -49,7 +54,7 @@ func main() {
 		}
 	}
 	log.Printf("Connecting to SCTP server at %s", *addr)
-	cli, err := diam.DialExt("sctp", *addr, cmux, nil, 0, localAddr)
+	cli, err := diam.DialExt("sctp", *addr, cmux, dictionary, 0, localAddr)
 	if err != nil {
 		log.Fatal(err)
 		return
@@ -73,7 +78,7 @@ func main() {
 	}
 	log.Printf("Primary peer address: %s", primaryAddr)
 	log.Printf("Sending CER")
-	_, err = sendCER(cli)
+	_, err = sendCER(cli, dictionary)
 	if err != nil {
 		log.Fatal(err)
 		return
@@ -87,8 +92,8 @@ func main() {
 	}
 }
 
-func sendCER(w io.Writer) (n int64, err error) {
-	m := diam.NewRequest(diam.CapabilitiesExchange, 0, nil)
+func sendCER(w io.Writer, dictionary *dict.Parser) (n int64, err error) {
+	m := diam.NewRequest(diam.CapabilitiesExchange, 0, dictionary)
 	if _, err := m.NewAVP(avp.OriginHost, avp.Mbit, 0, datatype.OctetString(*host)); err != nil {
 		return 0, err
 	}

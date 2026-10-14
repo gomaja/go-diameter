@@ -13,6 +13,7 @@ import (
 // RFC 6733 §7.1.5: the first excess instance wins over fixed placement;
 // §3.2 still requires the first occurrence in the command prefix.
 func TestBaseFixedErrorPrecedence(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
 	_, commands := baseWireSpec(t)
 	for _, c := range commands {
 		if !c.Request || !c.Rules[0].Fixed {
@@ -20,7 +21,7 @@ func TestBaseFixedErrorPrecedence(t *testing.T) {
 		}
 		t.Run(c.Section, func(t *testing.T) {
 			for _, adjacent := range []bool{false, true} {
-				m := baseCommandMessage(t, 0, c)
+				m := baseCommandMessage(t, 0, c, testDict)
 				excess := NewAVP(avp.SessionID, avp.Mbit, 0, datatype.UTF8String("first-excess"))
 				m.AddAVP(excess)
 				if adjacent {
@@ -31,12 +32,12 @@ func TestBaseFixedErrorPrecedence(t *testing.T) {
 					t.Fatalf("duplicate: %v", err)
 				}
 			}
-			m := baseCommandMessage(t, 0, c)
+			m := baseCommandMessage(t, 0, c, testDict)
 			m.AVP[0], m.AVP[1] = m.AVP[1], m.AVP[0]
 			if err := m.Validate(); err == nil || err.ResultCode != AVPNotAllowed {
 				t.Fatalf("displaced: %v", err)
 			}
-			m = baseCommandMessage(t, 0, c)
+			m = baseCommandMessage(t, 0, c, testDict)
 			m.AVP = m.AVP[1:]
 			if err := m.Validate(); err == nil || err.ResultCode != MissingAVP || err.FailedAVP == nil || err.FailedAVP.Code != avp.SessionID || err.FailedAVP.Data.Len() != 0 {
 				t.Fatalf("absent: %v", err)
@@ -48,6 +49,8 @@ func TestBaseFixedErrorPrecedence(t *testing.T) {
 // RFC 6733 §3.2: arbitrary unlisted AVPs satisfy wildcard minima.
 // Named members are counted separately; unknown M-bit handling is §4.1.
 func TestBaseWildcardMinimum(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	for _, tc := range []struct {
 		name  string
 		codes []uint32
@@ -66,7 +69,7 @@ func TestBaseWildcardMinimum(t *testing.T) {
 			for _, code := range tc.codes {
 				items = append(items, NewAVP(code, 0, 0, datatype.OctetString("x")))
 			}
-			err := validateAVPs(items, rules, 0, dict.Default.Snapshot())
+			err := validateAVPs(items, rules, 0, testDict.Snapshot())
 			if tc.valid {
 				if err != nil {
 					t.Fatal(err)
@@ -81,6 +84,8 @@ func TestBaseWildcardMinimum(t *testing.T) {
 // RFC 6733 §7.5: Failed-AVP must contain evidence, including unknown or
 // malformed peer AVPs. It must not recursively apply the sender's grammar.
 func TestBaseFailedEvidenceMinimum(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	for _, tc := range []struct {
 		name     string
 		evidence []*AVP
@@ -92,7 +97,7 @@ func TestBaseFailedEvidenceMinimum(t *testing.T) {
 		{"empty nested group", []*AVP{NewAVP(avp.ProxyInfo, avp.Mbit, 0, &GroupedAVP{})}, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			m := NewMessage(DeviceWatchdog, 0, 0, 1, 2, dict.Default)
+			m := NewMessage(DeviceWatchdog, 0, 0, 1, 2, testDict)
 			m.AddAVP(NewAVP(avp.ResultCode, avp.Mbit, 0, datatype.Unsigned32(AVPUnsupported)))
 			m.AddAVP(NewAVP(avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("host.example")))
 			m.AddAVP(NewAVP(avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("example")))
@@ -113,7 +118,7 @@ func TestBaseFailedEvidenceMinimum(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				got, err := ReadMessage(bytes.NewReader(wire), dict.Default)
+				got, err := ReadMessage(bytes.NewReader(wire), testDict)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -129,8 +134,15 @@ func TestBaseFailedEvidenceMinimum(t *testing.T) {
 	}
 }
 
-func baseMissingAnswer() *Message {
-	m := NewMessage(ReAuth, ProxiableFlag, 0, 1, 2, dict.Default)
+func baseMissingAnswer(parsers ...*dict.Parser) *Message {
+	var testDict *dict.Parser
+	if len(parsers) > 0 {
+		testDict = parsers[0]
+	} else {
+		testDict = newTestDictionary(dict.Base())
+	}
+
+	m := NewMessage(ReAuth, ProxiableFlag, 0, 1, 2, testDict)
 	m.AddAVP(NewAVP(avp.ResultCode, avp.Mbit, 0, datatype.Unsigned32(MissingAVP)))
 	m.AddAVP(NewAVP(avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("host.example")))
 	m.AddAVP(NewAVP(avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("example")))
@@ -141,6 +153,8 @@ func baseMissingAnswer() *Message {
 // RFC 6733 §§6.2 and 7.1.5: error answers can omit Session-Id
 // independently of Failed-AVP evidence, while all other rules still apply.
 func TestBaseMissingSessionAnswerScope(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	for _, tc := range []struct {
 		name   string
 		change func(*Message)
@@ -163,7 +177,7 @@ func TestBaseMissingSessionAnswerScope(t *testing.T) {
 		{"accounting fields missing", func(m *Message) { m.Header.CommandCode = Accounting }, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			m := baseMissingAnswer()
+			m := baseMissingAnswer(testDict)
 			tc.change(m)
 			for _, check := range []func() *ValidationError{m.Validate} {
 				err := check()
@@ -177,9 +191,11 @@ func TestBaseMissingSessionAnswerScope(t *testing.T) {
 
 // RFC 6733 §7.2: optional Session-Id is fixed, and a second instance is 5009.
 func TestBaseProtocolErrorSessionPrefix(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	for _, kind := range []string{"absent", "first", "late", "duplicate"} {
 		t.Run(kind, func(t *testing.T) {
-			m := baseMissingAnswer()
+			m := baseMissingAnswer(testDict)
 			m.AVP = m.AVP[:3]
 			m.Header.CommandFlags |= ErrorFlag
 			m.AVP[0].Data = datatype.Unsigned32(InvalidHDRBits)
@@ -241,6 +257,8 @@ func TestBaseNestedWildcardMinimum(t *testing.T) {
 }
 
 func FuzzBaseWildcardMinimum(f *testing.F) {
+	testDict := newTestDictionary(dict.Base())
+
 	f.Add([]byte{0, 1, 2}, uint8(1))
 	f.Add([]byte{}, uint8(1))
 	f.Fuzz(func(t *testing.T, input []byte, minimum uint8) {
@@ -263,7 +281,7 @@ func FuzzBaseWildcardMinimum(f *testing.F) {
 			}
 			items = append(items, NewAVP(code, 0, 0, datatype.OctetString("x")))
 		}
-		err := validateAVPs(items, rules, 0, dict.Default.Snapshot())
+		err := validateAVPs(items, rules, 0, testDict.Snapshot())
 		if count >= int(minimum) {
 			if err != nil {
 				t.Fatal(err)
@@ -276,8 +294,10 @@ func FuzzBaseWildcardMinimum(f *testing.F) {
 
 // Failed-AVP is a Grouped container even though its evidence is opaque (§7.5).
 func TestBaseFailedEvidenceContainer(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	for _, data := range []datatype.Type{nil, datatype.Unknown{}, (*GroupedAVP)(nil)} {
-		m := baseMissingAnswer()
+		m := baseMissingAnswer(testDict)
 		m.Header.CommandCode = DeviceWatchdog
 		m.Header.CommandFlags = 0
 		m.AVP[3].Data = data

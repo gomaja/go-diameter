@@ -25,7 +25,7 @@ func TestReadMessageClassifiesPayloadLengths(t *testing.T) {
 		{"Float32", 4}, {"Float64", 8}, {"Enumerated", 4}, {"Time", 4}, {"IPv4", 4}, {"IPv6", 16},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			d := dict.New(dict.Base)
+			d := newTestDictionary(dict.Base())
 			xml := fmt.Sprintf(`<diameter><application id="0"><avp name="Payload-Test" code="900001" vendor-id="10415"><data type="%s"/></avp></application></diameter>`, tc.name)
 			if err := d.Load(strings.NewReader(xml)); err != nil {
 				t.Fatal(err)
@@ -78,7 +78,7 @@ func TestReadMessageClassifiesAddressFailures(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			for _, strict := range []bool{false, true} {
-				d := dict.New(dict.Base)
+				d := newTestDictionary(dict.Base())
 				d.SetStrict(strict)
 				m, err := ReadMessage(bytes.NewReader(testFramedMessage(t, RequestFlag, rawAVP(avp.HostIPAddress, tc.payload))), d)
 				if !strict {
@@ -98,6 +98,8 @@ func TestReadMessageClassifiesAddressFailures(t *testing.T) {
 }
 
 func TestReadMessagePayloadFailureHierarchyAndPrecedence(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	length := rawAVP(avp.InbandSecurityID, []byte{1, 2})
 	value := rawAVP(avp.HostIPAddress, []byte{255, 255, 1})
 	framing := []byte{0, 0, 1, 2, avp.Mbit, 255, 255, 255}
@@ -121,7 +123,7 @@ func TestReadMessagePayloadFailureHierarchyAndPrecedence(t *testing.T) {
 			if tc.nested {
 				body = rawAVP(avp.VendorSpecificApplicationID, rawAVP(avp.VendorSpecificApplicationID, body))
 			}
-			m, err := ReadMessage(bytes.NewReader(testFramedMessage(t, RequestFlag, body)), dict.Default)
+			m, err := ReadMessage(bytes.NewReader(testFramedMessage(t, RequestFlag, body)), testDict)
 			var me *MessageError
 			if !errors.As(err, &me) || me.ResultCode != tc.result || me.Fatal {
 				t.Fatalf("error=%v, want non-fatal %d", err, tc.result)
@@ -150,7 +152,7 @@ func TestReadMessagePayloadFailureHierarchyAndPrecedence(t *testing.T) {
 }
 
 func TestReadMessageGroupedDepthFailure(t *testing.T) {
-	d := dict.New(dict.Base)
+	d := newTestDictionary(dict.Base())
 	d.SetMaxGroupedDepth(2)
 	body := rawAVP(avp.VendorSpecificApplicationID, rawAVP(avp.VendorSpecificApplicationID, rawAVP(avp.VendorSpecificApplicationID, rawAVP(avp.OriginHost, bytes.Repeat([]byte{'x'}, 4096)))))
 	m, err := ReadMessage(bytes.NewReader(testFramedMessage(t, RequestFlag, body)), d)
@@ -172,9 +174,11 @@ func TestReadMessageGroupedDepthFailure(t *testing.T) {
 }
 
 func TestReadMessagePayloadErrorText(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	body := append(rawAVP(avp.InbandSecurityID, []byte{1, 2}), rawAVP(avp.HostIPAddress, []byte{255, 255, 1})...)
 	body = rawAVP(avp.VendorSpecificApplicationID, body)
-	m, err := ReadMessage(bytes.NewReader(testFramedMessage(t, RequestFlag, body)), dict.Default)
+	m, err := ReadMessage(bytes.NewReader(testFramedMessage(t, RequestFlag, body)), testDict)
 	_ = requirePayloadMessageError(t, m, err, InvalidAVPLength)
 	want := "failed to decode one or more AVPs: {Vendor-Specific-Application-Id(260): Grouped{Inband-Security-Id(299): size mismatch: Unsigned32 expects 4 bytes, wire has 2; Host-IP-Address(257): invalid address family received}}"
 	if m.DecodeErr.Error() != want {
@@ -198,6 +202,8 @@ func requirePayloadMessageError(t *testing.T, m *Message, err error, result uint
 }
 
 func TestReadMessagePayloadDecoderCause(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	cause := &payloadDecoderError{}
 	for _, typeID := range []datatype.TypeID{datatype.Unsigned32Type, datatype.OctetStringType} {
 		t.Run(fmt.Sprint(typeID), func(t *testing.T) {
@@ -215,7 +221,7 @@ func TestReadMessagePayloadDecoderCause(t *testing.T) {
 				code = avp.ProxyState
 			}
 			body := rawAVP(avp.VendorSpecificApplicationID, rawAVP(code, []byte{1, 2, 3, 4}))
-			m, err := ReadMessage(bytes.NewReader(testFramedMessage(t, RequestFlag, body)), dict.Default)
+			m, err := ReadMessage(bytes.NewReader(testFramedMessage(t, RequestFlag, body)), testDict)
 			_ = requirePayloadMessageError(t, m, err, InvalidAVPValue)
 			var got *payloadDecoderError
 			if !errors.Is(err, cause) || !errors.As(err, &got) || got != cause {
@@ -230,12 +236,14 @@ type payloadDecoderError struct{}
 func (*payloadDecoderError) Error() string { return "test payload failure" }
 
 func TestReadMessagePayloadFailureSizeBound(t *testing.T) {
+	testDict := newTestDictionary(dict.Base())
+
 	payload := append([]byte{255, 255}, bytes.Repeat([]byte{0x11}, 4096)...)
 	leaf := rawAVP(avp.HostIPAddress, payload)
 	siblings := rawAVP(avp.OriginHost, bytes.Repeat([]byte{'x'}, 8192))
 	body := rawAVP(avp.VendorSpecificApplicationID, append(append(siblings, leaf...), siblings...))
 	body = append(body, siblings...)
-	m, err := ReadMessage(bytes.NewReader(testFramedMessage(t, RequestFlag, body)), dict.Default)
+	m, err := ReadMessage(bytes.NewReader(testFramedMessage(t, RequestFlag, body)), testDict)
 	me := requirePayloadMessageError(t, m, err, InvalidAVPValue)
 	if me.FailedAVP.Len() != 8+len(leaf) {
 		t.Fatalf("Failed-AVP length = %d, want parent header + leaf (%d)", me.FailedAVP.Len(), 8+len(leaf))

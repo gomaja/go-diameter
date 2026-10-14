@@ -1,4 +1,4 @@
-package dict
+package dict_test
 
 import (
 	"encoding/json"
@@ -30,6 +30,8 @@ func loadSWxCopiedSpec(t *testing.T) swxCopiedSpec {
 // TS 29.273 V19.2.0 Table 8.2.3.0/2: imported definitions and every named
 // descendant are pinned to their source registry and grouped grammar.
 func TestSWxCopiedSpec(t *testing.T) {
+	reference := newAllTestParser(t)
+
 	s := loadSWxCopiedSpec(t)
 	names := map[string]bool{}
 	for _, a := range loadSWxSpec(t).AVPs {
@@ -51,7 +53,7 @@ func TestSWxCopiedSpec(t *testing.T) {
 	}
 	for _, want := range s.AVPs {
 		t.Run(want.Name, func(t *testing.T) {
-			a := swxLookup(t, want.Name)
+			a := swxLookup(t, reference, want.Name)
 			swxCheckAVP(t, a, want)
 			for _, rule := range want.Rules {
 				if rule.Name != "AVP" && !names[swxName(rule.Name)] {
