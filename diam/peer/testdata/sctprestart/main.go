@@ -4,6 +4,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -25,7 +26,76 @@ import (
 )
 
 type contextKey struct{}
-type tracked struct{ *peer.Manager }
+type tracked struct {
+	*peer.Manager
+	checkpoints chan recoveryCheckpoint
+}
+
+type recoveryCheckpoint struct {
+	Command, Hop, End uint32
+	Generation        uint64
+	Peer              peer.PeerSnapshot
+}
+
+func (t *tracked) ServeDIAM(c diam.Conn, msg *diam.Message) {
+	// ServeDIAM returns after the actor commits and publishes its snapshot.
+	t.Manager.ServeDIAM(c, msg)
+	isRequest := msg.Header.CommandFlags&diam.RequestFlag != 0
+	isCER := msg.Header.CommandCode == diam.CapabilitiesExchange && isRequest
+	isDWA := msg.Header.CommandCode == diam.DeviceWatchdog && !isRequest
+	if t.checkpoints == nil || generation(c) <= 1 || !isCER && !isDWA {
+		return
+	}
+	var origin struct {
+		Host datatype.DiameterIdentity `avp:"Origin-Host"`
+	}
+	must(msg.Unmarshal(&origin))
+	for _, snapshot := range t.Peers() {
+		if snapshot.Host == origin.Host {
+			checkpoint := recoveryCheckpoint{Command: msg.Header.CommandCode, Hop: msg.Header.HopByHopID,
+				End: msg.Header.EndToEndID, Generation: generation(c), Peer: snapshot}
+			log.Printf("RECOVERY_CHECKPOINT command=%d hop=%08x end=%08x connection_generation=%d peer=%+v",
+				checkpoint.Command, checkpoint.Hop, checkpoint.End, checkpoint.Generation, checkpoint.Peer)
+			t.checkpoints <- checkpoint
+			return
+		}
+	}
+	log.Fatalf("checkpoint peer missing: %s", origin.Host)
+}
+
+func checkpointAddress(addr string) string {
+	host, _, err := net.SplitHostPort(addr)
+	must(err)
+	return net.JoinHostPort(host, "3869")
+}
+
+func serveCheckpoints(addr string, checkpoints <-chan recoveryCheckpoint) {
+	listener, err := net.Listen("tcp", checkpointAddress(addr))
+	must(err)
+	go func() {
+		defer func() { must(listener.Close()) }()
+		conn, err := listener.Accept()
+		must(err)
+		defer func() { must(conn.Close()) }()
+		encoder := json.NewEncoder(conn)
+		for range 4 { // Replacement CER, then exactly three recovery DWA.
+			checkpoint := <-checkpoints
+			must(conn.SetWriteDeadline(time.Now().Add(10 * time.Second)))
+			must(encoder.Encode(checkpoint))
+		}
+	}()
+}
+
+func waitCheckpoint(conn net.Conn, decoder *json.Decoder, command, hop, end uint32) {
+	must(conn.SetReadDeadline(time.Now().Add(10 * time.Second)))
+	var checkpoint recoveryCheckpoint
+	must(decoder.Decode(&checkpoint))
+	if checkpoint.Command != command || checkpoint.Hop != hop || checkpoint.End != end || checkpoint.Generation != 2 {
+		log.Fatalf("checkpoint does not match processed answer: %+v", checkpoint)
+	}
+	log.Printf("CHECKPOINT_ACK command=%d hop=%08x end=%08x generation=%d",
+		command, hop, end, checkpoint.Generation)
+}
 
 func (t *tracked) Unwrap() diam.Handler { return t.Manager }
 func (t *tracked) HandleAccept(c diam.Conn) func() {
@@ -186,7 +256,12 @@ func main() {
 			}()
 		}}
 		must(manager.BindServer(srv))
-		srv.Handler = &tracked{manager}
+		observer := &tracked{Manager: manager}
+		if *watchdog {
+			observer.checkpoints = make(chan recoveryCheckpoint, 4)
+			serveCheckpoints(*addr, observer.checkpoints)
+		}
+		srv.Handler = observer
 		go sendPending(manager, *requestTimeout)
 		field := reflect.ValueOf(srv).Elem().FieldByName("OnConnectionRestart")
 		if field.IsValid() {
@@ -297,6 +372,15 @@ func main() {
 	}
 	// Keep the renewed peer alive until the old Close hook has fired, then prove
 	// the renewed generation still handles traffic (RFC 6733 §5.5.1).
+	var control net.Conn
+	var checkpoints *json.Decoder
+	if *watchdog {
+		control, err = net.DialTimeout("tcp", checkpointAddress(*addr), 4*time.Second)
+		must(err)
+		defer func() { must(control.Close()) }()
+		checkpoints = json.NewDecoder(control)
+		waitCheckpoint(control, checkpoints, diam.CapabilitiesExchange, m.Header.HopByHopID, m.Header.EndToEndID)
+	}
 	time.Sleep(200 * time.Millisecond)
 	dwr := diam.NewRequest(diam.DeviceWatchdog, 0, dict.Default)
 	dwr.Header.HopByHopID = 0x81000102
@@ -317,6 +401,11 @@ func main() {
 			answerWatchdog(c, message, datatype.DiameterIdentity(*host))
 			recoveryCount++
 			log.Printf("RECOVERY_DWA index=%d hop=%x end=%x", recoveryCount, message.Header.HopByHopID, message.Header.EndToEndID)
+			if *watchdog {
+				// RFC 3539 §3.4.1/Appendix A: observe each answered probe's
+				// committed state before allowing the next answer onto the wire.
+				waitCheckpoint(control, checkpoints, diam.DeviceWatchdog, message.Header.HopByHopID, message.Header.EndToEndID)
+			}
 			continue
 		}
 		var result struct {
