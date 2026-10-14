@@ -47,8 +47,8 @@ github.com/gomaja/go-sctp@main`.
   support available through the standard Go networking stack.
 - Writes structured `log/slog` records to a logger you inject.
 - Ships with practical examples for clients, servers, SCTP, snooping, grouped
-  AVPs, S6a, OpenTelemetry tracing middleware, Wireshark dictionary
-  conversion, and benchmarking.
+  AVPs, S6a, Wireshark dictionary conversion, and benchmarking, plus the
+  supported `oteldiam` module for OpenTelemetry tracing.
 - Gates every change on formatting, tests on both supported Go releases with
   SCTP, race tests, vet across architectures, static analysis, vulnerability
   scanning, Windows tests, secret detection and CodeQL, run locally with
@@ -68,6 +68,10 @@ In another terminal, run the sample client and send a request:
 go run github.com/gomaja/go-diameter/examples/client@main -hello
 ```
 
+For S6a clients and servers, see `examples/s6a_client` and
+`examples/s6a_server`. For the S6a proxy service, see Magma's upstream
+[`feg/gateway/services/s6a_proxy`](https://github.com/magma/magma/tree/master/feg/gateway/services/s6a_proxy).
+
 The examples load a small custom dictionary on top of the default Diameter
 dictionaries, perform CER/CEA capability exchange, send a request, and handle
 the answer.
@@ -86,6 +90,8 @@ the answer.
 - `diam/sm/smparser`: helpers for parsing state-machine messages.
 - `diam/sm/smpeer`: peer metadata attached to accepted connections.
 - `diam/diamtest`: server test helpers analogous to `net/http/httptest`.
+- `oteldiam`: OpenTelemetry instrumentation for Diameter handlers, in its own
+  module at `github.com/gomaja/go-diameter/oteldiam`.
 
 See the full API documentation at
 [pkg.go.dev/github.com/gomaja/go-diameter](https://pkg.go.dev/github.com/gomaja/go-diameter).
@@ -541,7 +547,21 @@ srv := &diam.Server{
 }
 ```
 
-The `examples/middleware` module wraps a handler with OpenTelemetry tracing:
+Install the supported `oteldiam` module separately:
+
+```sh
+go get github.com/gomaja/go-diameter/oteldiam@main
+```
+
+Import it and wrap a Diameter handler:
+
+```go
+import "github.com/gomaja/go-diameter/oteldiam"
+
+traced := oteldiam.NewTracer(mux)
+```
+
+The `oteldiam` module wraps a handler with OpenTelemetry tracing:
 one span per message, with the Diameter application, command and result as
 attributes. When the handler panics, the span ends with status Error and an
 `error.type`. The panic is recorded as one `exception` log record, at

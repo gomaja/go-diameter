@@ -1,9 +1,9 @@
-module github.com/gomaja/go-diameter/examples/middleware
+module github.com/gomaja/go-diameter/oteldiam
 
 go 1.26.0
 
 require (
-	github.com/gomaja/go-diameter v0.0.0
+	github.com/gomaja/go-diameter v0.0.0-20261014155425-378c03d23082
 	go.opentelemetry.io/otel v1.47.0
 	go.opentelemetry.io/otel/log v1.47.0
 	go.opentelemetry.io/otel/sdk v1.47.0
@@ -22,4 +22,4 @@ require (
 	golang.org/x/sys v0.49.0 // indirect
 )
 
-replace github.com/gomaja/go-diameter => ../..
+replace github.com/gomaja/go-diameter => ../

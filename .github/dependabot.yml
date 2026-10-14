@@ -18,7 +18,7 @@ updates:
           - '*'
 
   - package-ecosystem: gomod
-    directory: /examples/middleware
+    directory: /oteldiam
     schedule:
       interval: weekly
       day: monday
