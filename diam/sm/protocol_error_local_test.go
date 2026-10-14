@@ -227,9 +227,16 @@ func (p *protocolLocalWire) attemptedAnswer(t *testing.T, header diam.Header, co
 		t.Fatalf("Failed-AVP containers=%d, wanted=%t", containers, failedAVP)
 	}
 	logs := p.logs.Records()
-	if err, ok := logtest.Attr(logs[len(logs)-1], "error").Any().(error); !ok || !errors.Is(err, errProtocolLocalWrite) {
-		t.Fatalf("local write error identity lost: %v", logs)
+	for i := len(logs) - 1; i >= 0; i-- {
+		if logs[i].Level != slog.LevelError {
+			continue
+		}
+		if err, ok := logtest.Attr(logs[i], "error").Any().(error); !ok || !errors.Is(err, errProtocolLocalWrite) {
+			t.Fatalf("local write error identity lost: %v", logs)
+		}
+		return
 	}
+	t.Fatalf("local write error log missing: %v", logs)
 }
 
 func TestProtocolErrorLocalErrorAnswerWriteFailure(t *testing.T) {
@@ -331,50 +338,54 @@ func TestProtocolErrorLocalCERBuildAndWriteFailure(t *testing.T) {
 	}
 }
 
-func TestProtocolErrorLocalInitialCERErrorAnswerBuildFailure(t *testing.T) {
-	for _, condition := range []string{"malformed", "unknown_mandatory", "request_validation"} {
-		t.Run(condition, func(t *testing.T) {
-			p := newProtocolLocalWire(t, func(cfg *Settings, _ *protocolLocalFaults) {
-				cfg.RejectUnknownMandatoryAVPs = condition == "unknown_mandatory"
-				cfg.ValidateRequests = condition == "request_validation"
-			}, false)
-			m := regressionCER(t, dict.Default, 1001)
-			kind, code, closing := diam.ProtocolMalformedMessage, uint32(5014), true
-			logs := []string{"diam: malformed message", "sm: error answer failed"}
-			switch condition {
-			case "malformed":
-				m.AddAVP(diam.NewAVP(avp.InbandSecurityID, avp.Mbit, 0, datatype.Unknown([]byte{1, 2})))
-			case "unknown_mandatory":
-				m.AddAVP(diam.NewAVP(0xfedcab, avp.Mbit, 0, datatype.Unknown([]byte{1, 2, 3, 4})))
-				kind, code, closing = diam.ProtocolUnsupportedAVP, 5001, false
-				logs = []string{"sm: unsupported mandatory AVP", "sm: error answer failed"}
-			case "request_validation":
-				for i, field := range m.AVP {
-					if field.Code == avp.OriginRealm {
-						m.AVP = append(m.AVP[:i], m.AVP[i+1:]...)
-						break
+func TestProtocolErrorLocalInitialCERErrorAnswerFailure(t *testing.T) {
+	for _, failure := range []string{"build", "write"} {
+		for _, condition := range []string{"malformed", "unknown_mandatory", "request_validation"} {
+			t.Run(failure+"/"+condition, func(t *testing.T) {
+				p := newProtocolLocalWire(t, func(cfg *Settings, _ *protocolLocalFaults) {
+					cfg.RejectUnknownMandatoryAVPs = condition == "unknown_mandatory"
+					cfg.ValidateRequests = condition == "request_validation"
+				}, false)
+				m := regressionCER(t, dict.Default, 1001)
+				kind, code := diam.ProtocolMalformedMessage, uint32(5014)
+				logs := []string{"diam: malformed message", "sm: error answer failed"}
+				switch condition {
+				case "malformed":
+					m.AddAVP(diam.NewAVP(avp.InbandSecurityID, avp.Mbit, 0, datatype.Unknown([]byte{1, 2})))
+				case "unknown_mandatory":
+					m.AddAVP(diam.NewAVP(0xfedcab, avp.Mbit, 0, datatype.Unknown([]byte{1, 2, 3, 4})))
+					kind, code = diam.ProtocolUnsupportedAVP, 5001
+					logs = []string{"sm: unsupported mandatory AVP", "sm: error answer failed", "sm: rejected CER; closing connection"}
+				case "request_validation":
+					for i, field := range m.AVP {
+						if field.Code == avp.OriginRealm {
+							m.AVP = append(m.AVP[:i], m.AVP[i+1:]...)
+							break
+						}
 					}
+					kind, code = diam.ProtocolInvalidRequest, 5005
+					logs = []string{"sm: invalid request", "sm: error answer failed", "sm: rejected CER; closing connection"}
 				}
-				kind, code, closing = diam.ProtocolInvalidRequest, 5005, false
-				logs = []string{"sm: invalid request", "sm: error answer failed"}
-			}
-			p.faults.address.Store(true)
-			header := p.send(t, m)
-			event := protocolEvent(t, p.events)
-			assertProtocolEvent(t, event, p.conn, &header, kind, code, closing, diam.ProtocolReplyFailed, code)
-			protocolLocalLogs(t, p.logs, logs...)
-			if len(p.faults.attempts) != 0 {
-				t.Fatal("build failure reached transport Write")
-			}
-			if closing {
+				p.faults.address.Store(failure == "build")
+				p.faults.write.Store(failure == "write")
+				header := p.send(t, m)
+				event := protocolEvent(t, p.events)
+				assertProtocolEvent(t, event, p.conn, &header, kind, code, true, diam.ProtocolReplyFailed, code)
+				protocolLocalLogs(t, p.logs, logs...)
+				if failure == "build" {
+					if len(p.faults.attempts) != 0 {
+						t.Fatal("build failure reached transport Write")
+					}
+				} else {
+					if len(p.faults.attempts) != 1 {
+						t.Fatalf("write attempts=%d, want one", len(p.faults.attempts))
+					}
+					p.attemptedAnswer(t, header, code, true)
+				}
 				p.eof(t)
-			} else {
-				p.faults.address.Store(false)
-				p.handshake(t)
-				p.usable(t)
-			}
-			protocolLocalNoEvents(t, p.events)
-		})
+				protocolLocalNoEvents(t, p.events)
+			})
+		}
 	}
 }
 
