@@ -1,4 +1,4 @@
-//go:build linux
+//go:build linux && !386
 
 package diam
 
@@ -14,6 +14,7 @@ import (
 )
 
 func TestSCTPDialTimeout(t *testing.T) {
+	requireSCTP(t)
 	for _, tc := range []struct {
 		name   string
 		dialer Dialer
@@ -57,6 +58,7 @@ func TestSCTPDialTimeout(t *testing.T) {
 }
 
 func TestResponseWriteStreamDeadline(t *testing.T) {
+	requireSCTP(t)
 	listener, err := MultistreamListen("sctp", "127.0.0.1:0")
 	if err != nil {
 		t.Skipf("SCTP unavailable: %v", err)
@@ -89,7 +91,7 @@ func TestResponseWriteStreamDeadline(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	w := &response{conn: &conn{server: &Server{WriteTimeout: 50 * time.Millisecond}, rwc: client}}
+	w := (&Server{WriteTimeout: 50 * time.Millisecond}).newConn(client).writer
 	payload := make([]byte, 1024)
 	if _, err := w.WriteStream(payload, 2); err != nil {
 		t.Fatal(err)
@@ -124,6 +126,7 @@ func TestResponseWriteStreamDeadline(t *testing.T) {
 }
 
 func TestSCTPWirePPID(t *testing.T) {
+	requireSCTP(t)
 	for _, tc := range []struct {
 		name   string
 		multi  bool
@@ -154,7 +157,7 @@ func TestSCTPWirePPID(t *testing.T) {
 				}
 				defer func() { _ = peer.Close() }()
 				if tc.multi {
-					w := &response{conn: &conn{server: &Server{}, rwc: peer}}
+					w := (&Server{}).newConn(peer).writer
 					_, err = w.WriteStream([]byte("diam-stream-ppid-46"), uint(tc.stream))
 				} else {
 					_, err = peer.Write([]byte("diam-plain-ppid-46"))

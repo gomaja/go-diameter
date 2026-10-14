@@ -90,6 +90,66 @@ the answer.
 See the full API documentation at
 [pkg.go.dev/github.com/gomaja/go-diameter](https://pkg.go.dev/github.com/gomaja/go-diameter).
 
+## Accepted connection renewal
+
+Accepted SCTP associations subscribe to restart notifications. A restart retires
+one `diam.Conn` and creates a fresh generation on the same socket before admitting
+its next CER (RFC 9260 §5.2.4; RFC 6458 §6.1.1; RFC 6733 §§5.6–5.6.1).
+`sm.StateMachine` implements `diam.RetireHandler` to stop the old admission timer
+and watchdog. A handler without that interface, including `peer.Manager`, causes
+the physical connection to close when it restarts. Dialed connections retain their
+existing behavior.
+
+If a restart notification reaches the Server through TLS, the physical connection
+closes without sending records from the old TLS session. Go's TLS reader retains
+that transport error, and its record state cannot serve a restarted peer. A new
+transport and TLS handshake are required. CER renewal within a healthy TLS
+connection remains supported by the opt-in policy below.
+
+The old Conn becomes Closed and closes CloseNotify immediately. Its Context keeps
+its old values; its DispatchDone closes after its Server callbacks return. Old
+writes match both `net.ErrClosed` and `diam.ErrConnectionRetired`, and old Close
+and stream setters cannot affect the new generation. Applications own business
+request failure/failover: listen to CloseNotify for loss and DispatchDone for
+callback cleanup. Old `StateMachine.Disconnect` waiters return
+`sm.ErrDisconnectClosed`; no pending ownership transfers automatically
+(RFC 6733 §5.5.4).
+
+`Server.OnNewConnection` runs once per physical connection. `HandleAccept` and its
+cleanup run once per accepted generation. `Server.OnConnectionRestart` runs after
+the new HandleAccept and before its CER. The new Context starts from
+Background, and the hook may rebuild application values. Discover
+`diam.ConnLifecycle`, `diam.RetireHandler` and `diam.AcceptedCERHandler` with ConnAs
+and HandlerAs; middleware should expose Unwrap.
+
+Shutdown takes precedence over renewal. It abandons a renewal in progress and
+closes the physical connection once, terminating CloseNotify readers. A retired
+Conn does not receive `OnShutdownConnection`: after an SCTP association restart
+it cannot send a DPR to the old peer (RFC 9260 §5.2.4; RFC 6733 §5.4). Shutdown
+still waits for Server callbacks to return, subject to its context deadline.
+
+For transports that cannot signal restart, `Server.RenewAcceptedCER` optionally
+interprets a subsequent admitted base CER as fresh admission. It defaults to false
+and requires the handler's `AcceptedCERHandler` eligibility check; StateMachine
+permits only an admitted, live, non-Closing accepted generation. This policy
+cannot distinguish a retry from a restart. Default StateMachine behavior ignores
+and logs the Open-state CER at Warn; Manager keeps its close policy. RFC 6733
+§1.1.3 deprecates Open-state capability exchange; RFC 6737 §§3–4 defines capability
+updates separately.
+
+Use the handler-visible Conn for transport operations. `Connection()` preserves
+its original raw type, whose reads, Close and deadlines can bypass generation
+fences. Only one transport reader is supported. A caller-supplied go-sctp
+NotificationHandler must synchronously return `TransportRestartError` for restart
+or select CER renewal. Retirement has a one-second bound; failure closes the
+physical connection. A further restart while old Server callbacks remain also
+closes it. Slow callbacks and full dispatch capacity can delay detection.
+
+The [SCTP restart wire test](diam/sm/testdata/sctprestart/README.md) runs two
+privileged containers, verifies restart notification ordering on the shared host
+kernel and checks CER/CEA recovery from source port 43868. It includes commands
+for comparison with an unchanged checkout.
+
 ## Standards Posture
 
 The library is maintained against the current published Diameter specifications,

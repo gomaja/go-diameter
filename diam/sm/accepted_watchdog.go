@@ -81,7 +81,7 @@ func (sm *StateMachine) startWatchdog(c diam.Conn) {
 		defer w.mu.Unlock()
 		// RFC 6733 §5.6: Closing has no DWA event, even through a stale
 		// supervisor pointer. Ignore it before parsing or crediting Pending.
-		if w.stopped.Load() {
+		if w.stopped.Load() || c.Closed() {
 			return
 		}
 		dwa.ServeDIAM(c, m)
@@ -96,7 +96,7 @@ func (sm *StateMachine) startWatchdog(c diam.Conn) {
 	sm.disconnects.mu.Lock()
 	pending := sm.disconnects.pending[c] != nil
 	sm.disconnects.mu.Unlock()
-	if pending || c.Closed() {
+	if pending || c.Closed() || sm.acceptedClosing(c) {
 		w.stop()
 		sm.watchdogs.CompareAndDelete(c, w)
 		close(w.exited)
@@ -137,17 +137,23 @@ func (w *acceptedWatchdog) stop() {
 	// mutex guarantees no further DWR write, DWA credit or watchdog event.
 	// Wait for terminal logging and Close before returning as well.
 	w.mu.Lock()
-	w.stopped.Store(true)
-	w.stopOnce.Do(func() { close(w.stopc) })
+	w.latchStop()
 	w.mu.Unlock()
 	w.closing.Wait()
+}
+
+// Retirement must stop supervision even while an old observer holds mu.
+// The worker joins admitted work when it exits; HandleRetire never joins it.
+func (w *acceptedWatchdog) latchStop() {
+	w.stopped.Store(true)
+	w.stopOnce.Do(func() { close(w.stopc) })
 }
 
 func (w *acceptedWatchdog) received() {
 	// RFC 6733 §5.6: received traffic cannot restart a Closing watchdog.
 	// Do not wait for a DWR write or callback before releasing admission.
 	// A racing activity store is inert: the loop stops and events are gated.
-	if w.stopped.Load() {
+	if w.stopped.Load() || w.conn.Closed() {
 		return
 	}
 	w.signals.received()
@@ -157,7 +163,7 @@ func (w *acceptedWatchdog) terminate(m *diam.Message, level slog.Level, text str
 	// RFC 6733 §5.6: terminal watchdog work either completes before stop
 	// returns or is suppressed. Leave the event mutex free during Close.
 	w.mu.Lock()
-	if w.stopped.Load() {
+	if w.stopped.Load() || w.conn.Closed() {
 		w.mu.Unlock()
 		return
 	}
@@ -180,7 +186,7 @@ func (w *acceptedWatchdog) observe(_ diam.Conn, event WatchdogEvent) {
 func (w *acceptedWatchdog) emit(event WatchdogEvent) {
 	// RFC 6733 §5.6: serialize all events with stop, including a timer or
 	// message handler already in flight when the connection enters Closing.
-	if w.stopped.Load() || w.policy.onEvent == nil {
+	if w.stopped.Load() || w.conn.Closed() || w.policy.onEvent == nil {
 		return
 	}
 	defer func() {

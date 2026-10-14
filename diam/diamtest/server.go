@@ -40,7 +40,8 @@ func NewServer(handler diam.Handler, dp *dict.Parser) *Server {
 
 // NewUnstartedServer returns a new Server but doesn't start it.
 //
-// After changing its configuration, the caller should call Start or
+// Config exposes accepted renewal hooks and RenewAcceptedCER; set them before
+// starting the server. After changing its configuration, call Start or
 // StartTLS.
 //
 // The caller should call Close when finished, to shut it down.

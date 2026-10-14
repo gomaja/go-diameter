@@ -274,6 +274,8 @@ type acceptedHandshake struct {
 	mu       sync.Mutex
 	complete bool
 	timedOut bool
+	retired  bool
+	closing  bool
 	timer    *time.Timer
 }
 
@@ -338,6 +340,11 @@ func (sm *StateMachine) Settings() *Settings {
 func (sm *StateMachine) ServeDIAM(c diam.Conn, m *diam.Message) {
 	release := m.BeginDispatch()
 	defer release()
+	// A previously queued callback still owns its old connection generation.
+	// Retirement maps it to transport loss (RFC 6733 §§5.5.4, 5.6).
+	if lifecycle, ok := diam.ConnAs[diam.ConnLifecycle](c); ok && lifecycle.RetirementReason() != 0 {
+		return
+	}
 	if headerErr := base.ValidateHeader(m); headerErr != nil {
 		logMessage(c, m, slog.LevelWarn, "sm: invalid message header", headerErr)
 		_ = sm.HandleMessageError(c, m, headerErr)
@@ -386,9 +393,11 @@ func (sm *StateMachine) ServeDIAM(c diam.Conn, m *diam.Message) {
 			return
 		}
 	}
-	// RFC 6733 §5.6: finish CER/CEA before admitting the next callback.
+	// RFC 6733 §5.6: finish CER/CEA and publish DPR's Closing state before
+	// admitting the next callback or evaluating accepted CER renewal.
 	// Other admitted messages may execute application handlers concurrently.
-	if m.Header.CommandCode != diam.CapabilitiesExchange {
+	baseDPR := m.Header.ApplicationID == 0 && m.Header.CommandCode == diam.DisconnectPeer && m.Header.CommandFlags&diam.RequestFlag != 0
+	if m.Header.CommandCode != diam.CapabilitiesExchange && !baseDPR {
 		release()
 	}
 	if w != nil && isBaseDWA(m) {
@@ -424,6 +433,7 @@ func (sm *StateMachine) preCERMessageAllowed(c diam.Conn, m *diam.Message) bool 
 // The returned cleanup stops the timer and releases the connection on close.
 func (sm *StateMachine) HandleAccept(c diam.Conn) func() {
 	state := new(acceptedHandshake)
+	state.mu.Lock()
 	sm.accepted.Store(c, state)
 	d := sm.cfg.HandshakeTimeout
 	if d == 0 {
@@ -432,7 +442,7 @@ func (sm *StateMachine) HandleAccept(c diam.Conn) func() {
 	if d > 0 {
 		state.timer = time.AfterFunc(d, func() {
 			state.mu.Lock()
-			complete := state.complete
+			complete := state.complete || state.retired || c.Closed()
 			if !complete {
 				state.timedOut = true
 			}
@@ -443,20 +453,22 @@ func (sm *StateMachine) HandleAccept(c diam.Conn) func() {
 			}
 		})
 	}
-	return func() {
-		if state.timer != nil {
-			state.timer.Stop()
-		}
-		sm.accepted.Delete(c)
+	state.mu.Unlock()
+	if c.Closed() {
+		sm.retireAdmission(c, state)
 	}
+	return func() { sm.retireAdmission(c, state) }
 }
 
 func (sm *StateMachine) completeAcceptedHandshake(c diam.Conn) bool {
+	if c.Closed() {
+		return false
+	}
 	if value, ok := sm.accepted.Load(c); ok {
 		state := value.(*acceptedHandshake)
 		state.mu.Lock()
 		defer state.mu.Unlock()
-		if state.timedOut {
+		if state.timedOut || state.retired || c.Closed() {
 			return false
 		}
 		state.complete = true
@@ -464,7 +476,69 @@ func (sm *StateMachine) completeAcceptedHandshake(c diam.Conn) bool {
 			state.timer.Stop()
 		}
 	}
-	return true
+	return !c.Closed()
+}
+
+func (sm *StateMachine) retireAdmission(c diam.Conn, state *acceptedHandshake) {
+	state.mu.Lock()
+	state.retired = true
+	if state.timer != nil {
+		state.timer.Stop()
+	}
+	state.mu.Unlock()
+	sm.accepted.CompareAndDelete(c, state)
+}
+
+// HandleRetire ends the old accepted generation's protocol state before fresh
+// CER/CEA admission (RFC 6733 §§5.3, 5.6; RFC 3539 Appendix A). A watchdog
+// observer already running may finish later with the old Conn; it cannot hold
+// the retirement transaction open.
+func (sm *StateMachine) HandleRetire(c diam.Conn, _ diam.RetirementReason) error {
+	if value, ok := sm.accepted.Load(c); ok {
+		sm.retireAdmission(c, value.(*acceptedHandshake))
+	}
+	if value, ok := sm.watchdogs.Load(c); ok {
+		w := value.(*acceptedWatchdog)
+		w.latchStop()
+		sm.watchdogs.CompareAndDelete(c, w)
+	}
+	return nil
+}
+
+// CanRenewAcceptedCER permits Server's opt-in compatibility policy only after
+// this accepted generation completes admission and before Closing. This policy
+// starts fresh admission; it is not the RFC 6737 capabilities-update application.
+func (sm *StateMachine) CanRenewAcceptedCER(c diam.Conn) bool {
+	if c.Closed() {
+		return false
+	}
+	value, ok := sm.accepted.Load(c)
+	if !ok {
+		return false
+	}
+	state := value.(*acceptedHandshake)
+	state.mu.Lock()
+	defer state.mu.Unlock()
+	return state.complete && !state.timedOut && !state.retired && !state.closing && !c.Closed()
+}
+
+func (sm *StateMachine) markAcceptedClosing(c diam.Conn) {
+	if value, ok := sm.accepted.Load(c); ok {
+		state := value.(*acceptedHandshake)
+		state.mu.Lock()
+		state.closing = true
+		state.mu.Unlock()
+	}
+}
+
+func (sm *StateMachine) acceptedClosing(c diam.Conn) bool {
+	if value, ok := sm.accepted.Load(c); ok {
+		state := value.(*acceptedHandshake)
+		state.mu.Lock()
+		defer state.mu.Unlock()
+		return state.closing || state.retired
+	}
+	return false
 }
 
 // Handle registers an application-agnostic command short name, or "ALL" for

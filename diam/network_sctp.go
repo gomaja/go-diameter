@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"container/heap"
 	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -55,13 +56,76 @@ type sctpMessageReceiver interface {
 
 // recvSCTPData consumes notifications, which share the SCTP receive queue
 // with data (RFC 6458 §6), without presenting them as Diameter bytes.
-func recvSCTPData(r sctpMessageReceiver, b []byte) (int, sctp.MsgInfo, error) {
+func recvSCTPData(r sctpMessageReceiver, b []byte, restartAware bool) (int, sctp.MsgInfo, error) {
+	if len(b) == 0 {
+		return 0, sctp.MsgInfo{}, nil
+	}
+	var notification []byte
 	for {
 		n, info, err := r.RecvMsg(b)
-		if err != nil || !info.Notification {
+		if !restartAware {
+			if err != nil || !info.Notification {
+				return n, info, err
+			}
+			continue
+		}
+		var restart *TransportRestartError
+		if errors.As(err, &restart) {
+			return 0, sctp.MsgInfo{}, err
+		}
+		if err != nil {
+			if len(notification) != 0 {
+				return 0, sctp.MsgInfo{}, fmt.Errorf("diam: incomplete SCTP notification: %w", err)
+			}
 			return n, info, err
 		}
+		if !info.Notification {
+			if len(notification) != 0 {
+				return 0, sctp.MsgInfo{}, sctp.ErrShortNotification
+			}
+			return n, info, nil
+		}
+		// Notifications are records and may require several receives to reach
+		// MSG_EOR (RFC 6458 §6). Bound their storage before decoding §6.1.1.
+		if n <= 0 || n > len(b) {
+			return 0, sctp.MsgInfo{}, sctp.ErrShortNotification
+		}
+		if n > sctp.NotificationReassemblyLimit-len(notification) {
+			return 0, sctp.MsgInfo{}, sctp.ErrNotificationTooLong
+		}
+		notification = append(notification, b[:n]...)
+		if len(notification) >= 8 {
+			declared := binary.NativeEndian.Uint32(notification[4:8])
+			if declared > sctp.NotificationReassemblyLimit {
+				return 0, sctp.MsgInfo{}, sctp.ErrNotificationTooLong
+			}
+			if declared < 8 || uint64(len(notification)) > uint64(declared) {
+				return 0, sctp.MsgInfo{}, sctp.ErrShortNotification
+			}
+		}
+		if !info.EOR {
+			continue
+		}
+		event, err := sctp.ParseNotification(notification)
+		if err != nil {
+			return 0, sctp.MsgInfo{}, fmt.Errorf("diam: parse SCTP notification: %w", err)
+		}
+		notification = notification[:0]
+		if change, ok := event.(*sctp.AssocChange); ok && change.State == sctp.AssocRestart {
+			// RFC 9260 §5.2.4 describes upper-layer restart notification.
+			// Return it on the receive path before consuming the next DATA record.
+			return 0, sctp.MsgInfo{}, &TransportRestartError{AssociationID: uint32(change.AssocID), InboundStreams: change.InStreams, OutboundStreams: change.OutStreams}
+		}
 	}
+}
+
+// diameterSCTPListenConfig subscribes before acceptance, so accepted sockets
+// inherit association notifications (RFC 6458 §§4.1.4 and 6.2.2). Dialed
+// associations retain diameterSCTPConfig's notification behavior.
+func diameterSCTPListenConfig() *sctp.Config {
+	config := diameterSCTPConfig()
+	config.Notifications = []sctp.EventType{sctp.EventAssocChange}
+	return config
 }
 
 // diameterSCTPConfig applies the association defaults before dial or listen.
@@ -129,13 +193,22 @@ func (pq *streams) Pop() interface{} {
 type SCTPConn struct {
 	*sctp.Conn
 
+	receiver     sctpMessageReceiver
+	restartAware bool
+
 	streamBuffMu sync.Mutex
 	s            *streams
-	mu           sync.RWMutex
-	currStream   uint
-	wmu          sync.RWMutex
-	writerStream uint
-	errorHandler MutistreamConnErrorHandler
+	// pendingRestart shares the buffer lock so it fences buffered reads too.
+	pendingRestart error
+	receiving      bool
+	readCond       *sync.Cond
+	readEpoch      uint64
+	readErr        error
+	mu             sync.RWMutex
+	currStream     uint
+	wmu            sync.RWMutex
+	writerStream   uint
+	errorHandler   MutistreamConnErrorHandler
 }
 
 // NewSCTPConn wraps a go-sctp connection the caller opened as a
@@ -145,7 +218,12 @@ type SCTPConn struct {
 // once instead of being coalesced, and a delayed-SACK frequency of 1
 // (RFC 6458 §8.1.19), so every packet is acknowledged without delay.
 //
-// A failure to apply either setting is returned, as go-sctp returns it, and
+// Association notifications are also subscribed (RFC 6458 §6.2.2), and
+// SCTP_RESTART is returned as an ordered TransportRestartError. If a supplied
+// go-sctp NotificationHandler consumes notifications, it must synchronously
+// return TransportRestartError for restart; a swallowed event is invisible.
+//
+// A failure to apply a setting or subscription is returned, as go-sctp returns it, and
 // sctpConn is left open for the caller to close. Settings fixed when the
 // association is set up, such as its stream counts (RFC 6458 §8.1.3), are
 // chosen by whoever opens sctpConn.
@@ -159,7 +237,10 @@ func NewSCTPConn(sctpConn *sctp.Conn) (MultistreamConn, error) {
 	if err := sctpConn.SetDelayedSACK(&sctp.DelayedSACK{Frequency: 1}); err != nil {
 		return nil, fmt.Errorf("diam: set SCTP delayed SACK: %w", err)
 	}
-	return newSCTPConn(sctpConn), nil
+	if err := sctpConn.Subscribe(sctp.EventAssocChange, true); err != nil {
+		return nil, fmt.Errorf("diam: subscribe SCTP association changes: %w", err)
+	}
+	return newRestartSCTPConn(sctpConn), nil
 }
 
 // newSCTPConn wraps a connection opened from diameterSCTPConfig without
@@ -168,38 +249,135 @@ func NewSCTPConn(sctpConn *sctp.Conn) (MultistreamConn, error) {
 // accepted socket inherits the listening socket's settings (go-sctp
 // Listener documentation).
 func newSCTPConn(sctpConn *sctp.Conn) *SCTPConn {
-	return &SCTPConn{Conn: sctpConn, s: &streams{}, currStream: InvalidStreamID, writerStream: InvalidStreamID}
+	msc := &SCTPConn{Conn: sctpConn, receiver: sctpConn, s: &streams{}, currStream: InvalidStreamID, writerStream: InvalidStreamID}
+	msc.readCond = sync.NewCond(&msc.streamBuffMu)
+	return msc
+}
+
+// newRestartSCTPConn wraps an accepted association whose subscription was
+// applied before listen, or a caller-owned association subscribed by NewSCTPConn.
+func newRestartSCTPConn(conn *sctp.Conn) *SCTPConn {
+	msc := newSCTPConn(conn)
+	msc.restartAware = true
+	return msc
+}
+
+func (msc *SCTPConn) recvData(b []byte) (int, sctp.MsgInfo, error) {
+	receiver := msc.receiver
+	if receiver == nil {
+		receiver = msc.Conn
+	}
+	n, info, err := recvSCTPData(receiver, b, msc.restartAware)
+	var restart *TransportRestartError
+	if errors.As(err, &restart) {
+		msc.streamBuffMu.Lock()
+		msc.pendingRestart = err
+		msc.readCond.Broadcast()
+		msc.streamBuffMu.Unlock()
+	}
+	return n, info, err
+}
+
+// ResetForRestart discards the retired generation's fragments and stream
+// selections. The caller must finish its outer read before calling this method:
+// Read holds the stream-selection lock until it returns the restart marker.
+// The marker remains latched until reset, preventing subsequent DATA reads.
+func (msc *SCTPConn) ResetForRestart() {
+	msc.ResetCurrentStream()
+	msc.ResetWriterStream()
+	msc.streamBuffMu.Lock()
+	defer msc.streamBuffMu.Unlock()
+	for msc.receiving {
+		msc.readCond.Wait()
+	}
+	msc.s = &streams{}
+	msc.pendingRestart = nil
+	msc.readCond.Broadcast()
+}
+
+// beginRead consumes buffered bytes or claims the single wire receiver. A
+// queued reader wakes when its buffer changes, even while another stream owns
+// the receiver. A receive failure applies to callers already waiting; later
+// calls may retry, for example after clearing a read deadline.
+func (msc *SCTPConn) beginRead(b []byte, stream uint) (n int, receivedStream uint, err error, receive bool) {
+	msc.streamBuffMu.Lock()
+	defer msc.streamBuffMu.Unlock()
+	epoch := msc.readEpoch
+	for {
+		if n, stream, err, ready := msc.readBufferedLocked(b, stream); ready {
+			return n, stream, err, false
+		}
+		if epoch != msc.readEpoch {
+			return 0, stream, msc.readErr, false
+		}
+		if !msc.receiving {
+			msc.receiving = true
+			return 0, stream, nil, true
+		}
+		msc.readCond.Wait()
+	}
+}
+
+func (msc *SCTPConn) endRead(err error) {
+	msc.streamBuffMu.Lock()
+	defer msc.streamBuffMu.Unlock()
+	var restart *TransportRestartError
+	if err != nil && !errors.As(err, &restart) {
+		msc.readEpoch++
+		msc.readErr = err
+	}
+	msc.receiving = false
+	msc.readCond.Broadcast()
+}
+
+// readBufferedLocked checks the restart fence with streamBuffMu held.
+// InvalidStreamID selects the longest buffer.
+func (msc *SCTPConn) readBufferedLocked(b []byte, stream uint) (n int, receivedStream uint, err error, ready bool) {
+	if msc.pendingRestart != nil {
+		return 0, InvalidStreamID, msc.pendingRestart, true
+	}
+	var sb *streamBuffer
+	if stream == InvalidStreamID {
+		if msc.s.Len() > 0 {
+			sb = msc.s.streamHeap[0]
+		}
+	} else {
+		sb = msc.s.streamMap[stream]
+	}
+	if sb == nil || sb.Len() == 0 {
+		return 0, stream, nil, false
+	}
+	n, err = sb.Read(b)
+	heap.Fix(msc.s, sb.idx)
+	return n, sb.stream, err, true
 }
 
 // ReadAny reads data from any association's stream (if available).
 // Returns number of bytes read and the stream number.
 func (msc *SCTPConn) ReadAny(b []byte) (n int, stream uint, err error) {
-	// First see if we can consume an existing, previously received buffer
-	msc.streamBuffMu.Lock()
-	// Consume the longest buffer first
-	if msc.s.Len() > 0 && msc.s.streamHeap[0].Len() > 0 {
-		sb := msc.s.streamHeap[0]
-		n, err = sb.Read(b)
-		stream = sb.stream
-		heap.Fix(msc.s, 0)
-		msc.streamBuffMu.Unlock()
-		return
+	defer func() {
+		var restart *TransportRestartError
+		if err != nil && !errors.As(err, &restart) {
+			hptr := atomic.LoadPointer((*unsafe.Pointer)(unsafe.Pointer(&msc.errorHandler)))
+			if hptr != nil {
+				(*(*MutistreamConnErrorHandler)(unsafe.Pointer(&hptr)))(msc, err)
+			}
+		}
+	}()
+	if n, stream, err, receive := msc.beginRead(b, InvalidStreamID); !receive {
+		return n, stream, err
 	}
-	msc.streamBuffMu.Unlock()
+	var receiveErr error
+	defer func() { msc.endRead(receiveErr) }()
 	var info sctp.MsgInfo
-	n, info, err = recvSCTPData(msc.Conn, b)
+	n, info, err = msc.recvData(b)
+	receiveErr = err
 	if n < 0 {
 		n = 0
 	}
 	stream = uint(info.Rcv.Stream)
 	// shortcut for non empty stream buffer
 	n, err = msc.verifyStreamBuff(b, n, stream, err)
-	if err != nil {
-		hptr := atomic.LoadPointer((*unsafe.Pointer)(unsafe.Pointer(&msc.errorHandler)))
-		if hptr != nil {
-			(*(*MutistreamConnErrorHandler)(unsafe.Pointer(&hptr)))(msc, err)
-		}
-	}
 	return
 }
 
@@ -211,20 +389,22 @@ func (msc *SCTPConn) SetErrorHandler(h MutistreamConnErrorHandler) {
 
 // ReadStream reads data from the specified association's stream.
 func (msc *SCTPConn) ReadStream(b []byte, stream uint) (n int, err error) {
+	if n, _, err, receive := msc.beginRead(b, stream); !receive {
+		return n, err
+	}
+	var receiveErr error
+	defer func() { msc.endRead(receiveErr) }()
 	var info sctp.MsgInfo
 	var currStream uint
-	msc.streamBuffMu.Lock()
 	for {
-		// First see if we can consume an existing, previously received stream buffer
-		if sb, ok := msc.s.streamMap[stream]; ok && sb.Len() > 0 {
-			n, err = sb.Read(b)
-			heap.Fix(msc.s, sb.idx)
-			msc.streamBuffMu.Unlock()
-			return
-		}
-
+		msc.streamBuffMu.Lock()
+		n, _, err, ready := msc.readBufferedLocked(b, stream)
 		msc.streamBuffMu.Unlock()
-		n, info, err = recvSCTPData(msc.Conn, b)
+		if ready {
+			return n, err
+		}
+		n, info, err = msc.recvData(b)
+		receiveErr = err
 		if n <= 0 {
 			return 0, err
 		}
@@ -238,6 +418,10 @@ func (msc *SCTPConn) ReadStream(b []byte, stream uint) (n int, err error) {
 		rb := b[0:n]
 		msc.streamBuffMu.Lock()
 		msc.bufferStreamData(rb, currStream)
+		msc.streamBuffMu.Unlock()
+		if err != nil {
+			return 0, err
+		}
 	}
 }
 
@@ -270,6 +454,10 @@ func (msc *SCTPConn) ReadAtLeast(buf []byte, min int, strm uint) (n int, stream 
 // verifyStreamBuff checks is there is a ready buffered data for the stream already,
 // pipes b through the same buffer if there is and re-reads b from the beginning of the buffer.
 func (msc *SCTPConn) verifyStreamBuff(b []byte, n int, stream uint, currErr error) (int, error) {
+	var restart *TransportRestartError
+	if errors.As(currErr, &restart) {
+		return 0, currErr
+	}
 	msc.streamBuffMu.Lock()
 	defer msc.streamBuffMu.Unlock()
 	if sb, ok := msc.s.streamMap[stream]; ok && sb.Len() > 0 {
@@ -291,6 +479,7 @@ func (msc *SCTPConn) bufferStreamData(b []byte, stream uint) {
 		sb.Write(b)
 		heap.Push(msc.s, sb)
 	}
+	msc.readCond.Broadcast()
 }
 
 // WriteStream writes data to the association's stream.
@@ -370,7 +559,9 @@ func (msc *SCTPConn) Read(b []byte) (n int, err error) {
 					msc.currStream = strm
 				} else if msc.currStream != strm {
 					// Worst case scenario - concurrent read completed first and received from a different stream
+					msc.streamBuffMu.Lock()
 					msc.bufferStreamData(b[0:n], strm)
+					msc.streamBuffMu.Unlock()
 					msc.mu.Unlock()
 					msc.mu.RLock()
 					continue
@@ -429,5 +620,5 @@ func (l sctpListener) Accept() (net.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
-	return newSCTPConn(conn), nil
+	return newRestartSCTPConn(conn), nil
 }

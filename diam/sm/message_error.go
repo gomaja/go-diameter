@@ -71,6 +71,9 @@ func (sm *StateMachine) HandleMessageError(c diam.Conn, request *diam.Message, m
 func (sm *StateMachine) handleMessageError(c diam.Conn, request *diam.Message, messageErr *diam.MessageError) (bool, error) {
 	release := request.BeginDispatch()
 	defer release()
+	if c.Closed() {
+		return false, nil
+	}
 	if headerErr := base.ValidateHeader(request); headerErr != nil {
 		messageErr = headerErr
 	}

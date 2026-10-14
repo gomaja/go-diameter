@@ -515,7 +515,9 @@ func (a *actor) onWire(e event) {
 			a.step(rDPR, s, msg)
 		}
 	case cmd == diam.CapabilitiesExchange && req && msg.Header.ApplicationID == 0:
-		// RFC 6733 §5.6 Open/R-Conn-CER rejects a duplicate candidate.
+		// RFC 6733 §§1.1.3, 5.6 do not define CER on the active Open
+		// connection. R-Conn-CER concerns a new incoming transport carrying
+		// CER. Retain our conservative close policy for a second CER here.
 		a.m.report(s, msg, errors.New("peer: duplicate CER on open connection; closing connection"))
 		s.close()
 	default:

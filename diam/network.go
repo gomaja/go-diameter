@@ -185,7 +185,7 @@ func listenSCTP(network, address string) (*sctp.Listener, error) {
 	if err != nil {
 		return nil, err
 	}
-	return diameterSCTPConfig().Listen(network, sctpAddr)
+	return diameterSCTPListenConfig().Listen(network, sctpAddr)
 }
 
 // Listen announces on the local network address

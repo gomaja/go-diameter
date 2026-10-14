@@ -32,7 +32,7 @@ func TestRecvSCTPDataSkipsNotifications(t *testing.T) {
 		{data: "diameter", info: sctp.MsgInfo{Rcv: sctp.RcvInfo{Stream: 7}}},
 	}}
 	b := make([]byte, 64)
-	n, info, err := recvSCTPData(r, b)
+	n, info, err := recvSCTPData(r, b, false)
 	if err != nil || string(b[:n]) != "diameter" || info.Rcv.Stream != 7 || r.index != 2 {
 		t.Fatalf("read = %q, %+v, %v; consumed %d records", b[:n], info, err, r.index)
 	}
@@ -44,7 +44,7 @@ func TestRecvSCTPDataReturnsReadError(t *testing.T) {
 		info sctp.MsgInfo
 		err  error
 	}{{err: io.EOF}}}
-	_, _, err := recvSCTPData(r, make([]byte, 64))
+	_, _, err := recvSCTPData(r, make([]byte, 64), false)
 	if err != io.EOF {
 		t.Fatalf("read error = %v, want EOF", err)
 	}
