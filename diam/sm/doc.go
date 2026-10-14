@@ -13,9 +13,9 @@
 // connection stays open. RFC 6733 §5.6 has no row for this event; R-Conn-CER
 // concerns a CER on a new connection (§5.6.1). OnProtocolError reports
 // ProtocolUnexpectedMessage with Closing=false and ProtocolReplyNone.
-// Only StateMachine currently supports accepted CER renewal, when
-// diam.Server.RenewAcceptedCER is enabled and the accepted connection is
-// admitted, live and not Closing. Manager renewal is deferred to issue #93.
+// With diam.Server.RenewAcceptedCER enabled, StateMachine instead renews an
+// accepted connection on that CER when it is admitted, live and not Closing;
+// peer.Manager does the same for the peer's current active responder.
 //
 // Settings.EnableWatchdog opts accepted connections into RFC 3539 §3.4.1 and
 // Appendix A supervision after a success CEA and OnHandshake. Client.EnableWatchdog
