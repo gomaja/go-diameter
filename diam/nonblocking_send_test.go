@@ -19,8 +19,7 @@ func TestNonblockingSendsHaveDocumentedReason(t *testing.T) {
 	allowed := map[string]string{
 		"server.go:c.idle":            "Idle notification coalesces; the consumer reads the current activity state.",
 		"sm/disconnect.go:p.result":   "Disconnect completion is a one-shot result; a buffered result already completes the waiter.",
-		"sm/dwa.go:signals.dwac":      "Watchdog acknowledgement is a coalescing wake-up, not an error report.",
-		"sm/watchdog.go:s.signal":     "Read activity coalesces; activity state is stored separately.",
+		"sm/watchdog.go:s.signal":     "Wake-ups coalesce; every timestamped receive decision remains in the ordered queue.",
 		"peer/session.go:s.ingress":   "Queue overflow is reported and the connection closes.",
 		"peer/session.go:s.writes":    "Queue overflow is returned to the writer for reporting and closure.",
 		"peer/manager.go:m.callbackQ": "Dropped peer events are explicitly logged before returning.",

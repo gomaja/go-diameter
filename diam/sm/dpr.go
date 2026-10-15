@@ -78,11 +78,11 @@ func handleDPR(sm *StateMachine) diam.HandlerFunc {
 		}
 		a, err := base.BuildDPAResult(m, baseSettings(sm.cfg), result)
 		if err == nil {
-			_, err = a.WriteTo(c)
+			err = writeRequiredReply(c, a)
 		}
 		if err != nil {
 			logMessage(c, m, slog.LevelError, "sm: DPA failed; closing connection", err)
-			c.Close()
+			sm.requiredReplyFailed(c, m, result)
 			return
 		}
 		if first && sm.cfg.OnDPR != nil {

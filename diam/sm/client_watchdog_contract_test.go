@@ -50,7 +50,7 @@ func TestClientWatchdogUsesCloseNotifierOverDispatchDone(t *testing.T) {
 				activity := newWatchdogActivity()
 				exited := make(chan struct{})
 				go func() {
-					cli.watchdog(conn, activity.dwac, activity)
+					cli.watchdog(conn, activity)
 					close(exited)
 				}()
 				defer func() {
@@ -167,7 +167,7 @@ func TestClientWatchdogAdapterStateEventsHoldPublicationLock(t *testing.T) {
 		}
 		exited := make(chan struct{})
 		go func() {
-			cli.watchdog(c, activity.dwac, activity)
+			cli.watchdog(c, activity)
 			close(exited)
 		}()
 		synctest.Wait()

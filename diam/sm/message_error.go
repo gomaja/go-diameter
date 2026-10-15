@@ -75,20 +75,19 @@ func (sm *StateMachine) rejectRequest(c diam.Conn, m *diam.Message, rejection *b
 		sm.protocolError(c, m, rejection.Kind, rejection.Code, false, diam.ProtocolReplyNone, 0)
 		return
 	}
-	err := sm.writeErrorAnswer(c, m, rejection.Code, rejection.Failed, rejection.Code >= 3000 && rejection.Code < 4000)
+	replyCode, err := sm.writeErrorAnswer(c, m, rejection.Code, rejection.Failed, rejection.Code >= 3000 && rejection.Code < 4000)
 	if err == nil && rejection.Kind == diam.ProtocolUnsupportedApplication {
 		c.Logger().LogAttrs(m.Context(), slog.LevelInfo, "sm: unsupported command answered", slog.Any("message", m), slog.Uint64("result_code", uint64(rejection.Code)))
 	}
 	closing := sm.closeRejectedCER(c, m, diam.NewProtocolError(rejection.Kind, rejection.Code))
-	// Keep the existing unsupported-application reply-failure policy.
-	if err != nil && rejection.Kind == diam.ProtocolUnsupportedApplication {
-		c.Close()
+	if err != nil {
+		sm.closeRequiredReply(c)
 		closing = true
 	}
 	// The rejection is committed before the observer, which may block or
 	// retire this generation (RFC 6733 §§5.5.4, 5.6).
 	release()
-	sm.protocolError(c, m, rejection.Kind, rejection.Code, closing, protocolReply(err), rejection.Code)
+	sm.protocolError(c, m, rejection.Kind, rejection.Code, closing, protocolReply(err), replyCode)
 }
 
 func (sm *StateMachine) rejectBaseMessage(c diam.Conn, m *diam.Message, err *diam.MessageError) {
@@ -119,17 +118,18 @@ func (sm *StateMachine) HandleMessageError(c diam.Conn, request *diam.Message, m
 }
 
 type messageErrorOutcome struct {
-	kind    diam.ProtocolErrorKind
-	code    uint32
-	closing bool
-	reply   diam.ProtocolReplyStatus
+	kind      diam.ProtocolErrorKind
+	code      uint32
+	closing   bool
+	reply     diam.ProtocolReplyStatus
+	replyCode uint32
 }
 
 func (sm *StateMachine) reportMessageError(c diam.Conn, m *diam.Message, outcome messageErrorOutcome) {
 	if outcome.kind != "" {
 		replyCode := uint32(0)
 		if outcome.reply != diam.ProtocolReplyNone {
-			replyCode = outcome.code
+			replyCode = outcome.replyCode
 		}
 		sm.protocolError(c, m, outcome.kind, outcome.code, outcome.closing, outcome.reply, replyCode)
 	}
@@ -196,10 +196,12 @@ func (sm *StateMachine) handleMessageError(c diam.Conn, request *diam.Message, m
 	if requestRejection != nil {
 		failedAVPs = requestRejection.Failed
 	}
-	if err := sm.writeErrorAnswer(c, request, messageErr.ResultCode, failedAVPs, protocolError); err != nil {
+	replyCode, err := sm.writeErrorAnswer(c, request, messageErr.ResultCode, failedAVPs, protocolError)
+	outcome.replyCode = replyCode
+	if err != nil {
 		// writeErrorAnswer records the failure before this close. Do not return
 		// it to Server, which would mistake it for a failure to take ownership.
-		c.Close()
+		sm.closeRequiredReply(c)
 		outcome.closing = true
 		outcome.reply = diam.ProtocolReplyFailed
 		return outcome, nil
@@ -217,13 +219,14 @@ func (sm *StateMachine) handleMessageError(c diam.Conn, request *diam.Message, m
 func (sm *StateMachine) closeRejectedCER(c diam.Conn, request *diam.Message, messageErr error) bool {
 	if request.Header.CommandCode == diam.CapabilitiesExchange && (base.ValidateHeader(request) != nil || !admittedPeer(c)) {
 		logMessage(c, request, slog.LevelWarn, "sm: rejected CER; closing connection", messageErr)
-		c.Close()
+		sm.closeRequiredReply(c)
 		return true
 	}
 	return false
 }
 
-func (sm *StateMachine) writeErrorAnswer(c diam.Conn, request *diam.Message, resultCode uint32, failedAVPs []*diam.AVP, protocolError bool) (err error) {
+func (sm *StateMachine) writeErrorAnswer(c diam.Conn, request *diam.Message, resultCode uint32, failedAVPs []*diam.AVP, protocolError bool) (replyCode uint32, err error) {
+	replyCode = resultCode
 	defer func() {
 		if err != nil {
 			logMessage(c, request, slog.LevelError, "sm: error answer failed", err)
@@ -233,15 +236,18 @@ func (sm *StateMachine) writeErrorAnswer(c diam.Conn, request *diam.Message, res
 	cfg.ResolveHostIPAddresses = func() ([]datatype.Address, error) { return getLocalAddresses(c) }
 	answer, err := base.BuildErrorAnswer(request, cfg, resultCode, failedAVPs, protocolError)
 	if err != nil {
-		return err
+		return replyCode, err
 	}
 	if request.Header.CommandCode == diam.CapabilitiesExchange && sm.cfg.OnCEA != nil {
 		sm.cfg.OnCEA(c, answer)
 	}
-	if _, err := answer.WriteTo(c); err != nil {
-		return fmt.Errorf("write Diameter error answer: %w", err)
+	if sm.cfg.OnProtocolError != nil {
+		replyCode = protocolAnswerCode(answer)
 	}
-	return nil
+	if err := writeRequiredReply(c, answer); err != nil {
+		return replyCode, fmt.Errorf("write Diameter error answer: %w", err)
+	}
+	return replyCode, nil
 }
 
 // admittedPeer reports whether a successful CER/CEA stored peer metadata on c.

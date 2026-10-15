@@ -45,7 +45,7 @@ func handleCER(sm *StateMachine) diam.HandlerFunc {
 			if err != nil {
 				logMessage(c, m, slog.LevelError, "sm: CEA failed; closing connection", err)
 			}
-			c.Close()
+			sm.closeRequiredReply(c)
 			sm.protocolError(c, m, diam.ProtocolCERRejected, code, true, protocolReply(err), replyCode)
 			return
 		}
@@ -68,11 +68,15 @@ func handleCER(sm *StateMachine) diam.HandlerFunc {
 			if sm.cfg.OnCEA != nil {
 				sm.cfg.OnCEA(c, a)
 			}
-			_, err = a.WriteTo(c)
+			err = writeRequiredReply(c, a)
 		}
 		if err != nil {
 			logMessage(c, m, slog.LevelError, "sm: CEA failed; closing connection", err)
-			c.Close()
+			code := uint32(diam.Success)
+			if a != nil {
+				code = protocolAnswerCode(a)
+			}
+			sm.requiredReplyFailed(c, m, code)
 			return
 		}
 		// RFC 6733 §5.6 and RFC 3539 Appendix A: supervise only an admitted
@@ -150,7 +154,7 @@ func errorCEAResult(sm *StateMachine, c diam.Conn, m *diam.Message, errMessage e
 	if sm.cfg.OnProtocolError != nil {
 		replyCode = protocolAnswerCode(a)
 	}
-	_, err = a.WriteTo(c)
+	err = writeRequiredReply(c, a)
 	if err != nil {
 		err = fmt.Errorf("error CEA '%w' send failure: %w", errMessage, err)
 	}

@@ -39,6 +39,12 @@ type handshakeConn struct {
 func newHandshakeConn() *handshakeConn {
 	return &handshakeConn{messageErrorCaptureConn: &messageErrorCaptureConn{dictionary: newTestDictionary(dict.Base())}, ctx: context.Background(), writes: make(chan []byte, 4)}
 }
+
+// The handshake fixture supplies a usable source address for capability exchange.
+func (c *handshakeConn) LocalAddr() net.Addr {
+	return &net.TCPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 3868}
+}
+
 func (c *handshakeConn) Context() context.Context       { c.mu.Lock(); defer c.mu.Unlock(); return c.ctx }
 func (c *handshakeConn) SetContext(ctx context.Context) { c.mu.Lock(); c.ctx = ctx; c.mu.Unlock() }
 func (c *handshakeConn) Write(b []byte) (int, error) {

@@ -46,19 +46,34 @@ func (a *actor) watchdogInterval() time.Duration {
 
 func (a *actor) stopWatchdog() {
 	a.wdToken++
+	a.deferredWatchdog = nil
 	if a.wdTimer != nil {
 		a.wdTimer.Stop()
 		a.wdTimer = nil
 	}
 }
 func (a *actor) armWatchdog() {
+	a.armWatchdogAt(a.m.now())
+}
+
+func (a *actor) armWatchdogAt(receivedAt time.Time) {
 	a.stopWatchdog()
 	token := a.wdToken
 	gen := uint64(0)
 	if a.active != nil {
 		gen = a.active.gen
 	}
-	a.wdTimer = a.m.cfg.Clock.AfterFunc(a.watchdogInterval(), func() { a.post(event{kind: watchdogTimeout, token: token, gen: gen}) })
+	s := a.active
+	// RFC 3539 §3.4.1 and Appendix A SetWatchdog: Tw starts at receipt,
+	// not after ingress/actor backlog. An overdue reset fires immediately.
+	delay := max(time.Duration(0), receivedAt.Add(a.watchdogInterval()).Sub(a.m.now()))
+	a.wdTimer = a.m.cfg.Clock.AfterFunc(delay, func() {
+		barrier := uint64(0)
+		if s != nil {
+			barrier = s.receiveBarrier()
+		}
+		a.post(event{kind: watchdogTimeout, token: token, gen: gen, s: s, afterReceive: barrier})
+	})
 }
 func (a *actor) stopReconnect() {
 	a.tcToken++
@@ -224,6 +239,13 @@ func (a *actor) watchdogTick() {
 	}
 }
 func (a *actor) watchdogReceive(msg *diam.Message) bool {
+	return a.watchdogReceiveAt(msg, a.m.now())
+}
+
+func (a *actor) watchdogReceiveAt(msg *diam.Message, receivedAt time.Time) bool {
+	if receivedAt.IsZero() {
+		receivedAt = a.m.now()
+	}
 	event := watchdog.Receive
 	isDWA := msg.Header.CommandCode == diam.DeviceWatchdog && msg.Header.CommandFlags&diam.RequestFlag == 0
 	if isDWA {
@@ -234,7 +256,7 @@ func (a *actor) watchdogReceive(msg *diam.Message) bool {
 	// is subsequently rejected. Commit its state changes only after validation.
 	// RFC 3539 Appendix A REOPEN receives do not postpone recovery probes.
 	if actions.Reset {
-		a.armWatchdog()
+		a.armWatchdogAt(receivedAt)
 	}
 	if !isDWA {
 		if actions.Failback {

@@ -610,12 +610,14 @@ func TestClient_Conn_LocalAddresses_Complex(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to parse local addresses: %v", err)
 	}
-	if len(addrList) != 2 {
-		t.Fatal("Failed to parse valid IP address or failed to skip loopback")
+	if len(addrList) != 4 {
+		t.Fatal("Failed to preserve every potential source address")
 	}
 
-	requireLocalAddress(t, addrList[0], netip.MustParseAddr("10.0.0.3"))
-	requireLocalAddress(t, addrList[1], netip.MustParseAddr("fe80::78ef:efb:a57b:15b9"))
+	requireLocalAddress(t, addrList[0], netip.MustParseAddr("127.0.0.1"))
+	requireLocalAddress(t, addrList[1], netip.MustParseAddr("::1"))
+	requireLocalAddress(t, addrList[2], netip.MustParseAddr("10.0.0.3"))
+	requireLocalAddress(t, addrList[3], netip.MustParseAddr("fe80::78ef:efb:a57b:15b9"))
 }
 
 func TestClient_Conn_LocalAddresses_IPv6(t *testing.T) {
@@ -649,11 +651,12 @@ func TestClient_Conn_LocalAddresses_SCTPMultihomed(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 2 {
+	if len(got) != 3 {
 		t.Fatalf("multihomed addresses = %v", got)
 	}
-	requireLocalAddress(t, got[0], netip.MustParseAddr("10.0.0.3"))
-	requireLocalAddress(t, got[1], netip.MustParseAddr("2001:db8::1"))
+	requireLocalAddress(t, got[0], netip.MustParseAddr("127.0.0.1"))
+	requireLocalAddress(t, got[1], netip.MustParseAddr("10.0.0.3"))
+	requireLocalAddress(t, got[2], netip.MustParseAddr("2001:db8::1"))
 	addr.IPs = []netip.Addr{netip.MustParseAddr("::1")}
 	got, err = getLocalAddresses(&testLocalAddrDiamConn{localAddr: addr})
 	if err != nil || len(got) != 1 {

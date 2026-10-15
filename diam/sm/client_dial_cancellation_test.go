@@ -66,7 +66,13 @@ func TestClientCancellationRejectsLateCEA(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("cancellation did not start closing")
 	}
-	cea, err := base.BuildCEA(cer, activity.capabilities, diam.Success)
+	ceaConfig := activity.capabilities
+	addresses, err := getLocalAddresses(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ceaConfig.HostIPAddresses = addresses
+	cea, err := base.BuildCEA(cer, ceaConfig, diam.Success)
 	if err != nil {
 		t.Fatal(err)
 	}

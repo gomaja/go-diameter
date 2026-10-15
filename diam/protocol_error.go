@@ -15,6 +15,10 @@ import (
 type ProtocolErrorKind string
 
 const (
+	// ProtocolReplyFailure identifies a required answer that could not be
+	// built, queued or completely written. Closing is the local failure policy;
+	// it does not classify the received request as invalid.
+	ProtocolReplyFailure ProtocolErrorKind = "reply_failure"
 	// ProtocolMalformedMessage identifies a decoding failure (RFC 6733 §§3,
 	// 4 and 7.1.5; Verified Errata ID 3805 clarifies Message Length units).
 	ProtocolMalformedMessage ProtocolErrorKind = "malformed_message"
@@ -140,7 +144,7 @@ type ProtocolMessageMetadata struct {
 	Stream uint
 }
 
-// ProtocolReplyStatus describes the progress of a selected error answer.
+// ProtocolReplyStatus describes the progress of a selected required answer.
 type ProtocolReplyStatus uint8
 
 const (
@@ -179,7 +183,7 @@ type ProtocolErrorEvent struct {
 	// Closing records the owner's close decision, not Conn.Closed(). False
 	// does not promise survival of unrelated concurrent activity.
 	Closing bool
-	// Reply describes the error answer's progress at callback time.
+	// Reply describes the selected answer's progress at callback time.
 	Reply ProtocolReplyStatus
 	// ReplyCode is the selected outgoing Result-Code after existing mutation
 	// hooks. Zero means no answer code is known.

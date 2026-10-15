@@ -86,7 +86,7 @@ func TestAcceptedWatchdogTerminalCloseLocks(t *testing.T) {
 					}
 				} else {
 					state := watchdogState{pending: true, suspect: true}
-					w.expire(time.Now(), &state)
+					w.expire(&state)
 				}
 				if !c.Closed() {
 					t.Error("terminal watchdog failure did not close transport")
@@ -179,10 +179,9 @@ func TestAcceptedWatchdogDownCloseAfterStopReturned(t *testing.T) {
 			sm.stopWatchdog(c) // Disconnect/DPR wins the mutex right after the stop check.
 			w.observe(c, e)
 		}
-		armedAt := time.Now()
 		time.Sleep(time.Millisecond)
 		st := watchdogState{pending: true, suspect: true}
-		cw.expire(armedAt, &st)
+		cw.expire(&st)
 		<-w.exited
 		if c.Closed() {
 			t.Errorf("DOWN closed the transport after stopWatchdog returned")

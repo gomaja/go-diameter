@@ -174,7 +174,7 @@ func testSettings(host string, dictionaries ...*dict.Parser) sm.Settings {
 	if len(dictionaries) != 0 {
 		parser = dictionaries[0]
 	}
-	return sm.Settings{Dict: parser, OriginHost: datatype.DiameterIdentity(host), OriginRealm: "example.net", VendorID: 1, ProductName: "test"}
+	return sm.Settings{Dict: parser, OriginHost: datatype.DiameterIdentity(host), OriginRealm: "example.net", VendorID: 1, ProductName: "test", HostIPAddresses: []datatype.Address{datatype.AddressFromIP(netip.MustParseAddr("127.0.0.1"))}}
 }
 func testBase(host string) base.Settings {
 	testDict := newTestDictionary(creditcontrol.Dictionary())

@@ -61,7 +61,8 @@ var (
 // With watchdog enabled, Client handles DWA on its connections first.
 // For custom connections whose LocalAddr is neither a TCP nor SCTP address,
 // LocalAddr.String must contain literal IP addresses. An unparseable host
-// causes the capability exchange handshake to fail.
+// causes the capability exchange handshake to fail. Configure Settings.HostIPAddresses
+// explicitly when the transport cannot supply usable IP addresses.
 type Client struct {
 	Dict               *dict.Parser  // Selected parser; nil uses the shared, initially base-only dict.Default
 	Handler            *StateMachine // Message handler
@@ -158,7 +159,7 @@ type activityHandler struct {
 	*StateMachine
 	activity *watchdogActivity
 	cea      func(diam.Conn, *diam.Message) (diam.ProtocolErrorKind, uint32)
-	dwa      diam.Handler
+	dwa      watchdogDWAHandler
 }
 
 func (h activityHandler) ServeDIAM(c diam.Conn, m *diam.Message) {
@@ -180,8 +181,9 @@ func (h activityHandler) ServeDIAM(c diam.Conn, m *diam.Message) {
 		return
 	}
 	// RFC 3539 §3.4.1 [2]: any received AAA message resets Tw.
-	if !h.activity.stopped.Load() {
-		h.activity.receivedMessage(m)
+	var receipt watchdogReceipt
+	if h.dwa != nil && !h.activity.stopped.Load() {
+		receipt = h.activity.receivedMessage(m)
 	}
 	// RFC 6733 §5.3: CEA completes the CER exchange on this connection.
 	// Do not publish its result through the shared state-machine mux.
@@ -208,7 +210,7 @@ func (h activityHandler) ServeDIAM(c diam.Conn, m *diam.Message) {
 	// Keep its handler with that connection instead of replacing a handler on
 	// the shared state-machine mux on every Dial.
 	if h.dwa != nil && isBaseDWA(m) {
-		h.dwa.ServeDIAM(c, m)
+		h.dwa(c, m, receipt)
 		return
 	}
 	h.StateMachine.ServeDIAM(c, m)
@@ -370,20 +372,26 @@ func (cli *Client) server(network, addr string, laddr net.Addr, activity *watchd
 				return processCEA(cli.Handler, activity, c, m)
 			}}
 		if cli.EnableWatchdog {
-			h.dwa = handshakeOK(diam.HandlerFunc(func(c diam.Conn, m *diam.Message) {
+			h.dwa = watchdogDWAHandler(func(c diam.Conn, m *diam.Message, receipt watchdogReceipt) {
+				if !admittedPeer(c) {
+					activity.finishDWA(receipt, false)
+					handshakeOK(nil).ServeDIAM(c, m)
+					return
+				}
 				activity.publicationMu.Lock()
 				if activity.stopped.Load() || c.Closed() {
 					activity.publicationMu.Unlock()
+					activity.finishDWA(receipt, false)
 					return
 				}
-				kind, code := processDWA(c, m, &activity.watchdogSignals, func(c diam.Conn, event WatchdogEvent) {
+				kind, code := processDWAReceipt(c, m, &activity.watchdogSignals, func(c diam.Conn, event WatchdogEvent) {
 					cli.emitWatchdog(c, event)
-				})
+				}, receipt)
 				activity.publicationMu.Unlock()
 				if kind != "" {
 					cli.Handler.protocolError(c, m, kind, code, false, diam.ProtocolReplyNone, 0)
 				}
-			}))
+			})
 		}
 		handler = h
 	}
@@ -493,7 +501,7 @@ func (cli *Client) handshakeContext(ctx context.Context, c diam.Conn, activity *
 			conn, err = nil, ctx.Err()
 		}
 		if err == nil && cli.EnableWatchdog {
-			go cli.watchdog(c, activity.dwac, activity)
+			go cli.watchdog(c, activity)
 		}
 	}()
 	if err := ctx.Err(); err != nil {
@@ -656,16 +664,17 @@ func (cli *Client) nextWatchdogInterval() time.Duration {
 	return jitteredTw(cli.WatchdogInterval, jitter)
 }
 
-func (cli *Client) watchdog(c diam.Conn, dwac chan struct{}, activity *watchdogActivity) {
+func (cli *Client) watchdog(c diam.Conn, activity *watchdogActivity) {
 	notifier, ok := diam.ConnAs[diam.CloseNotifier](c)
 	if !ok {
+		activity.latchStop()
 		logMessage(c, nil, slog.LevelWarn, "sm: watchdog disabled: connection does not expose CloseNotifier", nil)
 		return
 	}
 	disconnect := notifier.CloseNotify()
 	var osid = uint32(cli.Handler.cfg.OriginStateID)
 	w := connWatchdog{
-		conn: c, done: disconnect, stop: activity.stopc, signals: &activity.watchdogSignals, dwac: dwac,
+		conn: c, done: disconnect, stop: activity.stopc, signals: &activity.watchdogSignals,
 		interval: cli.nextWatchdogInterval,
 		send:     func() bool { return cli.dwr(c, osid, &activity.watchdogSignals) },
 		observe: func(event WatchdogEvent) {
@@ -788,22 +797,14 @@ func getLocalAddresses(c diam.Conn) ([]datatype.Address, error) {
 			ips = append(ips, ip)
 		}
 	}
-	// RFC 6733 §5.3.5 requires the host's addresses in Host-IP-Address.
-	// Preserve the existing loopback preference when other addresses exist.
+	// RFC 6733 §5.3.5: advertise every address that may be an SCTP source,
+	// including loopback. An unspecified bind address is not a source address.
 	addresses := make([]datatype.Address, 0, len(ips))
-	var loopback netip.Addr
 	for _, ip := range ips {
-		if !ip.IsValid() {
-			continue
-		}
-		if ip.IsLoopback() {
-			loopback = ip
-		} else {
+		ip = ip.Unmap()
+		if ip.IsValid() && !ip.IsUnspecified() {
 			addresses = append(addresses, datatype.AddressFromIP(ip))
 		}
-	}
-	if len(addresses) == 0 && loopback.IsValid() {
-		addresses = append(addresses, datatype.AddressFromIP(loopback))
 	}
 	return addresses, nil
 }

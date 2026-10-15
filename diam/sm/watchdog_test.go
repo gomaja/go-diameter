@@ -39,7 +39,6 @@ func startLoopWatchdog(t *testing.T) *loopWatchdogProbe {
 		done:     p.conn.closed,
 		stop:     p.stop,
 		signals:  p.signals,
-		dwac:     p.signals.dwac,
 		interval: func() time.Duration { return loopWatchdogTw },
 		send: func() bool {
 			_, _ = p.conn.Write(nil)
@@ -139,7 +138,7 @@ func TestConnWatchdogDWAClearsPending(t *testing.T) {
 		time.Sleep(loopWatchdogTw)
 		synctest.Wait()
 		p.wantEvent(t, WatchdogRequestSent)
-		p.signals.dwac <- struct{}{}
+		p.signals.finishDWA(watchdogReceipt{}, true)
 		synctest.Wait()
 		time.Sleep(loopWatchdogTw)
 		synctest.Wait()
@@ -170,13 +169,13 @@ func TestConnWatchdogBoundaryTrafficWins(t *testing.T) {
 		// watchdog goroutine receives from timer.C. Preloading that timestamp
 		// makes this tie deterministic instead of racing two timer callbacks.
 		signals := newWatchdogSignals()
-		signals.last.Store(time.Now().Add(loopWatchdogTw).UnixNano())
+		signals.activity = watchdogReceipt{at: time.Now().Add(loopWatchdogTw), healthy: true}
 		p := &loopWatchdogProbe{
 			conn: newWatchdogProbeConn(), signals: &signals,
 			events: make(chan WatchdogEvent, 4), stop: make(chan struct{}), exited: make(chan struct{}),
 		}
 		w := connWatchdog{
-			conn: p.conn, done: p.conn.closed, stop: p.stop, signals: &signals, dwac: signals.dwac,
+			conn: p.conn, done: p.conn.closed, stop: p.stop, signals: &signals,
 			interval: func() time.Duration { return loopWatchdogTw },
 			send: func() bool {
 				_, _ = p.conn.Write(nil)

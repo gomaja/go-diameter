@@ -389,10 +389,11 @@ func (sm *StateMachine) ServeDIAM(c diam.Conn, m *diam.Message) {
 		return
 	}
 	w := sm.supervised(c)
+	var receipt watchdogReceipt
 	if w != nil && !sm.isClosing(c) {
 		// RFC 3539 §3.4.1 [2]: received traffic resets Tw even when
 		// subsequent request or AVP validation rejects the message.
-		w.received(m)
+		receipt = w.received(m)
 	}
 	if baseErr := base.ValidateMessage(m); baseErr != nil && (w == nil || !isBaseDWA(m)) {
 		sm.rejectBaseMessage(c, m, baseErr)
@@ -419,7 +420,7 @@ func (sm *StateMachine) ServeDIAM(c diam.Conn, m *diam.Message) {
 	}
 	if w != nil && isBaseDWA(m) {
 		// RFC 6733 §5.6: R-Open / R-Rcv-DWA -> Process-DWA.
-		w.dwa.ServeDIAM(c, m)
+		w.dwa(c, m, receipt)
 		return
 	}
 	if h, ok := sm.mux.Handler(m); ok {

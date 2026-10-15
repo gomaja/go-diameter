@@ -53,7 +53,7 @@ func TestAcceptedWatchdogClosingDWA(t *testing.T) {
 					t.Errorf("watchdog event after stopWatchdog returned: %s", got.event)
 				default:
 				}
-				if len(w.signals.dwac) != 0 {
+				if queuedWatchdogCredits(&w.signals) != 0 {
 					t.Error("DWA after stopWatchdog returned credited Pending")
 				}
 				for _, record := range logs.Records() {
@@ -116,13 +116,12 @@ func TestConnWatchdogClosingTimer(t *testing.T) {
 				signals := newWatchdogSignals()
 				stop := make(chan struct{})
 				w := connWatchdog{
-					conn: c, stop: stop, signals: &signals, dwac: signals.dwac,
+					conn: c, stop: stop, signals: &signals,
 					send: func() bool { t.Error("timer sent DWR after stop"); return true },
 					observe: func(event WatchdogEvent) {
 						t.Errorf("timer emitted %s after stop", event)
 					},
 				}
-				armedAt := time.Now()
 				timer := time.NewTimer(loopWatchdogTw)
 				defer timer.Stop()
 				time.Sleep(loopWatchdogTw)
@@ -131,13 +130,13 @@ func TestConnWatchdogClosingTimer(t *testing.T) {
 					signals.received()
 				}
 				if tc.answer {
-					signals.dwac <- struct{}{}
+					signals.finishDWA(watchdogReceipt{}, true)
 				}
 				// Timer and stop are ready at the same virtual instant. Force
 				// the timer branch rather than depend on select's random choice.
 				<-timer.C
 				state := tc.state
-				if w.expire(armedAt, &state) {
+				if w.expire(&state) {
 					t.Error("timer rearmed after stop")
 				}
 				// RFC 6733 §5.6: stop wins even over pending recovery or DOWN.
@@ -147,7 +146,7 @@ func TestConnWatchdogClosingTimer(t *testing.T) {
 				if c.Closed() {
 					t.Error("timer closed transport after stop")
 				}
-				if tc.answer && len(signals.dwac) != 1 {
+				if tc.answer && queuedWatchdogCredits(&signals) != 1 {
 					t.Error("timer consumed queued DWA after stop")
 				}
 			})

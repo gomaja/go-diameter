@@ -612,10 +612,8 @@ func TestAcceptedRetirementSuppressesDWACredit(t *testing.T) {
 	defer w.stop()
 	c.closed.Store(true)
 	w.dwa.ServeDIAM(c, acceptedDWA(t, regressionDWR(t), diam.Success))
-	select {
-	case <-w.signals.dwac:
+	if queuedWatchdogCredits(&w.signals) != 0 {
 		t.Fatal("retired generation credited DWA")
-	default:
 	}
 	select {
 	case event := <-events:

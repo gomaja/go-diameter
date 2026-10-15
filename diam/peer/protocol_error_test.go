@@ -549,7 +549,7 @@ func TestProtocolErrorManagerConcurrentCallbacks(t *testing.T) {
 	}
 }
 
-func TestProtocolErrorManagerLocalFailuresAreNotProtocolErrors(t *testing.T) {
+func TestProtocolErrorManagerLocalReplyFailures(t *testing.T) {
 	for _, tc := range []struct {
 		name, operation string
 		enqueue         bool
@@ -598,8 +598,12 @@ func TestProtocolErrorManagerLocalFailuresAreNotProtocolErrors(t *testing.T) {
 			}
 			assertFailureRecord(t, records, slog.LevelError, "peer: "+tc.operation+" failed; closing connection", s.c.RemoteAddr().String(), cause)
 			assertFailureEvents(t, a, []PeerState{Closed, Closed}, []WatchdogState{WatchdogInitial, WatchdogInitial}, []string{"", "peer: " + tc.operation + ":"})
-			if len(events) != 0 {
-				t.Fatalf("local failure notified as protocol error: %+v", events)
+			if tc.name == "DWA enqueue" || tc.name == "CEA build" {
+				if len(events) != 1 || !errors.Is(events[0].Err, diam.ProtocolReplyFailure) || !events[0].Closing || events[0].Reply != diam.ProtocolReplyFailed || events[0].ReplyCode != diam.Success {
+					t.Fatalf("required reply failure notification: %+v", events)
+				}
+			} else if len(events) != 0 {
+				t.Fatalf("request publication failure produced reply notification: %+v", events)
 			}
 		})
 	}

@@ -34,14 +34,16 @@ func handleDWR(sm *StateMachine) diam.HandlerFunc {
 		a, err := base.BuildDWA(m, baseSettings(sm.cfg))
 		if err != nil {
 			logMessage(c, m, slog.LevelError, "sm: DWA failed", err)
+			sm.requiredReplyFailed(c, m, diam.Success)
 			return
 		}
 		if sm.cfg.OnDWA != nil {
 			sm.cfg.OnDWA(c, a)
 		}
-		_, err = a.WriteTo(c)
+		err = writeRequiredReply(c, a)
 		if err != nil {
 			logMessage(c, m, slog.LevelError, "sm: DWA failed", err)
+			sm.requiredReplyFailed(c, m, protocolAnswerCode(a))
 		}
 	}
 }

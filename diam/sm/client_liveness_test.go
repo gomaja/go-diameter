@@ -259,7 +259,7 @@ func TestWatchdogWriteErrorStopsRetrying(t *testing.T) {
 
 	done := make(chan struct{})
 	go func() {
-		cli.watchdog(c, make(chan struct{}), newWatchdogActivity())
+		cli.watchdog(c, newWatchdogActivity())
 		close(done)
 	}()
 

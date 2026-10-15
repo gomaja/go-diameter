@@ -15,6 +15,9 @@ type protocolDelivery struct {
 	done          chan struct{}
 	once          sync.Once
 	notifications []diam.ProtocolErrorEvent
+	replyMu       sync.Mutex
+	delivered     bool
+	failedReply   *diam.ProtocolErrorEvent
 }
 
 func newProtocolDelivery() *protocolDelivery { return &protocolDelivery{done: make(chan struct{})} }
@@ -23,6 +26,31 @@ func (d *protocolDelivery) deliver(m *Manager) {
 	for _, notification := range d.notifications {
 		m.HandleProtocolError(notification)
 	}
+	d.replyMu.Lock()
+	d.delivered = true
+	failed := d.failedReply
+	d.failedReply = nil
+	d.replyMu.Unlock()
+	if failed != nil {
+		m.HandleProtocolError(*failed)
+	}
+}
+
+// A receive decision admits at most one required reply. Its writer can finish
+// before admission reporting starts, or while the admission observer is blocked.
+// Retain that completion without blocking the writer or calling an observer
+// under a lock; Queued must finish reporting before Failed starts reporting.
+func (d *protocolDelivery) replyFailed(m *Manager, event *diam.ProtocolErrorEvent) {
+	if d != nil {
+		d.replyMu.Lock()
+		if !d.delivered {
+			d.failedReply = event
+			d.replyMu.Unlock()
+			return
+		}
+		d.replyMu.Unlock()
+	}
+	m.HandleProtocolError(*event)
 }
 
 type retirementCommand struct {
