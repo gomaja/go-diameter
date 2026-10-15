@@ -22,7 +22,7 @@ type physicalConn struct {
 	rwc, original      net.Conn
 	reader             *bufio.Reader
 	sr                 *liveSwitchReader
-	writeGate          chan struct{}
+	writeGate          writeGate
 	writeFailed        atomic.Bool
 	tlsRestart         atomic.Bool
 	mu                 sync.Mutex
@@ -140,20 +140,24 @@ func (w *response) writeError() error {
 	}
 	return nil
 }
-func (w *response) lockWrite() error {
+func (w *response) lockWrite() error { return w.lockWriteRequest(nil) }
+
+func (w *response) lockWriteRequest(b []byte) error {
 	// Check ownership again after acquiring the common lock: a writer queued
 	// before retirement cannot publish into a new generation.
 	if err := w.writeError(); err != nil {
 		return err
 	}
-	<-w.conn.owner.writeGate
+	if err := w.conn.owner.writeGate.lock(w.requestPublication(b)); err != nil {
+		return err
+	}
 	if err := w.writeError(); err != nil {
 		w.unlockWrite()
 		return err
 	}
 	return nil
 }
-func (w *response) unlockWrite() { w.conn.owner.writeGate <- struct{}{} }
+func (w *response) unlockWrite() { w.conn.owner.writeGate.unlock() }
 
 func (c *conn) waitAdmission(until time.Time) bool {
 	for {
@@ -225,24 +229,18 @@ func (c *conn) renew(reason RetirementReason, restart *TransportRestartError) *c
 	}
 	// Quiesce previously started writes. Deadlines are internal transport
 	// operations; no optional ConnWriteDeadline API is needed by this owner.
-	select {
-	case <-p.writeGate:
-	default:
+	if acquired, _, _ := p.writeGate.attempt(nil); !acquired {
 		if err := p.rwc.SetWriteDeadline(time.Now()); err != nil {
 			return fail(err)
 		}
-		timer := time.NewTimer(time.Until(until))
-		select {
-		case <-p.writeGate:
-			timer.Stop()
-		case <-timer.C:
+		if !p.writeGate.lockUntil(until) {
 			return fail(fmt.Errorf("write quiescence timeout"))
 		}
 	}
 	locked := true
 	defer func() {
 		if locked {
-			p.writeGate <- struct{}{}
+			p.writeGate.unlock()
 		}
 	}()
 	if _, multi := p.rwc.(MultistreamConn); !multi && p.writeFailed.Load() {
@@ -304,7 +302,7 @@ func (c *conn) renew(reason RetirementReason, restart *TransportRestartError) *c
 	c.endDispatch()
 	// Release the writer before hooks: HandleAccept/OnConnectionRestart may
 	// perform immediate connection operations, including Close.
-	p.writeGate <- struct{}{}
+	p.writeGate.unlock()
 	locked = false
 	next.accept()
 	if hook := c.server.OnConnectionRestart; hook != nil {

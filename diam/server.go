@@ -198,8 +198,7 @@ func (c *conn) notifyClientGone() {
 
 // newConn wraps rwc in a connection served by srv.
 func (srv *Server) newConn(rwc net.Conn) *conn {
-	p := &physicalConn{server: srv, rwc: rwc, original: rwc, writeGate: make(chan struct{}, 1), done: make(chan struct{}), shutdownDone: make(chan struct{})}
-	p.writeGate <- struct{}{}
+	p := &physicalConn{server: srv, rwc: rwc, original: rwc, done: make(chan struct{}), shutdownDone: make(chan struct{})}
 	c := p.newGeneration(nil)
 	p.current = c
 	if _, ok := rwc.(*tls.Conn); ok {
@@ -539,24 +538,25 @@ func (c *conn) dictionary() *dict.Parser {
 // A response represents the server side of a diameter response.
 // It implements the Conn and CloseNotifier interfaces.
 type response struct {
-	conn *conn           // socket, reader and writer
-	xmu  sync.Mutex      // guards ctx
-	ctx  context.Context // context for this Conn
+	conn     *conn           // socket, reader and writer
+	xmu      sync.Mutex      // guards ctx
+	ctx      context.Context // context for this Conn
+	requests atomic.Pointer[PendingRequests]
 }
 
 // Write writes the message m to the connection.
 func (w *response) Write(b []byte) (int, error) {
-	if err := w.lockWrite(); err != nil {
+	if err := w.lockWriteRequest(b); err != nil {
 		return 0, err
 	}
 	defer w.unlockWrite()
-	return w.writeLocked(b)
+	return w.writeLocked(b, 0, false)
 }
 
-// writeLocked performs the write with the physical writer lock held.
-// Serializes access to the underlying (TCP or SCTP) connection so
-// concurrently-dispatched handlers do not interleave bytes.
-func (w *response) writeLocked(b []byte) (int, error) {
+// writeLocked writes a complete frame while owning the physical write gate.
+// bufio caches transport failures: no later frame may follow a partial prefix
+// on a byte stream (RFC 6733 §3).
+func (w *response) writeLocked(b []byte, stream uint, explicitStream bool) (int, error) {
 	if w.conn.server.WriteTimeout > 0 {
 		if err := w.conn.rwc.SetWriteDeadline(time.Now().Add(w.conn.server.WriteTimeout)); err != nil {
 			return 0, err
@@ -566,41 +566,30 @@ func (w *response) writeLocked(b []byte) (int, error) {
 	if err := w.writeError(); err != nil {
 		return 0, err
 	}
-	msc, isMulti := w.conn.rwc.(MultistreamConn)
-	if isMulti { // don't use buffered writer for multistream writes; it mixes streams
+	if msc, ok := w.conn.rwc.(MultistreamConn); ok {
+		if explicitStream {
+			return msc.WriteStream(b, stream)
+		}
 		return msc.Write(b)
 	}
 	n, err := w.conn.buf.Write(b)
-	if err != nil {
-		w.conn.owner.writeFailed.Store(true)
-		return 0, err
+	if err == nil {
+		err = w.conn.buf.Flush()
 	}
-	if err = w.conn.buf.Flush(); err != nil {
+	if err != nil {
 		w.conn.owner.writeFailed.Store(true)
 		return 0, err
 	}
 	return n, nil
 }
 
-// WriteStream of MultistreamWriter interface
+// WriteStream of MultistreamWriter interface.
 func (w *response) WriteStream(b []byte, stream uint) (int, error) {
-	if err := w.lockWrite(); err != nil {
+	if err := w.lockWriteRequest(b); err != nil {
 		return 0, err
 	}
 	defer w.unlockWrite()
-	if w.conn.server.WriteTimeout > 0 {
-		if err := w.conn.rwc.SetWriteDeadline(time.Now().Add(w.conn.server.WriteTimeout)); err != nil {
-			return 0, err
-		}
-	}
-	if err := w.writeError(); err != nil {
-		return 0, err
-	}
-	if msc, isMulti := w.conn.rwc.(MultistreamConn); isMulti {
-		// Buffered writes would mix bytes from different streams.
-		return msc.WriteStream(b, stream)
-	}
-	return w.writeLocked(b)
+	return w.writeLocked(b, stream, true)
 }
 
 // CurrentWriterStream of MultistreamWriter interface

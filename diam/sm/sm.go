@@ -284,6 +284,7 @@ type StateMachine struct {
 	accepted      sync.Map // diam.Conn -> *acceptedHandshake
 	watchdog      *watchdogPolicy
 	watchdogs     sync.Map // diam.Conn -> *acceptedWatchdog
+	connections   sync.Map // diam.Conn -> *closingConnection
 }
 
 type acceptedHandshake struct {
@@ -361,6 +362,11 @@ func (sm *StateMachine) ServeDIAM(c diam.Conn, m *diam.Message) {
 	if lifecycle, ok := diam.ConnAs[diam.ConnLifecycle](c); ok && lifecycle.RetirementReason() != 0 {
 		return
 	}
+	closing := sm.isClosing(c)
+	if closing && !sm.allowedWhileClosing(c, m) {
+		return
+	}
+	pendingRequests(c)
 	if headerErr := base.ValidateHeader(m); headerErr != nil {
 		logMessage(c, m, slog.LevelWarn, "sm: invalid message header", headerErr)
 		_ = sm.HandleMessageError(c, m, headerErr)
@@ -373,7 +379,7 @@ func (sm *StateMachine) ServeDIAM(c diam.Conn, m *diam.Message) {
 		return
 	}
 	w := sm.supervised(c)
-	if w != nil {
+	if w != nil && !sm.isClosing(c) {
 		// RFC 3539 §3.4.1 [2]: received traffic resets Tw even when
 		// subsequent request or AVP validation rejects the message.
 		w.received(m)
@@ -391,6 +397,10 @@ func (sm *StateMachine) ServeDIAM(c diam.Conn, m *diam.Message) {
 		if failed := m.UnknownMandatoryAVPs(); len(failed) != 0 {
 			messageErr := &diam.MessageError{ResultCode: diam.AVPUnsupported}
 			logMessage(c, m, slog.LevelWarn, "sm: unsupported mandatory AVP", messageErr)
+			if closing {
+				sm.protocolError(c, m, diam.ProtocolUnsupportedAVP, diam.AVPUnsupported, false, diam.ProtocolReplyNone, 0)
+				return
+			}
 			// RFC 6733 §7.1.5, Verified Erratum 4615: one Failed-AVP
 			// contains the unsupported AVP(s), including Grouped hierarchy.
 			err := sm.writeErrorAnswer(c, m, diam.AVPUnsupported, failed, false)
@@ -402,6 +412,10 @@ func (sm *StateMachine) ServeDIAM(c diam.Conn, m *diam.Message) {
 	if sm.cfg.ValidateRequests && m.Header.CommandFlags&diam.RequestFlag != 0 {
 		if validationErr := m.Validate(); validationErr != nil {
 			logMessage(c, m, slog.LevelWarn, "sm: invalid request", validationErr)
+			if closing {
+				sm.protocolError(c, m, diam.ProtocolInvalidRequest, validationErr.ResultCode, false, diam.ProtocolReplyNone, 0)
+				return
+			}
 			// RFC 6733 §§7.1, 7.2 and 7.5: only 3xxx protocol errors set E;
 			// send one Failed-AVP container for the first AVP error.
 			var failed []*diam.AVP
@@ -412,6 +426,14 @@ func (sm *StateMachine) ServeDIAM(c diam.Conn, m *diam.Message) {
 			err := sm.writeErrorAnswer(c, m, validationErr.ResultCode, failed, protocolError)
 			closing := sm.closeRejectedCER(c, m, validationErr)
 			sm.protocolError(c, m, diam.ProtocolInvalidRequest, validationErr.ResultCode, closing, protocolReply(err), validationErr.ResultCode)
+			return
+		}
+	}
+	if m.Header.CommandFlags&diam.RequestFlag == 0 &&
+		(m.Header.ApplicationID != 0 || m.Header.CommandCode != diam.DisconnectPeer &&
+			m.Header.CommandCode != diam.DeviceWatchdog && m.Header.CommandCode != diam.CapabilitiesExchange) {
+		matched := completePendingAnswer(c, m)
+		if closing && !matched {
 			return
 		}
 	}
@@ -517,6 +539,20 @@ func (sm *StateMachine) retireAdmission(c diam.Conn, state *acceptedHandshake) {
 // observer already running may finish later with the old Conn; it cannot hold
 // the retirement transaction open.
 func (sm *StateMachine) HandleRetire(c diam.Conn, _ diam.RetirementReason) error {
+	if value, ok := sm.connections.Load(c); ok {
+		state := value.(*closingConnection)
+		state.mu.Lock()
+		state.closing = true
+		if state.timer != nil {
+			state.timer.Stop()
+		}
+		client := state.client
+		state.mu.Unlock()
+		if client != nil {
+			client.stopped.Store(true)
+			client.stopOnce.Do(func() { close(client.stopc) })
+		}
+	}
 	if value, ok := sm.accepted.Load(c); ok {
 		sm.retireAdmission(c, value.(*acceptedHandshake))
 	}

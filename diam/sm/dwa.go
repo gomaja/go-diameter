@@ -53,6 +53,12 @@ func processDWA(c diam.Conn, m *diam.Message, signals *watchdogSignals, observer
 			return diam.ProtocolInvalidDWA, 0
 		}
 		logMessage(c, m, slog.LevelWarn, "sm: rejected DWA", fmt.Errorf("DWA Result-Code %d", dwa.ResultCode))
+		// A valid correlated rejection answers the request without granting
+		// watchdog credit. DPR's in-flight indication tracks answer ownership
+		// separately from Pending (RFC 6733 §5.4; RFC 3539 Appendix A).
+		if validateDWAFields(c, m, false) == nil {
+			completePendingAnswer(c, m)
+		}
 		observe(c, WatchdogInvalidAnswer)
 		return diam.ProtocolRejectedDWA, dwa.ResultCode
 	}
@@ -73,6 +79,7 @@ func processDWA(c diam.Conn, m *diam.Message, signals *watchdogSignals, observer
 		logMessage(c, m, slog.LevelWarn, "sm: unhandled answer discarded", nil)
 		return diam.ProtocolUnexpectedMessage, 0
 	}
+	completePendingAnswer(c, m)
 	select {
 	case signals.dwac <- dwaACK:
 	default:
@@ -82,6 +89,10 @@ func processDWA(c diam.Conn, m *diam.Message, signals *watchdogSignals, observer
 }
 
 func validateSuccessfulDWA(c diam.Conn, m *diam.Message) error {
+	return validateDWAFields(c, m, true)
+}
+
+func validateDWAFields(c diam.Conn, m *diam.Message, success bool) error {
 	// RFC 6733 §§3, 5.5.2, 6.3: singleton result and identities, with
 	// defined flags clear. Receivers ignore reserved command-header bits.
 	if m.Header.CommandFlags&(diam.RequestFlag|diam.ProxiableFlag|diam.ErrorFlag|diam.RetransmittedFlag) != 0 {
@@ -115,7 +126,7 @@ func validateSuccessfulDWA(c diam.Conn, m *diam.Message) error {
 			}
 		case avp.ResultCode:
 			results++
-			if value, ok := a.Data.(datatype.Unsigned32); !ok || uint32(value) != diam.Success {
+			if value, ok := a.Data.(datatype.Unsigned32); !ok || success && uint32(value) != diam.Success {
 				return fmt.Errorf("invalid successful DWA Result-Code")
 			}
 		}

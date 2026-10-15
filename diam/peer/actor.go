@@ -74,6 +74,7 @@ type actor struct {
 	pendingDPRGen     uint64
 	pendingDPRCommand uint32
 	closeCause        sm.DisconnectCause
+	closingWatchdog   bool // unanswered pre-Closing DWR, after watchdog invalidation
 	snapshotValue     atomic.Value
 	activeSession     atomic.Pointer[session]
 
@@ -81,6 +82,7 @@ type actor struct {
 	wdTimer, tcTimer  Timer
 	wdToken, tcToken  uint64
 	pendingWatchdog   bool
+	watchdogAnswered  bool // response ownership, separate from watchdog credit
 	watchdogHop       uint32
 	watchdogEnd       uint32
 	watchdogGen       uint64
@@ -553,6 +555,9 @@ func (a *actor) onWire(e event) {
 			s.meta = meta
 			a.meta = s.meta.Clone()
 			s.releaseControl(s.cerHop)
+			if s.requests != nil {
+				s.requests.MatchAnswer(msg, true)
+			}
 			a.step(iCEA, s, msg)
 			return
 		}
@@ -590,6 +595,19 @@ func (a *actor) onWire(e event) {
 		a.protocolError(s.c, msg, diam.ProtocolHandshakeState, result, true, diam.ProtocolReplyNone, 0)
 		return
 	}
+	// RFC 6733 §5.6: Closing admits disconnect traffic only. The
+	// maintainer's drain policy also admits answers owned by requests already
+	// sent on this generation. Decide before validation, error answers and
+	// watchdog effects; ineligible traffic has no hooks or wire response.
+	if a.state == Closing {
+		if s != a.active {
+			return
+		}
+		disconnect := cmd == diam.DisconnectPeer && msg.Header.ApplicationID == 0
+		if !disconnect && (req || !a.m.matchesPendingAnswer(s, msg)) {
+			return
+		}
+	}
 	if headerErr := base.ValidateHeader(msg); headerErr != nil {
 		a.m.report(s, msg, headerErr)
 		if !req {
@@ -601,6 +619,13 @@ func (a *actor) onWire(e event) {
 		e.messageErr = headerErr
 	}
 	if e.messageErr != nil {
+		if a.state == Closing {
+			// RFC 6733 §5.6: the crossed/repeated DPR policy admits valid
+			// requests only. Preserve decoding diagnostics without an error
+			// answer that would introduce new Closing work.
+			a.protocolError(s.c, msg, diam.ProtocolMalformedMessage, e.messageErr.ResultCode, e.messageErr.Fatal, diam.ProtocolReplyNone, 0)
+			return
+		}
 		// The actor queued CEA before this error answer (RFC 6733 §§5.6, 7).
 		_ = a.m.answerMessageError(s, msg, e.messageErr, a.delivery)
 		return
@@ -635,9 +660,10 @@ func (a *actor) onWire(e event) {
 			}
 			if result != diam.Success {
 				a.m.report(s, msg, fmt.Errorf("peer: DPA Result-Code %d", result))
-				a.protocolError(s.c, msg, diam.ProtocolPeerRejected, result, false, diam.ProtocolReplyNone, 0)
-				return
+				a.protocolError(s.c, msg, diam.ProtocolPeerRejected, result, true, diam.ProtocolReplyNone, 0)
 			}
+			// RFC 6733 §5.4: the DPA receiver initiates transport disconnect,
+			// including a valid unsuccessful answer; preserve its diagnostic.
 			a.pendingDPRGen, a.pendingDPRCommand = 0, 0
 			if isI {
 				s.releaseControl(a.pendingDPR)
@@ -647,7 +673,11 @@ func (a *actor) onWire(e event) {
 				a.step(rDPA, s, msg)
 			}
 		} else if cmd == diam.DisconnectPeer && req && a.validDPR(s, msg) {
+			// Crossed/repeated DPR interoperability policy: answer without
+			// rearming the first Closing deadline (RFC 6733 §5.6).
 			a.answerDPR(s, msg)
+		} else if !req {
+			a.m.receiveClosingAnswer(s, msg)
 		}
 		return
 	}
@@ -727,7 +757,14 @@ func (a *actor) answerDPR(s *session, msg *diam.Message) {
 		a.protocolError(s.c, msg, diam.ProtocolInvalidDPR, 0, false, diam.ProtocolReplyNone, 0)
 		return
 	}
-	dpa, err := base.BuildDPA(msg, a.m.baseSettings(s.c))
+	result := uint32(diam.Success)
+	if a.closingWatchdog || a.m.hasInFlightRequests(s) {
+		// RFC 6733 §5.4 recommends an error for likely in-flight messages.
+		// §7.1.5's DIAMETER_UNABLE_TO_COMPLY (5012) covers this unspecified
+		// rejection; no invalid AVP or unsupported command is implicated.
+		result = diam.UnableToComply
+	}
+	dpa, err := base.BuildDPAResult(msg, a.m.baseSettings(s.c), result)
 	if err == nil {
 		err = s.send(dpa, false)
 	}
@@ -767,6 +804,9 @@ func (a *actor) stop(cause sm.DisconnectCause) {
 		a.dialCancel()
 	}
 	a.stopReconnect()
+	if a.state == IOpen || a.state == ROpen {
+		a.closingWatchdog = a.active != nil && a.pendingWatchdog && !a.watchdogAnswered && a.watchdogGen == a.active.gen
+	}
 	a.stopWatchdog()
 	if a.state == Closed {
 		return
@@ -788,6 +828,21 @@ func (a *actor) step(ev psmEvent, s *session, msg *diam.Message) {
 	}
 	old := a.state
 	a.state = row.next
+	if a.state == Closing && old != Closing && s != nil {
+		// Keep the in-flight decision after stopWatchdog invalidates its
+		// probe credit; a DWR sent before Closing still awaits an answer.
+		a.closingWatchdog = a.closingWatchdog || a.pendingWatchdog && !a.watchdogAnswered && a.watchdogGen == s.gen
+		// RFC 6733 §5.6: publish Closing admission before DPR/DPA effects.
+		// The pending lock fences Send reservations against this transition.
+		a.m.closeAdmission(s)
+		if s.requests != nil && a.closingWatchdog {
+			// Queuing DWR precedes native write-gate admission. RFC 6733
+			// §5.4's in-flight decision uses that shared Closing boundary.
+			answer := &diam.Message{Header: &diam.Header{CommandCode: diam.DeviceWatchdog,
+				HopByHopID: a.watchdogHop, EndToEndID: a.watchdogEnd}}
+			a.closingWatchdog = s.requests.MatchAnswer(answer, false)
+		}
+	}
 	if old == Closing && a.state != Closing {
 		a.pendingDPRGen, a.pendingDPRCommand = 0, 0
 	}
@@ -935,6 +990,7 @@ func (a *actor) step(ev psmEvent, s *session, msg *diam.Message) {
 		a.active.admitted.Store(true)
 	}
 	if old != IOpen && old != ROpen && (a.state == IOpen || a.state == ROpen) {
+		a.closingWatchdog = false
 		a.onOpen()
 		if a.state == Closed {
 			return

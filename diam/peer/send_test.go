@@ -15,6 +15,7 @@ import (
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
+	"github.com/gomaja/go-diameter/diam/sm"
 	"github.com/gomaja/go-diameter/diam/sm/smpeer"
 )
 
@@ -839,5 +840,122 @@ func TestOneCompletionAcrossAnswersTimeoutAndCancel(t *testing.T) {
 			default:
 			}
 		})
+	}
+}
+
+func TestManagerClosingUnsentReservationFailsOver(t *testing.T) {
+	m, actors, sessions := outboundTestManager(t)
+	m.cfg.Clock = &fakeClock{}
+	if err := m.SetRoutes([]Route{{Realm: "example.net", ApplicationID: 4, PeerHosts: []datatype.DiameterIdentity{"a.example.net", "b.example.net"}}}); err != nil {
+		t.Fatal(err)
+	}
+	result := sendAsync(m, context.Background(), outboundRequest("", "example.net"))
+	unsent := nextWrite(t, sessions[0])
+	actors[0].stop(sm.DisconnectRebooting)
+	alternate := nextWrite(t, sessions[1])
+	if alternate.Header.EndToEndID != unsent.Header.EndToEndID || alternate.Header.HopByHopID == unsent.Header.HopByHopID || alternate.Header.CommandFlags&diam.RetransmittedFlag == 0 {
+		t.Fatalf("unsent failover changed retry semantics: %+v", alternate.Header)
+	}
+	m.pendingMu.Lock()
+	remaining := len(m.pending[sessions[0]])
+	m.pendingMu.Unlock()
+	if remaining != 0 {
+		t.Fatal("Closing retained unsent original reservation")
+	}
+	m.receiveAnswer(sessions[1], alternate.Answer(diam.Success))
+	select {
+	case got := <-result:
+		if got.err != nil || got.answer == nil {
+			t.Fatalf("unsent failover did not complete: %+v", got)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("unsent failover stranded logical request")
+	}
+}
+
+// A rejected first publication is an unsent leg, not transport failure. The
+// writer must continue serving disconnect traffic while earlier requests drain.
+type closingRejectedWriteConn struct {
+	*fakeConn
+	requests         *diam.PendingRequests
+	entered, release chan struct{}
+	wire             chan []byte
+	applications     atomic.Int32
+}
+
+func (c *closingRejectedWriteConn) WriteStream(b []byte, _ uint) (int, error) {
+	var header diam.Header
+	if err := header.DecodeFromBytes(b); err != nil {
+		return 0, err
+	}
+	if header.ApplicationID != 0 && header.CommandFlags&diam.RequestFlag != 0 {
+		if c.applications.Add(1) == 2 {
+			close(c.entered)
+			<-c.release
+			return 0, diam.ErrConnectionClosing
+		}
+		// This test transport's positive write is immediate; register its
+		// completed publication before exposing the emitted frame to the peer.
+		c.requests.BeginWrite(b)(true)
+	}
+	c.wire <- append([]byte(nil), b...)
+	return len(b), nil
+}
+
+func TestManagerClosingPublicationRejectionKeepsSentRequest(t *testing.T) {
+	m, actors, sessions := outboundTestManager(t)
+	m.cfg.Clock = &fakeClock{}
+	s := sessions[0]
+	c := &closingRejectedWriteConn{fakeConn: newFakeConn(), requests: new(diam.PendingRequests), entered: make(chan struct{}), release: make(chan struct{}), wire: make(chan []byte, 4)}
+	s.c, s.requests = c, c.requests
+	m.wg.Add(1)
+	go s.writer()
+	var released atomic.Bool
+	unblock := func() {
+		if released.CompareAndSwap(false, true) {
+			close(c.release)
+		}
+	}
+	t.Cleanup(unblock)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	first := sendAsync(m, ctx, outboundRequest("a.example.net", "example.net"))
+	var sent *diam.Message
+	select {
+	case b := <-c.wire:
+		var err error
+		sent, err = diam.ReadMessage(bytes.NewReader(b), m.dictionary())
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("first application request was not sent")
+	}
+	second := sendAsync(m, ctx, outboundRequest("a.example.net", "example.net"))
+	select {
+	case <-c.entered:
+	case <-time.After(time.Second):
+		t.Fatal("second application request did not reach transport wait")
+	}
+	actors[0].stop(sm.DisconnectRebooting)
+	unblock()
+	select {
+	case b := <-c.wire:
+		dpr, err := diam.ReadMessage(bytes.NewReader(b), m.dictionary())
+		if err != nil || dpr.Header.CommandCode != diam.DisconnectPeer {
+			t.Fatalf("Closing publication rejection lost DPR: msg=%v err=%v", dpr, err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("Closing publication rejection stopped disconnect writer")
+	}
+	if c.Closed() {
+		t.Fatal("Closing publication rejection closed a draining transport")
+	}
+	m.receiveClosingAnswer(s, sent.Answer(diam.Success))
+	if got := <-first; got.err != nil || got.answer == nil {
+		t.Fatalf("publication rejection failed sent request: %+v", got)
+	}
+	if got := <-second; got.answer != nil || !errors.Is(got.err, ErrFailover) {
+		t.Fatalf("unsent rejected request disposition=%+v", got)
 	}
 }

@@ -28,11 +28,13 @@ func jitteredTw(twinit, jitter time.Duration) time.Duration {
 }
 
 type watchdogSignals struct {
-	signal  chan struct{}
-	last    atomic.Int64
-	healthy atomic.Bool
-	dwac    chan struct{}
-	request atomic.Pointer[diam.Header]
+	publicationMu *sync.Mutex // dialed per-connection publication and credit
+	stopped       atomic.Bool // dialed logical Closing; publication and credit are inert
+	signal        chan struct{}
+	last          atomic.Int64
+	healthy       atomic.Bool
+	dwac          chan struct{}
+	request       atomic.Pointer[diam.Header]
 }
 
 func newWatchdogSignals() watchdogSignals {

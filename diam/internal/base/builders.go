@@ -174,7 +174,13 @@ func BuildDPR(dictionary *dict.Parser, cfg Settings, cause uint32) (*diam.Messag
 
 // BuildDPA constructs the RFC 6733 §5.4.2 success answer.
 func BuildDPA(request *diam.Message, cfg Settings) (*diam.Message, error) {
-	a := request.Answer(diam.Success)
+	return BuildDPAResult(request, cfg, diam.Success)
+}
+
+// BuildDPAResult constructs a DPA with the chosen RFC 6733 §5.4 result and
+// local identities (§5.4.2; Verified Erratum 4887 for §6.2).
+func BuildDPAResult(request *diam.Message, cfg Settings, result uint32) (*diam.Message, error) {
+	a := request.Answer(result)
 	a.Header.CommandFlags = 0
 	a.Header.ApplicationID = 0
 	if _, err := a.NewAVP(avp.OriginHost, avp.Mbit, 0, cfg.OriginHost); err != nil {

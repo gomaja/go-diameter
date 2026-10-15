@@ -159,9 +159,9 @@ func TestClientWatchdogAdapterStateEventsHoldPublicationLock(t *testing.T) {
 		}
 		events := make(chan observation, 8)
 		cli.OnWatchdogEvent = func(event WatchdogEvent) {
-			locked := !cli.watchdogEventMu.TryLock()
+			locked := !activity.publicationMu.TryLock()
 			if !locked {
-				cli.watchdogEventMu.Unlock()
+				activity.publicationMu.Unlock()
 			}
 			events <- observation{event, locked}
 		}

@@ -29,6 +29,8 @@ type pendingAttempt struct {
 	hop        uint32
 	generation uint64
 	writing    bool
+	drain      bool // frozen at Closing; publication cannot create later eligibility
+	write      *diam.RequestWrite
 }
 type pendingRequest struct {
 	msg               *diam.Message
@@ -84,7 +86,7 @@ func (m *Manager) usable(a *actor, app uint32) *session {
 		return nil
 	}
 	s := a.activeSession.Load()
-	if s == nil || s.gen != p.Generation || s.isRetired() {
+	if s == nil || s.gen != p.Generation || s.isRetired() || s.closing.Load() {
 		return nil
 	}
 	select {
@@ -321,6 +323,9 @@ func (m *Manager) reserveAndSend(p *pendingRequest, a *actor, s *session, retran
 		m.failoverSession(s)
 		return nil
 	}
+	if s.afterAdmission != nil {
+		s.afterAdmission()
+	}
 	return nil
 }
 
@@ -335,6 +340,27 @@ func (m *Manager) nextHopIDLocked(s *session, avoid uint32, skipAvoid bool) uint
 	}
 }
 
+func requestAnswerHeader(p *pendingRequest, attempt pendingAttempt) *diam.Message {
+	header := *p.msg.Header
+	header.HopByHopID = attempt.hop
+	header.CommandFlags &^= diam.RequestFlag | diam.RetransmittedFlag
+	return &diam.Message{Header: &header}
+}
+
+// releasePendingLocked removes native ownership with the Manager reservation,
+// including cancellation and failover legs that no longer await an answer.
+func (m *Manager) releasePendingLocked(s *session, p *pendingRequest, attempt pendingAttempt) {
+	if attempt.write != nil {
+		attempt.write.Cancel()
+	} else if s.requests != nil {
+		s.requests.MatchAnswer(requestAnswerHeader(p, attempt), true)
+	}
+	delete(m.pending[s], attempt.hop)
+	if len(m.pending[s]) == 0 {
+		delete(m.pending, s)
+	}
+}
+
 func (m *Manager) complete(p *pendingRequest, answer *diam.Message, err error) {
 	m.pendingMu.Lock()
 	if p.done {
@@ -343,10 +369,7 @@ func (m *Manager) complete(p *pendingRequest, answer *diam.Message, err error) {
 	}
 	p.done = true
 	for s, attempt := range p.entries {
-		delete(m.pending[s], attempt.hop)
-		if len(m.pending[s]) == 0 {
-			delete(m.pending, s)
-		}
+		m.releasePendingLocked(s, p, attempt)
 	}
 	m.pendingMu.Unlock()
 	p.result <- sendResult{answer: answer, err: err}
@@ -378,13 +401,106 @@ func (m *Manager) receiveAnswer(s *session, answer *diam.Message, delivery ...*p
 	}
 	p.done = true
 	for leg, attempt := range p.entries {
-		delete(m.pending[leg], attempt.hop)
-		if len(m.pending[leg]) == 0 {
-			delete(m.pending, leg)
-		}
+		m.releasePendingLocked(leg, p, attempt)
 	}
 	m.pendingMu.Unlock()
 	p.result <- sendResult{answer: answer}
+}
+
+// pendingAnswerLocked applies receiveAnswer's connection/generation/header
+// ownership and the frozen publication boundary: Closing drains requests sent
+// admitted before its latch, excluding queued reservations (RFC 6733 §§3, 5.6, 6.2.1).
+// Caller holds pendingMu; no parser or hook runs here.
+func (m *Manager) pendingAnswerLocked(s *session, answer *diam.Message) *pendingRequest {
+	if s.isRetired() || answer == nil || answer.Header == nil {
+		return nil
+	}
+	p := m.pending[s][answer.Header.HopByHopID]
+	if p == nil || p.done {
+		return nil
+	}
+	_, generation := s.binding()
+	attempt, present := p.entries[s]
+	if !present || !attempt.drain || attempt.generation != generation || !answerMatches(p, answer) {
+		return nil
+	}
+	return p
+}
+
+func (m *Manager) matchesPendingAnswer(s *session, answer *diam.Message) bool {
+	m.pendingMu.Lock()
+	defer m.pendingMu.Unlock()
+	return m.pendingAnswerLocked(s, answer) != nil
+}
+
+// receiveClosingAnswer completes admitted work without producing an unmatched
+// answer hook if cancellation or completion raced with the Closing gate.
+func (m *Manager) receiveClosingAnswer(s *session, answer *diam.Message) {
+	m.pendingMu.Lock()
+	p := m.pendingAnswerLocked(s, answer)
+	if p == nil {
+		m.pendingMu.Unlock()
+		return
+	}
+	p.done = true
+	for leg, attempt := range p.entries {
+		m.releasePendingLocked(leg, p, attempt)
+	}
+	m.pendingMu.Unlock()
+	p.result <- sendResult{answer: answer}
+}
+
+// closeAdmission freezes the drain set before disconnect effects. An unsent
+// reservation follows the same failover path as transport closure, while sent
+// requests keep their existing connection and generation (RFC 6733 §§5.4–5.6).
+func (m *Manager) closeAdmission(s *session) {
+	m.pendingMu.Lock()
+	if s.requests != nil {
+		s.requests.CloseAdmission()
+	}
+	s.closing.Store(true)
+	var unsent []*pendingRequest
+	for hop, p := range m.pending[s] {
+		attempt := p.entries[s]
+		attempt.drain = attempt.writing
+		if s.requests != nil {
+			// Writer selection precedes the native physical write gate. The
+			// connection tracker owns the shared gate/Closing admission decision.
+			attempt.drain = s.requests.MatchAnswer(requestAnswerHeader(p, attempt), false)
+		}
+		p.entries[s] = attempt
+		if p.done || attempt.drain {
+			continue
+		}
+		if attempt.write != nil {
+			attempt.write.Cancel()
+		}
+		delete(m.pending[s], hop)
+		delete(p.entries, s)
+		if !p.failovering && p.current == s {
+			p.failovering = true
+			unsent = append(unsent, p)
+		}
+	}
+	if len(m.pending[s]) == 0 {
+		delete(m.pending, s)
+	}
+	m.pendingMu.Unlock()
+	m.retryRetiredRequests(unsent)
+}
+
+func (m *Manager) hasInFlightRequests(s *session) bool {
+	m.pendingMu.Lock()
+	defer m.pendingMu.Unlock()
+	for _, p := range m.pending[s] {
+		attempt, present := p.entries[s]
+		// Send tracks application work; CER/DWR/DPR use separate controls.
+		// Closing froze this set at native write-gate admission, before its latch.
+		if present && !p.done && attempt.generation == s.gen && attempt.drain {
+			return true
+		}
+	}
+	return false
 }
 
 func answerMatches(p *pendingRequest, answer *diam.Message) bool {
@@ -441,7 +557,9 @@ func (m *Manager) retry(p *pendingRequest) {
 		p.failovering = false
 		// Retirement may have removed this reservation while admission was
 		// in flight. The current retry retains ownership of its next attempt.
-		retryRetired := !p.done && p.current == s && s.isRetired()
+		attempt, attached := p.entries[s]
+		retryRetired := !p.done && p.current == s &&
+			(s.isRetired() || s.closing.Load() && (!attached || !attempt.drain))
 		if retryRetired {
 			p.failovering = true
 		}

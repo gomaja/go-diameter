@@ -46,6 +46,7 @@ func processCEA(sm *StateMachine, activity *watchdogActivity, c diam.Conn, m *di
 	ctx = context.WithValue(ctx, advertisedAppsKey{}, activity.advertised)
 	c.SetContext(smpeer.NewContext(ctx, meta))
 	activity.ceaReceived.Store(true)
+	completePendingAnswer(c, m)
 	callbackReturned := false
 	defer func() {
 		if !callbackReturned {

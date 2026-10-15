@@ -35,14 +35,48 @@ func handleDPR(sm *StateMachine) diam.HandlerFunc {
 			sm.protocolError(c, m, diam.ProtocolInvalidDPR, 0, false, diam.ProtocolReplyNone, 0)
 			return
 		}
-		sm.markAcceptedClosing(c)
+		state := sm.enterClosing(c)
+		state.mu.Lock()
+		first := !state.received
+		state.received = true
+		// A crossed DPR retains the local Disconnect deadline, rather than
+		// installing a shorter receiver timeout (RFC 6733 §5.6).
+		sm.disconnects.mu.Lock()
+		local := sm.disconnects.pending[c] != nil
+		sm.disconnects.mu.Unlock()
+		if first && !local {
+			if _, ok := diam.ConnAs[diam.CloseNotifier](c); ok {
+				timeout := sm.cfg.DPRCloseTimeout
+				if timeout <= 0 {
+					timeout = 5 * time.Second
+				}
+				state.timer = time.AfterFunc(timeout, func() {
+					if c.Closed() {
+						return
+					}
+					c.Close()
+					logMessage(c, m, slog.LevelWarn, "sm: Wait-Returns timeout; closing connection", nil)
+					sm.protocolError(c, nil, diam.ProtocolDisconnectTimeout, 0, true, diam.ProtocolReplyNone, 0)
+				})
+			}
+		}
+		state.mu.Unlock()
 		// Publish Closing in arrival order before the reader evaluates a later
 		// CER for renewal. The DPA write and observer need not hold admission.
 		m.BeginDispatch()()
-		sm.stopWatchdog(c) // RFC 6733 §5.6: R-Rcv-DPR enters Closing.
+		if !sm.joinClosingWatchdog(c, nil) {
+			return
+		}
 		// RFC 6733 §§5.4.2, 5.6: send DPA, then wait in Closing for
 		// the initiating peer to close the transport.
-		a, err := base.BuildDPA(m, baseSettings(sm.cfg))
+		result := uint32(diam.Success)
+		if requests := pendingRequests(c); requests != nil && requests.HasPending() {
+			// RFC 6733 §5.4 recommends an error for messages likely in flight.
+			// §7.1.5: 5012 applies when no more specific error describes that
+			// condition. It keeps the normal DPA grammar, without the E bit.
+			result = diam.UnableToComply
+		}
+		a, err := base.BuildDPAResult(m, baseSettings(sm.cfg), result)
 		if err == nil {
 			_, err = a.WriteTo(c)
 		}
@@ -51,24 +85,7 @@ func handleDPR(sm *StateMachine) diam.HandlerFunc {
 			c.Close()
 			return
 		}
-		if notifier, ok := diam.ConnAs[diam.CloseNotifier](c); ok {
-			timeout := sm.cfg.DPRCloseTimeout
-			if timeout <= 0 {
-				timeout = 5 * time.Second
-			}
-			go func() {
-				timer := time.NewTimer(timeout)
-				defer timer.Stop()
-				select {
-				case <-notifier.CloseNotify():
-				case <-timer.C:
-					logMessage(c, m, slog.LevelWarn, "sm: Wait-Returns timeout; closing connection", nil)
-					c.Close()
-					sm.protocolError(c, nil, diam.ProtocolDisconnectTimeout, 0, true, diam.ProtocolReplyNone, 0)
-				}
-			}()
-		}
-		if sm.cfg.OnDPR != nil {
+		if first && sm.cfg.OnDPR != nil {
 			sm.cfg.OnDPR(c, cause)
 		}
 	}
