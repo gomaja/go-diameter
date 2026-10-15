@@ -53,6 +53,7 @@ type session struct {
 	closeOnce         sync.Once
 	cerRequest        *diam.Message
 	cerHop, cerEnd    uint32
+	localApps         []uint32 // applications actually advertised on this connection
 }
 
 func (m *Manager) newSession(c diam.Conn, a *actor, gen uint64, inbound bool) *session {

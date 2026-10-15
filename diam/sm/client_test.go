@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"errors"
 	"log/slog"
 	"net"
 	"net/netip"
@@ -246,8 +247,9 @@ func TestClient_Handshake_FailParseCEA(t *testing.T) {
 		}, Dict: testDict,
 	}
 	_, err := cli.Dial(srv.Addr)
-	if err != smparser.ErrMissingOriginHost {
-		t.Fatal(err)
+	var messageErr *diam.MessageError
+	if !errors.As(err, &messageErr) || messageErr.ResultCode != diam.MissingAVP || messageErr.FailedAVP == nil || messageErr.FailedAVP.Code != avp.OriginHost {
+		t.Fatalf("missing Origin-Host error = %v", err)
 	}
 }
 
@@ -263,6 +265,9 @@ func TestClient_Handshake_FailedResultCode(t *testing.T) {
 			panic(err)
 		}
 		a := m.Answer(diam.NoCommonApplication)
+		mustSMClientAVP(t, a, avp.HostIPAddress, avp.Mbit, 0, localhostAddress)
+		mustSMClientAVP(t, a, avp.VendorID, avp.Mbit, 0, clientSettings.VendorID)
+		mustSMClientAVP(t, a, avp.ProductName, 0, 0, clientSettings.ProductName)
 		mustSMClientAVP(t, a, avp.OriginHost, avp.Mbit, 0, clientSettings.OriginHost)
 		mustSMClientAVP(t, a, avp.OriginRealm, avp.Mbit, 0, clientSettings.OriginRealm)
 		if cer.OriginStateID != nil {

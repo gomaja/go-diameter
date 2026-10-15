@@ -175,7 +175,7 @@ func (h activityHandler) ServeDIAM(c diam.Conn, m *diam.Message) {
 	}
 	// RFC 6733 §§2.5 and 5.5.2: invalid base headers cannot confirm liveness.
 	// StateMachine reports/discards invalid answers and answers invalid requests.
-	if base.ValidateHeader(m) != nil {
+	if base.ValidateHeader(m) != nil && !isCEA {
 		h.StateMachine.ServeDIAM(c, m)
 		return
 	}

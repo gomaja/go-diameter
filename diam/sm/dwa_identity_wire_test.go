@@ -41,12 +41,16 @@ func TestDWABodyAndRecoveryWire(t *testing.T) {
 				valid := false
 				switch scenario {
 				case "missing-host":
+					code = diam.MissingAVP
 					removeWireAVP(answer, avp.OriginHost)
 				case "missing-realm":
+					code = diam.MissingAVP
 					removeWireAVP(answer, avp.OriginRealm)
 				case "missing-result":
+					code = diam.MissingAVP
 					removeWireAVP(answer, avp.ResultCode)
 				case "duplicate-host", "duplicate-realm", "duplicate-result":
+					code = diam.AVPOccursTooManyTimes
 					field := map[string]uint32{"duplicate-host": avp.OriginHost, "duplicate-realm": avp.OriginRealm, "duplicate-result": avp.ResultCode}[scenario]
 					a, _ := answer.FindAVP(field, 0)
 					answer.AddAVP(diam.NewAVP(a.Code, a.Flags, a.VendorID, a.Data))
@@ -54,19 +58,24 @@ func TestDWABodyAndRecoveryWire(t *testing.T) {
 					value := "stranger.example"
 					if scenario == "empty-host" {
 						value = ""
+						code = diam.InvalidAVPValue
 					}
 					setWireIdentity(t, answer, avp.OriginHost, value)
 				case "wrong-realm", "empty-realm":
 					value := "elsewhere.example"
 					if scenario == "empty-realm" {
 						value = ""
+						code = diam.InvalidAVPValue
 					}
 					setWireIdentity(t, answer, avp.OriginRealm, value)
 				case "proxiable":
+					kind, code = diam.ProtocolInvalidHeader, diam.InvalidHDRBits
 					answer.Header.CommandFlags |= diam.ProxiableFlag
 				case "retransmitted":
+					kind, code = diam.ProtocolInvalidHeader, diam.InvalidHDRBits
 					answer.Header.CommandFlags |= diam.RetransmittedFlag
 				case "error":
+					code = diam.InvalidHDRBits
 					answer.Header.CommandFlags |= diam.ErrorFlag
 				case "rejected":
 					a, _ := answer.FindAVP(avp.ResultCode, 0)
@@ -108,7 +117,7 @@ func TestDWABodyAndRecoveryWire(t *testing.T) {
 					// Non-DWA recovers health, while the original probe stays Pending.
 					awaitAcceptedEvent(t, events, WatchdogSuspect, p.conn)
 				} else {
-					if kind != diam.ProtocolUnexpectedMessage {
+					if kind != diam.ProtocolUnexpectedMessage && kind != diam.ProtocolInvalidHeader {
 						awaitAcceptedEvent(t, events, WatchdogInvalidAnswer, p.conn)
 					}
 					select {

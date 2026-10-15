@@ -59,7 +59,7 @@ func tracerStateMachineConn(t *testing.T, timeout time.Duration) (net.Conn, *sm.
 func malformedTracedDWR(t *testing.T, testDict *dict.Parser) (*diam.Message, []byte) {
 	t.Helper()
 	m := diam.NewRequest(diam.DeviceWatchdog, 0, testDict)
-	m.Header.CommandFlags |= diam.ProxiableFlag | diam.RetransmittedFlag
+	m.Header.CommandFlags |= diam.RetransmittedFlag
 	wire, err := m.Serialize()
 	if err != nil {
 		t.Fatal(err)

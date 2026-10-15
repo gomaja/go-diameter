@@ -91,7 +91,8 @@ func TestProtocolErrorCallbackPanicBoundaries(t *testing.T) {
 			}
 			for i := 0; i < count; i++ {
 				var header *diam.Header
-				kind, code := diam.ProtocolInvalidDWR, uint32(0)
+				var kind diam.ProtocolErrorKind
+				var code uint32
 				reply, replyCode := diam.ProtocolReplyNone, uint32(0)
 				if variant == "reader" {
 					wire := (&diam.Header{Version: 1, MessageLength: 28, CommandFlags: diam.RequestFlag, CommandCode: diam.DeviceWatchdog, HopByHopID: uint32(0x86d0 + i), EndToEndID: uint32(0x86e0 + i)}).Serialize()
@@ -106,6 +107,8 @@ func TestProtocolErrorCallbackPanicBoundaries(t *testing.T) {
 				} else if variant != "timer" {
 					h := p.send(t, protocolGenerationInvalidDWR(t, uint32(0x86d0+i)))
 					header = &h
+					protocolGenerationErrorAnswer(t, p.peer, h)
+					kind, code, reply, replyCode = diam.ProtocolInvalidRequest, diam.MissingAVP, diam.ProtocolReplyWritten, diam.MissingAVP
 				} else {
 					kind = diam.ProtocolHandshakeTimeout
 				}
@@ -206,18 +209,24 @@ func TestProtocolErrorCallbacksOverlapOnSameConnection(t *testing.T) {
 				if event.Message.Header.HopByHopID == secondHeader.HopByHopID {
 					header = secondHeader
 				}
-				assertProtocolEvent(t, event, p.conn, &header, diam.ProtocolInvalidDWR, 0, false, diam.ProtocolReplyNone, 0)
+				assertProtocolEvent(t, event, p.conn, &header, diam.ProtocolInvalidRequest, diam.MissingAVP, false, diam.ProtocolReplyWritten, diam.MissingAVP)
 				if seen[header.HopByHopID] {
 					t.Fatalf("duplicate callback for %x", header.HopByHopID)
 				}
 				seen[header.HopByHopID] = true
+			}
+			for range 2 {
+				answer, err := diam.ReadMessage(p.peer, p.conn.Dictionary())
+				if err != nil || !testResultCode(answer, diam.MissingAVP) || !seen[answer.Header.HopByHopID] {
+					t.Fatalf("overlapping callback answer = %v, %v", answer, err)
+				}
 			}
 			if mode == -1 {
 				p.usable(t)
 			}
 			unblock()
 			p.usable(t)
-			if records := p.logs.Records(); len(records) != 2 || records[0].Message != "sm: invalid DWR" || records[1].Message != "sm: invalid DWR" {
+			if records := p.logs.Records(); len(records) != 2 || records[0].Message != "sm: invalid request" || records[1].Message != "sm: invalid request" {
 				t.Fatalf("concurrent logs = %v", records)
 			}
 		})
@@ -238,9 +247,7 @@ func TestProtocolErrorWatchdogCallbackCanStopSupervision(t *testing.T) {
 				cfg.Dict.SetStrict(false)
 				cfg.AuthApplicationID = []*diam.AVP{diam.NewAVP(avp.AuthApplicationID, avp.Mbit, 0, datatype.Unsigned32(1001))}
 				if invalid {
-					// Force the decoded DWA value through Unmarshal's Address
-					// rejection path; undecodable numeric payloads stay Unknown
-					// and currently leave the destination uint32 at zero.
+					// A dictionary/type mismatch must fail the unconditional base type check.
 					if err := cfg.Dict.Load(strings.NewReader(`<diameter><application id="0"><avp name="Result-Code" code="268"><data type="Address"/></avp></application></diameter>`)); err != nil {
 						t.Fatal(err)
 					}
@@ -258,9 +265,11 @@ func TestProtocolErrorWatchdogCallbackCanStopSupervision(t *testing.T) {
 			kind, code, logMessage := diam.ProtocolRejectedDWA, uint32(diam.UnableToComply), "sm: rejected DWA"
 			if invalid {
 				payload = localhostAddress
-				kind, code, logMessage = diam.ProtocolInvalidDWA, 0, "sm: invalid DWA"
+				kind, code, logMessage = diam.ProtocolInvalidDWA, diam.InvalidAVPLength, "sm: invalid DWA"
 			}
 			m.AddAVP(diam.NewAVP(avp.ResultCode, avp.Mbit, 0, payload))
+			m.AddAVP(diam.NewAVP(avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("peer.example")))
+			m.AddAVP(diam.NewAVP(avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("example")))
 			header := p.send(t, m)
 			event := protocolGenerationAwait(t, events)
 			assertProtocolEvent(t, event, p.conn, &header, kind, code, false, diam.ProtocolReplyNone, 0)
@@ -333,7 +342,8 @@ func TestProtocolErrorClassificationIndependentOfLogging(t *testing.T) {
 			})
 			header := p.send(t, protocolGenerationInvalidDWR(t, 0x86aa))
 			event := protocolGenerationAwait(t, p.events)
-			assertProtocolEvent(t, event, p.conn, &header, diam.ProtocolInvalidDWR, 0, false, diam.ProtocolReplyNone, 0)
+			assertProtocolEvent(t, event, p.conn, &header, diam.ProtocolInvalidRequest, diam.MissingAVP, false, diam.ProtocolReplyWritten, diam.MissingAVP)
+			protocolGenerationErrorAnswer(t, p.peer, header)
 			p.usable(t)
 			records := p.logs.Records()
 			if disabled {

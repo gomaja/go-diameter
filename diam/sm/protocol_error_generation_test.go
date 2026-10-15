@@ -101,11 +101,19 @@ func assertProtocolGenerationDWR(t *testing.T, event diam.ProtocolErrorEvent, c 
 	if event.Conn != c || !event.Message.HasHeader || event.Message.Header != header || event.Message.Stream != stream {
 		t.Fatalf("notification metadata = %+v, want Conn %p header %+v stream %d", event, c, header, stream)
 	}
-	if !errors.As(event.Err, &classified) || !errors.Is(event.Err, diam.ProtocolInvalidDWR) || classified.Kind() != diam.ProtocolInvalidDWR || classified.ResultCode() != 0 {
+	if !errors.As(event.Err, &classified) || !errors.Is(event.Err, diam.ProtocolInvalidRequest) || classified.Kind() != diam.ProtocolInvalidRequest || classified.ResultCode() != diam.MissingAVP {
 		t.Fatalf("notification error = %v", event.Err)
 	}
-	if event.Closing || event.Reply != diam.ProtocolReplyNone || event.ReplyCode != 0 {
+	if event.Closing || event.Reply != diam.ProtocolReplyWritten || event.ReplyCode != diam.MissingAVP {
 		t.Fatalf("notification disposition = %+v", event)
+	}
+}
+
+func protocolGenerationErrorAnswer(t *testing.T, peer net.Conn, header diam.Header) {
+	t.Helper()
+	answer, err := diam.ReadMessage(peer, newSMTestDictionary(creditcontrol.Dictionary()))
+	if err != nil || answer.Header.CommandCode != header.CommandCode || answer.Header.HopByHopID != header.HopByHopID || answer.Header.EndToEndID != header.EndToEndID || !testResultCode(answer, diam.MissingAVP) {
+		t.Fatalf("missing-AVP error answer = %v, %v", answer, err)
 	}
 }
 
@@ -134,6 +142,7 @@ func TestProtocolErrorGenerationRenewal(t *testing.T) {
 	firstHeader := protocolGenerationWrite(t, w.peer, protocolGenerationInvalidDWR(t, 0x8601))
 	first := protocolGenerationAwait(t, events)
 	assertProtocolGenerationDWR(t, first, old, firstHeader, 0)
+	protocolGenerationErrorAnswer(t, w.peer, firstHeader)
 	w.validDWR(t, old)
 	next := w.handshake(t, "second.example", 1002, 222)
 	pair := protocolGenerationAwait(t, w.restarts)
@@ -143,6 +152,7 @@ func TestProtocolErrorGenerationRenewal(t *testing.T) {
 	secondHeader := protocolGenerationWrite(t, w.peer, protocolGenerationInvalidDWR(t, 0x8602))
 	second := protocolGenerationAwait(t, events)
 	assertProtocolGenerationDWR(t, second, next, secondHeader, 0)
+	protocolGenerationErrorAnswer(t, w.peer, secondHeader)
 	assertProtocolGenerationDWR(t, first, old, firstHeader, 0)
 	w.validDWR(t, next)
 	select {
@@ -150,11 +160,11 @@ func TestProtocolErrorGenerationRenewal(t *testing.T) {
 		t.Fatalf("successful exchange emitted %+v", event)
 	default:
 	}
-	logs := w.logs.RecordsWithMessage("sm: invalid DWR")
+	logs := w.logs.RecordsWithMessage("sm: invalid request")
 	if len(logs) != 2 || logs[0].Level != slog.LevelWarn || logs[1].Level != slog.LevelWarn {
 		t.Fatalf("invalid DWR logs = %v", logs)
 	}
-	if records := w.logs.Records(); len(records) != 3 || records[0].Message != "sm: invalid DWR" || records[1].Message != "diam: accepted connection renewed" || records[1].Level != slog.LevelInfo || records[2].Message != "sm: invalid DWR" {
+	if records := w.logs.Records(); len(records) != 3 || records[0].Message != "sm: invalid request" || records[1].Message != "diam: accepted connection renewed" || records[1].Level != slog.LevelInfo || records[2].Message != "sm: invalid request" {
 		t.Fatalf("unexpected records before close: %v", records)
 	}
 }
@@ -176,6 +186,7 @@ func TestProtocolErrorGenerationRetirementWhileCallbackBlocks(t *testing.T) {
 	header := protocolGenerationWrite(t, w.peer, protocolGenerationInvalidDWR(t, 0x8610))
 	initial := protocolGenerationAwait(t, entered)
 	assertProtocolGenerationDWR(t, initial, old, header, 0)
+	protocolGenerationErrorAnswer(t, w.peer, header)
 	next := w.handshake(t, "second.example", 1002, 222)
 	pair := protocolGenerationAwait(t, w.restarts)
 	if pair.old != old || pair.next != next || old == next || !old.Closed() || next.Closed() {
@@ -209,6 +220,7 @@ func TestProtocolErrorGenerationMetadataRetention(t *testing.T) {
 	header := protocolGenerationWrite(t, w.peer, m)
 	retained := protocolGenerationAwait(t, events)
 	assertProtocolGenerationDWR(t, retained, c, header, 0)
+	protocolGenerationErrorAnswer(t, w.peer, header)
 	copy := retained
 	copy.Message.Header.HopByHopID = 0
 	copy.Message.Header.MessageLength = 0
@@ -217,6 +229,7 @@ func TestProtocolErrorGenerationMetadataRetention(t *testing.T) {
 	otherHeader := protocolGenerationWrite(t, w.peer, protocolGenerationInvalidDWR(t, 0x8621))
 	other := protocolGenerationAwait(t, events)
 	assertProtocolGenerationDWR(t, other, c, otherHeader, 0)
+	protocolGenerationErrorAnswer(t, w.peer, otherHeader)
 	assertProtocolGenerationDWR(t, retained, c, header, 0)
 	next := w.handshake(t, "second.example", 1002, 222)
 	protocolGenerationAwait(t, w.restarts)

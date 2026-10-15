@@ -2,10 +2,12 @@ package sm
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net"
 	"testing"
+	"time"
 
 	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
 
@@ -33,7 +35,7 @@ func TestProtocolErrorCERValidationVariantsWire(t *testing.T) {
 			{"A4_multiple_unknown", false, true, false, true, false, diam.ProtocolUnsupportedAVP, 5001, "sm: unsupported mandatory AVP"},
 			{"A5_missing_Origin_Host", true, false, true, false, false, diam.ProtocolInvalidRequest, 5005, "sm: invalid request"},
 			{"A5_invalid_AVP_bits", true, false, false, false, true, diam.ProtocolInvalidRequest, 3009, "sm: invalid request"},
-			{"A4_before_A5", true, true, true, false, false, diam.ProtocolUnsupportedAVP, 5001, "sm: unsupported mandatory AVP"},
+			{"base_grammar_before_A4", true, true, true, false, false, diam.ProtocolInvalidRequest, 5005, "sm: invalid request"},
 		} {
 			t.Run(fmt.Sprintf("admitted=%t/%s", admitted, tc.name), func(t *testing.T) {
 				p := newProtocolWire(t, func(c *Settings) {
@@ -67,6 +69,31 @@ func TestProtocolErrorCERValidationVariantsWire(t *testing.T) {
 					}
 				}
 				header := p.send(t, cer)
+				if admitted {
+					assertProtocolEvent(t, protocolEvent(t, p.events), p.conn, &header, diam.ProtocolUnexpectedMessage, 0, false, diam.ProtocolReplyNone, 0)
+					if err := p.peer.SetReadDeadline(time.Now().Add(30 * time.Millisecond)); err != nil {
+						t.Fatal(err)
+					}
+					var b [1]byte
+					n, err := p.peer.Read(b[:])
+					var timeout net.Error
+					if n != 0 || !errors.As(err, &timeout) || !timeout.Timeout() {
+						t.Fatalf("admitted CER was not ignored: n=%d err=%v", n, err)
+					}
+					if err := p.peer.SetReadDeadline(time.Now().Add(5 * time.Second)); err != nil {
+						t.Fatal(err)
+					}
+					p.usable(t)
+					if records := p.logs.Records(); len(records) != 1 || records[0].Level != slog.LevelWarn || records[0].Message != "sm: ignoring CER on admitted connection; accepted CER renewal is disabled or ineligible" {
+						t.Fatalf("admitted CER logs=%v", records)
+					}
+					select {
+					case extra := <-p.events:
+						t.Fatalf("duplicate ignore event=%+v", extra)
+					default:
+					}
+					return
+				}
 				answer, err := diam.ReadMessage(p.peer, testDict)
 				flags := uint8(0)
 				if tc.code == 3009 {
@@ -85,7 +112,7 @@ func TestProtocolErrorCERValidationVariantsWire(t *testing.T) {
 					t.Fatalf("Failed-AVP containers=%d, want one (RFC 6733 §7.1.5, Verified Erratum 4615)", len(failed))
 				}
 				wantFailed := []byte{0, 0, 1, 8, 0x40, 0, 0, 8} // Missing Origin-Host, §7.5.
-				if tc.unknown {
+				if tc.unknown && !tc.missing {
 					wantFailed = []byte{0, 0xfe, 0xdc, 0xab, 0x40, 0, 0, 12, 1, 2, 3, 4}
 				}
 				if tc.multiple {

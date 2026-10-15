@@ -5,6 +5,7 @@
 package sm
 
 import (
+	"errors"
 	"testing"
 	"time"
 
@@ -15,7 +16,6 @@ import (
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/diamtest"
 	"github.com/gomaja/go-diameter/diam/internal/logtest"
-	"github.com/gomaja/go-diameter/diam/sm/smparser"
 )
 
 // These tests use dictionary, settings and functions from sm_test.go.
@@ -149,7 +149,24 @@ func TestHandleDWR_Fail(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := logError(waitLog(t, records, 1)); err != smparser.ErrMissingOriginHost {
-		t.Fatalf("got %v, want ErrMissingOriginHost", err)
+	var protocolErr *diam.ProtocolError
+	if err := logError(waitLog(t, records, 1)); !errors.As(err, &protocolErr) || !errors.Is(err, diam.ProtocolInvalidRequest) || protocolErr.ResultCode() != diam.MissingAVP {
+		t.Fatalf("missing Origin-Host diagnostic=%v", err)
+	}
+	select {
+	case response := <-mc:
+		if !testResultCode(response, diam.MissingAVP) || response.Header.CommandCode != diam.DeviceWatchdog || response.Header.HopByHopID != m.Header.HopByHopID || response.Header.EndToEndID != m.Header.EndToEndID {
+			t.Fatalf("invalid DWR answer=%v", response)
+		}
+		failed, err := response.FindAVP(avp.FailedAVP, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		group, ok := failed.Data.(*diam.GroupedAVP)
+		if !ok || len(group.AVP) != 1 || group.AVP[0].Code != avp.OriginHost {
+			t.Fatalf("missing Origin-Host evidence=%v", failed)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("missing error DWA")
 	}
 }

@@ -1,9 +1,12 @@
 package sm
 
 import (
+	"errors"
 	"io"
+	"net"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
 	"github.com/gomaja/go-diameter/diam/dict/nasreq"
@@ -80,6 +83,28 @@ func TestProtocolErrorServerNilCallbackMalformedAnswer(t *testing.T) {
 			message := diam.NewMessage(diam.DeviceWatchdog, 0, 0, 83, 86, testDict)
 			message.AddAVP(diam.NewAVP(avp.InbandSecurityID, avp.Mbit, 0, datatype.Unknown{1, 2}))
 			p.send(t, message)
+			if !route {
+				if err := p.peer.SetReadDeadline(time.Now().Add(30 * time.Millisecond)); err != nil {
+					t.Fatal(err)
+				}
+				var b [1]byte
+				n, err := p.peer.Read(b[:])
+				var timeout net.Error
+				if n != 0 || !errors.As(err, &timeout) || !timeout.Timeout() {
+					t.Fatalf("owned malformed answer was not discarded: n=%d err=%v", n, err)
+				}
+				if err := p.peer.SetReadDeadline(time.Now().Add(5 * time.Second)); err != nil {
+					t.Fatal(err)
+				}
+				p.usable(t)
+				if calls := wrapper.deliveries.Load(); calls != 0 {
+					t.Fatalf("disabled observer received %d events", calls)
+				}
+				if logs := p.logs.Records(); len(logs) != 1 || logs[0].Message != "diam: malformed message" {
+					t.Fatalf("decoder logs changed: %v", logs)
+				}
+				return
+			}
 			var b [1]byte
 			if n, err := p.peer.Read(b[:]); n != 0 || err != io.EOF {
 				t.Fatalf("strict malformed answer did not close: n=%d, err=%v", n, err)
@@ -88,7 +113,7 @@ func TestProtocolErrorServerNilCallbackMalformedAnswer(t *testing.T) {
 			if calls := wrapper.deliveries.Load(); calls != 0 {
 				t.Fatalf("disabled state-machine observer received %d Server events", calls)
 			}
-			if logs := p.logs.Records(); len(logs) != 1 || logs[0].Message != "diam: read failed; closing connection" {
+			if logs := p.logs.Records(); len(logs) != 2 || logs[0].Message != "diam: malformed message" || logs[1].Message != "sm: message before CER; closing connection" {
 				t.Fatalf("decoder logs changed: %v", logs)
 			}
 		})

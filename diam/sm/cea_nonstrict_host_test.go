@@ -49,6 +49,8 @@ func TestClientRejectsNonStrictMalformedCEAHostIPAddress(t *testing.T) {
 		answer.AddAVP(diam.NewAVP(avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("remote.example.net")))
 		answer.AddAVP(diam.NewAVP(avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("example.net")))
 		answer.AddAVP(diam.NewAVP(avp.HostIPAddress, avp.Mbit, 0, datatype.Unknown(bad)))
+		answer.AddAVP(diam.NewAVP(avp.VendorID, avp.Mbit, 0, datatype.Unsigned32(1)))
+		answer.AddAVP(diam.NewAVP(avp.ProductName, 0, 0, datatype.UTF8String("remote")))
 		answer.AddAVP(diam.NewAVP(avp.AuthApplicationID, avp.Mbit, 0, datatype.Unsigned32(4)))
 		if _, err := answer.WriteTo(conn); err != nil {
 			serverErr <- err

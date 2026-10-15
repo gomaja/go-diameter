@@ -52,7 +52,7 @@ func TestProtocolErrorRetainedWire(t *testing.T) {
 			m := diam.NewMessage(diam.DeviceWatchdog, 0, 0, 17, 18, testDict)
 			m.AddAVP(diam.NewAVP(avp.OriginHost, avp.Mbit, 0, datatype.Unknown([]byte{0})))
 			return m
-		}, diam.ProtocolUnexpectedMessage, 0, false, "sm: unhandled answer discarded", slog.LevelWarn},
+		}, diam.ProtocolInvalidDWA, diam.MissingAVP, false, "sm: invalid base message", slog.LevelWarn},
 		{"A3_invalid_header_request", nil, func(t *testing.T) *diam.Message { m := regressionDWR(t); m.Header.ApplicationID = 9; return m }, diam.ProtocolInvalidHeader, 3008, true, "sm: invalid message header", slog.LevelWarn},
 		{"A3_invalid_header_answer", nil, func(t *testing.T) *diam.Message {
 			return diam.NewMessage(diam.DeviceWatchdog, 0, 9, 17, 18, testDict)
@@ -78,27 +78,30 @@ func TestProtocolErrorRetainedWire(t *testing.T) {
 			c.Dict = newTestDictionary(dict.Base(), nasreq.Dictionary())
 			c.Dict.SetStrict(false)
 			c.AcctApplicationID = []*diam.AVP{diam.NewAVP(avp.AcctApplicationID, avp.Mbit, 0, datatype.Unsigned32(1001))}
-			// Inject a dictionary/type mismatch to reach the parser's failure
-			// path; ordinary invalid numeric payloads take B16 or A10 instead.
+			// A dictionary/type mismatch must be rejected by the unconditional base type check.
 			if err := c.Dict.Load(strings.NewReader(`<diameter><application id="0"><avp name="Result-Code" code="268" must="M"><data type="Address"/></avp></application></diameter>`)); err != nil {
 				t.Fatal(err)
 			}
 		}, func(*testing.T) *diam.Message {
 			m := diam.NewMessage(diam.DeviceWatchdog, 0, 0, 17, 18, testDict)
 			m.AddAVP(diam.NewAVP(avp.ResultCode, avp.Mbit, 0, localhostAddress))
+			m.AddAVP(diam.NewAVP(avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("peer.example")))
+			m.AddAVP(diam.NewAVP(avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("example")))
 			return m
-		}, diam.ProtocolInvalidDWA, 0, false, "sm: invalid DWA", slog.LevelWarn},
+		}, diam.ProtocolInvalidDWA, diam.InvalidAVPLength, false, "sm: invalid DWA", slog.LevelWarn},
 		{"A10_rejected_DWA", func(c *Settings) { c.EnableWatchdog = true; c.WatchdogInterval = time.Hour }, func(*testing.T) *diam.Message {
 			m := diam.NewMessage(diam.DeviceWatchdog, 0, 0, 17, 18, testDict)
 			m.AddAVP(diam.NewAVP(avp.ResultCode, avp.Mbit, 0, datatype.Unsigned32(5012)))
+			m.AddAVP(diam.NewAVP(avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("peer.example")))
+			m.AddAVP(diam.NewAVP(avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("example")))
 			return m
 		}, diam.ProtocolRejectedDWA, 5012, false, "sm: rejected DWA", slog.LevelWarn},
 		{"A11_invalid_DPR", nil, func(*testing.T) *diam.Message {
 			return diam.NewMessage(diam.DisconnectPeer, diam.RequestFlag, 0, 17, 18, testDict)
-		}, diam.ProtocolInvalidDPR, 0, false, "sm: invalid DPR", slog.LevelWarn},
+		}, diam.ProtocolInvalidRequest, diam.MissingAVP, true, "sm: invalid request", slog.LevelWarn},
 		{"A13_unmatched_DPA", nil, func(*testing.T) *diam.Message {
 			return diam.NewMessage(diam.DisconnectPeer, 0, 0, 17, 18, testDict)
-		}, diam.ProtocolUnexpectedMessage, 0, false, "", slog.LevelWarn},
+		}, diam.ProtocolInvalidDPA, diam.MissingAVP, false, "sm: invalid base message", slog.LevelWarn},
 		{"A14_admitted_CER", nil, func(t *testing.T) *diam.Message { return regressionCER(t, testDict, 1001) }, diam.ProtocolUnexpectedMessage, 0, false, "sm: ignoring CER on admitted connection; accepted CER renewal is disabled or ineligible", slog.LevelWarn},
 		{"A16_unhandled_answer", nil, func(*testing.T) *diam.Message { return diam.NewMessage(0xfedc, 0, 0, 17, 18, testDict) }, diam.ProtocolUnexpectedMessage, 0, false, "sm: unhandled answer discarded", slog.LevelWarn},
 	}
@@ -150,6 +153,7 @@ func TestProtocolErrorMalformedWire(t *testing.T) {
 				flags = 0
 			}
 			wire := testSMErrorMessage(t, flags, []byte{0, 0, 1, 2, avp.Mbit, 0xff, 0xff, 0xff})
+			wire[5], wire[6], wire[7] = 0, byte(diam.DeviceWatchdog>>8), byte(diam.DeviceWatchdog&0xff)
 			binary.BigEndian.PutUint32(wire[12:16], 0x12345678)
 			writeSMErrorWire(t, p.peer, wire)
 			h, _ := diam.DecodeHeader(wire)
@@ -280,10 +284,14 @@ func TestProtocolErrorA8InvalidDWR(t *testing.T) {
 	m.AddAVP(diam.NewAVP(avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("peer.example")))
 	h := p.send(t, m)
 	e := protocolEvent(t, p.events)
-	assertProtocolEvent(t, e, p.conn, &h, diam.ProtocolInvalidDWR, 0, false, diam.ProtocolReplyNone, 0)
+	answer, err := diam.ReadMessage(p.peer, testDict)
+	if err != nil || !testResultCode(answer, diam.MissingAVP) || answer.Header.HopByHopID != h.HopByHopID || answer.Header.EndToEndID != h.EndToEndID {
+		t.Fatalf("invalid DWR answer = %v, %v", answer, err)
+	}
+	assertProtocolEvent(t, e, p.conn, &h, diam.ProtocolInvalidRequest, diam.MissingAVP, false, diam.ProtocolReplyWritten, diam.MissingAVP)
 	p.usable(t)
 	records := p.logs.Records()
-	if len(records) != 1 || records[0].Level != slog.LevelWarn || records[0].Message != "sm: invalid DWR" {
+	if len(records) != 1 || records[0].Level != slog.LevelWarn || records[0].Message != "sm: invalid request" {
 		t.Fatalf("records=%v", records)
 	}
 	select {

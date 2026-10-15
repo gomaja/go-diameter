@@ -156,7 +156,8 @@ type Settings struct {
 
 	// ValidateRequests checks received requests against command and Grouped
 	// AVP dictionary grammar before dispatch. It defaults to false because
-	// application dictionaries may be incomplete. Answers are never checked.
+	// application dictionaries may be incomplete. The six connection-level
+	// base messages are always validated, including their answers.
 	ValidateRequests bool
 
 	// OnDPR observes a validated peer DPR and its Disconnect-Cause after the
@@ -367,6 +368,15 @@ func (sm *StateMachine) ServeDIAM(c diam.Conn, m *diam.Message) {
 		return
 	}
 	pendingRequests(c)
+	if m.Header.CommandCode == diam.CapabilitiesExchange && m.Header.ApplicationID == 0 && m.Header.CommandFlags&diam.RequestFlag != 0 && admittedPeer(c) {
+		if w := sm.supervised(c); w != nil {
+			w.received(m)
+		}
+		if h, ok := sm.mux.Handler(m); ok {
+			h.ServeDIAM(c, m)
+		}
+		return
+	}
 	if headerErr := base.ValidateHeader(m); headerErr != nil {
 		logMessage(c, m, slog.LevelWarn, "sm: invalid message header", headerErr)
 		_ = sm.HandleMessageError(c, m, headerErr)
@@ -384,50 +394,13 @@ func (sm *StateMachine) ServeDIAM(c diam.Conn, m *diam.Message) {
 		// subsequent request or AVP validation rejects the message.
 		w.received(m)
 	}
-	if sm.cfg.ValidateRequests && m.Header.CommandFlags&diam.RequestFlag != 0 &&
-		!sm.supportsApplicationOn(c, m.Header.ApplicationID) {
-		// RFC 6733 §7.1.3: the applications this node advertises decide
-		// 3007, not the dictionary that decoded the message, so this runs
-		// before Validate and before AVP-level checks. HandleMessageError
-		// also closes the connection of a rejected CER (§5.3).
-		sm.handleUnsupportedCommand(c, m)
+	if baseErr := base.ValidateMessage(m); baseErr != nil && (w == nil || !isBaseDWA(m)) {
+		sm.rejectBaseMessage(c, m, baseErr)
 		return
 	}
-	if sm.cfg.RejectUnknownMandatoryAVPs && m.Header.CommandFlags&diam.RequestFlag != 0 {
-		if failed := m.UnknownMandatoryAVPs(); len(failed) != 0 {
-			messageErr := &diam.MessageError{ResultCode: diam.AVPUnsupported}
-			logMessage(c, m, slog.LevelWarn, "sm: unsupported mandatory AVP", messageErr)
-			if closing {
-				sm.protocolError(c, m, diam.ProtocolUnsupportedAVP, diam.AVPUnsupported, false, diam.ProtocolReplyNone, 0)
-				return
-			}
-			// RFC 6733 §7.1.5, Verified Erratum 4615: one Failed-AVP
-			// contains the unsupported AVP(s), including Grouped hierarchy.
-			err := sm.writeErrorAnswer(c, m, diam.AVPUnsupported, failed, false)
-			closing := sm.closeRejectedCER(c, m, messageErr)
-			sm.protocolError(c, m, diam.ProtocolUnsupportedAVP, diam.AVPUnsupported, closing, protocolReply(err), diam.AVPUnsupported)
-			return
-		}
-	}
-	if sm.cfg.ValidateRequests && m.Header.CommandFlags&diam.RequestFlag != 0 {
-		if validationErr := m.Validate(); validationErr != nil {
-			logMessage(c, m, slog.LevelWarn, "sm: invalid request", validationErr)
-			if closing {
-				sm.protocolError(c, m, diam.ProtocolInvalidRequest, validationErr.ResultCode, false, diam.ProtocolReplyNone, 0)
-				return
-			}
-			// RFC 6733 §§7.1, 7.2 and 7.5: only 3xxx protocol errors set E;
-			// send one Failed-AVP container for the first AVP error.
-			var failed []*diam.AVP
-			if validationErr.FailedAVP != nil {
-				failed = []*diam.AVP{validationErr.FailedAVP}
-			}
-			protocolError := validationErr.ResultCode >= 3000 && validationErr.ResultCode < 4000
-			err := sm.writeErrorAnswer(c, m, validationErr.ResultCode, failed, protocolError)
-			closing := sm.closeRejectedCER(c, m, validationErr)
-			sm.protocolError(c, m, diam.ProtocolInvalidRequest, validationErr.ResultCode, closing, protocolReply(err), validationErr.ResultCode)
-			return
-		}
+	if rejection := base.ValidateRequest(m, sm.applicationsOn(c, m), sm.cfg.ValidateRequests, sm.cfg.RejectUnknownMandatoryAVPs); rejection != nil {
+		sm.rejectRequest(c, m, rejection)
+		return
 	}
 	if m.Header.CommandFlags&diam.RequestFlag == 0 &&
 		(m.Header.ApplicationID != 0 || m.Header.CommandCode != diam.DisconnectPeer &&

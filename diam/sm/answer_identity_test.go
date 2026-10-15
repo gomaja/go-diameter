@@ -311,9 +311,9 @@ func TestBoundIdentityASCIIWire(t *testing.T) {
 				kind = diam.ProtocolInvalidDWA
 			} else {
 				command := uint32(diam.DeviceWatchdog)
-				kind = diam.ProtocolInvalidDWR
+				kind = diam.ProtocolInvalidRequest
 				if scenario == "DPR-host" {
-					command, kind = diam.DisconnectPeer, diam.ProtocolInvalidDPR
+					command = diam.DisconnectPeer
 				}
 				request = diam.NewRequest(command, 0, p.conn.Dictionary())
 				request.AddAVP(diam.NewAVP(avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("Known.example")))
@@ -323,11 +323,21 @@ func TestBoundIdentityASCIIWire(t *testing.T) {
 				}
 			}
 			header := p.send(t, request)
+			reply, replyCode := diam.ProtocolReplyNone, uint32(0)
+			if header.CommandFlags&diam.RequestFlag != 0 {
+				reply, replyCode = diam.ProtocolReplyWritten, diam.InvalidAVPValue
+			}
 			select {
 			case e := <-p.events:
-				assertProtocolEvent(t, e, p.conn, &header, kind, 0, false, diam.ProtocolReplyNone, 0)
+				assertProtocolEvent(t, e, p.conn, &header, kind, diam.InvalidAVPValue, false, reply, replyCode)
 			case <-time.After(100 * time.Millisecond):
 				t.Fatal("Unicode lookalike was accepted as the bound ASCII identity")
+			}
+			if header.CommandFlags&diam.RequestFlag != 0 {
+				answer, err := diam.ReadMessage(p.peer, p.conn.Dictionary())
+				if err != nil || !testResultCode(answer, diam.InvalidAVPValue) || answer.Header.HopByHopID != header.HopByHopID || answer.Header.EndToEndID != header.EndToEndID {
+					t.Fatalf("invalid identity answer=%v error=%v", answer, err)
+				}
 			}
 		})
 	}

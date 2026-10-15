@@ -46,25 +46,65 @@ type advertisedAppsKey struct{}
 // The snapshot follows this connection's advertised capabilities throughout its
 // lifetime, including overrides (RFC 6733 §§5.3, 5.6).
 func (sm *StateMachine) supportsApplicationOn(c diam.Conn, appID uint32) bool {
-	if appID == 0 {
-		return true
-	}
-	if c != nil && c.Context() != nil {
-		if local, ok := c.Context().Value(advertisedAppsKey{}).([]uint32); ok {
-			for _, advertised := range local {
-				if advertised == appID || advertised == relayApplicationID {
-					return true
-				}
-			}
-			return false
-		}
-	}
-
-	return false
+	return base.SupportsApplication(sm.applicationsOn(c, nil), appID)
 }
 
-// relayApplicationID is the Relay Application-Id (RFC 6733 §2.4).
-const relayApplicationID = 0xffffffff
+func (sm *StateMachine) applicationsOn(c diam.Conn, m *diam.Message) []uint32 {
+	if c != nil && c.Context() != nil {
+		if local, ok := c.Context().Value(advertisedAppsKey{}).([]uint32); ok {
+			return local
+		}
+	}
+	if m != nil && m.Header.CommandCode == diam.CapabilitiesExchange {
+		return base.AdvertisedApplicationIDs(sm.capabilities(c, m))
+	}
+	return nil
+}
+
+func (sm *StateMachine) rejectRequest(c diam.Conn, m *diam.Message, rejection *base.RequestError) {
+	release := m.BeginDispatch()
+	defer release()
+	switch rejection.Kind {
+	case diam.ProtocolUnsupportedAVP:
+		logMessage(c, m, slog.LevelWarn, "sm: unsupported mandatory AVP", diam.NewProtocolError(rejection.Kind, rejection.Code))
+	case diam.ProtocolInvalidRequest:
+		logMessage(c, m, slog.LevelWarn, "sm: invalid request", diam.NewProtocolError(rejection.Kind, rejection.Code))
+	}
+	if sm.isClosing(c) {
+		release()
+		sm.protocolError(c, m, rejection.Kind, rejection.Code, false, diam.ProtocolReplyNone, 0)
+		return
+	}
+	err := sm.writeErrorAnswer(c, m, rejection.Code, rejection.Failed, rejection.Code >= 3000 && rejection.Code < 4000)
+	if err == nil && rejection.Kind == diam.ProtocolUnsupportedApplication {
+		c.Logger().LogAttrs(m.Context(), slog.LevelInfo, "sm: unsupported command answered", slog.Any("message", m), slog.Uint64("result_code", uint64(rejection.Code)))
+	}
+	closing := sm.closeRejectedCER(c, m, diam.NewProtocolError(rejection.Kind, rejection.Code))
+	// Keep the existing unsupported-application reply-failure policy.
+	if err != nil && rejection.Kind == diam.ProtocolUnsupportedApplication {
+		c.Close()
+		closing = true
+	}
+	// The rejection is committed before the observer, which may block or
+	// retire this generation (RFC 6733 §§5.5.4, 5.6).
+	release()
+	sm.protocolError(c, m, rejection.Kind, rejection.Code, closing, protocolReply(err), rejection.Code)
+}
+
+func (sm *StateMachine) rejectBaseMessage(c diam.Conn, m *diam.Message, err *diam.MessageError) {
+	if m.Header.CommandFlags&diam.RequestFlag == 0 {
+		logMessage(c, m, slog.LevelWarn, "sm: invalid base message", err)
+		release := m.BeginDispatch()
+		release()
+		sm.protocolError(c, m, base.AnswerErrorKind(m), err.ResultCode, false, diam.ProtocolReplyNone, 0)
+		return
+	}
+	rejection := &base.RequestError{Kind: diam.ProtocolInvalidRequest, Code: err.ResultCode}
+	if err.FailedAVP != nil {
+		rejection.Failed = []*diam.AVP{err.FailedAVP}
+	}
+	sm.rejectRequest(c, m, rejection)
+}
 
 // HandleMessageError implements diam.MessageErrorHandler. RFC 6733 §§7.1-7.2
 // reserve E for protocol errors; answers never receive answers. A local answer
@@ -106,8 +146,12 @@ func (sm *StateMachine) handleMessageError(c diam.Conn, request *diam.Message, m
 	if !sm.closingAllowed(c, request) {
 		return outcome, nil
 	}
+	if (messageErr == nil || !messageErr.Fatal) && request != nil && request.Header != nil && request.Header.ApplicationID == 0 && request.Header.CommandCode == diam.CapabilitiesExchange && request.Header.CommandFlags&diam.RequestFlag != 0 && admittedPeer(c) {
+		handleCER(sm)(c, request)
+		return outcome, nil
+	}
 	outcome = messageErrorOutcome{kind: kind, closing: messageErr != nil && messageErr.Fatal}
-	if headerErr := base.ValidateHeader(request); headerErr != nil {
+	if headerErr := base.ValidateHeader(request); headerErr != nil && !base.FatalHeaderError(messageErr) {
 		messageErr = headerErr
 		outcome.kind = diam.ProtocolInvalidHeader
 	}
@@ -133,6 +177,14 @@ func (sm *StateMachine) handleMessageError(c diam.Conn, request *diam.Message, m
 	if messageErr == nil {
 		return outcome, fmt.Errorf("cannot answer a nil Diameter message error")
 	}
+	var requestRejection *base.RequestError
+	if kind == diam.ProtocolMalformedMessage && !messageErr.Fatal && !base.IsCommand(request) {
+		requestRejection = base.ValidateRequest(request, sm.applicationsOn(c, request), sm.cfg.ValidateRequests, sm.cfg.RejectUnknownMandatoryAVPs, messageErr)
+		if requestRejection != nil {
+			outcome.kind, outcome.code = requestRejection.Kind, requestRejection.Code
+			messageErr = &diam.MessageError{ResultCode: requestRejection.Code, FailedAVP: messageErr.FailedAVP, Err: messageErr}
+		}
+	}
 	if messageErr.ResultCode == diam.InvalidAVPLength && messageErr.FailedAVP == nil {
 		return outcome, fmt.Errorf("diameter result code %d requires Failed-AVP", messageErr.ResultCode)
 	}
@@ -140,6 +192,9 @@ func (sm *StateMachine) handleMessageError(c diam.Conn, request *diam.Message, m
 	var failedAVPs []*diam.AVP
 	if messageErr.FailedAVP != nil {
 		failedAVPs = []*diam.AVP{messageErr.FailedAVP}
+	}
+	if requestRejection != nil {
+		failedAVPs = requestRejection.Failed
 	}
 	if err := sm.writeErrorAnswer(c, request, messageErr.ResultCode, failedAVPs, protocolError); err != nil {
 		// writeErrorAnswer records the failure before this close. Do not return
@@ -179,6 +234,9 @@ func (sm *StateMachine) writeErrorAnswer(c diam.Conn, request *diam.Message, res
 	answer, err := base.BuildErrorAnswer(request, cfg, resultCode, failedAVPs, protocolError)
 	if err != nil {
 		return err
+	}
+	if request.Header.CommandCode == diam.CapabilitiesExchange && sm.cfg.OnCEA != nil {
+		sm.cfg.OnCEA(c, answer)
 	}
 	if _, err := answer.WriteTo(c); err != nil {
 		return fmt.Errorf("write Diameter error answer: %w", err)
