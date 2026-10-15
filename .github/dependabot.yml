@@ -48,6 +48,12 @@ updates:
       discovery-go-modules:
         patterns:
           - '*'
+    ignore:
+      # Releases after v0.6.97 require Go 1.27. Hold the DNS client until
+      # Go 1.26, the previous release this repository supports, leaves
+      # support.
+      - dependency-name: codeberg.org/miekg/dns
+        versions: ['>= 0.6.98']
 
   - package-ecosystem: github-actions
     directory: /
