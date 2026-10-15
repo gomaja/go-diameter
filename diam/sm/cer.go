@@ -5,7 +5,6 @@
 package sm
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -13,6 +12,7 @@ import (
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/dict"
 	"github.com/gomaja/go-diameter/diam/internal/base"
+	"github.com/gomaja/go-diameter/diam/internal/protocol"
 	"github.com/gomaja/go-diameter/diam/sm/smparser"
 	"github.com/gomaja/go-diameter/diam/sm/smpeer"
 )
@@ -25,67 +25,28 @@ import (
 // See RFC 6733 section 5.3 for details.
 func handleCER(sm *StateMachine) diam.HandlerFunc {
 	return func(c diam.Conn, m *diam.Message) {
-		if c.Closed() {
+		release := m.BeginDispatch()
+		defer release()
+		if meta, ok := smpeer.FromContext(c.Context()); ok && meta.CEA != nil {
+			// Dialed Client repeated CER handling remains on the #111 adapter.
+			if sm.cfg.OnCER != nil {
+				sm.cfg.OnCER(c, m)
+			}
+			sm.ignoreRepeatedCER(c, m)
 			return
 		}
-		ctx := c.Context()
-		if _, ok := smpeer.FromContext(ctx); ok {
-			logMessage(c, m, slog.LevelWarn, "sm: ignoring CER on admitted connection; accepted CER renewal is disabled or ineligible", nil)
-			sm.protocolError(c, m, diam.ProtocolUnexpectedMessage, 0, false, diam.ProtocolReplyNone, 0)
-			return
+		if s := sm.acceptedCore(c, m, true); s != nil {
+			s.apply(protocol.Input{Kind: protocol.Receive, Message: m})
 		}
-		local := base.AdvertisedApplicationIDs(sm.capabilities(c, m))
-		cer := new(smparser.CER)
-		_, err := cer.Parse(m, smparser.ParseOptions{Role: smparser.Server, TLS: c.TLS() != nil, Dictionary: sm.capabilityDictionary(c, m), LocalApplications: local})
-		if err != nil {
-			logMessage(c, m, slog.LevelWarn, "sm: rejected CER; closing connection", err)
-			code := rejectedCERCode(err)
-			replyCode, answerErr := errorCEAResult(sm, c, m, err)
-			err = answerErr
-			if err != nil {
-				logMessage(c, m, slog.LevelError, "sm: CEA failed; closing connection", err)
-			}
-			sm.closeRequiredReply(c)
-			sm.protocolError(c, m, diam.ProtocolCERRejected, code, true, protocolReply(err), replyCode)
-			return
-		}
-		a, err := buildSuccessCEA(sm, c, m)
-		if err == nil {
-			if c.Closed() {
-				return
-			}
-			meta := smpeer.FromCER(cer)
-			c.SetContext(smpeer.NewContext(context.WithValue(ctx, advertisedAppsKey{}, local), meta))
-			// Publish admission before the peer can respond to the CEA (RFC 6733 §5.6.1).
-			if !sm.completeAcceptedHandshake(c) {
-				// The handshake timer won: no peer was admitted and no CEA is sent.
-				c.SetContext(ctx)
-				logMessage(c, m, slog.LevelWarn, "sm: CER after handshake timeout; closing connection", nil)
-				c.Close()
-				sm.protocolError(c, m, diam.ProtocolHandshakeState, 0, true, diam.ProtocolReplyNone, 0)
-				return
-			}
-			if sm.cfg.OnCEA != nil {
-				sm.cfg.OnCEA(c, a)
-			}
-			err = writeRequiredReply(c, a)
-		}
-		if err != nil {
-			logMessage(c, m, slog.LevelError, "sm: CEA failed; closing connection", err)
-			code := uint32(diam.Success)
-			if a != nil {
-				code = protocolAnswerCode(a)
-			}
-			sm.requiredReplyFailed(c, m, code)
-			return
-		}
-		// RFC 6733 §5.6 and RFC 3539 Appendix A: supervise only an admitted
-		// connection, after OnHandshake returns (including panic unwinding).
-		defer sm.startWatchdog(c)
-		if sm.cfg.OnHandshake != nil {
-			metadata, _ := smpeer.FromContext(c.Context())
-			sm.cfg.OnHandshake(c, metadata)
-		}
+	}
+}
+
+// ignoreRepeatedCER preserves the Client rejection path shared by decoded and
+// malformed CERs. Only decoded dispatch invokes OnCER before this decision.
+func (sm *StateMachine) ignoreRepeatedCER(c diam.Conn, m *diam.Message) {
+	if !c.Closed() {
+		logMessage(c, m, slog.LevelWarn, "sm: ignoring CER on admitted connection; accepted CER renewal is disabled or ineligible", nil)
+		sm.protocolError(c, m, diam.ProtocolUnexpectedMessage, 0, false, diam.ProtocolReplyNone, 0)
 	}
 }
 
@@ -199,5 +160,8 @@ func (sm *StateMachine) capabilityDictionary(c diam.Conn, m *diam.Message) *dict
 	if dp := c.Dictionary(); dp != nil {
 		return dp
 	}
-	return m.Dictionary()
+	if m != nil {
+		return m.Dictionary()
+	}
+	return dict.Default
 }

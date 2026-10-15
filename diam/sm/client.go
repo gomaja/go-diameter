@@ -177,7 +177,7 @@ func (h activityHandler) ServeDIAM(c diam.Conn, m *diam.Message) {
 	// RFC 6733 §§2.5 and 5.5.2: invalid base headers cannot confirm liveness.
 	// StateMachine reports/discards invalid answers and answers invalid requests.
 	if base.ValidateHeader(m) != nil && !isCEA {
-		h.StateMachine.ServeDIAM(c, m)
+		h.serveLegacy(c, m)
 		return
 	}
 	// RFC 3539 §3.4.1 [2]: any received AAA message resets Tw.
@@ -213,7 +213,7 @@ func (h activityHandler) ServeDIAM(c diam.Conn, m *diam.Message) {
 		h.dwa(c, m, receipt)
 		return
 	}
-	h.StateMachine.ServeDIAM(c, m)
+	h.serveLegacy(c, m)
 }
 
 // HandleMessageError also enforces Wait-I-CEA for malformed input, which

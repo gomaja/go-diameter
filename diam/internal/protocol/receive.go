@@ -1,6 +1,8 @@
 package protocol
 
 import (
+	"errors"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/internal/base"
 )
@@ -19,22 +21,38 @@ func (c *Core) receive(in Input) (es []Effect) {
 	if m == nil || m.Header == nil {
 		return c.fail(in, diam.ProtocolMalformedMessage, 0)
 	}
-	isCER := m.Header.CommandCode == diam.CapabilitiesExchange && m.Header.ApplicationID == 0 && m.Header.CommandFlags&diam.RequestFlag != 0
+	isCERRequest := m.Header.CommandCode == diam.CapabilitiesExchange && m.Header.CommandFlags&diam.RequestFlag != 0
+	isCER := isCERRequest && m.Header.ApplicationID == 0
 	if c.phase == WaitCEA || c.phase == PreCER && c.cfg.Role == Initiator {
 		if m.Header.CommandCode == diam.CapabilitiesExchange && m.Header.ApplicationID == 0 && m.Header.CommandFlags&diam.RequestFlag == 0 {
 			return c.cea(in)
 		}
 		return c.fail(in, diam.ProtocolHandshakeState, 0)
 	}
-	if c.phase == PreCER && (!isCER || c.candidateToken != 0) {
-		return c.fail(in, diam.ProtocolHandshakeState, 0)
+	if c.phase == PreCER && (!isCERRequest || c.candidateToken != 0) {
+		var code uint32
+		if in.Error != nil {
+			code = in.Error.ResultCode
+		} else if headerErr := base.ValidateHeader(m); headerErr != nil {
+			code = headerErr.ResultCode
+		}
+		return c.fail(in, diam.ProtocolHandshakeState, code)
 	}
 	activity := c.activity(in)
-	defer func() { es = append(activity, es...) }()
+	releaseDispatch := false
+	defer func() {
+		es = append(activity, es...)
+		if releaseDispatch && len(es) != 0 {
+			es[0].ReleaseDispatch = true
+		}
+	}()
 	// #108: repeated CER disposition precedes optional body revalidation.
 	if c.phase == Open && isCER && !base.FatalHeaderError(in.Error) {
 		if in.Error == nil && base.ValidateMessage(m) == nil && base.ValidateRequest(m, c.caps.LocalApplications, c.cfg.ValidateRequests, c.cfg.RejectUnknownMandatoryAVPs) == nil && c.bound(m, true) {
 			activity = append(activity, c.validActivity()...)
+		}
+		if c.cfg.Hooks && in.Error == nil {
+			return c.pauseHook(in)
 		}
 		return c.discard(in, diam.ProtocolUnexpectedMessage, 0)
 	}
@@ -45,10 +63,12 @@ func (c *Core) receive(in Input) (es []Effect) {
 		return c.messageError(in)
 	}
 	if c.phase == Open && c.cfg.Watchdog && m.Header.CommandCode == diam.DeviceWatchdog && m.Header.CommandFlags&diam.RequestFlag == 0 {
+		releaseDispatch = true
 		return c.dwa(in)
 	}
 	if err := base.ValidateMessage(m); err != nil {
 		if m.Header.CommandFlags&diam.RequestFlag == 0 {
+			in.Error = err
 			return c.discard(in, base.AnswerErrorKind(m), err.ResultCode)
 		}
 		return c.reject(in, diam.ProtocolInvalidRequest, err)
@@ -62,6 +82,8 @@ func (c *Core) receive(in Input) (es []Effect) {
 		}
 		return c.candidate(in)
 	}
+	baseDPR := m.Header.ApplicationID == 0 && m.Header.CommandCode == diam.DisconnectPeer && m.Header.CommandFlags&diam.RequestFlag != 0
+	releaseDispatch = m.Header.CommandCode != diam.CapabilitiesExchange && !baseDPR
 	if m.Header.ApplicationID == 0 {
 		switch m.Header.CommandCode {
 		case diam.DeviceWatchdog:
@@ -71,15 +93,31 @@ func (c *Core) receive(in Input) (es []Effect) {
 				}
 				return c.dwr(in)
 			}
-			return c.discard(in, diam.ProtocolUnexpectedMessage, 0)
+			if !in.HasHandler {
+				return c.discard(in, diam.ProtocolUnexpectedMessage, 0)
+			}
+			e := c.effect(Admit)
+			e.Message = m
+			return []Effect{e}
 		case diam.DisconnectPeer:
 			if m.Header.CommandFlags&diam.RequestFlag != 0 {
 				return c.dpr(in)
 			}
 			return c.dpa(in)
 		case diam.CapabilitiesExchange:
-			return c.discard(in, diam.ProtocolUnexpectedMessage, 0)
+			if !in.HasHandler {
+				return c.discard(in, diam.ProtocolUnexpectedMessage, 0)
+			}
+			e := c.effect(Admit)
+			e.Message = m
+			return []Effect{e}
 		}
+	}
+	if in.Unhandled && m.Header.CommandFlags&diam.RequestFlag != 0 {
+		if base.SupportsApplication(c.caps.LocalApplications, m.Header.ApplicationID) {
+			activity = append(activity, c.validActivity()...)
+		}
+		return c.unhandled(in)
 	}
 	activity = append(activity, c.validActivity()...)
 	if c.cfg.Watchdog && c.wd.State == "REOPEN" {
@@ -105,14 +143,26 @@ func (c *Core) pauseHook(in Input) []Effect {
 }
 func (c *Core) dwr(in Input) []Effect {
 	var parsed base.DWR
-	if parsed.Parse(in.Message) != nil || !c.bound(in.Message, false) {
-		return c.discard(in, diam.ProtocolInvalidDWR, 0)
+	err := parsed.Parse(in.Message)
+	if err == nil && !c.bound(in.Message, false) {
+		err = errors.New("DWR Origin-Host does not match the admitted peer (RFC 6733 §6.3)")
+	}
+	if err != nil {
+		return c.discardCause(in, diam.ProtocolInvalidDWR, err)
 	}
 	answer, err := base.BuildDWA(in.Message, c.cfg.Local)
 	if err != nil {
 		return c.fail(in, diam.ProtocolReplyFailure, diam.Success)
 	}
-	return append(c.validActivity(), c.send(answer, nil, true, false, false, nil, in.Message)...)
+	reply := c.send(answer, nil, true, false, false, nil, in.Message)
+	reply[0].AnswerHook = true
+	return append(c.validActivity(), reply...)
+}
+
+func (c *Core) discardCause(in Input, kind diam.ProtocolErrorKind, err error) []Effect {
+	es := c.discard(in, kind, 0)
+	es[len(es)-1].Notification.CauseError = copyHandshakeError(err)
+	return es
 }
 func (c *Core) messageError(in Input) []Effect {
 	m, me := in.Message, in.Error
@@ -147,6 +197,9 @@ func (c *Core) requestError(in Input, r *base.RequestError) []Effect {
 		c.terminal = true
 	}
 	n := Notification{Protocol: r.Kind, ResultCode: r.Code, Closing: terminal, Message: metadata(in.Message)}
+	if terminal && in.Message.Header.CommandCode == diam.CapabilitiesExchange {
+		n.Diagnostic = "reject-cer"
+	}
 	return c.send(answer, nil, true, terminal, false, &n)
 }
 func (c *Core) unhandled(in Input) []Effect {

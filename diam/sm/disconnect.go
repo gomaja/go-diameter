@@ -10,6 +10,7 @@ import (
 
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/internal/base"
+	"github.com/gomaja/go-diameter/diam/internal/protocol"
 	"github.com/gomaja/go-diameter/diam/sm/smpeer"
 )
 
@@ -60,6 +61,9 @@ func (sm *StateMachine) Disconnect(c diam.Conn, cause DisconnectCause, timeout t
 	case <-closed:
 		return ErrDisconnectClosed
 	default:
+	}
+	if state := sm.acceptedCore(c, nil, false); state != nil {
+		return sm.acceptedDisconnect(state, cause, timeout)
 	}
 	m, err := base.BuildDPR(c.Dictionary(), baseSettings(sm.cfg), uint32(cause))
 	if err != nil {
@@ -193,4 +197,72 @@ func handleDPA(sm *StateMachine) diam.HandlerFunc {
 			sm.protocolError(c, m, diam.ProtocolUnexpectedMessage, 0, false, diam.ProtocolReplyNone, 0)
 		}
 	}
+}
+
+func (s *acceptedHandshake) completeDisconnect(n protocol.Notification) {
+	var err error
+	switch n.Outcome {
+	case protocol.TimedOut:
+		err = ErrDisconnectTimeout
+	case protocol.AlreadyPending:
+		err = ErrDisconnectPending
+	case protocol.Completed:
+		if n.ResultCode != diam.Success {
+			err = fmt.Errorf("DPA Result-Code %d", n.ResultCode)
+		}
+	default:
+		err = ErrDisconnectClosed
+	}
+	s.mu.Lock()
+	waiter := s.waiter
+	s.mu.Unlock()
+	if waiter != nil {
+		// A buffered writer error already completes this one-shot waiter.
+		select {
+		case waiter <- err:
+		default:
+		}
+	}
+}
+
+func (sm *StateMachine) acceptedDisconnect(s *acceptedHandshake, cause DisconnectCause, timeout time.Duration) error {
+	if s.conn.Closed() {
+		return ErrDisconnectClosed
+	}
+	s.mu.Lock()
+	if s.waiter != nil {
+		s.mu.Unlock()
+		return ErrDisconnectPending
+	}
+	waiter := make(chan error, 1)
+	s.waiter = waiter
+	s.waiterToken++
+	token := s.waiterToken
+	s.mu.Unlock()
+	defer func() { s.conn.Close(); s.mu.Lock(); s.waiter = nil; s.mu.Unlock() }()
+	batch := s.prepare(protocol.Input{Kind: protocol.Disconnect, Cause: uint32(cause), Timeout: timeout, Token: token})
+	// The deadline/retirement can complete the waiter while an observer or custom
+	// writer is blocked. The caller never waits for the writer to exit.
+	go s.run(batch)
+	select {
+	case err := <-waiter:
+		return err
+	case <-mustCloseNotify(s.conn):
+		select {
+		case err := <-waiter:
+			return err
+		default:
+		}
+		s.apply(protocol.Input{Kind: protocol.TransportLost})
+		select {
+		case err := <-waiter:
+			return err
+		default:
+			return ErrDisconnectClosed
+		}
+	}
+}
+func mustCloseNotify(c diam.Conn) <-chan struct{} {
+	n, _ := diam.ConnAs[diam.CloseNotifier](c)
+	return n.CloseNotify()
 }

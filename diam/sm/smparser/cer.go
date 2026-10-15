@@ -5,11 +5,18 @@
 package smparser
 
 import (
+	"slices"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/dict"
 	"github.com/gomaja/go-diameter/diam/internal/base"
+	"github.com/gomaja/go-diameter/diam/sm/internal/parserbridge"
 )
+
+func init() {
+	parserbridge.FromValidatedCER = fromValidatedCER
+}
 
 // CER is a Capabilities-Exchange-Request message.
 // See RFC 6733 section 5.3.1 for details.
@@ -69,6 +76,27 @@ func (cer *CER) Parse(m *diam.Message, options ParseOptions) (failedAVP *diam.AV
 // Applications return a list of supported Application IDs.
 func (cer *CER) Applications() []uint32 {
 	return cer.appID
+}
+
+// fromValidatedCER copies an already validated CER and its parsed application
+// list into frontend metadata without repeating RFC 6733 §5.3 negotiation.
+// The application list preserves parser order and duplicates; it is distinct
+// from the complete remote advertisement and the negotiated intersection.
+func fromValidatedCER(parsed *base.CER, applications []uint32) *CER {
+	if parsed == nil {
+		return nil
+	}
+	return &CER{
+		HostIPAddresses:             base.CloneAddresses(parsed.HostIPAddresses),
+		OriginHost:                  parsed.OriginHost,
+		OriginRealm:                 parsed.OriginRealm,
+		OriginStateID:               base.CloneAVP(parsed.OriginStateID),
+		InbandSecurityID:            base.CloneAVP(parsed.InbandSecurityID),
+		AcctApplicationID:           base.CloneAVPs(parsed.AcctApplicationID),
+		AuthApplicationID:           base.CloneAVPs(parsed.AuthApplicationID),
+		VendorSpecificApplicationID: base.CloneAVPs(parsed.VendorSpecificApplicationID),
+		appID:                       slices.Clone(applications),
+	}
 }
 
 // Clone returns an independent copy of the parsed CER, including AVPs and

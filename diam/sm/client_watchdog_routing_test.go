@@ -70,8 +70,7 @@ func TestClientWatchdogDoesNotCreditAnotherPeersAnswer(t *testing.T) {
 	healthy := diamtest.NewServer(mustNewStateMachine(t, serverSettings, testDict), testDict)
 	defer healthy.Close()
 	silentSM := mustNewStateMachine(t, serverSettings, testDict)
-	silentSM.dwrHandler = handshakeOK(func(diam.Conn, *diam.Message) {})
-	silent := diamtest.NewServer(silentSM, testDict)
+	silent := diamtest.NewServer(acceptedDWRTestHandler{StateMachine: silentSM, dwr: func(diam.Conn, *diam.Message) {}}, testDict)
 	defer silent.Close()
 
 	cli := newLivenessClient(t)
@@ -106,8 +105,7 @@ func TestClientWatchdogConnectionEventAttribution(t *testing.T) {
 	healthy := diamtest.NewServer(mustNewStateMachine(t, serverSettings, testDict), testDict)
 	defer healthy.Close()
 	silentSM := mustNewStateMachine(t, serverSettings, testDict)
-	silentSM.dwrHandler = handshakeOK(func(diam.Conn, *diam.Message) {})
-	silent := diamtest.NewServer(silentSM, testDict)
+	silent := diamtest.NewServer(acceptedDWRTestHandler{StateMachine: silentSM, dwr: func(diam.Conn, *diam.Message) {}}, testDict)
 	defer silent.Close()
 
 	type connEvent struct {

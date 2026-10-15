@@ -10,6 +10,7 @@ import (
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
+	"github.com/gomaja/go-diameter/diam/internal/protocol"
 	"github.com/gomaja/go-diameter/diam/sm/smpeer"
 )
 
@@ -290,12 +291,27 @@ func TestClosingContractRepeatedReceiverTimerWire(t *testing.T) {
 			p := closingContractWire(t, mode, func(c *Settings) { c.DPRCloseTimeout = 400 * time.Millisecond })
 			started := time.Now()
 			enterContractClosing(t, p, false, time.Second)
-			state := p.sm.closingConnection(p.conn)
-			state.mu.Lock()
-			first := state.timer
-			state.mu.Unlock()
-			if first == nil {
-				t.Fatal("received DPR installed no receiver timer")
+			var sameTimer func() bool
+			if mode == "accepted" {
+				state := p.sm.acceptedCore(p.conn, nil, false)
+				first := state.snapshot().Timer(protocol.ClosingTimer)
+				if first.Token == 0 || first.Deadline.IsZero() {
+					t.Fatal("received DPR installed no receiver timer")
+				}
+				sameTimer = func() bool { return state.snapshot().Timer(protocol.ClosingTimer) == first }
+			} else {
+				state := p.sm.closingConnection(p.conn)
+				state.mu.Lock()
+				first := state.timer
+				state.mu.Unlock()
+				if first == nil {
+					t.Fatal("received DPR installed no receiver timer")
+				}
+				sameTimer = func() bool {
+					state.mu.Lock()
+					defer state.mu.Unlock()
+					return state.timer == first
+				}
 			}
 			time.Sleep(180 * time.Millisecond)
 			p.send(t, closingContractDPR(t, p, 300))
@@ -303,10 +319,7 @@ func TestClosingContractRepeatedReceiverTimerWire(t *testing.T) {
 			if err != nil || !testResultCode(a, diam.Success) {
 				t.Fatalf("repeated DPA=%v error=%v", a, err)
 			}
-			state.mu.Lock()
-			same := state.timer == first
-			state.mu.Unlock()
-			if !same {
+			if !sameTimer() {
 				t.Fatal("repeated DPR replaced original receiver timer")
 			}
 			p.closed(t)

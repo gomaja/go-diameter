@@ -98,6 +98,9 @@ func (c *Core) send(m *diam.Message, r *control, required, closeAfter, handshake
 	e := c.effect(Send)
 	e.Token = token
 	e.Message = m
+	if notice != nil {
+		e.Notification = *notice
+	}
 	e.Required = required
 	e.CloseAfter = closeAfter
 	if c.cfg.QueueWrites {
@@ -177,6 +180,10 @@ func (c *Core) writeResult(in Input) []Effect {
 		}
 		return es
 	}
+	if in.Stage == WrittenStage && op.control != nil && op.control.command == diam.DisconnectPeer && c.earlyDPA != nil {
+		saved := *c.earlyDPA
+		return append(es, c.completeDPA(saved, saved.ResultCode)...)
+	}
 	if op.closeAfter && in.Stage == WrittenStage {
 		es = append(es, c.terminate(Closed)...)
 	}
@@ -224,7 +231,7 @@ func (c *Core) skippedControl(in Input, op *operation) []Effect {
 	if r.command == diam.DeviceWatchdog && !r.written && logical {
 		c.wdNext = nil
 		c.wd.Pending = false
-		if c.phase == Open && c.timers[WatchdogTimer].Token == 0 {
+		if c.cfg.Watchdog && c.phase == Open && c.timers[WatchdogTimer].Token == 0 {
 			es = append(es, c.watchdogArm(in.At, in.Interval)...)
 		}
 	}

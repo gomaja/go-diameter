@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -14,6 +15,7 @@ import (
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/internal/logtest"
+	"github.com/gomaja/go-diameter/diam/internal/protocol"
 	"github.com/gomaja/go-diameter/diam/sm/smpeer"
 )
 
@@ -210,6 +212,27 @@ func TestDPADiscardLogsBeforeNotificationWire(t *testing.T) {
 						t.Fatalf("DPR=%v error=%v", request, err)
 					}
 					closing := p.sm.acceptedClosing(p.conn)
+					var acceptedState *acceptedHandshake
+					var controls []protocol.ControlSnapshot
+					if mode == "accepted" {
+						acceptedState = p.sm.acceptedCore(p.conn, nil, false)
+						if acceptedState == nil {
+							t.Fatal("accepted disconnect has no generation core")
+						}
+						// The peer can read the DPR before its writer returns. Wait
+						// for that independent pin disposal before comparing state.
+						deadline := time.Now().Add(500 * time.Millisecond)
+						for {
+							controls = acceptedState.snapshot().Controls()
+							if len(controls) == 1 && controls[0].Command == diam.DisconnectPeer && controls[0].Logical && controls[0].Writers == 0 {
+								break
+							}
+							if time.Now().After(deadline) {
+								t.Fatalf("DPR writer did not reach its pending-answer boundary: %+v", controls)
+							}
+							time.Sleep(time.Millisecond)
+						}
+					}
 					answer := boundWireAnswer(t, p, request, diam.Success)
 					want := "identifiers mismatch"
 					if mismatch == "end" {
@@ -228,10 +251,15 @@ func TestDPADiscardLogsBeforeNotificationWire(t *testing.T) {
 						assertProtocolEvent(t, observation.event, p.conn, &header, diam.ProtocolUnexpectedMessage, 0, false, diam.ProtocolReplyNone, 0)
 						assertDiscardWarning(t, observation.records, "DPA", want)
 					}
-					p.sm.disconnects.mu.Lock()
-					pending := p.sm.disconnects.pending[p.conn]
-					unchanged := pending != nil && !pending.claimed
-					p.sm.disconnects.mu.Unlock()
+					var unchanged bool
+					if mode == "accepted" {
+						unchanged = slices.Equal(acceptedState.snapshot().Controls(), controls)
+					} else {
+						p.sm.disconnects.mu.Lock()
+						pending := p.sm.disconnects.pending[p.conn]
+						unchanged = pending != nil && !pending.claimed
+						p.sm.disconnects.mu.Unlock()
+					}
 					if !unchanged || p.conn.Closed() || p.sm.acceptedClosing(p.conn) != closing {
 						t.Fatal("DPA diagnostic changed pending DPR or Closing")
 					}

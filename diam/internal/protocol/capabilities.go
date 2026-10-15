@@ -42,6 +42,7 @@ func copyCapabilities(s Capabilities) Capabilities {
 	s.LocalApplications = slices.Clone(s.LocalApplications)
 	s.RemoteApplications = slices.Clone(s.RemoteApplications)
 	s.CommonApplications = slices.Clone(s.CommonApplications)
+	s.ParsedApplications = slices.Clone(s.ParsedApplications)
 	return s
 }
 func (s Snapshot) Capabilities() Capabilities { return copyCapabilities(s.capabilities) }

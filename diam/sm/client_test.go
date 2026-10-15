@@ -499,10 +499,10 @@ func TestClient_Watchdog_Timeout(t *testing.T) {
 
 	sm := mustNewStateMachine(t, serverSettings, testDict)
 	var once sync.Once
-	sm.dwrHandler = handshakeOK(func(c diam.Conn, m *diam.Message) {
+	handler := acceptedDWRTestHandler{StateMachine: sm, dwr: func(c diam.Conn, m *diam.Message) {
 		once.Do(func() { mustWriteSMClientMessage(t, m.Answer(diam.UnableToComply), c) })
-	})
-	srv := diamtest.NewServer(sm, testDict)
+	}}
+	srv := diamtest.NewServer(handler, testDict)
 	defer srv.Close()
 	events := make(chan WatchdogEvent, 2)
 	cli := &Client{

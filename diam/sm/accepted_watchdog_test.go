@@ -22,6 +22,7 @@ import (
 	"github.com/gomaja/go-diameter/diam/diamtest"
 	"github.com/gomaja/go-diameter/diam/dict"
 	"github.com/gomaja/go-diameter/diam/internal/logtest"
+	"github.com/gomaja/go-diameter/diam/internal/protocol"
 	"github.com/gomaja/go-diameter/diam/sm/smpeer"
 )
 
@@ -713,9 +714,7 @@ func TestAcceptedWatchdogNotStartedAfterRejectedOrAbortedCER(t *testing.T) {
 			case "timer-won":
 				value, _ := sm.accepted.Load(c)
 				state := value.(*acceptedHandshake)
-				state.mu.Lock()
-				state.timedOut = true
-				state.mu.Unlock()
+				expireAcceptedTestHandshake(state)
 			case "CEA-write-fails":
 				c.writeErr = errors.New("CEA write failed")
 			}
@@ -793,13 +792,14 @@ func TestAcceptedWatchdogStartsAfterOnHandshake(t *testing.T) {
 	})
 }
 
-// RFC 3539 §3.4.1 [1]: a message with an invalid Diameter header is not
-// valid peer traffic and cannot reset Tw.
-func TestAcceptedWatchdogInvalidHeaderDoesNotResetActivity(t *testing.T) {
+// RFC 3539 §3.4.1 [2], Appendix A; #109/#110: a decoded message resets
+// the receipt timer without clearing Pending or earning health credit.
+func TestAcceptedWatchdogDecodedInvalidHeaderResetsOnlyReceiptTimer(t *testing.T) {
 	testDict := newSMTestDictionary(creditcontrol.Dictionary())
 
 	synctest.Test(t, func(t *testing.T) {
 		cfg := newAcceptedWatchdogSettings()
+		events := acceptedWatchdogEvents(&cfg)
 		sm := mustNewStateMachine(t, &cfg, testDict)
 		c := newAcceptedWatchdogProbeConn()
 		defer close(c.done)
@@ -809,8 +809,26 @@ func TestAcceptedWatchdogInvalidHeaderDoesNotResetActivity(t *testing.T) {
 		<-c.writes // CEA
 		synctest.Wait()
 		time.Sleep(cfg.WatchdogInterval / 2)
+		w := acceptedWatchdogState(t, sm, c)
+		before := w.state.snapshot().Watchdog()
 		invalid := diam.NewMessage(diam.DeviceWatchdog, 0, 4, 1, 2, testDict)
 		sm.ServeDIAM(c, invalid)
+		after := w.state.snapshot()
+		if after.Watchdog() != before || after.Timer(protocol.WatchdogTimer).Deadline != time.Now().Add(cfg.WatchdogInterval) {
+			t.Fatal("decoded invalid activity changed health or failed to reset the receipt timer")
+		}
+		time.Sleep(cfg.WatchdogInterval / 2)
+		synctest.Wait()
+		select {
+		case <-c.writes:
+			t.Fatal("watchdog fired before the decoded receipt deadline")
+		default:
+		}
+		select {
+		case event := <-events:
+			t.Fatalf("invalid activity emitted %s", event.event)
+		default:
+		}
 		time.Sleep(cfg.WatchdogInterval / 2)
 		synctest.Wait()
 		select {
@@ -820,7 +838,13 @@ func TestAcceptedWatchdogInvalidHeaderDoesNotResetActivity(t *testing.T) {
 				t.Fatalf("first idle DWR = %v, %v", m, err)
 			}
 		default:
-			t.Fatal("invalid header incorrectly reset Tw")
+			t.Fatal("receipt reset suppressed DWR beyond the new deadline")
+		}
+		awaitAcceptedEvent(t, events, WatchdogRequestSent, c)
+		select {
+		case event := <-events:
+			t.Fatalf("invalid activity emitted %s", event.event)
+		default:
 		}
 	})
 }
@@ -899,11 +923,12 @@ func TestAcceptedWatchdogRejectedRequestsCountAsActivity(t *testing.T) {
 	}
 }
 
-func TestAcceptedWatchdogMessageErrorDoesNotResetActivity(t *testing.T) {
+func TestAcceptedWatchdogMessageErrorResetsOnlyReceiptTimer(t *testing.T) {
 	testDict := newSMTestDictionary(creditcontrol.Dictionary())
 
 	synctest.Test(t, func(t *testing.T) {
 		cfg := newAcceptedWatchdogSettings()
+		events := acceptedWatchdogEvents(&cfg)
 		sm := mustNewStateMachine(t, &cfg, testDict)
 		c := newAcceptedWatchdogProbeConn()
 		defer close(c.done)
@@ -913,10 +938,28 @@ func TestAcceptedWatchdogMessageErrorDoesNotResetActivity(t *testing.T) {
 		<-c.writes // CEA
 		synctest.Wait()
 		time.Sleep(cfg.WatchdogInterval / 2)
+		w := acceptedWatchdogState(t, sm, c)
+		before := w.state.snapshot().Watchdog()
 		if err := sm.HandleMessageError(c, regressionDWR(t), &diam.MessageError{ResultCode: diam.AVPUnsupported}); err != nil {
 			t.Fatal(err)
 		}
 		<-c.writes // error answer
+		after := w.state.snapshot()
+		if after.Watchdog() != before || after.Timer(protocol.WatchdogTimer).Deadline != time.Now().Add(cfg.WatchdogInterval) {
+			t.Fatal("decoded invalid activity changed health or failed to reset the receipt timer")
+		}
+		time.Sleep(cfg.WatchdogInterval / 2)
+		synctest.Wait()
+		select {
+		case <-c.writes:
+			t.Fatal("watchdog fired before the decoded receipt deadline")
+		default:
+		}
+		select {
+		case event := <-events:
+			t.Fatalf("invalid activity emitted %s", event.event)
+		default:
+		}
 		time.Sleep(cfg.WatchdogInterval / 2)
 		synctest.Wait()
 		select {
@@ -926,7 +969,13 @@ func TestAcceptedWatchdogMessageErrorDoesNotResetActivity(t *testing.T) {
 				t.Fatalf("idle DWR = %v, %v", m, err)
 			}
 		default:
-			t.Fatal("HandleMessageError incorrectly reset Tw")
+			t.Fatal("receipt reset suppressed DWR beyond the new deadline")
+		}
+		awaitAcceptedEvent(t, events, WatchdogRequestSent, c)
+		select {
+		case event := <-events:
+			t.Fatalf("invalid activity emitted %s", event.event)
+		default:
 		}
 	})
 }
@@ -1155,4 +1204,66 @@ func TestAcceptedWatchdogEventPanicClosesConnection(t *testing.T) {
 	}
 	regressionClosed(t, peer)
 	acceptedWatchdogStopped(t, sm, c, state)
+}
+
+// RFC 3539 §3.4.1 [2], Appendix A; #109/#110: receipt credit for decoded
+// invalid traffic cannot settle an outstanding DWR or recover SUSPECT.
+func TestAcceptedWatchdogInvalidActivityPreservesPendingAndHealth(t *testing.T) {
+	for _, malformed := range []bool{false, true} {
+		for _, suspect := range []bool{false, true} {
+			t.Run(fmt.Sprintf("message-error=%v/suspect=%v", malformed, suspect), func(t *testing.T) {
+				synctest.Test(t, func(t *testing.T) {
+					cfg := newAcceptedWatchdogSettings()
+					events := acceptedWatchdogEvents(&cfg)
+					sm := mustNewStateMachine(t, &cfg)
+					c := newAcceptedWatchdogProbeConn()
+					defer close(c.done)
+					startAcceptedTestWatchdog(t, sm, c)
+					w := acceptedWatchdogState(t, sm, c)
+					defer w.stop()
+					time.Sleep(cfg.WatchdogInterval)
+					synctest.Wait()
+					<-c.writes
+					awaitAcceptedEvent(t, events, WatchdogRequestSent, c)
+					if suspect {
+						time.Sleep(cfg.WatchdogInterval)
+						synctest.Wait()
+						awaitAcceptedEvent(t, events, WatchdogSuspect, c)
+					}
+					before := w.state.snapshot().Watchdog()
+					if !before.Pending {
+						t.Fatal("test did not establish an outstanding DWR")
+					}
+					time.Sleep(cfg.WatchdogInterval / 2)
+					if malformed {
+						if err := sm.HandleMessageError(c, regressionDWR(t), &diam.MessageError{ResultCode: diam.AVPUnsupported}); err != nil {
+							t.Fatal(err)
+						}
+						<-c.writes
+					} else {
+						sm.ServeDIAM(c, diam.NewMessage(diam.DeviceWatchdog, 0, 4, 1, 2, c.Dictionary()))
+					}
+					after := w.state.snapshot()
+					if after.Watchdog() != before || after.Timer(protocol.WatchdogTimer).Deadline != time.Now().Add(cfg.WatchdogInterval) {
+						t.Fatal("invalid activity changed Pending/health or failed to reset Tw")
+					}
+					time.Sleep(cfg.WatchdogInterval / 2)
+					synctest.Wait()
+					if c.Closed() || w.state.snapshot().Watchdog() != before {
+						t.Fatal("old deadline changed watchdog health after receipt reset")
+					}
+					select {
+					case event := <-events:
+						t.Fatalf("invalid activity emitted %s", event.event)
+					default:
+					}
+					select {
+					case <-c.writes:
+						t.Fatal("invalid activity published another Pending DWR")
+					default:
+					}
+				})
+			})
+		}
+	}
 }

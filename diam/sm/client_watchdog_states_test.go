@@ -133,10 +133,10 @@ func TestWatchdogRecoversFromSuspectOnAnswer(t *testing.T) {
 	}
 	requests := make(chan request, 4)
 	serverSM := mustNewStateMachine(t, serverSettings, testDict)
-	serverSM.dwrHandler = handshakeOK(func(c diam.Conn, m *diam.Message) {
+	handler := acceptedDWRTestHandler{StateMachine: serverSM, dwr: func(c diam.Conn, m *diam.Message) {
 		requests <- request{c, m}
-	})
-	srv := diamtest.NewServer(serverSM, testDict)
+	}}
+	srv := diamtest.NewServer(handler, testDict)
 	defer srv.Close()
 	events := make(chan WatchdogEvent, 12)
 	cli := newLivenessClient(t)

@@ -11,12 +11,13 @@ import (
 
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/internal/logtest"
+	"github.com/gomaja/go-diameter/diam/internal/protocol"
 	"github.com/gomaja/go-diameter/diam/sm/smpeer"
 )
 
-// RFC 6733 §5.6: Disconnect issued while OnHandshake still runs enters Closing before
-// startWatchdog registers the supervisor. stopWatchdog is then a no-op and the
-// deferred startWatchdog begins supervision inside Closing.
+// RFC 6733 §5.6: Disconnect issued while OnHandshake still runs enters
+// Closing before supervisor registration. Deferred registration must preserve
+// that Closing decision.
 func TestAcceptedWatchdogDisconnectDuringOnHandshake(t *testing.T) {
 	testDict := newSMTestDictionary(creditcontrol.Dictionary())
 
@@ -36,7 +37,7 @@ func TestAcceptedWatchdogDisconnectDuringOnHandshake(t *testing.T) {
 		if err != nil || dpr.Header.CommandCode != diam.DisconnectPeer {
 			t.Fatalf("DPR: %v, %v", dpr, err)
 		}
-		close(release) // OnHandshake returns; deferred startWatchdog runs.
+		close(release) // OnHandshake returns; deferred registration runs.
 		synctest.Wait()
 		_, supervised := sm.watchdogs.Load(c)
 		got := make(chan *diam.Message, 1)
@@ -71,7 +72,7 @@ func TestAcceptedWatchdogTerminalCloseLocks(t *testing.T) {
 					c.writeErr = errors.New("DWR write failed")
 				}
 				defer close(c.done)
-				sm.startWatchdog(c)
+				startAcceptedTestWatchdog(t, sm, c)
 				w := acceptedWatchdogState(t, sm, c)
 				c.afterClose = func() {
 					if w.mu.TryLock() {
@@ -81,12 +82,11 @@ func TestAcceptedWatchdogTerminalCloseLocks(t *testing.T) {
 					}
 				}
 				if failure {
-					if w.send() {
+					if expireAcceptedTestWatchdog(w) {
 						t.Fatal("failed DWR reported success")
 					}
 				} else {
-					state := watchdogState{pending: true, suspect: true}
-					w.expire(&state)
+					timeoutAcceptedTestWatchdog(w)
 				}
 				if !c.Closed() {
 					t.Error("terminal watchdog failure did not close transport")
@@ -109,16 +109,16 @@ func TestAcceptedWatchdogStopWaitsForTerminalClose(t *testing.T) {
 					c.writeErr = errors.New("DWR write failed")
 				}
 				defer close(c.done)
-				sm.startWatchdog(c)
+				startAcceptedTestWatchdog(t, sm, c)
 				w := acceptedWatchdogState(t, sm, c)
 				entered, release := make(chan struct{}), make(chan struct{})
 				c.afterClose = func() { close(entered); <-release }
 				closed := make(chan struct{})
 				go func() {
 					if failure {
-						w.send()
+						expireAcceptedTestWatchdog(w)
 					} else {
-						w.timeout()
+						timeoutAcceptedTestWatchdog(w)
 					}
 					close(closed)
 				}()
@@ -148,12 +148,12 @@ func TestAcceptedWatchdogEndedSupervisorIgnoresStaleDWA(t *testing.T) {
 		inner := newAcceptedWatchdogProbeConn()
 		notify := make(chan struct{})
 		c := watchdogOuterCloseNotifier{Conn: inner, closed: notify}
-		sm.startWatchdog(c)
+		startAcceptedTestWatchdog(t, sm, c)
 		w := acceptedWatchdogState(t, sm, c)
 		close(notify)
 		<-w.exited
 		sm.stopWatchdog(c)
-		w.dwa.ServeDIAM(c, acceptedDWA(t, regressionDWR(t), diam.Success))
+		receiveAcceptedTestWatchdog(w, acceptedDWA(t, regressionDWR(t), diam.Success))
 		select {
 		case event := <-events:
 			t.Errorf("ended supervisor emitted %s through stale pointer after stop", event.event)
@@ -162,8 +162,8 @@ func TestAcceptedWatchdogEndedSupervisorIgnoresStaleDWA(t *testing.T) {
 	})
 }
 
-// RFC 6733 §5.6: a DOWN expiry that passed expire's stop check still logs and closes the
-// transport after stopWatchdog has returned (interleaving forced via observe).
+// RFC 6733 §5.6: a selected DOWN transition cannot log or close after
+// stopWatchdog returns. Prepare the expiry before stop, then execute its effects.
 func TestAcceptedWatchdogDownCloseAfterStopReturned(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		cfg := newAcceptedWatchdogSettings()
@@ -172,16 +172,17 @@ func TestAcceptedWatchdogDownCloseAfterStopReturned(t *testing.T) {
 		logs := logtest.New()
 		c := &closingWatchdogConn{newAcceptedWatchdogProbeConn(), logs.Logger()}
 		defer close(c.done)
-		sm.startWatchdog(c)
+		startAcceptedTestWatchdog(t, sm, c)
 		w := acceptedWatchdogState(t, sm, c)
-		cw := w.connWatchdog
-		cw.observe = func(e WatchdogEvent) {
-			sm.stopWatchdog(c) // Disconnect/DPR wins the mutex right after the stop check.
-			w.observe(c, e)
-		}
-		time.Sleep(time.Millisecond)
-		st := watchdogState{pending: true, suspect: true}
-		cw.expire(&st)
+		expireAcceptedTestWatchdog(w) // DWR publishes Pending.
+		expireAcceptedTestWatchdog(w) // Next expiry enters SUSPECT.
+		<-c.writes
+		<-events
+		<-events
+		timer := w.state.snapshot().Timer(protocol.WatchdogTimer)
+		batch := w.state.prepare(protocol.Input{Kind: protocol.TimerExpired, Timer: protocol.WatchdogTimer, Token: timer.Token, At: timer.Deadline})
+		sm.stopWatchdog(c) // Closing wins before selected terminal effects execute.
+		w.state.run(batch)
 		<-w.exited
 		if c.Closed() {
 			t.Errorf("DOWN closed the transport after stopWatchdog returned")

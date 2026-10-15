@@ -11,6 +11,7 @@ import (
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/internal/base"
+	"github.com/gomaja/go-diameter/diam/internal/protocol"
 	"github.com/gomaja/go-diameter/diam/sm/smpeer"
 )
 
@@ -110,6 +111,23 @@ func (sm *StateMachine) rejectBaseMessage(c diam.Conn, m *diam.Message, err *dia
 // failure is logged here and closes the connection; returning nil means the
 // state machine took responsibility. Invalid error descriptions are returned.
 func (sm *StateMachine) HandleMessageError(c diam.Conn, request *diam.Message, messageErr *diam.MessageError) error {
+	release := request.BeginDispatch()
+	defer release()
+	if state := sm.acceptedCore(c, request, true); state != nil {
+		if messageErr == nil {
+			return fmt.Errorf("cannot answer a nil Diameter message error")
+		}
+		if messageErr.ResultCode == diam.InvalidAVPLength && messageErr.FailedAVP == nil && request != nil && request.Header != nil && request.Header.CommandFlags&diam.RequestFlag != 0 {
+			return fmt.Errorf("diameter result code %d requires Failed-AVP", messageErr.ResultCode)
+		}
+		batch := state.prepare(protocol.Input{Kind: protocol.Receive, Message: request, Error: messageErr})
+		state.run(batch)
+		return nil
+	}
+	return sm.handleLegacyMessageError(c, request, messageErr)
+}
+
+func (sm *StateMachine) handleLegacyMessageError(c diam.Conn, request *diam.Message, messageErr *diam.MessageError) error {
 	outcome, err := sm.handleMessageError(c, request, messageErr, diam.ProtocolMalformedMessage)
 	if err == nil {
 		sm.reportMessageError(c, request, outcome)
@@ -147,7 +165,7 @@ func (sm *StateMachine) handleMessageError(c diam.Conn, request *diam.Message, m
 		return outcome, nil
 	}
 	if (messageErr == nil || !messageErr.Fatal) && request != nil && request.Header != nil && request.Header.ApplicationID == 0 && request.Header.CommandCode == diam.CapabilitiesExchange && request.Header.CommandFlags&diam.RequestFlag != 0 && admittedPeer(c) {
-		handleCER(sm)(c, request)
+		sm.ignoreRepeatedCER(c, request)
 		return outcome, nil
 	}
 	outcome = messageErrorOutcome{kind: kind, closing: messageErr != nil && messageErr.Fatal}

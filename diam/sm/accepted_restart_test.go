@@ -1,7 +1,6 @@
 package sm
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -10,7 +9,6 @@ import (
 	"slices"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -18,6 +16,7 @@ import (
 	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
 
 	"github.com/gomaja/go-diameter/diam/internal/logtest"
+	"github.com/gomaja/go-diameter/diam/internal/protocol"
 
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
@@ -60,16 +59,20 @@ func TestAcceptedRetiredWatchdogSuppressesStaleWork(t *testing.T) {
 		sm := mustNewStateMachine(t, &cfg)
 		c := newAcceptedWatchdogProbeConn()
 		defer close(c.done)
-		sm.startWatchdog(c)
+		startAcceptedTestWatchdog(t, sm, c)
 		w := acceptedWatchdogState(t, sm, c)
 		defer w.stop()
 		c.closed.Store(true)
-		w.received(regressionDWR(t))
-		if w.signals.last.Load() != 0 {
+		if err := sm.HandleRetire(c, diam.SCTPAssociationRestart); err != nil {
+			t.Fatal(err)
+		}
+		before := w.state.snapshot()
+		receiveAcceptedTestWatchdog(w, regressionDWR(t))
+		if w.state.snapshot().Timer(protocol.WatchdogTimer) != before.Timer(protocol.WatchdogTimer) {
 			t.Error("retired activity reset Tw")
 		}
 		w.observe(c, WatchdogSuspect)
-		if w.send() {
+		if expireAcceptedTestWatchdog(w) {
 			t.Error("retired generation published DWR")
 		}
 		select {
@@ -94,9 +97,12 @@ func TestAcceptedRetirementCancelsProtocolState(t *testing.T) {
 	defer close(c.done)
 	value, _ := sm.accepted.Load(c)
 	state := value.(*acceptedHandshake)
-	sm.startWatchdog(c)
+	startAcceptedTestWatchdog(t, sm, c)
 	w := acceptedWatchdogState(t, sm, c)
 	defer w.stop()
+	if state.snapshot().Timer(protocol.WatchdogTimer).Token == 0 {
+		t.Fatal("watchdog timer was not active before retirement")
+	}
 	c.closed.Store(true)
 	retire, ok := any(sm).(diam.RetireHandler)
 	if !ok {
@@ -107,6 +113,9 @@ func TestAcceptedRetirementCancelsProtocolState(t *testing.T) {
 	}
 	if _, ok := sm.accepted.Load(c); ok {
 		t.Error("retired admission state remains")
+	}
+	if state.snapshot().Timer(protocol.WatchdogTimer).Token != 0 {
+		t.Error("retired watchdog timer remains active")
 	}
 	if state.timer.Stop() {
 		t.Error("retired admission timer remains active")
@@ -134,7 +143,7 @@ func TestAcceptedRetirementAllowsBlockedWatchdogObserver(t *testing.T) {
 	cleanup := sm.HandleAccept(c)
 	defer cleanup()
 	defer close(c.done)
-	sm.startWatchdog(c)
+	startAcceptedTestWatchdog(t, sm, c)
 	w := acceptedWatchdogState(t, sm, c)
 	observed := make(chan struct{})
 	go func() { w.observe(c, WatchdogSuspect); close(observed) }()
@@ -177,7 +186,7 @@ func TestAcceptedRetirementDuringWatchdogRegistration(t *testing.T) {
 		cleanup := sm.HandleAccept(c)
 		defer cleanup()
 		registered := make(chan struct{})
-		go func() { sm.startWatchdog(c); close(registered) }()
+		go func() { startAcceptedTestWatchdog(t, sm, c); close(registered) }()
 		<-c.lookupEntered
 		c.closed.Store(true)
 		if err := sm.HandleRetire(c, diam.SCTPAssociationRestart); err != nil {
@@ -188,7 +197,7 @@ func TestAcceptedRetirementDuringWatchdogRegistration(t *testing.T) {
 		if _, ok := sm.watchdogs.Load(c); ok {
 			t.Fatal("watchdog resurrected after retirement")
 		}
-		sm.startWatchdog(c)
+		startAcceptedTestWatchdog(t, sm, c)
 		if _, ok := sm.watchdogs.Load(c); ok {
 			t.Fatal("deferred watchdog start resurrected after retirement")
 		}
@@ -213,7 +222,8 @@ func TestAcceptedCERRenewalEligibility(t *testing.T) {
 	if !sm.CanRenewAcceptedCER(c) {
 		t.Fatal("admitted accepted connection ineligible")
 	}
-	sm.markAcceptedClosing(c)
+	state := sm.acceptedCore(c, nil, false)
+	state.prepare(protocol.Input{Kind: protocol.Disconnect})
 	if sm.CanRenewAcceptedCER(c) {
 		t.Fatal("Closing connection eligible")
 	}
@@ -577,10 +587,13 @@ func TestAcceptedRetirementDisconnectDuringWrite(t *testing.T) {
 		dict.Base())
 	serverSettings := cloneTestSettings(serverSettings, testDict)
 
+	serverSettings.HostIPAddresses = []datatype.Address{localhostAddress}
 	sm := mustNewStateMachine(t, serverSettings, testDict)
 	c := &retirementDisconnectConn{blockingDisconnectConn: &blockingDisconnectConn{dictionary: testDict, closed: make(chan struct{})}, entered: make(chan struct{})}
 	cleanup := sm.HandleAccept(c)
 	defer cleanup()
+	state := primeAcceptedTestCore(t, sm, c)
+	state.apply(protocol.Input{Kind: protocol.ReleaseAdmission, Token: state.snapshot().Admission()})
 	result := make(chan error, 1)
 	go func() { result <- sm.Disconnect(c, DisconnectBusy, time.Hour) }()
 	<-c.entered
@@ -607,12 +620,23 @@ func TestAcceptedRetirementSuppressesDWACredit(t *testing.T) {
 	sm := mustNewStateMachine(t, &cfg)
 	c := newAcceptedWatchdogProbeConn()
 	defer close(c.done)
-	sm.startWatchdog(c)
+	startAcceptedTestWatchdog(t, sm, c)
 	w := acceptedWatchdogState(t, sm, c)
 	defer w.stop()
 	c.closed.Store(true)
-	w.dwa.ServeDIAM(c, acceptedDWA(t, regressionDWR(t), diam.Success))
-	if queuedWatchdogCredits(&w.signals) != 0 {
+	if err := sm.HandleRetire(c, diam.SCTPAssociationRestart); err != nil {
+		t.Fatal(err)
+	}
+	before := w.state.snapshot()
+	if before.Phase() != protocol.Retired {
+		t.Fatalf("test did not retire the core: %v", before.Phase())
+	}
+	sequence := w.state.sequence
+	receiveAcceptedTestWatchdog(w, acceptedDWA(t, regressionDWR(t), diam.Success))
+	if w.state.sequence != sequence+1 {
+		t.Fatal("stale retired DWA never reached the production adapter")
+	}
+	if w.state.snapshot().Watchdog() != before.Watchdog() {
 		t.Fatal("retired generation credited DWA")
 	}
 	select {
@@ -620,7 +644,7 @@ func TestAcceptedRetirementSuppressesDWACredit(t *testing.T) {
 		t.Fatalf("retired generation emitted%s", event.event)
 	default:
 	}
-	if w.signals.last.Load() != 0 {
+	if w.state.snapshot().Timer(protocol.WatchdogTimer) != before.Timer(protocol.WatchdogTimer) {
 		t.Fatal("retired received traffic reset Tw")
 	}
 }
@@ -633,7 +657,9 @@ func TestAcceptedRetiredHandshakeCannotPublish(t *testing.T) {
 	cleanup := sm.HandleAccept(c)
 	defer cleanup()
 	c.closed.Store(true)
-	if sm.completeAcceptedHandshake(c) {
+	state := sm.acceptedCore(c, nil, false)
+	state.apply(protocol.Input{Kind: protocol.ReleaseAdmission, Token: state.snapshot().Admission()})
+	if state.snapshot().Ready() {
 		t.Fatal("retired handshake published admission")
 	}
 	handleCER(sm).ServeDIAM(c, regressionCER(t, testDict, 1001))
@@ -749,18 +775,10 @@ func TestAcceptedRetirementReleasesDisconnectWithBlockedObserver(t *testing.T) {
 
 type acceptedDPRGateConn struct {
 	diam.Conn
-	gate             atomic.Bool
 	entered, release chan struct{}
 	once             sync.Once
 }
 
-func (c *acceptedDPRGateConn) Context() context.Context {
-	if c.gate.Load() {
-		c.once.Do(func() { close(c.entered) })
-		<-c.release
-	}
-	return c.Conn.Context()
-}
 func (c *acceptedDPRGateConn) Unwrap() diam.Conn { return c.Conn }
 
 type acceptedDPRGateHandler struct {
@@ -784,7 +802,10 @@ func (h *acceptedDPRGateHandler) CanRenewAcceptedCER(c diam.Conn) bool {
 func (h *acceptedDPRGateHandler) ServeDIAM(c diam.Conn, m *diam.Message) {
 	wrapped := h.wrap(c)
 	if m.Header.CommandCode == diam.DisconnectPeer && m.Header.CommandFlags&diam.RequestFlag != 0 {
-		wrapped.gate.Store(true)
+		release := m.BeginDispatch()
+		defer release()
+		wrapped.once.Do(func() { close(wrapped.entered) })
+		<-wrapped.release
 	}
 	h.StateMachine.ServeDIAM(wrapped, m)
 }
@@ -827,7 +848,7 @@ func TestAcceptedDPRAdmissionPrecedesCERRenewal(t *testing.T) {
 	mustSMClientAVP(t, dpr, avp.OriginRealm, avp.Mbit, 0, clientSettings.OriginRealm)
 	mustSMClientAVP(t, dpr, avp.DisconnectCause, avp.Mbit, 0, datatype.Enumerated(0))
 	transport.message(t, dpr)
-	<-old.entered // DPR's handshake check is paused before Closing is published.
+	<-old.entered // DPR admission is held before the core publishes Closing.
 	transport.message(t, acceptedRestartCER(t, "second.example", 1002, 222))
 	select {
 	case <-restarts:

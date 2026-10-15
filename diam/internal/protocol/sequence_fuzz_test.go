@@ -16,6 +16,7 @@ type sequenceModel struct {
 	phase                                                                              int // 0 unadmitted, 1 outbound, 2 active, 3 draining, 4 dead, 5 retired
 	initiator, started, candidate, callback, ready, frozen, localDPR, dprSent, cerSent bool
 	handTimer, closeTimer                                                              bool
+	queued, dprWritten, earlyDPA                                                       bool
 }
 
 func (m *sequenceModel) step(action byte) {
@@ -84,7 +85,11 @@ func (m *sequenceModel) step(action byte) {
 		}
 	case 9:
 		if m.phase == 3 && m.dprSent {
-			m.end(4)
+			if m.queued || m.dprWritten {
+				m.end(4)
+			} else {
+				m.earlyDPA = true
+			}
 		} else if m.phase == 0 || m.phase == 1 {
 			m.end(4)
 		}
@@ -138,6 +143,19 @@ func (m *sequenceModel) end(phase int) {
 	m.callback = false
 	m.handTimer = false
 	m.closeTimer = false
+	m.earlyDPA = false
+}
+
+// A matched answer can precede the synchronous writer's return. Its logical
+// ownership is complete, while the public waiter still owns the send boundary.
+func (m *sequenceModel) writtenDPR() {
+	if m.phase != 3 || !m.dprSent {
+		return
+	}
+	m.dprWritten = true
+	if m.earlyDPA {
+		m.end(4)
+	}
 }
 func modelPhase(p int) Phase { return [...]Phase{PreCER, WaitCEA, Open, Closing, Closed, Retired}[p] }
 
@@ -240,7 +258,16 @@ func (r *sequenceRunner) observe(t testing.TB, in Input, es []Effect, wasTermina
 }
 
 func FuzzProtocolSequences(f *testing.F) {
-	for _, seed := range [][]byte{{0, 0, 1, 2, 3, 4, 15, 7, 9}, {1, 0, 8, 14, 4, 6, 7, 8, 9}, {0, 1, 2, 11, 3, 4}, {1, 0, 11, 8}, {0, 1, 2, 16, 4, 6, 7, 8, 17}, {0, 0, 1, 2, 3, 4, 6, 7, 8, 9, 11}} {
+	for _, seed := range [][]byte{
+		{0, 0, 1, 2, 3, 4, 15, 7, 9}, {1, 0, 8, 14, 4, 6, 7, 8, 9}, {0, 1, 2, 11, 3, 4},
+		{1, 0, 11, 8}, {0, 1, 2, 16, 4, 6, 7, 8, 17}, {0, 0, 1, 2, 3, 4, 6, 7, 8, 9, 11},
+		// Early matched DPA followed by full write, failed write, deadline,
+		// retirement, duplicate answer, and queued-frontend completion.
+		{0, 0, 1, 2, 3, 4, 6, 7, 8, 9, 3}, {0, 0, 1, 2, 3, 4, 6, 7, 8, 9, 17},
+		{0, 0, 1, 2, 3, 4, 6, 7, 8, 9, 10}, {0, 0, 1, 2, 3, 4, 6, 7, 8, 9, 11, 3},
+		{0, 0, 1, 2, 3, 4, 6, 7, 8, 9, 9, 3}, {2, 0, 1, 2, 16, 4, 6, 7, 8, 9, 3},
+		{1, 0, 8, 14, 4, 6, 7, 8, 9, 3}, {1, 0, 8, 14, 4, 6, 7, 8, 9, 10},
+	} {
 		f.Add(seed)
 	}
 	f.Fuzz(func(t *testing.T, data []byte) {
@@ -261,7 +288,7 @@ func FuzzProtocolSequences(f *testing.F) {
 			t.Fatal(err)
 		}
 		r := newRunner(c)
-		model := sequenceModel{initiator: cfg.Role == Initiator}
+		model := sequenceModel{initiator: cfg.Role == Initiator, queued: cfg.QueueWrites}
 		for index, b := range data[1:] {
 			action := b % 23
 			in := event(Start)
@@ -373,6 +400,9 @@ func FuzzProtocolSequences(f *testing.F) {
 			case 3:
 				if live && send.Message.Header.CommandCode == diam.CapabilitiesExchange && send.Message.Header.CommandFlags&diam.RequestFlag == 0 {
 					model.step(action)
+				}
+				if live && send.Message.Header.CommandCode == diam.DisconnectPeer && send.Message.Header.CommandFlags&diam.RequestFlag != 0 {
+					model.writtenDPR()
 				}
 			case 16:
 				if cfg.QueueWrites && live && send.Message.Header.CommandCode == diam.CapabilitiesExchange && send.Message.Header.CommandFlags&diam.RequestFlag == 0 {

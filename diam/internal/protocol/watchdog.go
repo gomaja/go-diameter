@@ -98,22 +98,26 @@ func (c *Core) watchdogExpired(in Input) []Effect {
 func (c *Core) dwa(in Input) []Effect {
 	m := in.Message
 	if err := base.ValidateMessage(m); err != nil {
+		in.Error = err
 		return c.discard(in, diam.ProtocolInvalidDWA, err.ResultCode)
-	}
-	r := c.controls[diam.DeviceWatchdog]
-	if !c.matches(r, m) || !c.bound(m, true) {
-		return c.discard(in, diam.ProtocolInvalidDWA, 0)
 	}
 	var parsed base.DWA
 	if parsed.Parse(m) != nil {
 		return c.discard(in, diam.ProtocolInvalidDWA, 0)
 	}
+	r := c.controls[diam.DeviceWatchdog]
 	if parsed.ResultCode != diam.Success {
-		es := c.consumeControl(r, m)
+		var es []Effect
+		if c.matches(r, m) && c.bound(m, true) {
+			es = c.consumeControl(r, m)
+		}
 		return append(es, c.discard(in, diam.ProtocolRejectedDWA, parsed.ResultCode)...)
 	}
-	if m.Header.CommandFlags&diam.ErrorFlag != 0 {
+	if !c.bound(m, true) || m.Header.CommandFlags&diam.ErrorFlag != 0 {
 		return c.discard(in, diam.ProtocolInvalidDWA, 0)
+	}
+	if !c.matches(r, m) {
+		return c.discard(in, diam.ProtocolUnexpectedMessage, 0)
 	}
 	current := c.wd
 	// A fast answer can precede the writer's return. Apply its credit to the
@@ -126,6 +130,7 @@ func (c *Core) dwa(in Input) []Effect {
 	c.wd = next
 	es := c.consumeControl(r, m)
 	es = append(es, c.settle(r)...)
+	es = append(es, c.notify(Notification{Kind: WatchdogNotice, Watchdog: next.State, Diagnostic: "answer"}))
 	if actions.Failback {
 		es = append(es, c.notify(Notification{Kind: WatchdogNotice, Watchdog: next.State}))
 	}

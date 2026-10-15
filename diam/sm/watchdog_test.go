@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gomaja/go-diameter/diam"
+	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/dict"
 	"github.com/gomaja/go-diameter/diam/internal/logtest"
 )
@@ -315,12 +316,13 @@ func TestAcceptedWatchdogWarnsWithoutLifecycleNotifier(t *testing.T) {
 
 	cfg := *serverSettings
 	cfg.EnableWatchdog = true
+	cfg.HostIPAddresses = []datatype.Address{localhostAddress}
 	logs := logtest.New()
 	inner := newWatchdogProbeConn()
 	// Embedding diam.Conn hides the optional lifecycle methods on inner.
 	c := loggedWatchdogConn{Conn: struct{ diam.Conn }{inner}, logger: slog.New(logs)}
 	sm := mustNewStateMachine(t, &cfg, testDict)
-	sm.startWatchdog(c)
+	startAcceptedTestWatchdog(t, sm, c)
 	if records := logs.Records(); len(records) != 1 || records[0].Level != slog.LevelWarn ||
 		records[0].Message != "sm: watchdog disabled: connection exposes neither DispatchDone nor CloseNotifier" {
 		t.Fatalf("watchdog warning records = %v", records)
