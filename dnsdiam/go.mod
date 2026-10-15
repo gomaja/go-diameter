@@ -1,9 +1,9 @@
 module github.com/gomaja/go-diameter/dnsdiam
 
-go 1.26.0
+go 1.27.0
 
 require (
-	codeberg.org/miekg/dns v0.6.97
+	codeberg.org/miekg/dns v0.6.118
 	github.com/gomaja/go-diameter v0.0.0-20261014163932-f8bc15879003
 )
 
