@@ -48,32 +48,34 @@ const (
 )
 
 type actor struct {
-	discovery     atomic.Pointer[discoveryState]
-	retiring      atomic.Bool
-	ready         *discoveryReady
-	leaseTimer    Timer
-	leaseStop     chan struct{}
-	dialCancel    context.CancelFunc
-	controlOnce   sync.Once
-	control       chan retirementCommand
-	delivery      *protocolDelivery
-	m             *Manager
-	cfg           PeerConfig
-	events        chan event
-	done          chan struct{}
-	state         PeerState
-	i, r          *session
-	pendingGen    uint64
-	nextGen       uint64
-	token         uint64
-	timer         Timer
-	meta          *smpeer.Metadata
-	active        *session
-	pendingDPR    uint32
-	pendingDPREnd uint32
-	closeCause    sm.DisconnectCause
-	snapshotValue atomic.Value
-	activeSession atomic.Pointer[session]
+	discovery         atomic.Pointer[discoveryState]
+	retiring          atomic.Bool
+	ready             *discoveryReady
+	leaseTimer        Timer
+	leaseStop         chan struct{}
+	dialCancel        context.CancelFunc
+	controlOnce       sync.Once
+	control           chan retirementCommand
+	delivery          *protocolDelivery
+	m                 *Manager
+	cfg               PeerConfig
+	events            chan event
+	done              chan struct{}
+	state             PeerState
+	i, r              *session
+	pendingGen        uint64
+	nextGen           uint64
+	token             uint64
+	timer             Timer
+	meta              *smpeer.Metadata
+	active            *session
+	pendingDPR        uint32
+	pendingDPREnd     uint32
+	pendingDPRGen     uint64
+	pendingDPRCommand uint32
+	closeCause        sm.DisconnectCause
+	snapshotValue     atomic.Value
+	activeSession     atomic.Pointer[session]
 
 	watchdog          WatchdogState
 	wdTimer, tcTimer  Timer
@@ -227,6 +229,7 @@ func (a *actor) failWithLog(level slog.Level, text string, err error) {
 	}
 	a.active = nil
 	a.meta = nil
+	a.pendingDPRGen, a.pendingDPRCommand = 0, 0
 	a.setState(Closed, err)
 	a.lostConnection(err)
 }
@@ -518,12 +521,17 @@ func (a *actor) onWire(e event) {
 	cmd := msg.Header.CommandCode
 	req := msg.Header.CommandFlags&diam.RequestFlag != 0
 	if a.state == WaitICEA || a.state == WaitReturns {
-		if isI && e.messageErr == nil && cmd == diam.CapabilitiesExchange && !req && msg.Header.ApplicationID == 0 {
-			if s.cerHop != msg.Header.HopByHopID || s.cerEnd != msg.Header.EndToEndID {
-				a.fail(errors.New("peer: CEA identifiers mismatch"))
-				a.protocolError(s.c, msg, diam.ProtocolCEARejected, 0, true, diam.ProtocolReplyNone, 0)
-				return
-			}
+		isCEA := isI && cmd == diam.CapabilitiesExchange && !req && msg.Header.ApplicationID == 0
+		// RFC 6733 §§3, 5.3, 6.2.1: correlate recognizable CEA headers
+		// before rejecting a recoverable body error. A stray answer owns
+		// neither admission nor its deadline; fatal framing still rejects.
+		if isCEA && (e.messageErr == nil || !e.messageErr.Fatal) &&
+			(s.cerHop != msg.Header.HopByHopID || s.cerEnd != msg.Header.EndToEndID) {
+			a.m.report(s, msg, errors.New("peer: CEA identifiers mismatch"))
+			a.protocolError(s.c, msg, diam.ProtocolUnexpectedMessage, 0, false, diam.ProtocolReplyNone, 0)
+			return
+		}
+		if isCEA && e.messageErr == nil {
 			cea := new(smparser.CEA)
 			if err := cea.Parse(msg, smparser.ParseOptions{Role: smparser.Client, LocalApplications: base.AdvertisedApplicationIDs(a.m.baseSettings(s.c))}); err != nil {
 				a.fail(fmt.Errorf("peer: invalid CEA: %w", err))
@@ -603,9 +611,10 @@ func (a *actor) onWire(e event) {
 	}
 	if a.state == Closing {
 		if cmd == diam.DisconnectPeer && !req && msg.Header.ApplicationID == 0 {
-			// RFC 6733 §5.4.2 and §5.6 Closing: only the matching peer's
-			// successful DPA completes this disconnect exchange.
-			if msg.Header.HopByHopID != a.pendingDPR || msg.Header.EndToEndID != a.pendingDPREnd {
+			// RFC 6733 §§3, 5.4.2, 6.2.1: require a locally owned DPR
+			// in this generation, even when both identifiers are zero.
+			if a.pendingDPRGen != s.gen || a.pendingDPRCommand != cmd ||
+				msg.Header.HopByHopID != a.pendingDPR || msg.Header.EndToEndID != a.pendingDPREnd {
 				a.m.report(s, msg, errors.New("peer: DPA identifiers mismatch"))
 				a.protocolError(s.c, msg, diam.ProtocolInvalidDPA, 0, false, diam.ProtocolReplyNone, 0)
 				return
@@ -616,17 +625,20 @@ func (a *actor) onWire(e event) {
 				a.protocolError(s.c, msg, diam.ProtocolInvalidDPA, 0, false, diam.ProtocolReplyNone, 0)
 				return
 			}
-			if result != diam.Success {
-				a.m.report(s, msg, fmt.Errorf("peer: DPA Result-Code %d", result))
-				a.protocolError(s.c, msg, diam.ProtocolPeerRejected, result, false, diam.ProtocolReplyNone, 0)
-				return
-			}
+			// RFC 6733 §§5.4.2, 6.3: bind the structurally valid answer
+			// to the admitted identity before interpreting its Result-Code.
 			host, err := msg.FindAVP(avp.OriginHost, 0)
 			if err != nil || compareIdentity(host.Data.(datatype.DiameterIdentity), a.cfg.Host) != 0 {
 				a.m.report(s, msg, errors.New("peer: DPA Origin-Host mismatch"))
 				a.protocolError(s.c, msg, diam.ProtocolInvalidDPA, 0, false, diam.ProtocolReplyNone, 0)
 				return
 			}
+			if result != diam.Success {
+				a.m.report(s, msg, fmt.Errorf("peer: DPA Result-Code %d", result))
+				a.protocolError(s.c, msg, diam.ProtocolPeerRejected, result, false, diam.ProtocolReplyNone, 0)
+				return
+			}
+			a.pendingDPRGen, a.pendingDPRCommand = 0, 0
 			if isI {
 				s.releaseControl(a.pendingDPR)
 				a.step(iDPA, s, msg)
@@ -776,6 +788,9 @@ func (a *actor) step(ev psmEvent, s *session, msg *diam.Message) {
 	}
 	old := a.state
 	a.state = row.next
+	if old == Closing && a.state != Closing {
+		a.pendingDPRGen, a.pendingDPRCommand = 0, 0
+	}
 	switch ev {
 	case iAck:
 		a.stopTimer()
@@ -901,6 +916,8 @@ func (a *actor) step(ev psmEvent, s *session, msg *diam.Message) {
 		}
 		a.pendingDPR = dpr.Header.HopByHopID
 		a.pendingDPREnd = dpr.Header.EndToEndID
+		// RFC 6733 §§5.4.2, 6.2.1: Closing alone does not own a DPR.
+		a.pendingDPRGen, a.pendingDPRCommand = s.gen, dpr.Header.CommandCode
 		a.arm(a.m.cfg.Timers.Closing)
 	case iDPA, rDPA:
 		a.stopTimer()

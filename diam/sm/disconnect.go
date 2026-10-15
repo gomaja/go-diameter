@@ -25,8 +25,9 @@ type disconnectState struct {
 }
 
 type pendingDisconnect struct {
-	hopID  uint32
-	result chan uint32
+	request *answerCorrelation
+	claimed bool
+	result  chan uint32
 }
 
 // Disconnect sends a DPR and waits for its matching DPA on conn. It closes
@@ -64,7 +65,7 @@ func (sm *StateMachine) Disconnect(c diam.Conn, cause DisconnectCause, timeout t
 	if err != nil {
 		return err
 	}
-	p := &pendingDisconnect{hopID: m.Header.HopByHopID, result: make(chan uint32, 1)}
+	p := &pendingDisconnect{request: correlateAnswer(c, m), result: make(chan uint32, 1)}
 	sm.disconnects.mu.Lock()
 	if sm.disconnects.pending == nil {
 		sm.disconnects.pending = make(map[diam.Conn]*pendingDisconnect)
@@ -155,8 +156,14 @@ func handleDPA(sm *StateMachine) diam.HandlerFunc {
 		}
 		sm.disconnects.mu.Lock()
 		p := sm.disconnects.pending[c]
-		if p == nil || p.hopID != m.Header.HopByHopID {
+		// RFC 6733 §§3, 5.4.2, 6.2.1: only an explicitly pending DPR
+		// from this generation can complete. Zero identifiers remain valid.
+		if p == nil || p.claimed || !p.request.matches(c, m) {
+			mismatched := p != nil && !p.claimed
 			sm.disconnects.mu.Unlock()
+			if mismatched {
+				logMessage(c, m, slog.LevelWarn, "sm: DPA identifiers mismatch; answer discarded", nil)
+			}
 			sm.protocolError(c, m, diam.ProtocolUnexpectedMessage, 0, false, diam.ProtocolReplyNone, 0)
 			return
 		}
@@ -167,6 +174,21 @@ func handleDPA(sm *StateMachine) diam.HandlerFunc {
 			sm.protocolError(c, m, diam.ProtocolInvalidDPA, 0, false, diam.ProtocolReplyNone, 0)
 			return
 		}
+		// RFC 6733 §6.3: bind the structurally valid answer's sender before
+		// interpreting Result-Code; another peer cannot end this disconnect.
+		if !messageBoundHost(c, m) {
+			logMessage(c, m, slog.LevelWarn, "sm: DPA Origin-Host mismatch; answer discarded", nil)
+			sm.protocolError(c, m, diam.ProtocolUnexpectedMessage, 0, false, diam.ProtocolReplyNone, 0)
+			return
+		}
+		sm.disconnects.mu.Lock()
+		if sm.disconnects.pending[c] != p || p.claimed || !p.request.matches(c, m) {
+			sm.disconnects.mu.Unlock()
+			sm.protocolError(c, m, diam.ProtocolUnexpectedMessage, 0, false, diam.ProtocolReplyNone, 0)
+			return
+		}
+		p.claimed = true
+		sm.disconnects.mu.Unlock()
 		select {
 		case p.result <- result:
 			if result != diam.Success {

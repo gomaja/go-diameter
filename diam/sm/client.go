@@ -125,6 +125,7 @@ type watchdogActivity struct {
 	handshakePhase atomic.Uint32 // 0 pending, 1 validated, 2 timed out
 	advertised     []uint32
 	capabilities   base.Settings
+	cer            atomic.Pointer[answerCorrelation]
 }
 
 func newWatchdogActivity() *watchdogActivity {
@@ -142,7 +143,7 @@ func (h activityHandler) ServeDIAM(c diam.Conn, m *diam.Message) {
 	release := m.BeginDispatch()
 	defer release()
 	// RFC 6733 §5.6: Wait-I-CEA / I-Rcv-Non-CEA -> Error -> Closed.
-	isCEA := m.Header.ApplicationID == 0 && m.Header.CommandCode == diam.CapabilitiesExchange && m.Header.CommandFlags&diam.RequestFlag == 0
+	isCEA := isBaseCEA(m)
 	if !h.activity.ceaReceived.Load() && !isCEA {
 		h.rejectHandshake(c, m, errors.New("non-CEA received while waiting for CEA"))
 		return
@@ -154,10 +155,16 @@ func (h activityHandler) ServeDIAM(c diam.Conn, m *diam.Message) {
 		return
 	}
 	// RFC 3539 §3.4.1 [2]: any received AAA message resets Tw.
-	h.activity.received()
+	h.activity.receivedMessage(m)
 	// RFC 6733 §5.3: CEA completes the CER exchange on this connection.
 	// Do not publish its result through the shared state-machine mux.
 	if isCEA {
+		// RFC 6733 §§3, 5.3, 6.2.1: discard a stray answer without
+		// consuming admission or changing this CER generation's deadline.
+		if !h.activity.correlatedCEA(c, m) {
+			h.protocolError(c, m, diam.ProtocolUnexpectedMessage, 0, false, diam.ProtocolReplyNone, 0)
+			return
+		}
 		processed := false
 		var kind diam.ProtocolErrorKind
 		var code uint32
@@ -186,10 +193,22 @@ func (h activityHandler) HandleMessageError(c diam.Conn, m *diam.Message, err *d
 	release := m.BeginDispatch()
 	defer release()
 	if !h.activity.ceaReceived.Load() {
+		// RFC 6733 §§3, 5.3, 6.2.1: a recoverable body error does not
+		// let an unrelated CEA consume admission or its original deadline.
+		// Fatal framing errors retain the existing rejection/closure path.
+		if !err.Fatal && isBaseCEA(m) && !h.activity.correlatedCEA(c, m) {
+			h.protocolError(c, m, diam.ProtocolUnexpectedMessage, 0, false, diam.ProtocolReplyNone, 0)
+			return nil
+		}
 		h.rejectHandshake(c, m, err)
 		return nil
 	}
 	return h.StateMachine.HandleMessageError(c, m, err)
+}
+
+func isBaseCEA(m *diam.Message) bool {
+	return m != nil && m.Header != nil && m.Header.ApplicationID == 0 &&
+		m.Header.CommandCode == diam.CapabilitiesExchange && m.Header.CommandFlags&diam.RequestFlag == 0
 }
 
 func (h activityHandler) rejectHandshake(c diam.Conn, m *diam.Message, err error) {
@@ -467,6 +486,10 @@ func (cli *Client) handshakeContext(ctx context.Context, c diam.Conn, activity *
 		closeConn()
 		return nil, err
 	}
+	// Register before publishing bytes: a peer may answer before WriteTo returns.
+	// Client has no expected remote host; correlated CEA supplies its identity
+	// (RFC 6733 §§5.3, 6.3), independently of our local OriginHost.
+	activity.cer.Store(correlateAnswer(c, m))
 	// CEA validation ends the protocol timeout. OnHandshake completion is a
 	// separate event: an application callback may take longer than the entire
 	// retransmit budget, and Dial must still wait for it (RFC 6733 §5.3).

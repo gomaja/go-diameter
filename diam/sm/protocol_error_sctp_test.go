@@ -10,6 +10,7 @@ import (
 	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
 
 	"github.com/gomaja/go-diameter/diam"
+	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/diamtest"
 	"github.com/gomaja/go-diameter/diam/internal/logtest"
@@ -64,6 +65,7 @@ func TestProtocolErrorInvalidDWRSCTPStream(t *testing.T) {
 	event := protocolGenerationAwait(t, events)
 	assertProtocolGenerationDWR(t, event, c, header, stream)
 	valid := regressionDWR(t)
+	setWireIdentity(t, valid, avp.OriginHost, "stream.example")
 	valid.Header.HopByHopID, valid.Header.EndToEndID = 0x86700008, 0x86700009
 	if _, err = valid.WriteToStream(peer, stream); err != nil {
 		t.Fatal(err)

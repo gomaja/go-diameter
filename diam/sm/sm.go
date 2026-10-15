@@ -376,7 +376,7 @@ func (sm *StateMachine) ServeDIAM(c diam.Conn, m *diam.Message) {
 	if w != nil {
 		// RFC 3539 §3.4.1 [2]: received traffic resets Tw even when
 		// subsequent request or AVP validation rejects the message.
-		w.received()
+		w.received(m)
 	}
 	if sm.cfg.ValidateRequests && m.Header.CommandFlags&diam.RequestFlag != 0 &&
 		!sm.supportsApplicationOn(c, m.Header.ApplicationID) {

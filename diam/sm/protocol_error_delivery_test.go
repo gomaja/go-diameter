@@ -162,6 +162,7 @@ func TestProtocolErrorBlockingCallbackFollowsAnswerAndLogs(t *testing.T) {
 		t.Fatalf("records before callback returns = %v", records)
 	}
 	following := regressionDWR(t)
+	setWireIdentity(t, following, avp.OriginHost, "peer.example")
 	requestHeader := p.send(t, following)
 	if err := p.peer.SetReadDeadline(time.Now().Add(50 * time.Millisecond)); err != nil {
 		t.Fatal(err)

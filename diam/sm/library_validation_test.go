@@ -101,13 +101,13 @@ func TestLibraryBuiltMessagesValidate(t *testing.T) {
 		t.Fatalf("DPR: %v", validationErr)
 	}
 	dpr.Header.CommandFlags |= diam.ProxiableFlag | diam.RetransmittedFlag
-	c := &messageErrorCaptureConn{dictionary: testDict}
+	c := &messageErrorCaptureConn{dictionary: testDict, ctx: smpeer.NewContext(context.Background(), &smpeer.Metadata{OriginHost: settings.OriginHost, OriginRealm: settings.OriginRealm})}
 	handleDPR(sm)(c, dpr)
 	validatedCapture(t, c)
 	dwr := diam.NewMessage(diam.DeviceWatchdog, diam.RequestFlag|diam.ProxiableFlag|diam.RetransmittedFlag, 0, 3, 4, testDict)
 	dwr.AddAVP(diam.NewAVP(avp.OriginHost, avp.Mbit, 0, settings.OriginHost))
 	dwr.AddAVP(diam.NewAVP(avp.OriginRealm, avp.Mbit, 0, settings.OriginRealm))
-	c = &messageErrorCaptureConn{dictionary: testDict}
+	c = &messageErrorCaptureConn{dictionary: testDict, ctx: smpeer.NewContext(context.Background(), &smpeer.Metadata{OriginHost: settings.OriginHost, OriginRealm: settings.OriginRealm})}
 	handleDWR(sm)(c, dwr)
 	validatedCapture(t, c)
 }

@@ -19,12 +19,15 @@ func handleCEA(sm *StateMachine, activity *watchdogActivity) diam.HandlerFunc {
 	return func(c diam.Conn, m *diam.Message) {
 		kind, code := processCEA(sm, activity, c, m)
 		if kind != "" {
-			sm.protocolError(c, m, kind, code, true, diam.ProtocolReplyNone, 0)
+			sm.protocolError(c, m, kind, code, kind != diam.ProtocolUnexpectedMessage, diam.ProtocolReplyNone, 0)
 		}
 	}
 }
 
 func processCEA(sm *StateMachine, activity *watchdogActivity, c diam.Conn, m *diam.Message) (diam.ProtocolErrorKind, uint32) {
+	if !activity.correlatedCEA(c, m) {
+		return diam.ProtocolUnexpectedMessage, 0
+	}
 	cea := new(smparser.CEA)
 	if err := cea.Parse(m, smparser.ParseOptions{Role: smparser.Client, LocalApplications: activity.advertised}); err != nil {
 		logMessage(c, m, slog.LevelWarn, "sm: CEA rejected; closing connection", err)
@@ -62,4 +65,12 @@ func processCEA(sm *StateMachine, activity *watchdogActivity, c diam.Conn, m *di
 	// Done receiving and validating this CEA.
 	close(activity.ceac)
 	return "", 0
+}
+
+func (activity *watchdogActivity) correlatedCEA(c diam.Conn, m *diam.Message) bool {
+	if activity.cer.Load().matches(c, m) {
+		return true
+	}
+	logMessage(c, m, slog.LevelWarn, "sm: CEA identifiers mismatch; answer discarded", nil)
+	return false
 }

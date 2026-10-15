@@ -19,6 +19,7 @@ import (
 	"github.com/gomaja/go-diameter/diam/diamtest"
 	"github.com/gomaja/go-diameter/diam/dict"
 	"github.com/gomaja/go-diameter/diam/internal/logtest"
+	"github.com/gomaja/go-diameter/diam/sm/smpeer"
 )
 
 type protocolWire struct {
@@ -259,6 +260,9 @@ func (p *protocolWire) usable(t *testing.T) {
 
 	t.Helper()
 	m := regressionDWR(t)
+	if meta, ok := smpeer.FromContext(p.conn.Context()); ok {
+		setWireIdentity(t, m, avp.OriginHost, string(meta.OriginHost))
+	}
 	m.Header.HopByHopID = 0x99887766
 	m.Header.EndToEndID = 0x88776655
 	p.send(t, m)

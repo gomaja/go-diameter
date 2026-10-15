@@ -30,6 +30,7 @@ func jitteredTw(twinit, jitter time.Duration) time.Duration {
 type watchdogSignals struct {
 	signal  chan struct{}
 	last    atomic.Int64
+	healthy atomic.Bool
 	dwac    chan struct{}
 	request atomic.Pointer[diam.Header]
 }
@@ -39,6 +40,21 @@ func newWatchdogSignals() watchdogSignals {
 }
 
 func (s *watchdogSignals) received() {
+	s.healthy.Store(true)
+	s.activity()
+}
+
+func (s *watchdogSignals) receivedMessage(m *diam.Message) {
+	// RFC 3539 §3.4.1, Appendix A: any decoded activity resets Tw, but
+	// DWA restores health only after body and pending-request validation.
+	if isBaseDWA(m) {
+		s.activity()
+	} else {
+		s.received()
+	}
+}
+
+func (s *watchdogSignals) activity() {
 	// RFC 3539 §3.4.1 [2]: any received AAA message resets Tw.
 	s.last.Store(time.Now().UnixNano())
 	select {
@@ -164,7 +180,7 @@ func (w *connWatchdog) run() {
 			return
 		case <-w.signals.signal:
 			timer.Stop()
-			w.receive(&state, watchdog.Receive)
+			w.receiveActivity(&state)
 		case <-w.dwac:
 			timer.Stop()
 			w.receive(&state, watchdog.ReceiveDWA)
@@ -173,6 +189,12 @@ func (w *connWatchdog) run() {
 				return
 			}
 		}
+	}
+}
+
+func (w *connWatchdog) receiveActivity(state *watchdogState) {
+	if w.signals.healthy.Swap(false) {
+		w.receive(state, watchdog.Receive)
 	}
 }
 
@@ -189,7 +211,7 @@ func (w *connWatchdog) expire(armedAt time.Time, state *watchdogState) bool {
 	// Prefer traffic delivered at the timer boundary to a false
 	// expiration, including an answer already queued by its handler.
 	if w.signals.last.Load() > armedAt.UnixNano() {
-		w.receive(state, watchdog.Receive)
+		w.receiveActivity(state)
 		return true
 	}
 	select {

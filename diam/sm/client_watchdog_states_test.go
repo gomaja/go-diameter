@@ -1,6 +1,7 @@
 package sm
 
 import (
+	"context"
 	"sync"
 	"testing"
 	"time"
@@ -9,8 +10,8 @@ import (
 
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
-	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/diamtest"
+	"github.com/gomaja/go-diameter/diam/sm/smpeer"
 )
 
 type watchdogProbeConn struct {
@@ -22,6 +23,12 @@ type watchdogProbeConn struct {
 
 func newWatchdogProbeConn() *watchdogProbeConn {
 	return &watchdogProbeConn{writes: make(chan struct{}, 8), closed: make(chan struct{})}
+}
+
+func (c *watchdogProbeConn) Context() context.Context {
+	return smpeer.NewContext(context.Background(), &smpeer.Metadata{
+		OriginHost: clientSettings.OriginHost, OriginRealm: clientSettings.OriginRealm,
+	})
 }
 
 func (c *watchdogProbeConn) Write(b []byte) (int, error) {
@@ -100,8 +107,7 @@ func TestWatchdogRecoversFromSuspectOnNonDWATraffic(t *testing.T) {
 			t.Fatalf("missing event %q", want)
 		}
 	}
-	activity.last.Store(time.Now().UnixNano())
-	activity.signal <- struct{}{}
+	activity.received()
 	select {
 	case got := <-events:
 		if got != WatchdogRecovered {
@@ -162,8 +168,8 @@ func TestWatchdogRecoversFromSuspectOnAnswer(t *testing.T) {
 		}
 	}
 	answer := first.m.Answer(diam.Success)
-	mustSMClientAVP(t, answer, avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("server"))
-	mustSMClientAVP(t, answer, avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("test"))
+	mustSMClientAVP(t, answer, avp.OriginHost, avp.Mbit, 0, serverSettings.OriginHost)
+	mustSMClientAVP(t, answer, avp.OriginRealm, avp.Mbit, 0, serverSettings.OriginRealm)
 	if _, err := answer.WriteTo(first.c); err != nil {
 		t.Fatal(err)
 	}

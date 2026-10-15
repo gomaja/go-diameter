@@ -13,6 +13,7 @@ import (
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/internal/logtest"
+	"github.com/gomaja/go-diameter/diam/sm/smpeer"
 )
 
 func TestProtocolErrorCERValidationVariantsWire(t *testing.T) {
@@ -215,7 +216,13 @@ func (p *protocolVariantWire) usable(t *testing.T) {
 	testDict := newSMTestDictionary(creditcontrol.Dictionary())
 
 	t.Helper()
-	header := p.send(t, regressionDWR(t))
+	request := regressionDWR(t)
+	metadata, ok := smpeer.FromContext(p.conn.Context())
+	if !ok {
+		t.Fatal("missing admitted peer metadata")
+	}
+	setWireIdentity(t, request, avp.OriginHost, string(metadata.OriginHost))
+	header := p.send(t, request)
 	answer, err := diam.ReadMessage(p.peer, testDict)
 	if err != nil || !testResultCode(answer, 2001) || answer.Header.CommandCode != diam.DeviceWatchdog || answer.Header.HopByHopID != header.HopByHopID || answer.Header.EndToEndID != header.EndToEndID || p.conn.Closed() {
 		t.Fatalf("following DWR=%v %v", answer, err)

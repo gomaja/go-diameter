@@ -333,6 +333,7 @@ func TestProtocolErrorManagerDWAAndDPA(t *testing.T) {
 				msg, err = base.BuildDPA(req, testBase("known.example.net"))
 				a.state = Closing
 				a.pendingDPR, a.pendingDPREnd = msg.Header.HopByHopID, msg.Header.EndToEndID
+				a.pendingDPRGen, a.pendingDPRCommand = s.gen, diam.DisconnectPeer
 			}
 			if err != nil {
 				t.Fatal(err)
@@ -365,7 +366,7 @@ func TestProtocolErrorManagerHandshakeDecisions(t *testing.T) {
 			a.onWire(event{s: s, msg: msg})
 			return msg
 		}},
-		{"CEA identifiers", diam.ProtocolCEARejected, 0, func(t *testing.T, a *actor, s *session) *diam.Message {
+		{"CEA identifiers", diam.ProtocolUnexpectedMessage, 0, func(t *testing.T, a *actor, s *session) *diam.Message {
 			a.state, a.i = WaitICEA, s
 			msg, err := base.BuildCEA(reviewCER(t), testBase("known.example.net"), 2001)
 			if err != nil {
@@ -400,8 +401,8 @@ func TestProtocolErrorManagerHandshakeDecisions(t *testing.T) {
 			if len(events) != 1 {
 				t.Fatalf("events=%d", len(events))
 			}
-			protocolErrorCheck(t, events[0], s.c, *msg.Header, tc.kind, tc.result, true, diam.ProtocolReplyNone, 0)
-			if !s.c.Closed() {
+			protocolErrorCheck(t, events[0], s.c, *msg.Header, tc.kind, tc.result, tc.kind != diam.ProtocolUnexpectedMessage, diam.ProtocolReplyNone, 0)
+			if tc.kind != diam.ProtocolUnexpectedMessage && !s.c.Closed() {
 				t.Fatal("handshake failure left transport open")
 			}
 		})
@@ -596,7 +597,7 @@ func TestProtocolErrorManagerLocalFailuresAreNotProtocolErrors(t *testing.T) {
 
 func TestProtocolErrorManagerWirePendingAnswers(t *testing.T) {
 	for _, command := range []uint32{diam.DeviceWatchdog, diam.DisconnectPeer} {
-		for _, fault := range []string{"identifiers", "identity", "missing AVP", "rejected"} {
+		for _, fault := range []string{"identifiers", "hop identifiers", "identity", "missing AVP", "rejected"} {
 			name := map[uint32]string{diam.DeviceWatchdog: "DWA", diam.DisconnectPeer: "DPA"}[command] + "/" + fault
 			t.Run(name, func(t *testing.T) {
 				events := make(chan diam.ProtocolErrorEvent, 8)
@@ -660,6 +661,8 @@ func TestProtocolErrorManagerWirePendingAnswers(t *testing.T) {
 				switch fault {
 				case "identifiers":
 					answer.Header.EndToEndID++
+				case "hop identifiers":
+					answer.Header.HopByHopID++
 				case "identity":
 					a, _ := answer.FindAVP(avp.OriginHost, 0)
 					a.Data = datatype.DiameterIdentity("other.example.net")

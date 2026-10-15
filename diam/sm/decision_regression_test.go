@@ -68,6 +68,7 @@ func TestCEARejectionRecordsBeforePublishingFailure(t *testing.T) {
 	c := loggerHandshakeConn{newHandshakeConn(), slog.New(blockingSMLog{logs, entered, release})}
 	sm := mustNewStateMachine(t, testMessageErrorSettings(testDict), testDict)
 	activity := newWatchdogActivity()
+	activity.cer.Store(correlateAnswer(c, diam.NewMessage(diam.CapabilitiesExchange, diam.RequestFlag, 0, 1, 2, testDict)))
 	done := make(chan struct{})
 	go func() {
 		handleCEA(sm, activity)(c, diam.NewMessage(diam.CapabilitiesExchange, 0, 0, 1, 2, testDict))

@@ -77,10 +77,6 @@ func TestClientWatchdogUsesCloseNotifierOverDispatchDone(t *testing.T) {
 
 func TestClientWatchdogSerializesRequestAndDWAEvents(t *testing.T) {
 	testDict := newSMTestDictionary(dict.Base())
-	serverSettings :=
-		cloneTestSettings(serverSettings,
-			testDict,
-		)
 
 	cli := newLivenessClient(t)
 	c := &blockingPublishWatchdogConn{
@@ -118,7 +114,7 @@ func TestClientWatchdogSerializesRequestAndDWAEvents(t *testing.T) {
 		<-requestDone
 		t.Fatal(err)
 	}
-	dwa, err := base.BuildDWA(request, baseSettings(serverSettings))
+	dwa, err := base.BuildDWA(request, baseSettings(clientSettings))
 	if err != nil {
 		close(c.release)
 		<-requestDone

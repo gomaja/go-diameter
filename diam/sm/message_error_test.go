@@ -162,7 +162,9 @@ func testStateMachineContinuesAfterInvalidAVPLength(t *testing.T, wrap func(diam
 	assertMessageErrorAnswer(t, answer, settings, diam.InvalidAVPLength, 0, true)
 
 	// An admitted peer keeps its connection after a handled message error.
-	if _, err := regressionDWR(t).WriteTo(conn); err != nil {
+	dwr := regressionDWR(t)
+	setWireIdentity(t, dwr, avp.OriginHost, "peer.example")
+	if _, err := dwr.WriteTo(conn); err != nil {
 		t.Fatal(err)
 	}
 	dwa, err := diam.ReadMessage(conn, testDict)
@@ -338,7 +340,9 @@ func testStateMachineDoesNotAnswerMalformedAnswer(t *testing.T, wrap func(diam.H
 	if err := conn.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := regressionDWR(t).WriteTo(conn); err != nil {
+	dwr := regressionDWR(t)
+	setWireIdentity(t, dwr, avp.OriginHost, "peer.example")
+	if _, err := dwr.WriteTo(conn); err != nil {
 		t.Fatal(err)
 	}
 	dwa, err := diam.ReadMessage(conn, testDict)

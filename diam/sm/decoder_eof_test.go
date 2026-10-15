@@ -123,7 +123,10 @@ func TestDecoderEOFGetsMessageErrorAnswer(t *testing.T) {
 	if !errors.As(cause, &me) || !errors.Is(cause, io.EOF) || me.Fatal {
 		t.Fatalf("decoder cause lost: %v", cause)
 	}
-	if _, err := regressionDWR(t).WriteTo(c); err != nil {
+	dwr := regressionDWR(t)
+	setWireIdentity(t, dwr, avp.OriginHost, "peer.example")
+	setWireIdentity(t, dwr, avp.OriginRealm, "example")
+	if _, err := dwr.WriteTo(c); err != nil {
 		t.Fatal(err)
 	}
 	if a, err := diam.ReadMessage(c, testDict); err != nil || !testResultCode(a, diam.Success) {

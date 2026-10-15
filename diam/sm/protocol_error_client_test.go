@@ -151,6 +151,8 @@ func TestProtocolErrorClientA15RepeatedCEAWire(t *testing.T) {
 	header := p.send(t, cea)
 	assertProtocolEvent(t, protocolEvent(t, p.events), p.conn, &header, diam.ProtocolUnexpectedMessage, 0, false, diam.ProtocolReplyNone, 0)
 	request := regressionDWR(t)
+	setWireIdentity(t, request, avp.OriginHost, "peer.example")
+	setWireIdentity(t, request, avp.OriginRealm, "example")
 	dwrHeader := p.send(t, request)
 	answer, err := diam.ReadMessage(p.peer, testDict)
 	if err != nil || !testResultCode(answer, 2001) || answer.Header.CommandCode != diam.DeviceWatchdog || answer.Header.HopByHopID != dwrHeader.HopByHopID || p.conn.Closed() {
