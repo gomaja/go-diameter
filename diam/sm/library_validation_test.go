@@ -69,7 +69,8 @@ func TestLibraryBuiltMessagesValidate(t *testing.T) {
 		}},
 		{"CEA-error", func(c *messageErrorCaptureConn) error { return errorCEA(sm, c, cer, smparser.ErrNoCommonApplication) }},
 		{"error-answer", func(c *messageErrorCaptureConn) error {
-			return sm.writeErrorAnswer(c, cer, diam.InvalidHDRBits, nil, true)
+			_, err := sm.writeErrorAnswer(c, cer, diam.InvalidHDRBits, nil, true)
+			return err
 		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

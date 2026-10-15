@@ -9,6 +9,7 @@ import (
 
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/internal/logtest"
+	"github.com/gomaja/go-diameter/diam/internal/watchdog"
 )
 
 // RFC 3539 §3.4.1 [1] and Appendix A SetWatchdog: every re-arm draws a new
@@ -22,7 +23,7 @@ func TestConnWatchdogRedrawsIntervalAfterTrafficAndDWA(t *testing.T) {
 		var draws atomic.Int32
 		intervals := [...]time.Duration{50 * time.Millisecond, 80 * time.Millisecond, 100 * time.Millisecond, 30 * time.Millisecond}
 		w := connWatchdog{
-			conn: c, done: c.closed, signals: &signals, dwac: signals.dwac,
+			conn: c, done: c.closed, signals: &signals,
 			interval: func() time.Duration {
 				n := draws.Add(1)
 				if n <= int32(len(intervals)) {
@@ -72,7 +73,7 @@ func TestConnWatchdogRedrawsIntervalAfterTrafficAndDWA(t *testing.T) {
 			t.Fatalf("Tw draws after DWR re-arm = %d, want 3", got)
 		}
 
-		signals.dwac <- struct{}{}
+		signals.finishDWA(watchdogReceipt{}, true)
 		synctest.Wait()
 		if got := draws.Load(); got != 4 {
 			t.Fatalf("Tw draws after DWA = %d, want 4", got)
@@ -94,14 +95,16 @@ func TestConnWatchdogExpiryDrainsQueuedDWA(t *testing.T) {
 	for _, suspect := range []bool{false, true} {
 		t.Run(map[bool]string{false: "pending", true: "suspect"}[suspect], func(t *testing.T) {
 			signals := newWatchdogSignals()
-			signals.dwac <- struct{}{}
+			signals.finishDWA(watchdogReceipt{}, true)
 			var events []WatchdogEvent
 			w := connWatchdog{
-				conn: newWatchdogProbeConn(), signals: &signals, dwac: signals.dwac,
+				conn: newWatchdogProbeConn(), signals: &signals, interval: func() time.Duration { return time.Second },
 				observe: func(event WatchdogEvent) { events = append(events, event) },
 			}
 			state := watchdogState{pending: true, suspect: suspect}
-			if !w.expire(time.Now(), &state) {
+			window := watchdog.Window{ArmedAt: time.Now(), After: time.Second}
+			alive, waiting := w.advance(&window, &state)
+			if !alive || waiting {
 				t.Fatal("queued DWA ended watchdog")
 			}
 			if state.pending || state.suspect {
@@ -114,10 +117,8 @@ func TestConnWatchdogExpiryDrainsQueuedDWA(t *testing.T) {
 			} else if len(events) != 0 {
 				t.Fatalf("queued DWA events = %v, want none", events)
 			}
-			select {
-			case <-signals.dwac:
+			if queuedWatchdogCredits(&signals) != 0 {
 				t.Fatal("queued DWA was not drained")
-			default:
 			}
 		})
 	}

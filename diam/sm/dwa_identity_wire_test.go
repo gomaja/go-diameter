@@ -146,7 +146,7 @@ func TestDWAActivityResetsTwWithoutRecovery(t *testing.T) {
 		activity.ceaReceived.Store(true)
 		p := &loopWatchdogProbe{conn: newWatchdogProbeConn(), signals: &activity.watchdogSignals,
 			events: make(chan WatchdogEvent, 16), stop: make(chan struct{}), exited: make(chan struct{})}
-		w := connWatchdog{conn: p.conn, done: p.conn.closed, stop: p.stop, signals: p.signals, dwac: p.signals.dwac,
+		w := connWatchdog{conn: p.conn, done: p.conn.closed, stop: p.stop, signals: p.signals,
 			interval: func() time.Duration { return loopWatchdogTw },
 			send:     func() bool { _, _ = p.conn.Write(nil); p.events <- WatchdogRequestSent; return true },
 			observe:  func(event WatchdogEvent) { p.events <- event }}
@@ -159,7 +159,9 @@ func TestDWAActivityResetsTwWithoutRecovery(t *testing.T) {
 		p.wantEvent(t, WatchdogSuspect)
 		time.Sleep(loopWatchdogTw / 2)
 		// A decoded DWA gets timer credit before body/correlation validation.
-		h := activityHandler{activity: activity, dwa: diam.HandlerFunc(func(diam.Conn, *diam.Message) {})}
+		h := activityHandler{activity: activity, dwa: watchdogDWAHandler(func(c diam.Conn, m *diam.Message, receipt watchdogReceipt) {
+			_, _ = processDWAReceipt(c, m, &activity.watchdogSignals, nil, receipt)
+		})}
 		h.ServeDIAM(p.conn, &diam.Message{Header: &diam.Header{Version: 1, CommandCode: diam.DeviceWatchdog}})
 		synctest.Wait()
 		p.wantNoEvent(t)

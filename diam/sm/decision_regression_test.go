@@ -307,7 +307,7 @@ func TestDirectErrorAnswerPreservesWriteFailure(t *testing.T) {
 	c := loggerHandshakeConn{newHandshakeConn(), logs.Logger()}
 	c.writeErr = errors.New("answer write failed")
 	sm := mustNewStateMachine(t, testMessageErrorSettings())
-	if err := sm.writeErrorAnswer(c, regressionDWR(t), diam.CommandUnsupported, nil, true); !errors.Is(err, c.writeErr) {
+	if _, err := sm.writeErrorAnswer(c, regressionDWR(t), diam.CommandUnsupported, nil, true); !errors.Is(err, c.writeErr) {
 		t.Fatalf("writeErrorAnswer error=%v", err)
 	}
 	if records := logs.Records(); len(records) != 1 || records[0].Level != slog.LevelError {

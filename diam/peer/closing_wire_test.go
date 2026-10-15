@@ -25,9 +25,10 @@ func closingPeer(t *testing.T, dialed bool) (*Manager, net.Conn, *fakeClock, <-c
 	}
 	clock := &fakeClock{}
 	m, c, cer, events := correlationDial(t, clock)
+	mark := clock.timerCount()
 	write(t, c, correlationCEA(t, cer, "known.example.net"))
 	awaitState(t, m, IOpen)
-	clock.waitTimers(t, 2) // CER deadline and the first watchdog
+	clock.waitTimers(t, mark+1) // first watchdog after the Connect and CER deadlines
 	return m, c, clock, events
 }
 

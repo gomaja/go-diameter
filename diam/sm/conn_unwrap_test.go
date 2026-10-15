@@ -98,7 +98,7 @@ func TestOptionalConnThroughWrappers(t *testing.T) {
 				cli := &Client{Handler: sm, WatchdogInterval: time.Hour, Dict: testDict}
 				inner := &observedNotifyConn{blockingDisconnectConn: &blockingDisconnectConn{dictionary: testDict, closed: make(chan struct{})}}
 				inner.Close()
-				cli.watchdog(wrap(inner), make(chan struct{}), &watchdogActivity{})
+				cli.watchdog(wrap(inner), newWatchdogActivity())
 				if inner.observed != (tc.depth >= 0) {
 					t.Fatalf("watchdog discovered CloseNotifier = %v", inner.observed)
 				}
@@ -139,7 +139,7 @@ func TestWatchdogWarnsWithoutCloseNotifier(t *testing.T) {
 	inner := &blockingDisconnectConn{dictionary: testDict, closed: make(chan struct{})}
 	c := loggedWatchdogConn{inner, slog.New(logs).With("connection", "wrapped")}
 	cli := &Client{Handler: mustNewStateMachine(t, serverSettings, testDict), Dict: testDict}
-	cli.watchdog(c, make(chan struct{}), &watchdogActivity{})
+	cli.watchdog(c, newWatchdogActivity())
 	records := logs.Records()
 	if len(records) != 1 {
 		t.Fatalf("got %d records, want one warning", len(records))
@@ -172,7 +172,7 @@ func TestWatchdogDoesNotWarnWithCloseNotifier(t *testing.T) {
 	// A long interval keeps the timer from racing the closed CloseNotify
 	// channel, which would send a DWR on the closed connection.
 	cli := &Client{Handler: mustNewStateMachine(t, serverSettings, testDict), WatchdogInterval: time.Hour, Dict: testDict}
-	cli.watchdog(unwrapTestConn{c}, make(chan struct{}), &watchdogActivity{})
+	cli.watchdog(unwrapTestConn{c}, newWatchdogActivity())
 	if records := logs.Records(); len(records) != 0 {
 		t.Fatalf("unexpected watchdog warnings: %v", records)
 	}

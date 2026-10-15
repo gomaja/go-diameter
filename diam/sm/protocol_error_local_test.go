@@ -269,11 +269,11 @@ func TestProtocolErrorLocalErrorAnswerWriteFailure(t *testing.T) {
 				logs = []string{"sm: error answer failed"}
 			case "unknown_mandatory":
 				m.AddAVP(diam.NewAVP(0xfedcab, avp.Mbit, 0, datatype.Unknown([]byte{1, 2, 3, 4})))
-				kind, code, closing = diam.ProtocolUnsupportedAVP, 5001, false
+				kind, code, closing = diam.ProtocolUnsupportedAVP, 5001, true
 				logs = []string{"sm: unsupported mandatory AVP", "sm: error answer failed"}
 			case "request_validation":
 				m.AVP = m.AVP[:1]
-				kind, code, closing = diam.ProtocolInvalidRequest, 5005, false
+				kind, code, closing = diam.ProtocolInvalidRequest, 5005, true
 				logs = []string{"sm: invalid request", "sm: error answer failed"}
 			}
 			p.faults.write.Store(true)
@@ -318,9 +318,11 @@ func TestProtocolErrorLocalCERBuildAndWriteFailure(t *testing.T) {
 					app = 999999
 				}
 				header := p.send(t, regressionCER(t, testDict, app))
+				event := protocolEvent(t, p.events)
 				if rejected {
-					event := protocolEvent(t, p.events)
 					assertProtocolEvent(t, event, p.conn, &header, diam.ProtocolCERRejected, 5010, true, diam.ProtocolReplyFailed, 5010)
+				} else {
+					assertProtocolEvent(t, event, p.conn, &header, diam.ProtocolReplyFailure, 0, true, diam.ProtocolReplyFailed, diam.Success)
 				}
 				p.eof(t)
 				logs := []string{"sm: CEA failed; closing connection"}
@@ -424,17 +426,17 @@ func TestProtocolErrorLocalValidDWRDPRWriteFailure(t *testing.T) {
 				t.Fatalf("write attempts=%d", len(p.faults.attempts))
 			}
 			p.attemptedAnswer(t, header, diam.Success, false)
+			event := protocolEvent(t, p.events)
+			assertProtocolEvent(t, event, p.conn, &header, diam.ProtocolReplyFailure, 0, true, diam.ProtocolReplyFailed, diam.Success)
+			p.eof(t)
 			if command == "DPR" {
-				p.eof(t)
 				if dwrCalls.Load() != 0 || dwaCalls.Load() != 0 || dprCalls.Load() != 0 {
 					t.Fatal("failed DPA reached hooks")
 				}
 			} else {
-				if p.conn.Closed() || dwrCalls.Load() != 1 || dwaCalls.Load() != 1 || dprCalls.Load() != 0 {
-					t.Fatal("failed DWA changed state or hook behavior")
+				if dwrCalls.Load() != 1 || dwaCalls.Load() != 1 || dprCalls.Load() != 0 {
+					t.Fatal("failed DWA changed hook behavior")
 				}
-				p.faults.write.Store(false)
-				p.reading(t)
 			}
 			protocolLocalNoEvents(t, p.events)
 		})

@@ -16,8 +16,6 @@ import (
 	"github.com/gomaja/go-diameter/diam/sm/smpeer"
 )
 
-var dwaACK = struct{}{}
-
 // handleDWA handles Device-Watchdog-Answer messages.
 func handleDWA(
 	sm *StateMachine,
@@ -32,7 +30,25 @@ func handleDWA(
 	}
 }
 
+// watchdogDWAHandler carries the receipt token through validation without
+// retaining messages in the watchdog or allocating per-message wrappers.
+type watchdogDWAHandler func(diam.Conn, *diam.Message, watchdogReceipt)
+
+func (h watchdogDWAHandler) ServeDIAM(c diam.Conn, m *diam.Message) {
+	h(c, m, watchdogReceipt{})
+}
+
 func processDWA(c diam.Conn, m *diam.Message, signals *watchdogSignals, observer func(diam.Conn, WatchdogEvent)) (diam.ProtocolErrorKind, uint32) {
+	return processDWAReceipt(c, m, signals, observer, watchdogReceipt{})
+}
+
+func processDWAReceipt(c diam.Conn, m *diam.Message, signals *watchdogSignals, observer func(diam.Conn, WatchdogEvent), receipt watchdogReceipt) (diam.ProtocolErrorKind, uint32) {
+	finished := false
+	defer func() {
+		if !finished {
+			signals.finishDWA(receipt, false)
+		}
+	}()
 	observe := func(c diam.Conn, event WatchdogEvent) {
 		if observer != nil {
 			observer(c, event)
@@ -86,10 +102,9 @@ func processDWA(c diam.Conn, m *diam.Message, signals *watchdogSignals, observer
 		return diam.ProtocolUnexpectedMessage, 0
 	}
 	completePendingAnswer(c, m)
-	select {
-	case signals.dwac <- dwaACK:
-	default:
-	}
+	// Commit before the synchronous notification: observers may block for Tw.
+	signals.finishDWA(receipt, true)
+	finished = true
 	observe(c, WatchdogAnswerReceived)
 	return "", 0
 }

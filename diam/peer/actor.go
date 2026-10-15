@@ -22,17 +22,20 @@ import (
 )
 
 type event struct {
-	delivery   *protocolDelivery
-	messageErr *diam.MessageError
-	kind       psmEvent
-	s          *session
-	msg        *diam.Message
-	meta       *smpeer.Metadata
-	gen, token uint64
-	err        error
-	cause      sm.DisconnectCause
-	discovery  *discoveryCommand
-	leaseState *discoveryState
+	receivedAt      time.Time
+	receiveSequence uint64
+	afterReceive    uint64
+	delivery        *protocolDelivery
+	messageErr      *diam.MessageError
+	kind            psmEvent
+	s               *session
+	msg             *diam.Message
+	meta            *smpeer.Metadata
+	gen, token      uint64
+	err             error
+	cause           sm.DisconnectCause
+	discovery       *discoveryCommand
+	leaseState      *discoveryState
 }
 
 const (
@@ -81,6 +84,7 @@ type actor struct {
 	watchdog          WatchdogState
 	wdTimer, tcTimer  Timer
 	wdToken, tcToken  uint64
+	deferredWatchdog  *event
 	pendingWatchdog   bool
 	watchdogAnswered  bool // response ownership, separate from watchdog credit
 	watchdogHop       uint32
@@ -236,6 +240,16 @@ func (a *actor) failWithLog(level slog.Level, text string, err error) {
 	a.lostConnection(err)
 }
 func (a *actor) handle(e event) {
+	defer func() {
+		if e.s != nil && e.receiveSequence != 0 {
+			e.s.receivedSequence = e.receiveSequence
+		}
+		if pending := a.deferredWatchdog; pending != nil &&
+			(pending.s == nil || pending.s.receivedSequence >= pending.afterReceive) {
+			a.deferredWatchdog = nil
+			a.handle(*pending)
+		}
+	}()
 	if a.handleDiscovery(e) {
 		return
 	}
@@ -255,6 +269,12 @@ func (a *actor) handle(e event) {
 	}
 	if e.kind == watchdogTimeout {
 		if e.token == a.wdToken && a.active != nil && !a.active.isRetired() && e.gen == a.active.gen {
+			// RFC 3539 §3.4.1, Appendix A: messages already admitted at
+			// expiry commit their receive/DWA decisions before that expiry.
+			if e.s != nil && e.s.receivedSequence < e.afterReceive {
+				a.deferredWatchdog = &e
+				return
+			}
 			a.watchdogTick()
 		}
 		return
@@ -618,7 +638,7 @@ func (a *actor) onWire(e event) {
 		}
 	}
 	if a.state != Closing && (e.messageErr == nil || !e.messageErr.Fatal) && cmd == diam.CapabilitiesExchange && req && msg.Header.ApplicationID == 0 {
-		a.watchdogReceive(msg)
+		a.watchdogReceiveAt(msg, e.receivedAt)
 		reason := errors.New("peer: ignoring CER on admitted connection; accepted CER renewal is disabled or ineligible")
 		a.m.reportFailure(s, msg, slog.LevelWarn, reason.Error(), reason)
 		a.protocolError(s.c, msg, diam.ProtocolUnexpectedMessage, 0, false, diam.ProtocolReplyNone, 0)
@@ -651,7 +671,7 @@ func (a *actor) onWire(e event) {
 	if s != a.active {
 		return
 	}
-	if a.state != Closing && !a.watchdogReceive(msg) {
+	if a.state != Closing && !a.watchdogReceiveAt(msg, e.receivedAt) {
 		return
 	}
 	if err := base.ValidateMessage(msg); err != nil {
@@ -783,11 +803,11 @@ func (a *actor) answerDPR(s *session, msg *diam.Message) {
 	}
 	dpa, err := base.BuildDPAResult(msg, a.m.baseSettings(s.c), result)
 	if err == nil {
-		err = s.send(dpa, false)
+		err = s.sendRequired(dpa, msg, false, result)
 	}
 	if err != nil {
 		a.m.reportLocal(s, msg, "peer: DPA answer failed; closing connection", err)
-		s.close()
+		a.requiredReplyFailed(s, msg, result)
 	}
 }
 func (a *actor) onGone(s *session) {
@@ -963,10 +983,12 @@ func (a *actor) step(ev psmEvent, s *session, msg *diam.Message) {
 		dwa, err := base.BuildDWA(msg, a.m.baseSettings(s.c))
 		if err != nil {
 			a.failLocal("build DWA", err)
+			a.requiredReplyFailed(s, msg, diam.Success)
 			return
 		}
-		if err := s.send(dwa, false); err != nil {
+		if err := s.sendRequired(dwa, msg, false, diam.Success); err != nil {
 			a.failLocal("send DWA", err)
+			a.requiredReplyFailed(s, msg, diam.Success)
 			return
 		}
 	case iDPR, rDPR:
@@ -1032,13 +1054,15 @@ func (a *actor) sendCEA(s *session) bool {
 	answer, err := base.BuildCEA(msg, local, diam.Success)
 	if err != nil {
 		a.failLocal("build CEA", err)
+		a.requiredReplyFailed(s, msg, diam.Success)
 		return false
 	}
-	if err := s.send(answer, false); err != nil {
+	if err := s.sendRequired(answer, msg, false, diam.Success); err != nil {
 		if s.isRetired() {
 			return false
 		}
 		a.failLocal("send CEA", err)
+		a.requiredReplyFailed(s, msg, diam.Success)
 		return false
 	}
 	return true

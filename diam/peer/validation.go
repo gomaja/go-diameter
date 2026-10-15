@@ -26,6 +26,8 @@ func (m *Manager) rejectBaseMessage(s *session, msg *diam.Message, err *diam.Mes
 }
 
 func (m *Manager) rejectRequest(s *session, msg *diam.Message, rejection *base.RequestError, initial, closing bool, delivery ...*protocolDelivery) {
+	delivery, report := m.requiredReplyDelivery(delivery)
+	defer report()
 	if closing {
 		m.protocolError(s.c, msg, rejection.Kind, rejection.Code, false, diam.ProtocolReplyNone, 0, delivery...)
 		return
@@ -35,15 +37,13 @@ func (m *Manager) rejectRequest(s *session, msg *diam.Message, rejection *base.R
 	}
 	answer, err := base.BuildErrorAnswer(msg, m.baseSettings(s.c), rejection.Code, rejection.Failed, rejection.Code >= 3000 && rejection.Code < 4000)
 	if err == nil {
-		err = s.send(answer, initial)
+		err = s.sendRequired(answer, msg, initial, rejection.Code, delivery...)
 	}
 	m.reportLocal(s, msg, "peer: request rejection answer failed", err)
 	reply := diam.ProtocolReplyQueued
 	if err != nil {
 		reply = diam.ProtocolReplyFailed
-		if initial {
-			s.close()
-		}
+		s.close()
 	}
-	m.protocolError(s.c, msg, rejection.Kind, rejection.Code, initial, reply, rejection.Code, delivery...)
+	m.protocolError(s.c, msg, rejection.Kind, rejection.Code, initial || err != nil, reply, rejection.Code, delivery...)
 }

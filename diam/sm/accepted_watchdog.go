@@ -44,7 +44,7 @@ type acceptedWatchdog struct {
 	stopc    chan struct{}
 	stopOnce sync.Once
 	exited   chan struct{}
-	dwa      diam.Handler
+	dwa      watchdogDWAHandler
 	policy   *watchdogPolicy
 }
 
@@ -61,7 +61,7 @@ func (sm *StateMachine) startWatchdog(c diam.Conn) {
 		signals: newWatchdogSignals(), stopc: make(chan struct{}), exited: make(chan struct{}), policy: sm.watchdog,
 	}
 	w.connWatchdog = connWatchdog{
-		conn: c, done: done, stop: w.stopc, signals: &w.signals, dwac: w.signals.dwac,
+		conn: c, done: done, stop: w.stopc, signals: &w.signals,
 		interval: func() time.Duration { return jitteredTw(w.policy.twinit, w.policy.jitter) },
 		send: func() bool {
 			m, err := base.BuildDWR(c.Dictionary(), baseSettings(sm.cfg), uint32(sm.cfg.OriginStateID))
@@ -80,7 +80,7 @@ func (sm *StateMachine) startWatchdog(c diam.Conn) {
 			}
 		},
 	}
-	w.dwa = diam.HandlerFunc(func(c diam.Conn, m *diam.Message) {
+	w.dwa = watchdogDWAHandler(func(c diam.Conn, m *diam.Message, receipt watchdogReceipt) {
 		var kind diam.ProtocolErrorKind
 		var code uint32
 		func() {
@@ -89,9 +89,10 @@ func (sm *StateMachine) startWatchdog(c diam.Conn) {
 			// RFC 6733 §5.6: Closing has no DWA event, even through a stale
 			// supervisor pointer. Ignore it before parsing or crediting Pending.
 			if w.stopped.Load() || c.Closed() {
+				w.signals.finishDWA(receipt, false)
 				return
 			}
-			kind, code = processDWA(c, m, &w.signals, func(_ diam.Conn, event WatchdogEvent) { w.emit(event) })
+			kind, code = processDWAReceipt(c, m, &w.signals, func(_ diam.Conn, event WatchdogEvent) { w.emit(event) }, receipt)
 		}()
 		// The watchdog event retains its existing serialization; the new hook
 		// runs outside the publication mutex (RFC 6733 §§5.5–5.6).
@@ -162,14 +163,14 @@ func (w *acceptedWatchdog) latchStop() {
 	w.stopOnce.Do(func() { close(w.stopc) })
 }
 
-func (w *acceptedWatchdog) received(m *diam.Message) {
+func (w *acceptedWatchdog) received(m *diam.Message) watchdogReceipt {
 	// RFC 6733 §5.6: received traffic cannot restart a Closing watchdog.
 	// Do not wait for a DWR write or callback before releasing admission.
 	// A racing activity store is inert: the loop stops and events are gated.
 	if w.stopped.Load() || w.conn.Closed() {
-		return
+		return watchdogReceipt{}
 	}
-	w.signals.receivedMessage(m)
+	return w.signals.receivedMessage(m)
 }
 
 func (w *acceptedWatchdog) terminate(m *diam.Message, level slog.Level, text string, err error) bool {

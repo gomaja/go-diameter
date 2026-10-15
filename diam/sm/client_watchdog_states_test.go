@@ -59,7 +59,7 @@ func TestWatchdogOneOutstandingRequestAndStateOrder(t *testing.T) {
 	c := newWatchdogProbeConn()
 	done := make(chan struct{})
 	go func() {
-		cli.watchdog(c, make(chan struct{}, 1), newWatchdogActivity())
+		cli.watchdog(c, newWatchdogActivity())
 		close(done)
 	}()
 	defer func() { c.Close(); <-done }()
@@ -93,7 +93,7 @@ func TestWatchdogRecoversFromSuspectOnNonDWATraffic(t *testing.T) {
 	c := newWatchdogProbeConn()
 	done := make(chan struct{})
 	go func() {
-		cli.watchdog(c, activity.dwac, activity)
+		cli.watchdog(c, activity)
 		close(done)
 	}()
 	defer func() { c.Close(); <-done }()

@@ -164,8 +164,8 @@ func TestPublishDWRRegistersBeforeWriteReturns(t *testing.T) {
 			t.Fatal(err)
 		}
 		kind, code := processDWA(c, acceptedDWA(t, request, diam.Success), &signals, nil)
-		if kind != "" || code != 0 || len(signals.dwac) != 1 {
-			t.Fatalf("immediate DWA = (%s, %d), acknowledgements = %d; request not registered before write", kind, code, len(signals.dwac))
+		if kind != "" || code != 0 || queuedWatchdogCredits(&signals) != 1 {
+			t.Fatalf("immediate DWA = (%s, %d), acknowledgements = %d; request not registered before write", kind, code, queuedWatchdogCredits(&signals))
 		}
 	}
 	var events []WatchdogEvent
@@ -211,8 +211,8 @@ func TestWatchdogDWAConcurrentDuplicate(t *testing.T) {
 			t.Fatalf("duplicate DWA result = %s", kind)
 		}
 	}
-	if credited != 1 || len(signals.dwac) != 1 {
-		t.Fatalf("duplicate DWAs credited = %d, queued = %d; want one", credited, len(signals.dwac))
+	if credited != 1 || queuedWatchdogCredits(&signals) != 1 {
+		t.Fatalf("duplicate DWAs credited = %d, queued = %d; want one", credited, queuedWatchdogCredits(&signals))
 	}
 	if records := logs.RecordsWithMessage("sm: unhandled answer discarded"); len(records) != copies-1 {
 		t.Fatalf("duplicate DWA warnings = %d, want %d", len(records), copies-1)

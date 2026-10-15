@@ -8,11 +8,12 @@ import (
 )
 
 type closingConnection struct {
-	mu       sync.Mutex
-	closing  bool
-	received bool
-	timer    *time.Timer
-	client   *watchdogActivity
+	mu         sync.Mutex
+	closing    bool
+	received   bool
+	timer      *time.Timer
+	client     *watchdogActivity
+	replyClose sync.Once
 }
 
 func pendingRequests(c diam.Conn) *diam.PendingRequests {

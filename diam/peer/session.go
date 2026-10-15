@@ -2,9 +2,11 @@ package peer
 
 import (
 	"errors"
+	"io"
 	"net"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
@@ -14,14 +16,19 @@ import (
 var errQueueFull = errors.New("peer: queue full")
 
 type writeRequest struct {
-	msg        *diam.Message
-	closeAfter bool
-	pending    *pendingRequest
+	msg           *diam.Message
+	closeAfter    bool
+	pending       *pendingRequest
+	required      bool
+	reply         *diam.ProtocolErrorEvent
+	replyDelivery *protocolDelivery
 }
 type incoming struct {
-	msg      *diam.Message
-	err      *diam.MessageError
-	delivery *protocolDelivery
+	receivedAt time.Time
+	sequence   uint64
+	msg        *diam.Message
+	err        *diam.MessageError
+	delivery   *protocolDelivery
 }
 type session struct {
 	retired           atomic.Bool
@@ -47,6 +54,8 @@ type session struct {
 	afterAdmission    func()
 	beforePublication func(*diam.Message)
 	ingressMu         sync.Mutex
+	ingressSequence   uint64 // guarded by ingressMu; successful admissions only
+	receivedSequence  uint64 // actor-owned completion of admitted receive decisions
 	ingressClosed     bool
 	ingress           chan incoming
 	closed            chan struct{}
@@ -85,12 +94,21 @@ func (s *session) enqueueIncoming(in incoming) error {
 	if s.ingressClosed || s.isRetired() {
 		return net.ErrClosed
 	}
+	in.receivedAt = s.m.now()
+	in.sequence = s.ingressSequence + 1
 	select {
 	case s.ingress <- in:
+		s.ingressSequence = in.sequence
 		return nil
 	default:
 		return errQueueFull
 	}
+}
+
+func (s *session) receiveBarrier() uint64 {
+	s.ingressMu.Lock()
+	defer s.ingressMu.Unlock()
+	return s.ingressSequence
 }
 func (s *session) dispatch() {
 	defer s.m.wg.Done()
@@ -112,24 +130,24 @@ func (s *session) dispatch() {
 		if in.delivery == nil {
 			if in.err != nil {
 				if a, _ := s.binding(); a != nil {
-					a.post(event{kind: wireEvent, s: s, msg: in.msg, messageErr: in.err})
+					a.post(event{kind: wireEvent, s: s, msg: in.msg, messageErr: in.err, receivedAt: in.receivedAt, receiveSequence: in.sequence})
 				} else {
 					_ = s.m.answerMessageError(s, in.msg, in.err)
 				}
 			} else {
-				s.m.processDIAM(s, in.msg)
+				s.m.processDIAMAt(s, in.msg, in.receivedAt, in.sequence)
 			}
 			return
 		}
 		d := in.delivery
 		if in.err != nil {
 			if a, _ := s.binding(); a != nil {
-				a.commit(event{kind: wireEvent, s: s, msg: in.msg, messageErr: in.err}, d)
+				a.commit(event{kind: wireEvent, s: s, msg: in.msg, messageErr: in.err, receivedAt: in.receivedAt, receiveSequence: in.sequence}, d)
 			} else {
 				_ = s.m.answerMessageError(s, in.msg, in.err, d)
 			}
 		} else {
-			s.m.processDIAM(s, in.msg, d)
+			s.m.processDIAMAt(s, in.msg, in.receivedAt, in.sequence, d)
 		}
 		d.finish()
 	}
@@ -314,11 +332,20 @@ func (s *session) writeOne(w writeRequest) bool {
 		return false
 	}
 	if !s.leaseAllowsWrite(w) {
+		if w.required {
+			s.m.reportLocal(s, w.msg, "peer: write failed; closing connection", ErrLeaseExpired)
+		}
 		s.close()
+		if w.reply != nil {
+			w.replyDelivery.replyFailed(s.m, w.reply)
+		}
 		return true
 	}
-	_, err := w.msg.WriteTo(s.c)
-	if errors.Is(err, diam.ErrConnectionClosing) || errors.Is(err, diam.ErrRequestCompleted) {
+	n, err := w.msg.WriteTo(s.c)
+	if err == nil && w.required && n != int64(w.msg.Len()) {
+		err = io.ErrShortWrite
+	}
+	if !w.required && (errors.Is(err, diam.ErrConnectionClosing) || errors.Is(err, diam.ErrRequestCompleted)) {
 		// Closing and logical completion already dispose of this unsent leg.
 		// Rejection at the native gate must not close other pending work.
 		return false
@@ -326,6 +353,9 @@ func (s *session) writeOne(w writeRequest) bool {
 	if err != nil {
 		s.m.reportLocal(s, w.msg, "peer: write failed; closing connection", err)
 		s.close()
+		if w.reply != nil {
+			w.replyDelivery.replyFailed(s.m, w.reply)
+		}
 		return true
 	}
 	if w.closeAfter {

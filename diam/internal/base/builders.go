@@ -1,6 +1,9 @@
 package base
 
 import (
+	"errors"
+	"fmt"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
@@ -8,7 +11,7 @@ import (
 )
 
 // Settings is the wire data needed by base command builders. Callers resolve
-// local transport addresses before passing it to a CEA or error builder.
+// local transport addresses before building capabilities, or supply a resolver.
 type Settings struct {
 	OriginHost                  datatype.DiameterIdentity
 	OriginRealm                 datatype.DiameterIdentity
@@ -36,6 +39,10 @@ type LocalApplication struct {
 
 // BuildCER constructs the RFC 6733 §5.3.1 request.
 func BuildCER(dictionary *dict.Parser, cfg Settings) (*diam.Message, error) {
+	addresses, err := capabilityAddresses(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("find local addresses for CER: %w", err)
+	}
 	apps := advertisedApplications(cfg)
 	m := diam.NewRequest(diam.CapabilitiesExchange, 0, dictionary)
 	if _, err := m.NewAVP(avp.OriginHost, avp.Mbit, 0, cfg.OriginHost); err != nil {
@@ -44,7 +51,7 @@ func BuildCER(dictionary *dict.Parser, cfg Settings) (*diam.Message, error) {
 	if _, err := m.NewAVP(avp.OriginRealm, avp.Mbit, 0, cfg.OriginRealm); err != nil {
 		return nil, err
 	}
-	for _, address := range cfg.HostIPAddresses {
+	for _, address := range addresses {
 		if _, err := m.NewAVP(avp.HostIPAddress, avp.Mbit, 0, address); err != nil {
 			return nil, err
 		}
@@ -84,6 +91,10 @@ func BuildCEA(request *diam.Message, cfg Settings, resultCode uint32) (*diam.Mes
 	if resultCode >= 3000 && resultCode < 4000 {
 		return BuildErrorAnswer(request, cfg, resultCode, nil, true)
 	}
+	addresses, err := capabilityAddresses(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("find local addresses for CEA: %w", err)
+	}
 	a := request.Answer(resultCode)
 	var buildErr error
 	add := func(code uint32, flags uint8, vendor uint32, data datatype.Type) {
@@ -95,7 +106,7 @@ func BuildCEA(request *diam.Message, cfg Settings, resultCode uint32) (*diam.Mes
 	a.Header.ApplicationID = 0
 	add(avp.OriginHost, avp.Mbit, 0, cfg.OriginHost)
 	add(avp.OriginRealm, avp.Mbit, 0, cfg.OriginRealm)
-	for _, address := range cfg.HostIPAddresses {
+	for _, address := range addresses {
 		add(avp.HostIPAddress, avp.Mbit, 0, address)
 	}
 	add(avp.VendorID, avp.Mbit, 0, cfg.VendorID)
@@ -190,4 +201,21 @@ func BuildDPAResult(request *diam.Message, cfg Settings, result uint32) (*diam.M
 		return nil, err
 	}
 	return a, nil
+}
+
+// capabilityAddresses enforces RFC 6733 §§5.3.1, 5.3.2 and 5.3.5: a
+// capabilities message requires at least one configured or resolved address.
+func capabilityAddresses(cfg Settings) ([]datatype.Address, error) {
+	addresses := cfg.HostIPAddresses
+	if len(addresses) == 0 && cfg.ResolveHostIPAddresses != nil {
+		var err error
+		addresses, err = cfg.ResolveHostIPAddresses()
+		if err != nil {
+			return nil, err
+		}
+	}
+	if len(addresses) == 0 {
+		return nil, errors.New("no usable local Host-IP-Address; configure Settings.HostIPAddresses explicitly for custom transports")
+	}
+	return addresses, nil
 }

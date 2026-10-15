@@ -87,7 +87,7 @@ func TestInvalidDWAHeaderDoesNotResetActivity(t *testing.T) {
 	activity.ceaReceived.Store(true)
 	activity.last.Store(123)
 	called := false
-	h := activityHandler{StateMachine: sm, activity: activity, dwa: diam.HandlerFunc(func(diam.Conn, *diam.Message) { called = true })}
+	h := activityHandler{StateMachine: sm, activity: activity, dwa: watchdogDWAHandler(func(diam.Conn, *diam.Message, watchdogReceipt) { called = true })}
 	c := loggerHandshakeConn{newHandshakeConn(), records.Logger()}
 	m := diam.NewMessage(diam.DeviceWatchdog, 0, 4, 1, 2, testDict)
 	h.ServeDIAM(c, m)

@@ -201,6 +201,13 @@ dropped through its OnPeerEvent queue. A callback panic is recovered and
 logged at Error as `diam: protocol error callback panicked`; the selected
 protocol action continues. Configure the hook before use.
 
+Both front ends close the connection when a required CEA, DWA, DPA or error
+answer cannot be built, queued or completely written. Local required-answer
+failures use `ProtocolReplyFailure`; a rejection retains its original condition
+when the failure occurs during that handling attempt. Manager can report
+`ProtocolReplyQueued` first and a separate `ProtocolReplyFailed` completion
+if its writer later fails. A queued status never claims that bytes were written.
+
 Metadata and normalized errors are safe to retain: they contain no message,
 AVPs or parser error graph. Retaining the event also retains its `Conn`.
 `Closing` records the library's decision, rather than a live connection-state
@@ -395,6 +402,17 @@ socket-backed SCTP behavior must be validated on Linux with SCTP enabled.
 
 SCTP needs Linux 5.0 or later, the same floor as go-sctp. The main deployment
 target is Rocky Linux 9, which runs a 5.14 kernel.
+
+Capabilities exchange advertises `Settings.HostIPAddresses` when configured,
+otherwise the connection's resolved local addresses. Every usable SCTP source
+address is retained, including loopback (RFC 6733 §5.3.5). Unspecified bind
+addresses are excluded. No loopback address is invented when discovery fails.
+Custom transports used with `peer.Manager` must explicitly configure
+`Settings.HostIPAddresses` if their local TCP/SCTP addresses cannot be resolved;
+otherwise CER/CEA construction fails and the connection closes. `sm.Client`
+and `sm.StateMachine` also accept literal IP addresses from a custom
+`LocalAddr.String()` value, and likewise require explicit configuration when
+that value cannot supply usable IP addresses.
 
 RFC 6733 §13 requires implementations to support TLS/TCP and DTLS/SCTP,
 and Diameter must not run without TLS, DTLS or IPsec. DTLS/SCTP (RFC 6083,

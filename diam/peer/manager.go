@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
-	"net/netip"
 	"runtime"
 	"strings"
 	"sync"
@@ -50,6 +49,15 @@ type realClock struct{}
 
 func (realClock) AfterFunc(d time.Duration, f func()) Timer { return time.AfterFunc(d, f) }
 
+// Clocks that simulate elapsed time may also provide Now. Keeping this optional
+// preserves compatibility with existing schedulers implementing only AfterFunc.
+func (m *Manager) now() time.Time {
+	if clock, ok := m.cfg.Clock.(interface{ Now() time.Time }); ok {
+		return clock.Now()
+	}
+	return time.Now()
+}
+
 type Timers struct{ Tc, TwInit, Connect, CER, Closing, Request time.Duration }
 type Limits struct{ Events, PendingPerPeer int }
 type DialFunc func(context.Context, Endpoint) (net.Conn, error)
@@ -63,9 +71,12 @@ type PeerConfig struct {
 	NoAutoReconnect bool
 }
 type Config struct {
-	// Settings supplies local capabilities and decoding policy. Settings.Dict
-	// selects application definitions; nil uses the shared, initially base-only
-	// dict.Default. A bound Server must use the same parser. Manager owns the
+	// Settings supplies local capabilities and decoding policy. HostIPAddresses
+	// defaults to the connection's resolved TCP/SCTP addresses. Custom transports
+	// must configure HostIPAddresses explicitly when no usable address can be
+	// resolved; capability exchange then fails instead of inventing loopback.
+	// Settings.Dict selects application definitions; nil uses the shared,
+	// initially base-only dict.Default. A bound Server must use the same parser. Manager owns the
 	// base protocol; New rejects OnCER, OnCEA, OnDWR, OnDWA, OnDPR and
 	// OnHandshake hooks, and EnableWatchdog, WatchdogInterval, WatchdogStream,
 	// OnWatchdogConnEvent. Use Timers.TwInit and OnPeerEvent for managed peers.
@@ -614,6 +625,10 @@ func (m *Manager) ServeDIAM(c diam.Conn, msg *diam.Message) {
 	d.deliver(m)
 }
 func (m *Manager) processDIAM(s *session, msg *diam.Message, delivery ...*protocolDelivery) {
+	m.processDIAMAt(s, msg, m.now(), 0, delivery...)
+}
+
+func (m *Manager) processDIAMAt(s *session, msg *diam.Message, receivedAt time.Time, sequence uint64, delivery ...*protocolDelivery) {
 	if s.isRetired() {
 		return
 	}
@@ -673,7 +688,7 @@ func (m *Manager) processDIAM(s *session, msg *diam.Message, delivery ...*protoc
 			if !s.bind(a, 0) {
 				return
 			}
-			e := event{kind: rConnCER, s: s, msg: msg, meta: smpeer.FromCER(cer).Clone()}
+			e := event{kind: rConnCER, s: s, msg: msg, meta: smpeer.FromCER(cer).Clone(), receivedAt: receivedAt, receiveSequence: sequence}
 			if len(delivery) > 0 {
 				a.commit(e, delivery[0])
 			} else {
@@ -689,7 +704,7 @@ func (m *Manager) processDIAM(s *session, msg *diam.Message, delivery ...*protoc
 		m.protocolError(c, msg, diam.ProtocolHandshakeState, 0, true, diam.ProtocolReplyNone, 0, delivery...)
 		return
 	}
-	e := event{kind: wireEvent, s: s, msg: msg}
+	e := event{kind: wireEvent, s: s, msg: msg, receivedAt: receivedAt, receiveSequence: sequence}
 	if len(delivery) > 0 {
 		a.commit(e, delivery[0])
 	} else {
@@ -697,6 +712,8 @@ func (m *Manager) processDIAM(s *session, msg *diam.Message, delivery ...*protoc
 	}
 }
 func (m *Manager) rejectCER(s *session, msg *diam.Message, code uint32, reason error, delivery ...*protocolDelivery) {
+	delivery, report := m.requiredReplyDelivery(delivery)
+	defer report()
 	s.terminal.Store(true)
 	reply := diam.ProtocolReplyFailed
 	kind := diam.ProtocolCERRejected
@@ -727,7 +744,7 @@ func (m *Manager) rejectCER(s *session, msg *diam.Message, code uint32, reason e
 		return
 	}
 	m.report(s, msg, reason)
-	if err := s.send(answer, true); err != nil {
+	if err := s.sendRequired(answer, msg, true, code, delivery...); err != nil {
 		m.reportLocal(s, msg, "peer: send rejected CER answer failed; closing connection", err)
 		s.close()
 	} else {
@@ -736,22 +753,32 @@ func (m *Manager) rejectCER(s *session, msg *diam.Message, code uint32, reason e
 }
 func (m *Manager) baseSettings(c diam.Conn) base.Settings {
 	cfg := base.Settings{OriginHost: m.cfg.Settings.OriginHost, OriginRealm: m.cfg.Settings.OriginRealm, VendorID: m.cfg.Settings.VendorID, ProductName: m.cfg.Settings.ProductName, OriginStateID: m.cfg.Settings.OriginStateID, FirmwareRevision: m.cfg.Settings.FirmwareRevision, HostIPAddresses: base.CloneAddresses(m.cfg.Settings.HostIPAddresses), SupportedVendorID: m.cfg.Settings.SupportedVendorID, AuthApplicationID: m.cfg.Settings.AuthApplicationID, AcctApplicationID: m.cfg.Settings.AcctApplicationID, VendorSpecificApplicationID: m.cfg.Settings.VendorSpecificApplicationID}
+	// RFC 6733 §5.3.5: only advertise actual possible source addresses.
+	// Custom transports can supply their addresses through Settings instead.
 	if len(cfg.HostIPAddresses) == 0 && c != nil {
 		switch addr := c.LocalAddr().(type) {
 		case *net.TCPAddr:
-			if addr != nil && addr.IP != nil {
-				cfg.HostIPAddresses = []datatype.Address{datatype.AddressFromIP(addr.AddrPort().Addr())}
+			if addr != nil {
+				ip := addr.AddrPort().Addr().Unmap()
+				if ip.IsValid() && !ip.IsUnspecified() {
+					cfg.HostIPAddresses = []datatype.Address{datatype.AddressFromIP(ip)}
+				}
 			}
 		case *sctp.Addr:
 			if addr != nil {
 				for _, ip := range addr.IPs {
-					cfg.HostIPAddresses = append(cfg.HostIPAddresses, datatype.AddressFromIP(ip))
+					ip = ip.Unmap()
+					if ip.IsValid() && !ip.IsUnspecified() {
+						cfg.HostIPAddresses = append(cfg.HostIPAddresses, datatype.AddressFromIP(ip))
+					}
 				}
 			}
 		}
 	}
 	if len(cfg.HostIPAddresses) == 0 {
-		cfg.HostIPAddresses = []datatype.Address{datatype.AddressFromIP(netip.MustParseAddr("127.0.0.1"))}
+		cfg.ResolveHostIPAddresses = func() ([]datatype.Address, error) {
+			return nil, errors.New("peer: no usable local Host-IP-Address; configure Settings.HostIPAddresses explicitly for custom transports")
+		}
 	}
 	dictionary := m.cfg.Settings.Dict
 	if dictionary == nil {
@@ -778,6 +805,8 @@ func (m *Manager) supportsApplication(appID uint32) bool {
 }
 
 func (m *Manager) unsupported(s *session, msg *diam.Message, delivery ...*protocolDelivery) {
+	delivery, report := m.requiredReplyDelivery(delivery)
+	defer report()
 	// RFC 6733 §§7.1.3, 7.2: unsupported requests receive an E-bit 3007 for
 	// an application this node does not support, otherwise 3001; answers are
 	// reported and discarded.
@@ -794,14 +823,15 @@ func (m *Manager) unsupported(s *session, msg *diam.Message, delivery ...*protoc
 	}
 	answer, err := base.BuildErrorAnswer(msg, m.baseSettings(s.c), resultCode, nil, true)
 	if err == nil {
-		err = s.send(answer, false)
+		err = s.sendRequired(answer, msg, false, resultCode, delivery...)
 	}
 	m.reportLocal(s, msg, "peer: unsupported request answer failed", err)
 	reply := diam.ProtocolReplyQueued
 	if err != nil {
 		reply = diam.ProtocolReplyFailed
+		s.close()
 	}
-	m.protocolError(s.c, msg, kind, resultCode, false, reply, resultCode, delivery...)
+	m.protocolError(s.c, msg, kind, resultCode, err != nil, reply, resultCode, delivery...)
 }
 
 // HandleMessageError takes responsibility for a malformed message by admitting
@@ -839,6 +869,8 @@ func (m *Manager) HandleMessageError(c diam.Conn, msg *diam.Message, me *diam.Me
 }
 
 func (m *Manager) answerMessageError(s *session, msg *diam.Message, me *diam.MessageError, delivery ...*protocolDelivery) (handlingErr error) {
+	delivery, report := m.requiredReplyDelivery(delivery)
+	defer report()
 	c := s.c
 	if me == nil {
 		return nil
@@ -892,7 +924,7 @@ func (m *Manager) answerMessageError(s *session, msg *diam.Message, me *diam.Mes
 			return err
 		}
 		m.report(s, msg, fmt.Errorf("peer: malformed CER rejected; closing connection: %w", me))
-		if err := s.send(answer, true); err != nil {
+		if err := s.sendRequired(answer, msg, true, replyCode, delivery...); err != nil {
 			return fmt.Errorf("peer: write: %w", err)
 		}
 		reply = diam.ProtocolReplyQueued
@@ -922,7 +954,7 @@ func (m *Manager) answerMessageError(s *session, msg *diam.Message, me *diam.Mes
 	if closeAfter {
 		m.report(s, msg, fmt.Errorf("peer: invalid CER rejected; closing connection: %w", me))
 	}
-	if err := s.send(answer, closeAfter); err != nil {
+	if err := s.sendRequired(answer, msg, closeAfter, replyCode, delivery...); err != nil {
 		return fmt.Errorf("peer: write: %w", err)
 	}
 	reply = diam.ProtocolReplyQueued

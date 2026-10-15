@@ -38,7 +38,7 @@ func TestCxErrorAnswerCopiedGroupedFlagsTCP(t *testing.T) {
 						t.Error("request missing Public-Identity reached application handler")
 						return
 					}
-					if err := sm.writeErrorAnswer(c, m, trigger.code, nil, false); err != nil {
+					if _, err := sm.writeErrorAnswer(c, m, trigger.code, nil, false); err != nil {
 						t.Errorf("write application error answer: %v", err)
 					}
 				})

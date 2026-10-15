@@ -64,16 +64,9 @@ func BuildErrorAnswer(request *diam.Message, cfg Settings, resultCode uint32, fa
 	if !protocolError && request.Header.CommandCode == diam.CapabilitiesExchange {
 		// RFC 6733 §5.3.2: even a permanent-error CEA retains its required
 		// local capability fields when E is clear.
-		addresses := cfg.HostIPAddresses
-		if len(addresses) == 0 && cfg.ResolveHostIPAddresses != nil {
-			var err error
-			addresses, err = cfg.ResolveHostIPAddresses()
-			if err != nil {
-				return nil, fmt.Errorf("find local addresses for error CEA: %w", err)
-			}
-		}
-		if len(addresses) == 0 {
-			return nil, fmt.Errorf("cannot build CEA without a local Host-IP-Address")
+		addresses, err := capabilityAddresses(cfg)
+		if err != nil {
+			return nil, fmt.Errorf("find local addresses for error CEA: %w", err)
 		}
 		for _, address := range addresses {
 			if _, err := answer.NewAVP(avp.HostIPAddress, avp.Mbit, 0, address); err != nil {
