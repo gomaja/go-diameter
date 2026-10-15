@@ -31,9 +31,15 @@ type event struct {
 	gen, token uint64
 	err        error
 	cause      sm.DisconnectCause
+	discovery  *discoveryCommand
+	leaseState *discoveryState
 }
 
 const (
+	discoveryStart   psmEvent = "discovery-start"
+	discoveryStop    psmEvent = "discovery-stop"
+	discoveryExpire  psmEvent = "discovery-expire"
+	discoveryRefresh psmEvent = "discovery-refresh"
 	wireEvent        psmEvent = "wire"
 	dialDone         psmEvent = "dial-done"
 	connGone         psmEvent = "conn-gone"
@@ -42,6 +48,12 @@ const (
 )
 
 type actor struct {
+	discovery     atomic.Pointer[discoveryState]
+	retiring      atomic.Bool
+	ready         *discoveryReady
+	leaseTimer    Timer
+	leaseStop     chan struct{}
+	dialCancel    context.CancelFunc
 	controlOnce   sync.Once
 	control       chan retirementCommand
 	delivery      *protocolDelivery
@@ -80,12 +92,21 @@ type actor struct {
 
 func (a *actor) snapshot() PeerSnapshot {
 	v := a.snapshotValue.Load().(PeerSnapshot)
+	if d := a.discovery.Load(); d != nil {
+		v.Dynamic = true
+		v.ExpiresAt = d.expires
+		v.Eligible = v.Eligible && a.leaseLive()
+	}
 	v.Applications = append([]uint32(nil), v.Applications...)
 	return v
 }
 func (a *actor) publish(err error) {
 	p := PeerSnapshot{Host: a.cfg.Host, State: a.state, Generation: a.nextGen, Watchdog: a.watchdog}
-	p.Eligible = (a.state == IOpen || a.state == ROpen) && a.watchdog == WatchdogOkay
+	p.Eligible = (a.state == IOpen || a.state == ROpen) && a.watchdog == WatchdogOkay && a.leaseLive() && !a.ownStop
+	if d := a.discovery.Load(); d != nil {
+		p.Dynamic = true
+		p.ExpiresAt = d.expires
+	}
 	if a.meta != nil && (a.state == IOpen || a.state == ROpen || a.state == Closing) {
 		p.Realm = a.meta.OriginRealm
 		p.Applications = append([]uint32(nil), a.meta.Applications...)
@@ -95,6 +116,12 @@ func (a *actor) publish(err error) {
 	}
 	a.snapshotValue.Store(p)
 	a.activeSession.Store(a.active)
+	if p.Eligible && p.Dynamic {
+		a.publishDiscoveryRoutes()
+		a.signalReady(nil)
+	} else if err != nil {
+		a.signalReady(err)
+	}
 	if err != nil || a.state == IOpen || a.state == ROpen || a.state == Closed {
 		a.m.notify(PeerEvent{Peer: p, Reason: err})
 	}
@@ -108,8 +135,11 @@ func (a *actor) post(e event) {
 }
 func (a *actor) run() {
 	control := a.retirementMailbox()
+	leaseStop := a.leaseStop
 	defer a.m.wg.Done()
 	defer close(a.done)
+	defer a.m.forgetRetiredActor(a)
+	defer a.closeOwnedSessions()
 	for {
 		select {
 		case cmd := <-control:
@@ -118,6 +148,9 @@ func (a *actor) run() {
 			select {
 			case cmd := <-control:
 				a.retireResponder(cmd)
+			case <-leaseStop:
+				a.handleDiscovery(event{kind: discoveryStop})
+				leaseStop = nil
 			case e := <-a.events:
 				d := e.delivery
 				if d == nil {
@@ -133,7 +166,14 @@ func (a *actor) run() {
 				}
 			}
 		}
-		if a.m.isClosing() && a.state == Closed {
+		if (a.m.isClosing() || a.discovery.Load() != nil && a.ownStop) && a.state == Closed {
+			if a.dialCancel != nil {
+				a.dialCancel()
+			}
+			if a.leaseTimer != nil {
+				a.leaseTimer.Stop()
+			}
+			a.signalReady(ErrLeaseExpired)
 			a.stopTimer()
 			a.stopWatchdog()
 			a.stopReconnect()
@@ -191,6 +231,20 @@ func (a *actor) failWithLog(level slog.Level, text string, err error) {
 	a.lostConnection(err)
 }
 func (a *actor) handle(e event) {
+	if a.handleDiscovery(e) {
+		return
+	}
+	// Dial completion releases worker ownership even if its transport retired
+	// while queued. Other events from that transport remain stale.
+	if e.kind == dialDone {
+		if e.s != nil && e.s.isRetired() {
+			e.s.close()
+			e.s = nil
+			e.err = diam.ErrConnectionRetired
+		}
+		a.onDial(e)
+		return
+	}
 	if e.s != nil && e.s.isRetired() {
 		return
 	}
@@ -220,7 +274,7 @@ func (a *actor) handle(e event) {
 	if e.kind == start {
 		// RFC 6733 §5.4.3: a BUSY or DO_NOT_WANT_TO_TALK_TO_YOU DPR received
 		// before Start also suppresses the first dial.
-		if a.state == Closed && !a.m.isClosing() && !a.suppressReconnect {
+		if a.state == Closed && !a.m.isClosing() && !a.suppressReconnect && a.leaseLive() && !a.ownStop {
 			a.setState(WaitConnAck, nil)
 			a.arm(a.m.cfg.Timers.Connect)
 			a.dial()
@@ -229,10 +283,6 @@ func (a *actor) handle(e event) {
 	}
 	if e.kind == stop {
 		a.stop(e.cause)
-		return
-	}
-	if e.kind == dialDone {
-		a.onDial(e)
 		return
 	}
 	if e.kind == connGone {
@@ -250,7 +300,7 @@ func (a *actor) handle(e event) {
 	}
 }
 func (a *actor) dial() {
-	if a.dialing {
+	if a.dialing || !a.leaseLive() || a.ownStop {
 		return
 	}
 	a.dialing = true
@@ -259,10 +309,11 @@ func (a *actor) dial() {
 	a.pendingGen = gen
 	endpoints := a.cfg.Endpoints
 	m := a.m
+	ctx, cancel := context.WithTimeout(m.startContext(), m.cfg.Timers.Connect)
+	a.dialCancel = cancel
 	m.wg.Add(1)
 	go func() {
 		defer m.wg.Done()
-		ctx, cancel := context.WithTimeout(m.startContext(), m.cfg.Timers.Connect)
 		defer cancel()
 		var lastErr error
 		for _, e := range endpoints {
@@ -271,7 +322,7 @@ func (a *actor) dial() {
 				break
 			}
 			if s, err := m.dialEndpoint(ctx, e, a, gen); err == nil {
-				a.post(event{kind: dialDone, s: s, gen: gen})
+				a.finishDial(ctx, s, gen)
 				return
 			} else {
 				lastErr = errors.Join(lastErr, err)
@@ -280,6 +331,28 @@ func (a *actor) dial() {
 		a.post(event{kind: dialDone, gen: gen, err: lastErr})
 	}()
 }
+
+// finishDial transfers a successful dial to the actor, or closes it if its
+// authorization ended before delivery.
+func (a *actor) finishDial(ctx context.Context, s *session, gen uint64) {
+	err := ctx.Err()
+	if !a.leaseLive() {
+		err = ErrLeaseExpired
+	}
+	if err != nil {
+		s.close()
+		// Completion owns the pending generation even when the successful
+		// transport became unusable before the actor could receive it.
+		a.post(event{kind: dialDone, gen: gen, err: err})
+		return
+	}
+	select {
+	case a.events <- event{kind: dialDone, s: s, gen: gen}:
+	case <-a.done:
+		s.close()
+	}
+}
+
 func (m *Manager) dialEndpoint(ctx context.Context, e Endpoint, a *actor, gen uint64) (*session, error) {
 	network := e.Network
 	if network == "" {
@@ -298,7 +371,16 @@ func (m *Manager) dialEndpoint(ctx context.Context, e Endpoint, a *actor, gen ui
 				if cfg.ServerName == "" {
 					cfg.ServerName, _, _ = net.SplitHostPort(e.Address)
 				}
-				raw = tls.Client(raw, cfg)
+				client := tls.Client(raw, cfg)
+				if err = client.HandshakeContext(ctx); err != nil {
+					_ = raw.Close()
+					return nil, err
+				}
+				raw = client
+			}
+			if err = ctx.Err(); err != nil {
+				_ = raw.Close()
+				return nil, err
 			}
 			c, err = srv.NewConn(raw)
 			if err != nil {
@@ -307,9 +389,9 @@ func (m *Manager) dialEndpoint(ctx context.Context, e Endpoint, a *actor, gen ui
 		}
 	} else if e.TLSConfig != nil {
 		srv.TLSConfig = e.TLSConfig.Clone()
-		c, err = srv.DialTLS("", "", time.Until(deadline(ctx)))
+		c, err = srv.DialTLSContext(ctx, "", "")
 	} else {
-		c, err = srv.Dial(time.Until(deadline(ctx)))
+		c, err = srv.DialContext(ctx)
 	}
 	if err != nil {
 		return nil, err
@@ -326,12 +408,11 @@ func (m *Manager) dialEndpoint(ctx context.Context, e Endpoint, a *actor, gen ui
 		return nil, ctx.Err()
 	}
 }
-func deadline(ctx context.Context) time.Time { d, _ := ctx.Deadline(); return d }
 func (a *actor) onDial(e event) {
 	if e.gen == a.pendingGen {
 		a.dialing = false
 	}
-	if e.gen != a.pendingGen || (a.state != WaitConnAck && a.state != WaitConnAckElect) {
+	if !a.leaseLive() || a.ownStop || e.gen != a.pendingGen || (a.state != WaitConnAck && a.state != WaitConnAckElect) {
 		if e.s != nil {
 			e.s.close()
 		}
@@ -362,7 +443,7 @@ func (a *actor) onCER(e event) {
 	if e.s == nil || e.meta == nil {
 		return
 	}
-	if a.state == Closing || a.m.isClosing() || a.ownStop {
+	if !a.leaseLive() || a.state == Closing || a.m.isClosing() || a.ownStop {
 		a.m.report(e.s, e.msg, errors.New("peer: CER while closing; closing connection"))
 		e.s.close()
 		a.protocolError(e.s.c, e.msg, diam.ProtocolHandshakeState, 0, true, diam.ProtocolReplyNone, 0)
@@ -372,6 +453,11 @@ func (a *actor) onCER(e event) {
 		a.m.report(e.s, e.msg, errors.New("peer: configured Origin-Host mismatch; closing connection"))
 		e.s.close()
 		a.protocolError(e.s.c, e.msg, diam.ProtocolCERRejected, 0, true, diam.ProtocolReplyNone, 0)
+		return
+	}
+	if err := a.admitDiscovery(e.s, e.meta); err != nil {
+		a.signalReady(err)
+		a.m.rejectCER(e.s, e.msg, diam.UnknownPeer, err, a.delivery)
 		return
 	}
 	if a.state != Closed && a.state != WaitConnAck && a.state != WaitICEA && a.state != WaitConnAckElect && a.state != WaitReturns && a.state != IOpen && a.state != ROpen {
@@ -451,7 +537,12 @@ func (a *actor) onWire(e event) {
 				a.protocolError(s.c, msg, diam.ProtocolCEARejected, 0, true, diam.ProtocolReplyNone, 0)
 				return
 			}
-			s.meta = smpeer.FromCEA(cea).Clone()
+			meta := smpeer.FromCEA(cea).Clone()
+			if err := a.admitDiscovery(s, meta); err != nil {
+				a.fail(err)
+				return
+			}
+			s.meta = meta
 			a.meta = s.meta.Clone()
 			s.releaseControl(s.cerHop)
 			a.step(iCEA, s, msg)
@@ -659,6 +750,10 @@ func (a *actor) onGone(s *session) {
 }
 func (a *actor) stop(cause sm.DisconnectCause) {
 	a.ownStop = true
+	a.retiring.Store(true)
+	if a.dialCancel != nil {
+		a.dialCancel()
+	}
 	a.stopReconnect()
 	a.stopWatchdog()
 	if a.state == Closed {

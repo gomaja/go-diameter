@@ -80,7 +80,7 @@ func (m *Manager) CanRenewAcceptedCER(c diam.Conn) bool {
 		return false
 	}
 	a, _ := s.binding()
-	return a != nil && a.snapshot().State == ROpen && a.activeSession.Load() == s
+	return a != nil && a.leaseLive() && a.snapshot().State == ROpen && a.activeSession.Load() == s
 }
 
 // HandleRetire stops this generation without joining its writers or observers.
