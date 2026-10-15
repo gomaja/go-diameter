@@ -1,6 +1,7 @@
 package protocol
 
 import (
+	"errors"
 	"testing"
 	"time"
 
@@ -93,6 +94,20 @@ func FuzzWatchdogDelayedCompletions(f *testing.F) {
 	} {
 		f.Add(seed)
 	}
+	// Real executor failures are distinct from SkippedStage: even an answered
+	// probe or Closing connection must fail, while retirement remains latched.
+	for _, mode := range []byte{0, 1, 2, 3} {
+		for _, failure := range []byte{17, 18, 19, 20, 21, 22} {
+			for _, interleave := range [][]byte{
+				nil, {8}, {9}, {5}, {7}, {10}, {12}, {8, 5},
+				{2}, {2, 8}, {2, 9}, {2, 5}, {2, 7}, {2, 10}, {2, 12},
+				{5, 0, 1}, {5, 0, 1, 10}, {5, 0, 1, 12},
+			} {
+				seed := append([]byte{mode, 0, 1}, interleave...)
+				f.Add(append(seed, failure))
+			}
+		}
+	}
 	f.Fuzz(func(t *testing.T, data []byte) {
 		if len(data) == 0 {
 			return
@@ -118,16 +133,40 @@ func FuzzWatchdogDelayedCompletions(f *testing.F) {
 		var allocation Effect
 		var writes []*delayedProbe
 		serial := uint64(1000)
-		completions := 0
+		handshakeCompletions := 1
+		var completion *delayedProbe
+		var disconnectCompletion *Effect
+		var disconnectToken uint64
+		disconnectWaiting := false
+		expectTermination := func() {
+			if disconnectWaiting {
+				disconnectCompletion = &Effect{Token: disconnectToken, Notification: Notification{Outcome: ConnectionClosed}}
+				disconnectWaiting = false
+			}
+		}
 		// Effects supply execution tokens, not the expected protocol state.
 		collect := func(es []Effect, granted *delayedProbe) {
 			for _, e := range es {
 				switch e.Kind {
 				case CompleteRequest:
-					if completions == 0 {
-						t.Fatal("duplicate or unsolicited native completion")
+					m := e.Notification.Message
+					if completion == nil || !m.HasHeader || m.Header.CommandCode != diam.DeviceWatchdog || m.Header.HopByHopID != uint32(completion.id) || m.Header.EndToEndID != uint32(completion.id+1000) {
+						t.Fatal("duplicate, unsolicited or uncorrelated native completion")
 					}
-					completions--
+					completion = nil
+				case Notify:
+					if e.Notification.Kind == HandshakeNotice {
+						handshakeCompletions--
+						if handshakeCompletions < 0 || e.Notification.Outcome != Completed {
+							t.Fatal("duplicate or failed handshake completion")
+						}
+					}
+					if e.Notification.Kind == DisconnectNotice {
+						if disconnectCompletion == nil || e.Token != disconnectCompletion.Token || e.Notification.Outcome != disconnectCompletion.Notification.Outcome {
+							t.Fatalf("unexpected disconnect completion: %+v", e)
+						}
+						disconnectCompletion = nil
+					}
 				case ReserveIDs:
 					if !o.alloc || allocation.Token != 0 || e.Command != diam.DeviceWatchdog {
 						t.Fatal("overlapping or unsolicited allocation")
@@ -141,7 +180,7 @@ func FuzzWatchdogDelayedCompletions(f *testing.F) {
 					writes = append(writes, granted)
 				case ReleaseIDs:
 					p := o.leases[e.Reservation.Token]
-					if p == nil || p.logical || p.pin {
+					if p == nil || p.logical || p.pin || e.Reservation.Hop != uint32(p.id) || e.Reservation.End != uint32(p.id+1000) {
 						t.Fatalf("premature or duplicate lease release: %+v", p)
 					}
 					delete(o.leases, p.id)
@@ -184,15 +223,20 @@ func FuzzWatchdogDelayedCompletions(f *testing.F) {
 						o.current = granted
 					}
 				}
-			case 2, 3, 4, 15, 16:
+			case 2, 3, 4, 15, 16, 17, 18, 19, 20, 21, 22:
 				if len(writes) == 0 {
 					return
 				}
 				index := 0
-				if action >= 15 {
+				if action == 15 || action == 16 || action >= 20 {
 					index = len(writes) - 1
 				}
 				p := writes[index]
+				// Queue admission has only one result and exists only for the
+				// queued frontend. A rejection is terminal, never a skip.
+				if (action == 17 || action == 20) && (!c.cfg.QueueWrites || p.queued) {
+					return
+				}
 				in = complete(p.send)
 				in.At = at
 				if action == 2 {
@@ -204,7 +248,22 @@ func FuzzWatchdogDelayedCompletions(f *testing.F) {
 				} else {
 					p.pin = false
 					writes = append(writes[:index], writes[index+1:]...)
-					if action == 4 || action == 16 {
+					if action >= 17 {
+						switch action {
+						case 17, 20:
+							in.Stage, in.Bytes, in.Err = QueueStage, 0, errors.New("queue rejected")
+						case 18, 21:
+							in.Bytes-- // no error: the core must detect a short write
+						case 19, 22:
+							in.Err = errors.New("transport write failed")
+							if action == 19 {
+								in.Bytes = 0
+							}
+							// Action 22 reports a full byte count with an error:
+							// error handling must not rely on short-write detection.
+						}
+						o.end(3)
+					} else if action == 4 || action == 16 {
 						in.Stage, in.Bytes, in.Err = SkippedStage, 0, diam.ErrRequestCompleted
 						if p.logical {
 							p.logical = false
@@ -232,7 +291,7 @@ func FuzzWatchdogDelayedCompletions(f *testing.F) {
 					o.deadline = at.Add(6 * time.Second)
 					if o.current != nil && o.current.logical && action != 6 {
 						if !o.current.answered {
-							completions++
+							completion = o.current
 						}
 						o.current.answered = true
 						if action == 5 {
@@ -257,8 +316,12 @@ func FuzzWatchdogDelayedCompletions(f *testing.F) {
 					}
 				}
 			case 10:
-				in.Kind = Disconnect
+				in.Kind, in.Token = Disconnect, uint64(at.UnixNano())
+				if disconnectWaiting {
+					disconnectCompletion = &Effect{Notification: Notification{Outcome: AlreadyPending}}
+				}
 				if o.status < 3 {
+					disconnectWaiting, disconnectToken = true, in.Token
 					// Closing stops Tw but preserves protocol Pending until a
 					// skipped writer or connection termination disposes it.
 					o.status, o.deadline = 5, time.Time{}
@@ -273,6 +336,9 @@ func FuzzWatchdogDelayedCompletions(f *testing.F) {
 				in.Connection.Generation++
 				in.Message = cer(t)
 			}
+			if o.status == 3 || o.status == 4 {
+				expectTermination()
+			}
 			es := c.Handle(in)
 			if action == 13 && len(es) != 0 {
 				t.Fatal("stale generation produced effects")
@@ -281,8 +347,14 @@ func FuzzWatchdogDelayedCompletions(f *testing.F) {
 			if o.alloc != (allocation.Token != 0) {
 				t.Fatal("missing allocation obligation")
 			}
-			if completions != 0 {
+			if handshakeCompletions != 0 {
+				t.Fatal("missing handshake waiter completion")
+			}
+			if completion != nil {
 				t.Fatal("missing native completion")
+			}
+			if disconnectCompletion != nil {
+				t.Fatal("missing disconnect waiter completion")
 			}
 			s := c.Snapshot()
 			if o.status < 3 {
@@ -293,6 +365,17 @@ func FuzzWatchdogDelayedCompletions(f *testing.F) {
 			} else if s.Phase() != [...]Phase{Closed, Retired, Closing}[o.status-3] {
 				t.Fatalf("sequence=%v action=%d phase=%v oracle=%+v", data, action, s.Phase(), o)
 			}
+			if o.status == 3 || o.status == 4 {
+				if s.Ready() || s.Watchdog().Pending || s.Timer(WatchdogTimer) != (TimerSnapshot{}) || s.Timer(ClosingTimer) != (TimerSnapshot{}) {
+					t.Fatal("terminal generation retained readiness, Pending or a timer")
+				}
+			}
+			for _, control := range s.Controls() {
+				p := o.leases[control.Reservation.Token]
+				if p == nil || control.Command != diam.DeviceWatchdog || control.Logical != p.logical || control.Answered != p.answered || (control.Writers == 1) != p.pin || control.Writers < 0 || control.Writers > 1 {
+					t.Fatalf("control ownership differs from lease ledger: control=%+v lease=%+v", control, p)
+				}
+			}
 			for _, p := range o.leases {
 				if !p.logical && !p.pin {
 					t.Fatal("eligible lease was not released")
@@ -300,7 +383,7 @@ func FuzzWatchdogDelayedCompletions(f *testing.F) {
 			}
 		}
 		for _, raw := range data[1:] {
-			step(raw % 17)
+			step(raw % 23)
 		}
 		// Complete every delayed executor obligation, even after retirement.
 		step(12)
@@ -308,8 +391,8 @@ func FuzzWatchdogDelayedCompletions(f *testing.F) {
 		for len(writes) > 0 {
 			step(4)
 		}
-		if len(o.leases) != 0 {
-			t.Fatal("executor leaked reservations")
+		if len(o.leases) != 0 || len(c.Snapshot().Controls()) != 0 || len(c.reservations) != 0 || len(c.operations) != 0 || disconnectWaiting {
+			t.Fatal("executor leaked reservations, writers or a disconnect waiter")
 		}
 	})
 }

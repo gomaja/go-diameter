@@ -26,15 +26,27 @@ func (r HandshakeResult) CEA() *base.CEA { return copyCEA(r.cea) }
 func copyHandshakeError(err error) error {
 	switch e := err.(type) {
 	case *base.ErrFailedResultCode:
+		if e == nil {
+			return nil
+		}
 		return &base.ErrFailedResultCode{CEA: copyCEA(e.CEA)}
 	case *base.ErrUnexpectedAVP:
+		if e == nil {
+			return nil
+		}
 		return &base.ErrUnexpectedAVP{AVP: base.CloneAVP(e.AVP)}
 	case *diam.MessageError:
+		if e == nil {
+			return nil
+		}
 		out := *e
 		out.FailedAVP = base.CloneAVP(e.FailedAVP)
 		out.Err = copyHandshakeError(e.Err)
 		return &out
 	case *diam.ValidationError:
+		if e == nil {
+			return nil
+		}
 		out := *e
 		out.FailedAVP = base.CloneAVP(e.FailedAVP)
 		return &out

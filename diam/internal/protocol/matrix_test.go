@@ -155,7 +155,7 @@ func next(name string, es ...EffectKind) matrixExpectation {
 	return matrixExpectation{effects: es, next: name}
 }
 
-// RFC 6733 §§5.3–5.6 and #108: all 15 input kinds in every phase, plus
+// RFC 6733 §§5.3–5.6 and #108: all 16 input kinds in every phase, plus
 // validated candidate, hook, CEA-write and handshake-callback substates. The
 // literal effect rows are an external contract, not calls to production guards.
 func TestEveryPhaseInputPair(t *testing.T) {
@@ -197,7 +197,7 @@ func TestEveryPhaseInputPair(t *testing.T) {
 		"closed": {}, "retired": {},
 	}
 	for _, name := range []string{"pre", "candidate", "hook", "allocating", "waiting", "cea-write", "admission", "open", "closing-fence", "closing", "closed", "retired"} {
-		for k := Start; k <= Retire; k++ {
+		for k := Start; k <= StopSupervision; k++ {
 			t.Run(fmt.Sprintf("%s/input-%d", name, k), func(t *testing.T) {
 				f := matrixSetup(t, name)
 				in := matrixInput(t, name, k, f)
@@ -254,8 +254,9 @@ func TestSnapshotStateDoesNotAlias(t *testing.T) {
 // coordinates, dispositions and notification fields remain exact assertions.
 func matrixPayloads(t testing.TB, name string, k InputKind, f matrixFixture, before Snapshot, in Input, es []Effect) {
 	t.Helper()
-	for _, e := range es {
+	for i, e := range es {
 		want := Effect{Kind: e.Kind, Connection: connection}
+		want.ReleaseDispatch = i == 0 && k == Receive && (name == "open" || name == "closing")
 		switch e.Kind {
 		case ReserveIDs:
 			want.Token = e.Token
@@ -319,9 +320,11 @@ func matrixPayloads(t testing.TB, name string, k InputKind, f matrixFixture, bef
 			case Activate:
 				message, err = base.BuildCEA(cer(t), f.core.cfg.Local, diam.Success)
 			case Unhandled:
+				want.Notification = Notification{Protocol: diam.ProtocolUnsupportedCommand, ResultCode: diam.CommandUnsupported, Message: metadata(in.Message)}
 				message, err = base.BuildErrorAnswer(in.Message, f.core.cfg.Local, diam.CommandUnsupported, nil, true)
 			default:
 				message, err = base.BuildDWA(in.Message, f.core.cfg.Local)
+				want.AnswerHook = true
 			}
 			if err != nil {
 				t.Fatal(err)
@@ -368,6 +371,10 @@ func matrixPayloads(t testing.TB, name string, k InputKind, f matrixFixture, bef
 					want.Notification.Closing = true
 					if name == "closing" || name == "closing-fence" {
 						want.Notification.Protocol = diam.ProtocolDisconnectTimeout
+						want.Notification.Diagnostic = "local-disconnect"
+						if name == "closing" {
+							want.Message = f.send.Message
+						}
 					}
 				} else {
 					want.Notification.Protocol = diam.ProtocolHandshakeState

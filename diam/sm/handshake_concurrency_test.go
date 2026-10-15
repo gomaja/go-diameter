@@ -84,6 +84,8 @@ func TestAcceptedHandshakePublishedBeforeCEA(t *testing.T) {
 		sm := mustNewStateMachine(t, testMessageErrorSettings(testDict), testDict)
 		c := newHandshakeConn()
 		release := make(chan struct{})
+		var releaseOnce sync.Once
+		releaseCEA := func() { releaseOnce.Do(func() { close(release) }) }
 		c.afterWrite = func(seq int32) {
 			if seq == 1 { // Hold only the CEA, the first write.
 				<-release
@@ -94,13 +96,24 @@ func TestAcceptedHandshakePublishedBeforeCEA(t *testing.T) {
 		cer := regressionCER(t, testDict, 1001)
 		done := make(chan struct{})
 		go func() { defer close(done); sm.ServeDIAM(c, cer) }()
-		defer func() { close(release); <-done }()
+		defer func() { releaseCEA(); <-done }()
 		select {
 		case <-c.writes:
 		case <-time.After(2 * time.Second):
 			t.Fatal("CEA not written")
 		}
+		metadata, ok := smpeer.FromContext(c.Context())
+		if !ok || metadata.CER == nil || metadata.OriginHost != clientSettings.OriginHost {
+			t.Fatal("accepted metadata was not published before the CEA writer returned")
+		}
 		sm.ServeDIAM(c, regressionDWR(t))
+		select {
+		case <-c.writes:
+			t.Fatal("DWR crossed the CEA completion barrier")
+		default:
+		}
+		releaseCEA()
+		<-done
 		if c.closed.Load() {
 			t.Fatal("DWR after CEA closed the connection")
 		}

@@ -10,6 +10,7 @@ import (
 
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/internal/base"
+	"github.com/gomaja/go-diameter/diam/internal/protocol"
 	"github.com/gomaja/go-diameter/diam/sm/smparser"
 )
 
@@ -21,6 +22,10 @@ import (
 // See RFC 6733 section 5.5 for details.
 func handleDWR(sm *StateMachine) diam.HandlerFunc {
 	return func(c diam.Conn, m *diam.Message) {
+		if state := sm.acceptedCore(c, m, false); state != nil {
+			state.apply(protocol.Input{Kind: protocol.Receive, Message: m})
+			return
+		}
 		dwr := new(smparser.DWR)
 		err := dwr.Parse(m)
 		if err == nil && !boundHost(c, dwr.OriginHost) {

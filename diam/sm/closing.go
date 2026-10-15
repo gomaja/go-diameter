@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/gomaja/go-diameter/diam"
+	"github.com/gomaja/go-diameter/diam/internal/protocol"
 )
 
 type closingConnection struct {
@@ -70,7 +71,6 @@ func (sm *StateMachine) enterClosing(c diam.Conn) *closingConnection {
 	if w := sm.supervised(c); w != nil {
 		w.latchStop()
 	}
-	sm.markAcceptedClosing(c)
 	state.closing = true
 	state.mu.Unlock()
 	return state
@@ -115,6 +115,9 @@ func (sm *StateMachine) joinClosingWatchdog(c diam.Conn, expired <-chan struct{}
 }
 
 func (sm *StateMachine) isClosing(c diam.Conn) bool {
+	if s := sm.acceptedCore(c, nil, false); s != nil {
+		return s.snapshot().Phase() >= protocol.Closing
+	}
 	if state, ok := sm.connections.Load(c); ok {
 		s := state.(*closingConnection)
 		s.mu.Lock()

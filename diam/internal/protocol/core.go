@@ -28,7 +28,10 @@ type Core struct {
 	peerDPR                       bool
 	disconnectToken, fenceToken   uint64
 	closeRequest                  Input
+	earlyDPA                      *Input
 
+	lateCERToken                     uint64
+	lateCER                          Input
 	cfg                              Config
 	phase                            Phase
 	serial                           uint64
@@ -109,6 +112,7 @@ func (c *Core) stop(k TimerKind) []Effect {
 }
 func (c *Core) terminate(phase Phase) []Effect {
 	c.phase = phase
+	c.earlyDPA = nil
 	c.candidateToken, c.hookToken, c.admission = 0, 0, 0
 	c.ready = false
 	c.callbackReady = false
@@ -165,8 +169,22 @@ func (c *Core) Handle(in Input) []Effect {
 	if in.Kind == WriteResult {
 		return c.writeResult(in)
 	}
+	if c.phase == Closed && in.Kind == Continue && in.Token == c.lateCERToken && c.lateCERToken != 0 {
+		c.lateCERToken = 0
+		saved := c.lateCER
+		c.lateCER = Input{}
+		if in.TransportClosed {
+			return nil
+		}
+		n := Notification{Protocol: diam.ProtocolHandshakeState, Closing: true, Message: metadata(saved.Message), Diagnostic: "late-cer"}
+		return []Effect{c.effect(Close), c.notify(n)}
+	}
 	if c.phase >= Closed {
 		return nil
+	}
+	if in.RefreshLocalAddresses && c.phase == PreCER {
+		c.cfg.Local.HostIPAddresses = base.CloneAddresses(in.LocalAddresses)
+		c.caps.Local.HostIPAddresses = base.CloneAddresses(in.LocalAddresses)
 	}
 	switch in.Kind {
 	case Start:
@@ -181,6 +199,11 @@ func (c *Core) Handle(in Input) []Effect {
 			es = append(es, c.reserve(diam.CapabilitiesExchange)...)
 		}
 		return es
+	case StopSupervision:
+		c.cfg.Watchdog = false
+		c.wd.Pending = false
+		c.wdNext = nil
+		return c.stop(WatchdogTimer)
 	case Retire:
 		return c.terminate(Retired)
 	case Abort:
@@ -226,6 +249,12 @@ func (c *Core) Handle(in Input) []Effect {
 		// different base exchange or replace its reply identifiers (#108).
 		if h.CommandCode != original.CommandCode || h.ApplicationID != original.ApplicationID || h.CommandFlags&diam.RequestFlag != original.CommandFlags&diam.RequestFlag || h.HopByHopID != original.HopByHopID || h.EndToEndID != original.EndToEndID {
 			return c.fail(saved, diam.ProtocolInvalidHeader, diam.InvalidHDRBits)
+		}
+		if original.CommandCode == diam.CapabilitiesExchange && c.phase == Open {
+			return c.discard(saved, diam.ProtocolUnexpectedMessage, 0)
+		}
+		if original.CommandCode == diam.DeviceWatchdog && c.cfg.DWRHookCompatibility {
+			return c.dwr(saved)
 		}
 		if err := base.ValidateMessage(saved.Message); err != nil {
 			if original.CommandCode == diam.CapabilitiesExchange {
@@ -292,8 +321,13 @@ func (c *Core) expire(in Input) []Effect {
 		}
 	}
 	kind := diam.ProtocolHandshakeTimeout
-	if in.Timer == ClosingTimer {
+	if in.Timer == ClosingTimer || in.Timer == ReceiverDisconnectTimer {
 		kind = diam.ProtocolDisconnectTimeout
+	}
+	if in.Timer == ClosingTimer && c.disconnectWaiting && !c.closeLocal && c.timers[ReceiverDisconnectTimer].Token != 0 {
+		// The original peer-initiated deadline is transport closure to the
+		// later local caller, not expiry of that caller's own timeout (§5.6).
+		return append(c.terminate(Closed), c.notify(Notification{Protocol: kind, Closing: true}))
 	}
 	return c.fail(in, kind, 0)
 }
@@ -309,20 +343,39 @@ func (c *Core) discard(in Input, kind diam.ProtocolErrorKind, code uint32) []Eff
 	e := c.effect(Discard)
 	es := []Effect{e}
 	if kind != "" {
-		es = append(es, c.notify(Notification{Protocol: kind, ResultCode: code, Message: metadata(in.Message)}))
+		es = append(es, c.notify(Notification{Protocol: kind, ResultCode: code, Message: metadata(in.Message), CauseError: copyHandshakeError(in.Error)}))
 	}
 	return es
 }
 func (c *Core) fail(in Input, kind diam.ProtocolErrorKind, code uint32) []Effect {
+	var localDPR *diam.Message
+	localTimeout := kind == diam.ProtocolDisconnectTimeout && (c.closeLocal || in.Timer == ReceiverDisconnectTimer)
+	if localTimeout {
+		if r := c.controls[diam.DisconnectPeer]; r != nil {
+			localDPR = copyMessage(r.frame)
+		}
+	}
+	if kind == diam.ProtocolHandshakeTimeout && c.hookToken != 0 {
+		if saved, ok := c.continuations[c.hookToken]; ok && saved.Message.Header.CommandCode == diam.CapabilitiesExchange {
+			c.lateCERToken = c.hookToken
+			c.lateCER = saved
+		}
+	}
+
 	if kind == diam.ProtocolHandshakeTimeout || kind == diam.ProtocolDisconnectTimeout || kind == diam.ProtocolWatchdogTimeout {
 		c.closeOutcome = TimedOut
 	}
 	es := c.terminate(Closed)
-	n := Notification{Protocol: kind, ResultCode: code, Closing: true, Message: metadata(in.Message)}
+	n := Notification{Protocol: kind, ResultCode: code, Closing: true, Message: metadata(in.Message), CauseError: copyHandshakeError(in.Error)}
+	if localTimeout {
+		n.Diagnostic = "local-disconnect"
+	}
 	if kind == diam.ProtocolReplyFailure {
 		n.ResultCode, n.ReplyCode, n.Reply = 0, code, diam.ProtocolReplyFailed
 	}
-	return append(es, c.notify(n))
+	e := c.notify(n)
+	e.Message = localDPR // log source only; public timeout metadata remains empty
+	return append(es, e)
 }
 func (c *Core) reject(in Input, kind diam.ProtocolErrorKind, me *diam.MessageError) []Effect {
 	if c.phase == Closing {
@@ -336,18 +389,26 @@ func (c *Core) reject(in Input, kind diam.ProtocolErrorKind, me *diam.MessageErr
 	if err != nil {
 		return c.failedRejection(in, kind, me.ResultCode)
 	}
-	terminal := c.phase == PreCER || me.Fatal
+	terminal := c.phase == PreCER || me.Fatal || in.Message.Header.CommandCode == diam.CapabilitiesExchange && base.ValidateHeader(in.Message) != nil
 	if terminal {
 		c.terminal = true
 	}
-	n := Notification{Protocol: kind, ResultCode: me.ResultCode, Closing: terminal, Message: metadata(in.Message)}
+	n := Notification{Protocol: kind, ResultCode: me.ResultCode, Closing: terminal, Message: metadata(in.Message), CauseError: copyHandshakeError(me)}
+	if in.Message.Header.CommandCode == diam.CapabilitiesExchange && (c.phase == PreCER || base.ValidateHeader(in.Message) != nil) {
+		n.Diagnostic = "reject-cer"
+	}
+
 	return c.send(answer, nil, true, terminal, false, &n)
 }
 
 // #108 required replies preserve the detected condition when construction
 // fails before any Queued/Written report. A later queued failure is separate.
 func (c *Core) failedRejection(in Input, kind diam.ProtocolErrorKind, code uint32) []Effect {
+	initialCER := c.phase == PreCER && in.Message != nil && in.Message.Header.CommandCode == diam.CapabilitiesExchange
 	es := c.terminate(Closed)
 	n := Notification{Protocol: kind, ResultCode: code, Reply: diam.ProtocolReplyFailed, ReplyCode: code, Closing: true, Message: metadata(in.Message)}
+	if initialCER {
+		n.Diagnostic = "reject-cer"
+	}
 	return append(es, c.notify(n))
 }

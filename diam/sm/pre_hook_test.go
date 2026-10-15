@@ -16,6 +16,7 @@ import (
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/diamtest"
 	"github.com/gomaja/go-diameter/diam/internal/logtest"
+	"github.com/gomaja/go-diameter/diam/internal/protocol"
 	"github.com/gomaja/go-diameter/diam/sm/smpeer"
 )
 
@@ -128,9 +129,7 @@ func TestPreHookCloseDoesNotAdmit(t *testing.T) {
 	sm.ServeDIAM(c, regressionCER(t, testDict, 1001))
 	value, _ := sm.accepted.Load(c)
 	state := value.(*acceptedHandshake)
-	state.mu.Lock()
-	complete := state.complete
-	state.mu.Unlock()
+	complete := state.snapshot().Phase() == protocol.Open
 	if complete {
 		t.Error("closed OnCER completed accepted handshake")
 	}
@@ -205,7 +204,7 @@ func TestPreHookHandshakeTimeoutInEveryWiring(t *testing.T) {
 						c.Close()
 						return
 					}
-					value.(*acceptedHandshake).timer.Reset(0)
+					go expireAcceptedTestHandshake(value.(*acceptedHandshake))
 					<-release
 				}
 				var cea, handshake atomic.Int32

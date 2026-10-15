@@ -1,6 +1,8 @@
 package protocol
 
 import (
+	"errors"
+
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/internal/base"
 )
@@ -46,6 +48,13 @@ func (c *Core) disconnect(in Input) []Effect {
 	if c.disconnectWaiting {
 		return []Effect{c.notify(Notification{Kind: DisconnectNotice, Outcome: AlreadyPending})}
 	}
+	// Preserve StateMachine's local API after a received DPR (RFC 6733
+	// §§5.4.1,5.6). Neither the original receiver deadline nor admission changes.
+	if c.cfg.LocalDisconnectInClosing && c.phase == Closing && c.frozen && !c.closeLocal && in.Cause <= 2 {
+		c.disconnectWaiting, c.disconnectToken, c.closeCause = true, in.Token, in.Cause
+		es := c.arm(ReceiverDisconnectTimer, in.At, in.Timeout)
+		return append(es, c.reserve(diam.DisconnectPeer)...)
+	}
 	if c.phase != Open || in.Cause > 2 {
 		return []Effect{c.notify(Notification{Kind: DisconnectNotice, Outcome: NotOpen})}
 	}
@@ -58,13 +67,20 @@ func (c *Core) bound(m *diam.Message, realm bool) bool {
 	}
 	return equalIdentity(string(identity.OriginHost), c.caps.Host) && (!realm || equalIdentity(string(identity.OriginRealm), c.caps.Realm))
 }
-func (c *Core) dpr(in Input) []Effect {
+func (c *Core) dpr(in Input) (es []Effect) {
 	cause, err := base.ValidateDPR(in.Message)
-	if err != nil || !c.bound(in.Message, false) {
-		return c.discard(in, diam.ProtocolInvalidDPR, 0)
+	if err == nil && !c.bound(in.Message, false) {
+		err = errors.New("DPR Origin-Host does not match the admitted peer (RFC 6733 §6.3)")
+	}
+	if err != nil {
+		return c.discardCause(in, diam.ProtocolInvalidDPR, err)
 	}
 	in.Cause = cause
-	var es []Effect
+	defer func() {
+		if len(es) != 0 {
+			es[0].ReleaseDispatch = true
+		}
+	}()
 	// RFC 6733 §5.4.3: reconnect suppression is decided by the validated
 	// request, independently of whether a DPA can be queued or written.
 	if !c.peerDPR {
@@ -101,13 +117,38 @@ func (c *Core) answerDPR(in Input, first bool) []Effect {
 func (c *Core) dpa(in Input) []Effect {
 	r := c.controls[diam.DisconnectPeer]
 	if !c.matches(r, in.Message) {
-		return c.discard(in, diam.ProtocolInvalidDPA, 0)
+		es := c.discard(in, diam.ProtocolUnexpectedMessage, 0)
+		if r != nil && r.logical {
+			es[len(es)-1].Notification.Diagnostic = "dpa-correlation"
+		}
+		return es
 	}
 	result, err := base.ValidateDPA(in.Message)
-	if err != nil || !c.bound(in.Message, false) {
+	if err != nil {
 		return c.discard(in, diam.ProtocolInvalidDPA, 0)
 	}
+	if !c.bound(in.Message, false) {
+		es := c.discard(in, diam.ProtocolUnexpectedMessage, 0)
+		es[len(es)-1].Notification.Diagnostic = "dpa-host"
+		return es
+	}
 	es := c.settle(r)
+	// Synchronous frontends complete their DPR send before publishing the
+	// disconnect result. An early answer settles ownership without cancelling
+	// the original Closing deadline or the selected writer (#110 API boundary).
+	if !c.cfg.QueueWrites && !r.written && r.writers != 0 {
+		saved := in
+		saved.Message = copyMessage(in.Message)
+		saved.ResultCode = result
+		c.earlyDPA = &saved
+		return es
+	}
+	return append(es, c.completeDPA(in, result)...)
+}
+
+func (c *Core) completeDPA(in Input, result uint32) []Effect {
+	c.earlyDPA = nil
+	var es []Effect
 	c.disconnectWaiting = false
 	es = append(es, c.terminate(Closed)...)
 	n := Notification{Kind: DisconnectNotice, ResultCode: result, Outcome: Completed}

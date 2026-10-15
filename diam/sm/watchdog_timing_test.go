@@ -134,7 +134,7 @@ func TestAcceptedWatchdogDoesNotStartOnClosedConnection(t *testing.T) {
 		inner := newAcceptedWatchdogProbeConn()
 		inner.Close()
 		c := &closedWatchdogConn{Conn: inner, logger: logs.Logger()}
-		sm.startWatchdog(c)
+		startAcceptedTestWatchdog(t, sm, c)
 		if got := logs.Records(); len(got) != 0 {
 			t.Fatalf("closed connection produced watchdog diagnostics: %v", got)
 		}
@@ -145,7 +145,7 @@ func TestAcceptedWatchdogDoesNotStartOnClosedConnection(t *testing.T) {
 		c := newAcceptedWatchdogProbeConn()
 		defer close(c.done)
 		c.Close()
-		sm.startWatchdog(c)
+		startAcceptedTestWatchdog(t, sm, c)
 		synctest.Wait()
 		if _, ok := sm.watchdogs.Load(c); ok {
 			t.Fatal("closed connection acquired watchdog")
@@ -175,7 +175,7 @@ func TestAcceptedWatchdogPolicyUsesJitter(t *testing.T) {
 	cfg.watchdogTiming = &watchdogTiming{floor: time.Millisecond, jitter: 20 * time.Millisecond}
 	sm := mustNewStateMachine(t, &cfg)
 	c := newAcceptedWatchdogProbeConn()
-	sm.startWatchdog(c)
+	startAcceptedTestWatchdog(t, sm, c)
 	w := acceptedWatchdogState(t, sm, c)
 	t.Cleanup(func() { close(c.done); <-w.exited })
 	seen := make(map[time.Duration]bool)

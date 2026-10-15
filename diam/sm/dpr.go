@@ -7,6 +7,7 @@ import (
 
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/internal/base"
+	"github.com/gomaja/go-diameter/diam/internal/protocol"
 )
 
 // DisconnectCause is the reason carried in a DPR (RFC 6733 §5.4.3).
@@ -26,6 +27,10 @@ func validateDPR(m *diam.Message) (DisconnectCause, error) {
 
 func handleDPR(sm *StateMachine) diam.HandlerFunc {
 	return func(c diam.Conn, m *diam.Message) {
+		if state := sm.acceptedCore(c, m, false); state != nil {
+			state.apply(protocol.Input{Kind: protocol.Receive, Message: m})
+			return
+		}
 		cause, err := validateDPR(m)
 		if err == nil && !messageBoundHost(c, m) {
 			err = fmt.Errorf("DPR Origin-Host does not match the admitted peer (RFC 6733 §6.3)")

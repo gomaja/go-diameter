@@ -11,19 +11,24 @@ import (
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
-	"github.com/gomaja/go-diameter/diam/internal/base"
+	"github.com/gomaja/go-diameter/diam/dict"
+	"github.com/gomaja/go-diameter/diam/internal/protocol"
 	"github.com/gomaja/go-diameter/diam/sm/smpeer"
 )
 
 type requiredReplyConn struct {
 	*handshakeConn
-	failure     string
-	closes      int
-	writes      int
-	beforeClose func()
+	failure      string
+	invalidLocal bool
+	closes       int
+	writes       int
+	beforeClose  func()
 }
 
 func (c *requiredReplyConn) LocalAddr() net.Addr {
+	if c.invalidLocal {
+		return acceptedWatchdogInvalidAddr{}
+	}
 	return &net.TCPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 3868}
 }
 func (c *requiredReplyConn) Close() {
@@ -51,14 +56,20 @@ func TestRequiredReplyFailureClosesStateMachine(t *testing.T) {
 			}
 			t.Run(command+"/"+failure, func(t *testing.T) {
 				c := &requiredReplyConn{handshakeConn: newHandshakeConn(), failure: failure}
-				cfg := testMessageErrorSettings(newSMTestDictionary())
+				cfg := testMessageErrorSettings(newSMTestDictionary(dict.Base()))
 				cfg.HostIPAddresses = []datatype.Address{datatype.AddressFromIP(netip.MustParseAddr("127.0.0.1"))}
 				events := make(chan diam.ProtocolErrorEvent, 4)
 				cfg.OnProtocolError = func(e diam.ProtocolErrorEvent) { events <- e }
+				if failure == "build" && command == "CEA" {
+					cfg.HostIPAddresses = nil
+					c.invalidLocal = true
+				}
 				sm := mustNewStateMachine(t, cfg)
 				t.Cleanup(sm.HandleAccept(c))
 				if command != "CEA" {
-					if !sm.completeAcceptedHandshake(c) || !sm.CanRenewAcceptedCER(c) {
+					state := primeAcceptedTestCore(t, sm, c)
+					state.apply(protocol.Input{Kind: protocol.ReleaseAdmission, Token: state.snapshot().Admission()})
+					if !sm.CanRenewAcceptedCER(c) {
 						t.Fatal("test connection was not eligible for renewal before the failure")
 					}
 				}
@@ -72,9 +83,6 @@ func TestRequiredReplyFailureClosesStateMachine(t *testing.T) {
 				if command != "CEA" {
 					host, _ := m.FindAVP(avp.OriginHost, 0)
 					c.SetContext(smpeer.NewContext(context.Background(), &smpeer.Metadata{OriginHost: host.Data.(datatype.DiameterIdentity)}))
-				}
-				if failure == "build" {
-					cfg.HostIPAddresses = []datatype.Address{{}}
 				}
 				switch command {
 				case "CEA":
@@ -97,7 +105,7 @@ func TestRequiredReplyFailureClosesStateMachine(t *testing.T) {
 							t.Fatal(err)
 						}
 					} else {
-						sm.rejectRequest(c, m, &base.RequestError{Kind: diam.ProtocolInvalidRequest, Code: code})
+						sm.acceptedCore(c, nil, false).apply(protocol.Input{Kind: protocol.Receive, Message: m, Error: &diam.MessageError{ResultCode: code}})
 					}
 				}
 				if !c.Closed() || c.closes != 1 {

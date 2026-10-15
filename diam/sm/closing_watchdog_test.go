@@ -13,6 +13,7 @@ import (
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/dict"
 	"github.com/gomaja/go-diameter/diam/internal/logtest"
+	"github.com/gomaja/go-diameter/diam/internal/protocol"
 )
 
 type closingWatchdogConn struct {
@@ -34,11 +35,16 @@ func TestAcceptedWatchdogClosingDWA(t *testing.T) {
 				logs := logtest.New()
 				c := &closingWatchdogConn{newAcceptedWatchdogProbeConn(), logs.Logger()}
 				defer close(c.done)
-				sm.startWatchdog(c)
+				startAcceptedTestWatchdog(t, sm, c)
 				w := acceptedWatchdogState(t, sm, c)
-				sm.stopWatchdog(c)
+				w.state.apply(protocol.Input{Kind: protocol.Disconnect, Cause: uint32(DisconnectBusy), Timeout: time.Hour})
 				<-w.exited
 
+				before := w.state.snapshot()
+				if before.Phase() != protocol.Closing {
+					t.Fatalf("test did not enter Closing: %v", before.Phase())
+				}
+				sequence := w.state.sequence
 				answer := acceptedDWA(t, regressionDWR(t), diam.Success)
 				switch name {
 				case "rejected":
@@ -47,13 +53,16 @@ func TestAcceptedWatchdogClosingDWA(t *testing.T) {
 					answer.AVP = nil
 					mustSMClientAVP(t, answer, avp.ResultCode, avp.Mbit, 0, localhostAddress)
 				}
-				w.dwa.ServeDIAM(c, answer)
+				receiveAcceptedTestWatchdog(w, answer)
+				if w.state.sequence != sequence+1 {
+					t.Fatal("stale Closing DWA never reached the production adapter")
+				}
 				select {
 				case got := <-events:
 					t.Errorf("watchdog event after stopWatchdog returned: %s", got.event)
 				default:
 				}
-				if queuedWatchdogCredits(&w.signals) != 0 {
+				if w.state.snapshot().Watchdog() != before.Watchdog() {
 					t.Error("DWA after stopWatchdog returned credited Pending")
 				}
 				for _, record := range logs.Records() {
@@ -84,14 +93,14 @@ func TestAcceptedWatchdogClosingActivity(t *testing.T) {
 		defer sm.watchdogs.Delete(c)
 		routed := false
 		sm.Handle("ALL", diam.HandlerFunc(func(diam.Conn, *diam.Message) { routed = true }))
-		last := w.signals.last.Load()
+		timer := w.state.snapshot().Timer(protocol.WatchdogTimer)
 		answer := diam.NewRequest(999, 42, testDict).Answer(diam.Success)
 		sm.ServeDIAM(c, answer)
 		if !routed {
 			t.Fatal("application answer did not reach its handler")
 		}
 		// RFC 6733 §5.6: Closing cannot reset the stopped watchdog's Tw.
-		if w.signals.last.Load() != last || len(w.signals.signal) != 0 {
+		if w.state.snapshot().Timer(protocol.WatchdogTimer) != timer {
 			t.Fatal("received activity touched watchdog after stopWatchdog returned")
 		}
 	})
@@ -161,7 +170,7 @@ func TestAcceptedWatchdogClosingEvents(t *testing.T) {
 		sm := mustNewStateMachine(t, &cfg)
 		c := newAcceptedWatchdogProbeConn()
 		defer close(c.done)
-		sm.startWatchdog(c)
+		startAcceptedTestWatchdog(t, sm, c)
 		w := acceptedWatchdogState(t, sm, c)
 		sm.stopWatchdog(c)
 		<-w.exited
@@ -199,17 +208,17 @@ func TestAcceptedWatchdogEventsHoldStopLock(t *testing.T) {
 		sm := mustNewStateMachine(t, &cfg)
 		c := newAcceptedWatchdogProbeConn()
 		defer close(c.done)
-		sm.startWatchdog(c)
+		startAcceptedTestWatchdog(t, sm, c)
 		w = acceptedWatchdogState(t, sm, c)
-		if !w.send() {
+		if !expireAcceptedTestWatchdog(w) {
 			t.Fatal("DWR publication failed")
 		}
 		request, err := diam.ReadMessage(bytes.NewReader(<-c.writes), newSMTestDictionary(dict.Base()))
 		if err != nil {
 			t.Fatal(err)
 		}
-		w.dwa.ServeDIAM(c, acceptedDWA(t, request, diam.Success))
-		w.dwa.ServeDIAM(c, acceptedDWA(t, regressionDWR(t), diam.TooBusy))
+		receiveAcceptedTestWatchdog(w, acceptedDWA(t, request, diam.Success))
+		receiveAcceptedTestWatchdog(w, acceptedDWA(t, regressionDWR(t), diam.TooBusy))
 		for _, event := range []WatchdogEvent{
 			WatchdogWriteFailed, WatchdogSuspect, WatchdogRecovered, WatchdogTimedOut,
 		} {

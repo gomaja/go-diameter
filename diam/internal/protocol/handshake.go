@@ -20,6 +20,7 @@ func (c *Core) candidate(in Input) []Effect {
 		return c.rejectCER(in, errors.New("unexpected remote host"))
 	}
 	c.caps.CER = copyCER(&parsed)
+	c.caps.ParsedApplications = parsed.Applications()
 	c.negotiate(string(parsed.OriginHost), string(parsed.OriginRealm), base.AdvertisedApplicationIDs(base.Settings{AuthApplicationID: parsed.AuthApplicationID, AcctApplicationID: parsed.AcctApplicationID, VendorSpecificApplicationID: parsed.VendorSpecificApplicationID}))
 	c.candidateToken = c.token()
 	c.cer = copyMessage(in.Message)
@@ -117,6 +118,6 @@ func (c *Core) rejectCER(in Input, err error) []Effect {
 		return c.failedRejection(in, diam.ProtocolCERRejected, code)
 	}
 	c.terminal = true
-	n := Notification{Protocol: diam.ProtocolCERRejected, ResultCode: code, ReplyCode: code, Closing: true, Message: metadata(in.Message)}
+	n := Notification{Protocol: diam.ProtocolCERRejected, ResultCode: code, ReplyCode: code, Closing: true, Message: metadata(in.Message), CauseError: copyHandshakeError(err)}
 	return c.send(answer, nil, true, true, false, &n)
 }

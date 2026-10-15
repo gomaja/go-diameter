@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/gomaja/go-diameter/diam"
+	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/dict"
 	"github.com/gomaja/go-diameter/diam/internal/base"
 	"github.com/gomaja/go-diameter/diam/internal/watchdog"
@@ -49,6 +50,12 @@ type Config struct {
 	Watchdog                                      bool
 	WatchdogInterval                              time.Duration
 	Recovery                                      bool
+	// StateMachine's synchronous Disconnect may start after a peer DPR. Its
+	// caller deadline is independent of the original receiver Closing deadline.
+	LocalDisconnectInClosing bool
+	// StateMachine retains its shared parser's post-OnDWR discard/result
+	// contract. Wire grammar is validated before selecting the hook (§5.5.1).
+	DWRHookCompatibility bool
 }
 
 // Reservation identifies a lease in the caller's shared application/control ID
@@ -84,6 +91,7 @@ const (
 	Abort
 	TransportLost
 	Retire
+	StopSupervision
 )
 
 type WriteStage uint8
@@ -104,6 +112,7 @@ const (
 	RetryTimer
 	WatchdogTimer
 	ClosingTimer
+	ReceiverDisconnectTimer
 	timerCount
 )
 
@@ -113,6 +122,9 @@ const (
 // WriteResult must include the post-hook ExpectedBytes and ReplyCode. Every Send
 // needs a terminal result, including skipped and queue-rejected writes.
 type Input struct {
+	// Resolved outside the core mutex at the original pre-CER build boundary.
+	RefreshLocalAddresses        bool
+	LocalAddresses               []datatype.Address
 	Kind                         InputKind
 	Connection                   Connection
 	At                           time.Time
@@ -128,6 +140,8 @@ type Input struct {
 	Timer                        TimerKind
 	Interval, Timeout            time.Duration
 	InFlight, TransportClosed    bool
+	HasHandler                   bool // frontend route lookup; control handling remains core-owned
+	Unhandled                    bool // frontend handler discovery; the core selects unsupported-command disposition
 	Ownership                    uint64
 	Reason                       diam.RetirementReason
 }
@@ -186,6 +200,8 @@ const (
 // callback must return before a later failure callback. Callback execution never
 // holds the core's mutation lock or prevents timer/lifecycle Handle calls.
 type Notification struct {
+	CauseError                   error  // detached diagnostic cause; public events retain kind/result metadata
+	Diagnostic                   string // frontend log detail selected with the protocol decision
 	Kind                         NoticeKind
 	Protocol                     diam.ProtocolErrorKind
 	ResultCode, ReplyCode, Cause uint32
@@ -206,12 +222,19 @@ type Notification struct {
 // freeze diam.PendingRequests and the frontend drain set, then feed Frozen
 // before exposing sends. No blocking write or callback belongs in that lock.
 type Effect struct {
-	Kind                 EffectKind
-	Connection           Connection
-	Token                uint64
-	Command              uint32
-	Reservation          Reservation
-	Message              *diam.Message
+	Kind EffectKind
+	// ReleaseDispatch ends native receive admission after this decision commits,
+	// before callbacks or writes. CER and rejected requests retain their barrier
+	// through their original handshake/reply boundary (RFC 6733 §5.6).
+	ReleaseDispatch bool
+	Connection      Connection
+	Token           uint64
+	Command         uint32
+	Reservation     Reservation
+	Message         *diam.Message
+	// AnswerHook marks a normal DWR response eligible for the DWA hook.
+	// Validation and decoding error replies retain their automatic reply path.
+	AnswerHook           bool
 	Required, CloseAfter bool
 	Stage                WriteStage
 	Notification         Notification
@@ -224,14 +247,17 @@ type Effect struct {
 }
 
 // Capabilities keeps local advertisement separate from the remote offer and
-// negotiated intersection. CER/CEA contain copied exported parse fields; their
-// application lists are carried by RemoteApplications, without reparsing.
+// negotiated intersection. CER/CEA contain copied exported parse fields;
+// RemoteApplications retains the complete remote offer without reparsing.
 type Capabilities struct {
 	Local                                                     base.Settings
 	CER                                                       *base.CER
 	CEA                                                       *base.CEA
 	LocalApplications, RemoteApplications, CommonApplications []uint32
-	Host, Realm                                               string
+	// ParsedApplications retains the validated CER parser's locally recognized
+	// IDs, including their original order and duplicates, for frontend metadata.
+	ParsedApplications []uint32
+	Host, Realm        string
 	// TLS records established transport security (RFC 6733 §§5.3,6.10).
 	// Capability exchange does not initiate or renegotiate transport security.
 	TLS bool

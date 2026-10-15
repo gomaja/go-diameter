@@ -10,6 +10,7 @@ import (
 	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
 
 	"github.com/gomaja/go-diameter/diam"
+	"github.com/gomaja/go-diameter/diam/internal/protocol"
 	"github.com/gomaja/go-diameter/diam/sm/smpeer"
 )
 
@@ -62,7 +63,7 @@ func TestAcceptedWatchdogDisconnectFinishesBeforeRegistration(t *testing.T) {
 			t.Fatalf("DPR: %v, %v", dpr, err)
 		}
 		// Isolate cleanup while the CER handler still holds admission.
-		handleDPA(sm).ServeDIAM(c, acceptedDWA(t, dpr, diam.Success))
+		sm.acceptedCore(c, nil, false).apply(protocol.Input{Kind: protocol.Receive, Message: acceptedDWA(t, dpr, diam.Success)})
 		if err := <-disconnected; err != nil {
 			t.Fatal(err)
 		}
@@ -146,9 +147,15 @@ func TestAcceptedWatchdogDisconnectCleanupCannotRestart(t *testing.T) {
 		t.Fatalf("DPR: %v, %v", dpr, err)
 	}
 	// The CER admission barrier deliberately holds later ServeDIAM calls.
-	// Exercise the validated DPA handler directly to isolate Disconnect's
-	// cleanup interleaving with the CER handler's deferred start.
-	handleDPA(sm).ServeDIAM(c, acceptedDWA(t, dpr, diam.Success))
+	// Feed the validated DPA to the core executor on the dispatch goroutine
+	// while the transport's Close remains blocked.
+	dpaDone := make(chan struct{})
+	defer func() { unblockClose(); <-dpaDone }()
+	answer := acceptedDWA(t, dpr, diam.Success)
+	go func() {
+		sm.acceptedCore(c, nil, false).apply(protocol.Input{Kind: protocol.Receive, Message: answer})
+		close(dpaDone)
+	}()
 	select {
 	case <-c.closeEntered:
 	case <-time.After(2 * time.Second):
