@@ -208,7 +208,7 @@ func TestProtocolErrorClientB7RejectedCEAWire(t *testing.T) {
 		code   uint32
 		mutate func(*diam.Message)
 	}{
-		{"missing_Origin_Host", 0, func(m *diam.Message) {
+		{"missing_Origin_Host", diam.MissingAVP, func(m *diam.Message) {
 			for i, a := range m.AVP {
 				if a.Code == avp.OriginHost {
 					m.AVP = append(m.AVP[:i], m.AVP[i+1:]...)

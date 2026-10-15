@@ -46,19 +46,19 @@ func testStateMachineWritesMessageErrorAnswers(t *testing.T, wrap func(diam.Hand
 		{
 			name: "unsupported version",
 			wire: testSMErrorHeader(2, diam.HeaderLength,
-				diam.RequestFlag|diam.ProxiableFlag|diam.RetransmittedFlag|0x08),
+				diam.RequestFlag),
 			resultCode: diam.UnsupportedVersion,
 		},
 		{
 			name: "invalid message length",
 			wire: testSMErrorHeader(1, 0,
-				diam.RequestFlag|diam.ProxiableFlag|diam.RetransmittedFlag|0x08),
+				diam.RequestFlag),
 			resultCode: diam.InvalidMessageLength,
 		},
 		{
 			name: "invalid AVP length",
 			wire: testSMErrorMessage(t,
-				diam.RequestFlag|diam.ProxiableFlag|diam.RetransmittedFlag|0x08,
+				diam.RequestFlag,
 				[]byte{
 					0x00, 0x00, 0x01, 0x02,
 					avp.Mbit, 0xff, 0xff, 0xff,
@@ -154,12 +154,13 @@ func testStateMachineContinuesAfterInvalidAVPLength(t *testing.T, wrap func(diam
 		0x00, 0x00, 0x01, 0x02,
 		avp.Mbit, 0xff, 0xff, 0xff,
 	})
+	malformed[5], malformed[6], malformed[7] = 0, byte(diam.DeviceWatchdog>>8), byte(diam.DeviceWatchdog&0xff)
 	writeSMErrorWire(t, conn, malformed)
 	answer, err := diam.ReadMessage(conn, testDict)
 	if err != nil {
 		t.Fatal(err)
 	}
-	assertMessageErrorAnswer(t, answer, settings, diam.InvalidAVPLength, 0, true)
+	assertMessageErrorAnswer(t, answer, settings, diam.InvalidAVPLength, 0, true, diam.DeviceWatchdog)
 
 	// An admitted peer keeps its connection after a handled message error.
 	dwr := regressionDWR(t)
@@ -358,13 +359,18 @@ func assertMessageErrorAnswer(
 	resultCode uint32,
 	wantFlags uint8,
 	wantFailedAVP bool,
+	commands ...uint32,
 ) {
 	t.Helper()
 	header := answer.Header
 	if header.Version != 1 {
 		t.Fatalf("answer version = %d, want 1", header.Version)
 	}
-	if header.CommandCode != diam.CapabilitiesExchange || header.ApplicationID != 0 {
+	command := uint32(diam.CapabilitiesExchange)
+	if len(commands) > 0 {
+		command = commands[0]
+	}
+	if header.CommandCode != command || header.ApplicationID != 0 {
 		t.Fatalf("answer command/application = %d/%d", header.CommandCode, header.ApplicationID)
 	}
 	if header.HopByHopID != 0x01020304 || header.EndToEndID != 0x05060708 {
@@ -381,7 +387,9 @@ func assertMessageErrorAnswer(
 	if wantFailedAVP {
 		wantCodes = append(wantCodes, avp.FailedAVP)
 	}
-	wantCodes = append(wantCodes, avp.HostIPAddress, avp.VendorID, avp.ProductName)
+	if command == diam.CapabilitiesExchange {
+		wantCodes = append(wantCodes, avp.HostIPAddress, avp.VendorID, avp.ProductName)
+	}
 	if len(answer.AVP) != len(wantCodes) {
 		t.Fatalf("answer AVP count = %d, want %d: %v", len(answer.AVP), len(wantCodes), wantCodes)
 	}

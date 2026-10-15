@@ -248,6 +248,10 @@ func (a *actor) watchdogReceive(msg *diam.Message) bool {
 		a.protocolError(a.active.c, msg, diam.ProtocolInvalidDWA, 0, false, diam.ProtocolReplyNone, 0)
 		return false
 	}
+	if err := base.ValidateMessage(msg); err != nil {
+		a.m.rejectBaseMessage(a.active, msg, err, false, false, a.delivery)
+		return false
+	}
 	if !a.pendingWatchdog || a.active == nil || a.watchdogGen != a.active.gen || msg.Header.HopByHopID != a.watchdogHop || msg.Header.EndToEndID != a.watchdogEnd {
 		a.m.report(a.active, msg, errors.New("peer: unsolicited or mismatched DWA"))
 		if a.active != nil {
@@ -303,7 +307,8 @@ func (a *actor) validateDWAResponse(msg *diam.Message, successOnly bool) error {
 	// RFC 6733 §5.5.2: one success Result-Code and one identity pair.
 	// RFC 6733 §3: receivers ignore reserved bits; the defined command
 	// flags must still be clear in a successful DWA.
-	if msg.Header.CommandFlags&(diam.RequestFlag|diam.ProxiableFlag|diam.ErrorFlag|diam.RetransmittedFlag) != 0 {
+	flags := msg.Header.CommandFlags
+	if flags&(diam.RequestFlag|diam.RetransmittedFlag) != 0 || flags&diam.ProxiableFlag != 0 && flags&diam.ErrorFlag == 0 {
 		return errors.New("peer: invalid DWA flags")
 	}
 	var hosts, realms, results int
@@ -337,6 +342,9 @@ func (a *actor) validateDWAResponse(msg *diam.Message, successOnly bool) error {
 	}
 	if hosts != 1 || realms != 1 || results != 1 {
 		return errors.New("peer: DWA requires one Result-Code, Origin-Host and Origin-Realm")
+	}
+	if successOnly && msg.Header.CommandFlags&diam.ErrorFlag != 0 {
+		return errors.New("peer: invalid successful DWA flags")
 	}
 	return nil
 }

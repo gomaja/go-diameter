@@ -640,13 +640,18 @@ func (m *Manager) processDIAM(s *session, msg *diam.Message, delivery ...*protoc
 				m.protocolError(c, msg, diam.ProtocolHandshakeState, 0, true, diam.ProtocolReplyNone, 0, delivery...)
 				return
 			}
-			if err := base.ValidateHeader(msg); err != nil {
-				m.rejectCER(s, msg, err.ResultCode, err, delivery...)
+			local := m.baseSettings(c)
+			s.localApps = base.AdvertisedApplicationIDs(local)
+			if err := base.ValidateMessage(msg); err != nil {
+				m.rejectBaseMessage(s, msg, err, true, false, delivery...)
+				return
+			}
+			if rejection := base.ValidateRequest(msg, s.localApps, m.cfg.Settings.ValidateRequests, m.cfg.Settings.RejectUnknownMandatoryAVPs); rejection != nil {
+				m.rejectRequest(s, msg, rejection, true, false, delivery...)
 				return
 			}
 			cer := new(smparser.CER)
-			local := m.baseSettings(c)
-			_, err := cer.Parse(msg, smparser.ParseOptions{Role: smparser.Server, TLS: c.TLS() != nil, Dictionary: msg.Dictionary(), LocalApplications: base.AdvertisedApplicationIDs(local)})
+			_, err := cer.Parse(msg, smparser.ParseOptions{Role: smparser.Server, TLS: c.TLS() != nil, Dictionary: msg.Dictionary(), LocalApplications: s.localApps})
 			if err != nil {
 				code := uint32(diam.UnableToComply)
 				if errors.Is(err, base.ErrNoCommonApplication) {
@@ -783,7 +788,7 @@ func (m *Manager) unsupported(s *session, msg *diam.Message, delivery ...*protoc
 	}
 	resultCode := uint32(diam.CommandUnsupported)
 	kind := diam.ProtocolUnsupportedCommand
-	if !m.supportsApplication(msg.Header.ApplicationID) {
+	if !base.SupportsApplication(s.localApps, msg.Header.ApplicationID) {
 		resultCode = diam.ApplicationUnsupported
 		kind = diam.ProtocolUnsupportedApplication
 	}
@@ -849,7 +854,7 @@ func (m *Manager) answerMessageError(s *session, msg *diam.Message, me *diam.Mes
 		}
 		m.protocolError(c, msg, kind, me.ResultCode, closing, reply, replyCode, delivery...)
 	}()
-	if headerErr := base.ValidateHeader(msg); headerErr != nil {
+	if headerErr := base.ValidateHeader(msg); headerErr != nil && !base.FatalHeaderError(me) {
 		me = headerErr
 		kind = diam.ProtocolInvalidHeader
 	}
@@ -898,6 +903,13 @@ func (m *Manager) answerMessageError(s *session, msg *diam.Message, me *diam.Mes
 	}
 	if msg.Header.CommandFlags&diam.RequestFlag == 0 {
 		return nil
+	}
+	if !me.Fatal && !base.IsCommand(msg) {
+		if rejection := base.ValidateRequest(msg, s.localApps, m.cfg.Settings.ValidateRequests, m.cfg.Settings.RejectUnknownMandatoryAVPs, me); rejection != nil {
+			kind = rejection.Kind
+			me = &diam.MessageError{ResultCode: rejection.Code, Err: me}
+			failed = rejection.Failed
+		}
 	}
 	replyCode = me.ResultCode
 	answer, err := base.BuildErrorAnswer(msg, m.baseSettings(c), me.ResultCode, failed, me.ResultCode >= 3000 && me.ResultCode < 4000)

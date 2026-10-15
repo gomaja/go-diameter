@@ -7,9 +7,11 @@ package sm
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 
 	"github.com/gomaja/go-diameter/diam"
+	"github.com/gomaja/go-diameter/diam/internal/base"
 	"github.com/gomaja/go-diameter/diam/sm/smparser"
 	"github.com/gomaja/go-diameter/diam/sm/smpeer"
 )
@@ -27,6 +29,15 @@ func handleCEA(sm *StateMachine, activity *watchdogActivity) diam.HandlerFunc {
 func processCEA(sm *StateMachine, activity *watchdogActivity, c diam.Conn, m *diam.Message) (diam.ProtocolErrorKind, uint32) {
 	if !activity.correlatedCEA(c, m) {
 		return diam.ProtocolUnexpectedMessage, 0
+	}
+	if err := base.ValidateMessage(m); err != nil {
+		logMessage(c, m, slog.LevelWarn, "sm: CEA rejected; closing connection", err)
+		activity.ceac <- fmt.Errorf("invalid CEA: %w", err)
+		kind := diam.ProtocolCEARejected
+		if base.ValidateHeader(m) != nil {
+			kind = diam.ProtocolInvalidHeader
+		}
+		return kind, err.ResultCode
 	}
 	cea := new(smparser.CEA)
 	if err := cea.Parse(m, smparser.ParseOptions{Role: smparser.Client, LocalApplications: activity.advertised}); err != nil {

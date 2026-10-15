@@ -64,6 +64,10 @@ func TestProtocolErrorInvalidDWRSCTPStream(t *testing.T) {
 	header.MessageLength = uint32(len(wire))
 	event := protocolGenerationAwait(t, events)
 	assertProtocolGenerationDWR(t, event, c, header, stream)
+	rejected := protocolGenerationAwait(t, answers)
+	if rejected.Header.CommandCode != diam.DeviceWatchdog || rejected.Header.HopByHopID != invalid.Header.HopByHopID || rejected.Header.EndToEndID != invalid.Header.EndToEndID || rejected.MessageStream() != stream || !testResultCode(rejected, diam.MissingAVP) {
+		t.Fatalf("invalid DWR answer = %v stream %d", rejected, rejected.MessageStream())
+	}
 	valid := regressionDWR(t)
 	setWireIdentity(t, valid, avp.OriginHost, "stream.example")
 	valid.Header.HopByHopID, valid.Header.EndToEndID = 0x86700008, 0x86700009
@@ -83,7 +87,7 @@ func TestProtocolErrorInvalidDWRSCTPStream(t *testing.T) {
 	default:
 	}
 	records := logs.Records()
-	if len(records) != 1 || records[0].Message != "sm: invalid DWR" || records[0].Level != slog.LevelWarn {
+	if len(records) != 1 || records[0].Message != "sm: invalid request" || records[0].Level != slog.LevelWarn {
 		t.Fatalf("logs = %v", records)
 	}
 	t.Logf("invalid DWR hop=0x%x end=0x%x stream=%d callback_stream=%d reply=%d closing=%v; valid DWA hop=0x%x stream=%d", header.HopByHopID, header.EndToEndID, stream, event.Message.Stream, event.Reply, event.Closing, dwa.Header.HopByHopID, dwa.MessageStream())

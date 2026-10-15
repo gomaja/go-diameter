@@ -94,6 +94,15 @@ func (m *Message) validate(outgoing bool, options ...errorAnswerOption) *Validat
 	if outgoing && h.CommandFlags&0x0f != 0 || h.CommandFlags&RequestFlag != 0 && h.CommandFlags&ErrorFlag != 0 || h.CommandFlags&RequestFlag == 0 && h.CommandFlags&RetransmittedFlag != 0 {
 		return &ValidationError{ResultCode: InvalidHDRBits, Reason: "invalid command header flags"}
 	}
+	// RFC 6733 §6.2: destination AVPs are prohibited in all answers,
+	// including generic error answers. Other wildcard extensions remain valid.
+	if h.CommandFlags&RequestFlag == 0 {
+		for _, a := range m.AVP {
+			if a != nil && a.VendorID == 0 && (a.Code == avp.DestinationHost || a.Code == avp.DestinationRealm) {
+				return &ValidationError{ResultCode: AVPNotAllowed, FailedAVP: a, Reason: "destination AVP in answer"}
+			}
+		}
+	}
 	var echoes map[*AVP][]byte
 	if outgoing && h.CommandFlags&RequestFlag == 0 {
 		echoes = m.echoedProxyInfo
@@ -104,7 +113,8 @@ func (m *Message) validate(outgoing bool, options ...errorAnswerOption) *Validat
 		}
 	}
 	// RFC 6733 §7.2: E-bit answers use the generic error grammar, not the
-	// application-specific answer CCF. Only protocol errors use E here.
+	// application-specific answer CCF. Section 7.1.5 also permits permanent
+	// errors on receipt; our sending policy continues to use E only for 3xxx.
 	if h.CommandFlags&ErrorFlag != 0 {
 		var code uint32
 		for _, a := range m.AVP {
@@ -115,8 +125,12 @@ func (m *Message) validate(outgoing bool, options ...errorAnswerOption) *Validat
 				break
 			}
 		}
-		if code < 3000 || code >= 4000 {
-			return &ValidationError{ResultCode: InvalidHDRBits, Reason: "E bit requires a 3xxx result code"}
+		validResult := code >= 3000 && code < 4000
+		if !outgoing && code >= 5000 && code < 6000 {
+			validResult = true
+		}
+		if !validResult {
+			return &ValidationError{ResultCode: InvalidHDRBits, Reason: "E bit requires a 3xxx result code, or 5xxx on receipt"}
 		}
 		return validateAVPs(m.AVP, genericErrorRules, h.ApplicationID, dictionary, echoes)
 	}

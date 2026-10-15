@@ -97,9 +97,18 @@ func TestProtocolErrorManagerDWAResultCodeOnWire(t *testing.T) {
 			answer.Header.MessageLength = uint32(answer.Len())
 			write(t, remote, answer)
 			e := protocolErrorReceive(t, events)
-			protocolErrorCheck(t, e, originalConn, *answer.Header, diam.ProtocolRejectedDWA, 5012, false, diam.ProtocolReplyNone, 0, 0)
+			kind, result := diam.ProtocolRejectedDWA, uint32(5012)
+			if tc.duplicate {
+				kind, result = diam.ProtocolInvalidDWA, diam.AVPOccursTooManyTimes
+			}
+			protocolErrorCheck(t, e, originalConn, *answer.Header, kind, result, false, diam.ProtocolReplyNone, 0, 0)
 			logged := round2CheckOnlyProtocolLog(t, records)
-			if logged.Error() != "peer: DWA Result-Code is not success" || !errors.Is(logged, errDWAResultCode) {
+			if tc.duplicate {
+				var messageErr *diam.MessageError
+				if !errors.As(logged, &messageErr) || messageErr.ResultCode != diam.AVPOccursTooManyTimes {
+					t.Fatalf("duplicate Result-Code diagnostic = %v", logged)
+				}
+			} else if logged.Error() != "peer: DWA Result-Code is not success" || !errors.Is(logged, errDWAResultCode) {
 				t.Fatalf("DWA diagnostic changed: %v", logged)
 			}
 			// A rejected DWA neither answers an answer nor closes the connection.

@@ -39,7 +39,7 @@ func TestProtocolErrorClosingWire(t *testing.T) {
 		{"B1_pre_CER", func(t *testing.T) *diam.Message { return regressionDWR(t) }, diam.ProtocolHandshakeState, 0, false, "sm: message before CER; closing connection"},
 		{"B3_CER_missing_origin", func(*testing.T) *diam.Message {
 			return diam.NewMessage(diam.CapabilitiesExchange, diam.RequestFlag, 0, 17, 18, testDict)
-		}, diam.ProtocolCERRejected, 5005, true, "sm: rejected CER; closing connection"},
+		}, diam.ProtocolInvalidRequest, 5005, true, "sm: invalid request"},
 		{"B3_CER_no_common_app", func(t *testing.T) *diam.Message { return regressionCER(t, testDict, 999999) }, diam.ProtocolCERRejected, 5010, true, "sm: rejected CER; closing connection"},
 		{"B3_CER_no_common_security", func(t *testing.T) *diam.Message {
 			m := regressionCER(t, testDict, 1001)
@@ -79,7 +79,7 @@ func TestProtocolErrorClosingWire(t *testing.T) {
 			assertProtocolEvent(t, protocolEvent(t, p.events), p.conn, &h, tc.kind, tc.code, true, reply, replyCode)
 			logs := p.logs.Records()
 			want := 1
-			if tc.name == "B4_CER_header" {
+			if tc.name == "B4_CER_header" || tc.name == "B3_CER_missing_origin" {
 				want = 2
 			}
 			if len(logs) != want || logs[0].Level != slog.LevelWarn || logs[0].Message != tc.log {
@@ -197,6 +197,9 @@ func TestProtocolErrorDisconnectWire(t *testing.T) {
 			h := p.send(t, a)
 			wantKind := diam.ProtocolInvalidDPA
 			wantCode := uint32(0)
+			if kind == "A12_invalid_DPA" {
+				wantCode = diam.MissingAVP
+			}
 			closing := false
 			if kind == "A13_wrong_DPA_ID" {
 				wantKind = diam.ProtocolUnexpectedMessage
@@ -224,7 +227,7 @@ func TestProtocolErrorDisconnectWire(t *testing.T) {
 			wantLog := ""
 			if kind == "A12_invalid_DPA" {
 				want = 1
-				wantLog = "sm: invalid DPA"
+				wantLog = "sm: invalid base message"
 			}
 			if kind == "A13_wrong_DPA_ID" {
 				want = 1
@@ -285,17 +288,17 @@ func TestProtocolErrorA17DirectOwnershipWire(t *testing.T) {
 	}
 }
 
-func TestProtocolErrorFatalHeaderOverrideWire(t *testing.T) {
+func TestProtocolErrorFatalVersionPrecedesBaseHeaderWire(t *testing.T) {
 	testDict := newSMTestDictionary(creditcontrol.Dictionary())
 
 	p := newProtocolWire(t, nil, true)
 	wire := testSMErrorHeader(2, 20, diam.RequestFlag)
 	binary.BigEndian.PutUint32(wire[8:12], 9)
 	writeSMErrorWire(t, p.peer, wire)
-	if a, err := diam.ReadMessage(p.peer, testDict); err != nil || !testResultCode(a, 3008) {
+	if a, err := diam.ReadMessage(p.peer, testDict); err != nil || !testResultCode(a, diam.UnsupportedVersion) {
 		t.Fatalf("answer=%v %v", a, err)
 	}
 	p.closed(t)
 	h := &diam.Header{Version: 2, MessageLength: 20, CommandFlags: diam.RequestFlag, CommandCode: diam.CapabilitiesExchange, ApplicationID: 9, HopByHopID: 0x01020304, EndToEndID: 0x05060708}
-	assertProtocolEvent(t, protocolEvent(t, p.events), p.conn, h, diam.ProtocolInvalidHeader, 3008, true, diam.ProtocolReplyWritten, 3008)
+	assertProtocolEvent(t, protocolEvent(t, p.events), p.conn, h, diam.ProtocolMalformedMessage, diam.UnsupportedVersion, true, diam.ProtocolReplyWritten, diam.UnsupportedVersion)
 }

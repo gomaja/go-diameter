@@ -251,6 +251,9 @@ func TestManagerClosingEveryValidDPAOnWire(t *testing.T) {
 					t.Fatal(err)
 				}
 				field.Data = datatype.Unsigned32(result)
+				if result >= 3000 && result < 4000 {
+					answer.Header.CommandFlags |= diam.ErrorFlag
+				}
 				write(t, c, answer)
 				correlationEOF(t, c)
 				if result != diam.Success {
@@ -376,7 +379,7 @@ func TestManagerClosingMalformedDPROnWire(t *testing.T) {
 					closingStart(t, m, c, local, diam.Success)
 					mark := clock.timerCount()
 					dpr := closingDPR(t, m)
-					kind, result := diam.ProtocolInvalidDPR, uint32(0)
+					kind, result := diam.ProtocolInvalidRequest, uint32(diam.AVPOccursTooManyTimes)
 					if malformed == "decoder error" {
 						dpr.AddAVP(diam.NewAVP(avp.InbandSecurityID, avp.Mbit, 0, datatype.Unknown{1, 2}))
 						kind, result = diam.ProtocolMalformedMessage, diam.InvalidAVPLength
@@ -400,7 +403,7 @@ func TestManagerClosingMalformedDPROnWire(t *testing.T) {
 
 func TestManagerClosingAnsweredWatchdogOnWire(t *testing.T) {
 	for _, dialed := range []bool{false, true} {
-		for _, result := range []uint32{diam.Success, diam.UnableToComply} {
+		for _, result := range []uint32{diam.Success, diam.UnableToComply, diam.TooBusy, diam.AVPUnsupported} {
 			t.Run(fmt.Sprintf("dialed=%t/result=%d", dialed, result), func(t *testing.T) {
 				m, c, clock, events := closingPeer(t, dialed)
 				clock.fire()
@@ -414,6 +417,14 @@ func TestManagerClosingAnsweredWatchdogOnWire(t *testing.T) {
 					t.Fatal(err)
 				}
 				field.Data = datatype.Unsigned32(result)
+				if result >= 3000 && result < 4000 || result == diam.AVPUnsupported {
+					answer.Header.CommandFlags |= diam.ErrorFlag | diam.ProxiableFlag
+				}
+				if result == diam.AVPUnsupported {
+					// Verified Erratum 4615: a 5001 answer carries one Failed-AVP
+					// holding the unsupported AVP.
+					answer.AddAVP(diam.NewAVP(avp.FailedAVP, avp.Mbit, 0, &diam.GroupedAVP{AVP: []*diam.AVP{diam.NewAVP(0xfffe, avp.Mbit, 0, datatype.OctetString("unsupported"))}}))
+				}
 				write(t, c, answer)
 				if result != diam.Success {
 					e := correlationEvent(t, events, diam.ProtocolRejectedDWA, false)

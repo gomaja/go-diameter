@@ -348,7 +348,7 @@ func TestClosingContractClientIndependentLatches(t *testing.T) {
 
 func TestClosingContractRejectedDWAInFlightWire(t *testing.T) {
 	for _, mode := range []string{"accepted", "dialed"} {
-		for _, fault := range []string{"valid", "mismatch", "identity", "malformed"} {
+		for _, fault := range []string{"valid", "protocol error", "permanent error", "mismatch", "identity", "malformed"} {
 			t.Run(mode+"/"+fault, func(t *testing.T) {
 				var p *protocolWire
 				if mode == "accepted" {
@@ -377,6 +377,15 @@ func TestClosingContractRejectedDWAInFlightWire(t *testing.T) {
 				}
 				answer := boundWireAnswer(t, p, dwr, diam.UnableToComply)
 				switch fault {
+				case "permanent error":
+					answer.Header.CommandFlags |= diam.ErrorFlag | diam.ProxiableFlag
+				case "protocol error":
+					answer.Header.CommandFlags |= diam.ErrorFlag | diam.ProxiableFlag
+					field, findErr := answer.FindAVP(avp.ResultCode, 0)
+					if findErr != nil {
+						t.Fatal(findErr)
+					}
+					field.Data = datatype.Unsigned32(diam.TooBusy)
 				case "mismatch":
 					answer.Header.HopByHopID++
 				case "identity":
@@ -386,13 +395,20 @@ func TestClosingContractRejectedDWAInFlightWire(t *testing.T) {
 				}
 				p.send(t, answer)
 				e := protocolEvent(t, p.events)
-				if e.Err.Kind() != diam.ProtocolRejectedDWA || e.Reply != diam.ProtocolReplyNone {
+				wantKind, wantCode := diam.ProtocolRejectedDWA, uint32(diam.UnableToComply)
+				if fault == "protocol error" {
+					wantCode = diam.TooBusy
+				}
+				if fault == "malformed" {
+					wantKind, wantCode = diam.ProtocolInvalidDWA, diam.MissingAVP
+				}
+				if e.Err.Kind() != wantKind || e.Err.ResultCode() != wantCode || e.Reply != diam.ProtocolReplyNone {
 					t.Fatalf("rejected DWA=%+v", e)
 				}
 				p.send(t, closingContractDPR(t, p, 400))
 				dpa, err := diam.ReadMessage(p.peer, p.conn.Dictionary())
 				want := uint32(diam.UnableToComply)
-				if fault == "valid" {
+				if fault == "valid" || fault == "protocol error" || fault == "permanent error" {
 					want = diam.Success
 				}
 				if err != nil || !testResultCode(dpa, want) {

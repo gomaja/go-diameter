@@ -59,7 +59,7 @@ func TestProtocolErrorManagerWireDecisions(t *testing.T) {
 		{"unsupported command", func(t *testing.T) *diam.Message { return diam.NewRequest(999, 0, testDict) }, diam.ProtocolUnsupportedCommand, 3001, 3001, false, false},
 		{"unsupported application", func(t *testing.T) *diam.Message { return diam.NewRequest(999, 0x00fffffe, testDict) }, diam.ProtocolUnsupportedApplication, 3007, 3007, false, false},
 		{"unmatched answer", func(t *testing.T) *diam.Message { return diam.NewRequest(999, 0, testDict).Answer(diam.Success) }, diam.ProtocolUnexpectedMessage, 0, 0, false, false},
-		{"invalid DWR", func(t *testing.T) *diam.Message { return diam.NewRequest(diam.DeviceWatchdog, 0, testDict) }, diam.ProtocolInvalidDWR, 0, 0, false, false},
+		{"invalid DWR", func(t *testing.T) *diam.Message { return diam.NewRequest(diam.DeviceWatchdog, 0, testDict) }, diam.ProtocolInvalidRequest, diam.MissingAVP, diam.MissingAVP, false, false},
 		{"wrong DWR identity", func(t *testing.T) *diam.Message {
 			m, err := base.BuildDWR(testDict, testBase("other.example.net"), 0)
 			if err != nil {
@@ -67,7 +67,7 @@ func TestProtocolErrorManagerWireDecisions(t *testing.T) {
 			}
 			return m
 		}, diam.ProtocolInvalidDWR, 0, 0, false, false},
-		{"invalid DPR", func(t *testing.T) *diam.Message { return diam.NewRequest(diam.DisconnectPeer, 0, testDict) }, diam.ProtocolInvalidDPR, 0, 0, false, false},
+		{"invalid DPR", func(t *testing.T) *diam.Message { return diam.NewRequest(diam.DisconnectPeer, 0, testDict) }, diam.ProtocolInvalidRequest, diam.MissingAVP, diam.MissingAVP, false, false},
 		{"unsolicited DWA", func(t *testing.T) *diam.Message {
 			m, err := base.BuildDWA(reviewDWR(t), testBase("known.example.net"))
 			if err != nil {
@@ -339,6 +339,9 @@ func TestProtocolErrorManagerDWAAndDPA(t *testing.T) {
 				t.Fatal(err)
 			}
 			tc.mutate(msg)
+			if tc.result >= 3000 && tc.result < 4000 || tc.name == "DWA identity before rejection" {
+				msg.Header.CommandFlags |= diam.ErrorFlag
+			}
 			var events []diam.ProtocolErrorEvent
 			a.m.cfg.Settings.OnProtocolError = func(e diam.ProtocolErrorEvent) { events = append(events, e) }
 			a.onWire(event{s: s, msg: msg})
@@ -674,6 +677,7 @@ func TestProtocolErrorManagerWirePendingAnswers(t *testing.T) {
 					a, _ := answer.FindAVP(avp.OriginHost, 0)
 					a.Data = datatype.DiameterIdentity("other.example.net")
 				case "missing AVP":
+					result = diam.MissingAVP
 					for i, a := range answer.AVP {
 						if a.Code == avp.OriginRealm {
 							answer.AVP = append(answer.AVP[:i], answer.AVP[i+1:]...)
@@ -682,6 +686,7 @@ func TestProtocolErrorManagerWirePendingAnswers(t *testing.T) {
 						}
 					}
 				case "rejected":
+					answer.Header.CommandFlags |= diam.ErrorFlag
 					a, _ := answer.FindAVP(avp.ResultCode, 0)
 					a.Data = datatype.Unsigned32(3002)
 					result = 3002

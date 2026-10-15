@@ -284,6 +284,7 @@ func TestHandleCER_VS_Acct(t *testing.T) {
 	mustSMClientAVP(t, m, avp.OriginStateID, avp.Mbit, 0, datatype.Unsigned32(1))
 	mustSMClientAVP(t, m, avp.VendorSpecificApplicationID, avp.Mbit, 0, &diam.GroupedAVP{
 		AVP: []*diam.AVP{
+			diam.NewAVP(avp.VendorID, avp.Mbit, 0, clientSettings.VendorID),
 			diam.NewAVP(avp.AcctApplicationID, avp.Mbit, 0, datatype.Unsigned32(1001)),
 		},
 	})
@@ -331,6 +332,7 @@ func TestHandleCER_VS_Acct_Fail(t *testing.T) {
 	mustSMClientAVP(t, m, avp.OriginStateID, avp.Mbit, 0, datatype.Unsigned32(1))
 	mustSMClientAVP(t, m, avp.VendorSpecificApplicationID, avp.Mbit, 0, &diam.GroupedAVP{
 		AVP: []*diam.AVP{
+			diam.NewAVP(avp.VendorID, avp.Mbit, 0, clientSettings.VendorID),
 			diam.NewAVP(avp.AcctApplicationID, avp.Mbit, 0, datatype.Unsigned32(1000)),
 		},
 	})
@@ -468,6 +470,7 @@ func testHandleCER_VS_Auth(t *testing.T, network string) {
 	mustSMClientAVP(t, m, avp.OriginStateID, avp.Mbit, 0, datatype.Unsigned32(1))
 	mustSMClientAVP(t, m, avp.VendorSpecificApplicationID, avp.Mbit, 0, &diam.GroupedAVP{
 		AVP: []*diam.AVP{
+			diam.NewAVP(avp.VendorID, avp.Mbit, 0, clientSettings.VendorID),
 			diam.NewAVP(avp.AuthApplicationID, avp.Mbit, 0, datatype.Unsigned32(1002)),
 		},
 	})
@@ -519,6 +522,7 @@ func testHandleCER_VS_Auth_Fail(t *testing.T, network string) {
 	mustSMClientAVP(t, m, avp.OriginStateID, avp.Mbit, 0, datatype.Unsigned32(1))
 	mustSMClientAVP(t, m, avp.VendorSpecificApplicationID, avp.Mbit, 0, &diam.GroupedAVP{
 		AVP: []*diam.AVP{
+			diam.NewAVP(avp.VendorID, avp.Mbit, 0, clientSettings.VendorID),
 			diam.NewAVP(avp.AuthApplicationID, avp.Mbit, 0, datatype.Unsigned32(1000)),
 		},
 	})

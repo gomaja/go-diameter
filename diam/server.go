@@ -350,6 +350,18 @@ func (srv *Server) tlsHandshakeTimeout() time.Duration {
 // when the message boundary is still reliable and the handler succeeded.
 func (c *conn) handleReadError(m *Message, err error) bool {
 	var me *MessageError
+	// RFC 6733 §§5.3.2, 5.4.2, 5.5.2 and 7: let an owning base
+	// adapter discard a payload-invalid answer without consuming its pending
+	// exchange. Plain readers and handlers retain their decoding-error policy.
+	if m != nil && m.Header != nil && m.Header.CommandFlags&RequestFlag == 0 &&
+		(m.Header.CommandCode == CapabilitiesExchange || m.Header.CommandCode == DeviceWatchdog || m.Header.CommandCode == DisconnectPeer) {
+		var decodeErr *avpDecodeError
+		if !errors.As(err, &me) && errors.As(err, &decodeErr) {
+			if _, ownsErrors := HandlerAs[MessageErrorHandler](c.dispatchHandler()); ownsErrors {
+				err = &MessageError{ResultCode: decodeErr.resultCode, FailedAVP: decodeErr.failedAVP, Err: err}
+			}
+		}
+	}
 	if !errors.As(err, &me) {
 		var decodeErr *avpDecodeError
 		isDecodeFailure := errors.As(err, &decodeErr)

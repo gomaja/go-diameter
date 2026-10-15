@@ -9,6 +9,8 @@ import (
 	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
 
 	"github.com/gomaja/go-diameter/diam"
+	"github.com/gomaja/go-diameter/diam/avp"
+	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/diamtest"
 	"github.com/gomaja/go-diameter/diam/internal/logtest"
 )
@@ -102,6 +104,9 @@ func TestInvalidDWAHeaderDoesNotResetActivity(t *testing.T) {
 	}
 	_ = waitLog(t, records, 1)
 	m.Header.ApplicationID = 0
+	m.AddAVP(diam.NewAVP(avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("peer.example")))
+	m.AddAVP(diam.NewAVP(avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("example")))
+	m.AddAVP(diam.NewAVP(avp.ResultCode, avp.Mbit, 0, datatype.Unsigned32(diam.Success)))
 	h.ServeDIAM(c, m)
 	if activity.last.Load() == 123 || !called {
 		t.Fatal("valid DWA did not update activity")

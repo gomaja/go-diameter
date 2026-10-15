@@ -11,6 +11,7 @@ import (
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
+	"github.com/gomaja/go-diameter/diam/internal/base"
 	"github.com/gomaja/go-diameter/diam/sm/smparser"
 	"github.com/gomaja/go-diameter/diam/sm/smpeer"
 )
@@ -39,6 +40,11 @@ func processDWA(c diam.Conn, m *diam.Message, signals *watchdogSignals, observer
 	}
 	if c.Closed() {
 		return "", 0
+	}
+	if err := base.ValidateMessage(m); err != nil {
+		observe(c, WatchdogInvalidAnswer)
+		logMessage(c, m, slog.LevelWarn, "sm: invalid DWA", err)
+		return diam.ProtocolInvalidDWA, err.ResultCode
 	}
 	dwa := new(smparser.DWA)
 	if err := dwa.Parse(m); err != nil {
@@ -95,7 +101,8 @@ func validateSuccessfulDWA(c diam.Conn, m *diam.Message) error {
 func validateDWAFields(c diam.Conn, m *diam.Message, success bool) error {
 	// RFC 6733 §§3, 5.5.2, 6.3: singleton result and identities, with
 	// defined flags clear. Receivers ignore reserved command-header bits.
-	if m.Header.CommandFlags&(diam.RequestFlag|diam.ProxiableFlag|diam.ErrorFlag|diam.RetransmittedFlag) != 0 {
+	flags := m.Header.CommandFlags
+	if flags&(diam.RequestFlag|diam.RetransmittedFlag) != 0 || flags&diam.ProxiableFlag != 0 && flags&diam.ErrorFlag == 0 || success && flags&diam.ErrorFlag != 0 {
 		return fmt.Errorf("invalid DWA flags")
 	}
 	ctx := c.Context()

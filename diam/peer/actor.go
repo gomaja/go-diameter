@@ -534,8 +534,17 @@ func (a *actor) onWire(e event) {
 			return
 		}
 		if isCEA && e.messageErr == nil {
+			if err := base.ValidateMessage(msg); err != nil {
+				a.fail(fmt.Errorf("peer: invalid CEA: %w", err))
+				kind := diam.ProtocolCEARejected
+				if base.ValidateHeader(msg) != nil {
+					kind = diam.ProtocolInvalidHeader
+				}
+				a.protocolError(s.c, msg, kind, err.ResultCode, true, diam.ProtocolReplyNone, 0)
+				return
+			}
 			cea := new(smparser.CEA)
-			if err := cea.Parse(msg, smparser.ParseOptions{Role: smparser.Client, LocalApplications: base.AdvertisedApplicationIDs(a.m.baseSettings(s.c))}); err != nil {
+			if err := cea.Parse(msg, smparser.ParseOptions{Role: smparser.Client, LocalApplications: s.localApps}); err != nil {
 				a.fail(fmt.Errorf("peer: invalid CEA: %w", err))
 				if a.m.cfg.Settings.OnProtocolError != nil {
 					a.protocolError(s.c, msg, diam.ProtocolCEARejected, protocolResultCode(err), true, diam.ProtocolReplyNone, 0)
@@ -608,7 +617,15 @@ func (a *actor) onWire(e event) {
 			return
 		}
 	}
-	if headerErr := base.ValidateHeader(msg); headerErr != nil {
+	if a.state != Closing && (e.messageErr == nil || !e.messageErr.Fatal) && cmd == diam.CapabilitiesExchange && req && msg.Header.ApplicationID == 0 {
+		a.watchdogReceive(msg)
+		reason := errors.New("peer: ignoring CER on admitted connection; accepted CER renewal is disabled or ineligible")
+		a.m.reportFailure(s, msg, slog.LevelWarn, reason.Error(), reason)
+		a.protocolError(s.c, msg, diam.ProtocolUnexpectedMessage, 0, false, diam.ProtocolReplyNone, 0)
+		return
+	}
+
+	if headerErr := base.ValidateHeader(msg); headerErr != nil && !base.FatalHeaderError(e.messageErr) {
 		a.m.report(s, msg, headerErr)
 		if !req {
 			closing := e.messageErr != nil && e.messageErr.Fatal
@@ -632,6 +649,17 @@ func (a *actor) onWire(e event) {
 	}
 
 	if s != a.active {
+		return
+	}
+	if a.state != Closing && !a.watchdogReceive(msg) {
+		return
+	}
+	if err := base.ValidateMessage(msg); err != nil {
+		a.m.rejectBaseMessage(s, msg, err, false, a.state == Closing, a.delivery)
+		return
+	}
+	if rejection := base.ValidateRequest(msg, s.localApps, a.m.cfg.Settings.ValidateRequests, a.m.cfg.Settings.RejectUnknownMandatoryAVPs); rejection != nil {
+		a.m.rejectRequest(s, msg, rejection, false, a.state == Closing, a.delivery)
 		return
 	}
 	if a.state == Closing {
@@ -681,9 +709,6 @@ func (a *actor) onWire(e event) {
 		}
 		return
 	}
-	if !a.watchdogReceive(msg) {
-		return
-	}
 	switch {
 	case cmd == diam.DeviceWatchdog && req && msg.Header.ApplicationID == 0:
 		var dwr base.DWR
@@ -717,14 +742,6 @@ func (a *actor) onWire(e event) {
 		} else {
 			a.step(rDPR, s, msg)
 		}
-	case cmd == diam.CapabilitiesExchange && req && msg.Header.ApplicationID == 0:
-		// RFC 6733 §§5.6–5.6.1 define R-Conn-CER for a new connection,
-		// not this admitted one. Match StateMachine's default policy: drop
-		// the CER without answering or disturbing admission and pending work.
-		// Server handles eligible opt-in accepted CER renewal before dispatch.
-		reason := errors.New("peer: ignoring CER on admitted connection; accepted CER renewal is disabled or ineligible")
-		a.m.reportFailure(s, msg, slog.LevelWarn, reason.Error(), reason)
-		a.protocolError(s.c, msg, diam.ProtocolUnexpectedMessage, 0, false, diam.ProtocolReplyNone, 0)
 	default:
 		if a.watchdog == WatchdogReopen {
 			return
@@ -851,7 +868,9 @@ func (a *actor) step(ev psmEvent, s *session, msg *diam.Message) {
 		a.stopTimer()
 		a.arm(a.m.cfg.Timers.CER)
 		if a.i != nil {
-			m, err := base.BuildCER(a.m.dictionary(), a.m.baseSettings(a.i.c))
+			local := a.m.baseSettings(a.i.c)
+			a.i.localApps = base.AdvertisedApplicationIDs(local)
+			m, err := base.BuildCER(a.m.dictionary(), local)
 			if err != nil {
 				a.failLocal("build CER", err)
 				return
@@ -1008,7 +1027,9 @@ func (a *actor) sendCEA(s *session) bool {
 		a.failLocal("send CEA", errors.New("missing CER"))
 		return false
 	}
-	answer, err := base.BuildCEA(msg, a.m.baseSettings(s.c), diam.Success)
+	local := a.m.baseSettings(s.c)
+	s.localApps = base.AdvertisedApplicationIDs(local)
+	answer, err := base.BuildCEA(msg, local, diam.Success)
 	if err != nil {
 		a.failLocal("build CEA", err)
 		return false
