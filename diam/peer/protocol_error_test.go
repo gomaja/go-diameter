@@ -345,7 +345,14 @@ func TestProtocolErrorManagerDWAAndDPA(t *testing.T) {
 			if len(events) != 1 {
 				t.Fatalf("events=%d", len(events))
 			}
-			protocolErrorCheck(t, events[0], s.c, *msg.Header, tc.kind, tc.result, false, diam.ProtocolReplyNone, 0)
+			closing := tc.kind == diam.ProtocolPeerRejected
+			protocolErrorCheck(t, events[0], s.c, *msg.Header, tc.kind, tc.result, closing, diam.ProtocolReplyNone, 0)
+			if closing {
+				if !s.c.Closed() || a.state != Closed {
+					t.Fatal("correlated rejected DPA did not close transport")
+				}
+				return
+			}
 			if s.c.Closed() || tc.command == diam.DeviceWatchdog && !a.pendingWatchdog || tc.command == diam.DisconnectPeer && a.state != Closing {
 				t.Fatal("invalid answer advanced protocol state")
 			}
@@ -686,7 +693,20 @@ func TestProtocolErrorManagerWirePendingAnswers(t *testing.T) {
 				}
 				write(t, c, answer)
 				e := protocolErrorReceive(t, events)
-				protocolErrorCheck(t, e, connection, *answer.Header, kind, result, false, diam.ProtocolReplyNone, 0, 0)
+				closedByAnswer := command == diam.DisconnectPeer && fault == "rejected"
+				protocolErrorCheck(t, e, connection, *answer.Header, kind, result, closedByAnswer, diam.ProtocolReplyNone, 0, 0)
+				if closedByAnswer {
+					correlationEOF(t, c)
+					select {
+					case err := <-closing:
+						if err != nil {
+							t.Fatal(err)
+						}
+					case <-time.After(time.Second):
+						t.Fatal("correlated rejected DPA did not complete close")
+					}
+					return
+				}
 				if closing != nil {
 					select {
 					case err := <-closing:

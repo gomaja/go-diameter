@@ -184,6 +184,7 @@ func (a *actor) sendWatchdog() {
 		return
 	}
 	a.pendingWatchdog = true
+	a.watchdogAnswered = false
 	a.watchdogHop = msg.Header.HopByHopID
 	a.watchdogEnd = msg.Header.EndToEndID
 	a.watchdogGen = a.active.gen
@@ -255,6 +256,15 @@ func (a *actor) watchdogReceive(msg *diam.Message) bool {
 		return false
 	}
 	if err := a.validateDWA(msg); err != nil {
+		// RFC 6733 §5.4: a structurally valid, correlated unsuccessful
+		// DWA is an answer to in-flight work, without granting the existing
+		// RFC 3539 probe credit or changing Pending/recovery policy.
+		if errors.Is(err, errDWAResultCode) && a.validateDWAResponse(msg, false) == nil {
+			a.watchdogAnswered = true
+			if a.active.requests != nil {
+				a.active.requests.MatchAnswer(msg, true)
+			}
+		}
 		a.m.report(a.active, msg, err)
 		if a.m.cfg.Settings.OnProtocolError != nil {
 			kind, result := diam.ProtocolInvalidDWA, uint32(0)
@@ -264,6 +274,10 @@ func (a *actor) watchdogReceive(msg *diam.Message) bool {
 			a.protocolError(a.active.c, msg, kind, result, false, diam.ProtocolReplyNone, 0)
 		}
 		return false
+	}
+	a.watchdogAnswered = true
+	if a.active.requests != nil {
+		a.active.requests.MatchAnswer(msg, true)
 	}
 	a.pendingWatchdog = next.Pending
 	a.active.releaseControl(a.watchdogHop)
@@ -280,6 +294,12 @@ func (a *actor) watchdogReceive(msg *diam.Message) bool {
 }
 
 func (a *actor) validateDWA(msg *diam.Message) error {
+	return a.validateDWAResponse(msg, true)
+}
+
+// validateDWAResponse preserves successful-probe validation and optionally
+// checks response structure alone for the Closing in-flight indication.
+func (a *actor) validateDWAResponse(msg *diam.Message, successOnly bool) error {
 	// RFC 6733 §5.5.2: one success Result-Code and one identity pair.
 	// RFC 6733 §3: receivers ignore reserved bits; the defined command
 	// flags must still be clear in a successful DWA.
@@ -307,7 +327,7 @@ func (a *actor) validateDWA(msg *diam.Message) error {
 		case avp.ResultCode:
 			results++
 			value, ok := field.Data.(datatype.Unsigned32)
-			if !ok || uint32(value) != diam.Success {
+			if !ok || successOnly && uint32(value) != diam.Success {
 				if a.m.cfg.Settings.OnProtocolError == nil {
 					return errDWAResultCode
 				}

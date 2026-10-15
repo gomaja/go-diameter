@@ -76,7 +76,6 @@ func (sm *StateMachine) Disconnect(c diam.Conn, cause DisconnectCause, timeout t
 	}
 	sm.disconnects.pending[c] = p
 	sm.disconnects.mu.Unlock()
-	sm.markAcceptedClosing(c)
 	defer func() {
 		// RFC 6733 §5.6: retain Closing until the transport is closed, so
 		// deferred handshake supervision cannot start during this cleanup.
@@ -85,28 +84,24 @@ func (sm *StateMachine) Disconnect(c diam.Conn, cause DisconnectCause, timeout t
 		delete(sm.disconnects.pending, c)
 		sm.disconnects.mu.Unlock()
 	}()
-	// RFC 6733 §5.6: Stop -> Snd-DPR -> Closing. Retirement must also
-	// release Disconnect through CloseNotify while an old observer is blocked.
-	if w := sm.supervised(c); w != nil {
-		stopped := make(chan struct{})
-		go func() { w.stop(); close(stopped) }()
-		select {
-		case <-stopped:
-		case <-closed:
-			return ErrDisconnectClosed
-		}
-	}
-	if c.Closed() {
-		return ErrDisconnectClosed
-	}
+	// Arm RFC 6733 §5.6's timeout before joining admitted watchdog work.
 	expired := make(chan struct{})
 	timer := time.AfterFunc(timeout, func() {
-		logMessage(c, m, slog.LevelWarn, "sm: disconnect timeout; closing connection", ErrDisconnectTimeout)
 		close(expired)
 		c.Close()
+		logMessage(c, m, slog.LevelWarn, "sm: disconnect timeout; closing connection", ErrDisconnectTimeout)
 		sm.protocolError(c, nil, diam.ProtocolDisconnectTimeout, 0, true, diam.ProtocolReplyNone, 0)
 	})
 	defer timer.Stop()
+	sm.enterClosing(c)
+	if !sm.joinClosingWatchdog(c, expired) || c.Closed() {
+		select {
+		case <-expired:
+			return ErrDisconnectTimeout
+		default:
+			return ErrDisconnectClosed
+		}
+	}
 	if _, err := m.WriteTo(c); err != nil {
 		select {
 		case <-expired:

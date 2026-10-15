@@ -126,10 +126,32 @@ type watchdogActivity struct {
 	advertised     []uint32
 	capabilities   base.Settings
 	cer            atomic.Pointer[answerCorrelation]
+	stopc          chan struct{}
+	stopOnce       sync.Once
+	eventMu        sync.Mutex
+	terminal       sync.WaitGroup
 }
 
 func newWatchdogActivity() *watchdogActivity {
-	return &watchdogActivity{watchdogSignals: newWatchdogSignals(), ceac: make(chan error, 1), ceaValidated: make(chan struct{})}
+	activity := &watchdogActivity{watchdogSignals: newWatchdogSignals(), ceac: make(chan error, 1), ceaValidated: make(chan struct{}), stopc: make(chan struct{})}
+	activity.publicationMu = &activity.eventMu
+	return activity
+}
+
+func (activity *watchdogActivity) latchStop() {
+	// RFC 6733 §5.6: Stop must not wait for a stalled DWR writer.
+	activity.stopped.Store(true)
+	activity.stopOnce.Do(func() { close(activity.stopc) })
+}
+
+func (activity *watchdogActivity) stopWatchdog() {
+	activity.latchStop()
+	if activity.publicationMu != nil {
+		activity.publicationMu.Lock()
+		activity.request.Store(nil)
+		activity.publicationMu.Unlock()
+	}
+	activity.terminal.Wait()
 }
 
 type activityHandler struct {
@@ -142,6 +164,9 @@ type activityHandler struct {
 func (h activityHandler) ServeDIAM(c diam.Conn, m *diam.Message) {
 	release := m.BeginDispatch()
 	defer release()
+	if h.StateMachine != nil && !h.closingAllowed(c, m) {
+		return
+	}
 	// RFC 6733 §5.6: Wait-I-CEA / I-Rcv-Non-CEA -> Error -> Closed.
 	isCEA := isBaseCEA(m)
 	if !h.activity.ceaReceived.Load() && !isCEA {
@@ -155,7 +180,9 @@ func (h activityHandler) ServeDIAM(c diam.Conn, m *diam.Message) {
 		return
 	}
 	// RFC 3539 §3.4.1 [2]: any received AAA message resets Tw.
-	h.activity.receivedMessage(m)
+	if !h.activity.stopped.Load() {
+		h.activity.receivedMessage(m)
+	}
 	// RFC 6733 §5.3: CEA completes the CER exchange on this connection.
 	// Do not publish its result through the shared state-machine mux.
 	if isCEA {
@@ -343,7 +370,20 @@ func (cli *Client) server(network, addr string, laddr net.Addr, activity *watchd
 				return processCEA(cli.Handler, activity, c, m)
 			}}
 		if cli.EnableWatchdog {
-			h.dwa = handshakeOK(handleDWA(cli.Handler, &activity.watchdogSignals, cli.observeWatchdog))
+			h.dwa = handshakeOK(diam.HandlerFunc(func(c diam.Conn, m *diam.Message) {
+				activity.publicationMu.Lock()
+				if activity.stopped.Load() || c.Closed() {
+					activity.publicationMu.Unlock()
+					return
+				}
+				kind, code := processDWA(c, m, &activity.watchdogSignals, func(c diam.Conn, event WatchdogEvent) {
+					cli.emitWatchdog(c, event)
+				})
+				activity.publicationMu.Unlock()
+				if kind != "" {
+					cli.Handler.protocolError(c, m, kind, code, false, diam.ProtocolReplyNone, 0)
+				}
+			}))
 		}
 		handler = h
 	}
@@ -422,6 +462,11 @@ func (cli *Client) handshake(c diam.Conn, activity *watchdogActivity) (diam.Conn
 }
 
 func (cli *Client) handshakeContext(ctx context.Context, c diam.Conn, activity *watchdogActivity) (conn diam.Conn, err error) {
+	state := cli.Handler.closingConnection(c)
+	state.mu.Lock()
+	state.client = activity
+	state.mu.Unlock()
+	pendingRequests(c)
 	// Closing the transport also interrupts a blocked CER write. Join the callback
 	// before returning so cancellation cannot close a successfully returned Conn.
 	closed := make(chan struct{})
@@ -620,11 +665,27 @@ func (cli *Client) watchdog(c diam.Conn, dwac chan struct{}, activity *watchdogA
 	disconnect := notifier.CloseNotify()
 	var osid = uint32(cli.Handler.cfg.OriginStateID)
 	w := connWatchdog{
-		conn: c, done: disconnect, signals: &activity.watchdogSignals, dwac: dwac,
+		conn: c, done: disconnect, stop: activity.stopc, signals: &activity.watchdogSignals, dwac: dwac,
 		interval: cli.nextWatchdogInterval,
 		send:     func() bool { return cli.dwr(c, osid, &activity.watchdogSignals) },
-		observe:  func(event WatchdogEvent) { cli.observeWatchdog(c, event) },
-		protocolTimeout: func() {
+		observe: func(event WatchdogEvent) {
+			activity.publicationMu.Lock()
+			defer activity.publicationMu.Unlock()
+			if !activity.stopped.Load() && !c.Closed() {
+				cli.emitWatchdog(c, event)
+			}
+		},
+		timeout: func() {
+			activity.publicationMu.Lock()
+			if activity.stopped.Load() || c.Closed() {
+				activity.publicationMu.Unlock()
+				return
+			}
+			activity.terminal.Add(1)
+			activity.publicationMu.Unlock()
+			defer activity.terminal.Done()
+			logMessage(c, nil, slog.LevelWarn, "sm: watchdog timeout; closing connection", nil)
+			c.Close()
 			cli.Handler.protocolError(c, nil, diam.ProtocolWatchdogTimeout, 0, true, diam.ProtocolReplyNone, 0)
 		},
 	}
@@ -634,12 +695,43 @@ func (cli *Client) watchdog(c diam.Conn, dwac chan struct{}, activity *watchdogA
 func (cli *Client) dwr(c diam.Conn, osid uint32, signals *watchdogSignals) bool {
 	m, err := cli.makeDWR(osid)
 	if err != nil {
-		logMessage(c, nil, slog.LevelError, "sm: watchdog request failed; closing connection", err)
-		c.Close()
+		cli.closeWatchdog(c, nil, err)
 		return false
 	}
-	return publishDWR(c, m, signals, cli.WatchdogStream, &cli.watchdogEventMu, nil,
-		func(event WatchdogEvent) { cli.emitWatchdog(c, event) }, nil)
+	mu := signals.publicationMu
+	if mu == nil {
+		mu = &cli.watchdogEventMu
+	}
+	return publishDWR(c, m, signals, cli.WatchdogStream, mu, &signals.stopped,
+		func(event WatchdogEvent) { cli.emitWatchdog(c, event) }, func(err error) { cli.closeWatchdog(c, m, err) })
+}
+
+func (cli *Client) closeWatchdog(c diam.Conn, m *diam.Message, err error) {
+	var activity *watchdogActivity
+	if value, ok := cli.Handler.connections.Load(c); ok {
+		state := value.(*closingConnection)
+		state.mu.Lock()
+		activity = state.client
+		state.mu.Unlock()
+	}
+	mu := &cli.watchdogEventMu
+	if activity != nil {
+		mu = activity.publicationMu
+	}
+	mu.Lock()
+	if c.Closed() || activity != nil && activity.stopped.Load() {
+		mu.Unlock()
+		return
+	}
+	if activity != nil {
+		activity.terminal.Add(1)
+	}
+	mu.Unlock()
+	if activity != nil {
+		defer activity.terminal.Done()
+	}
+	logMessage(c, m, slog.LevelError, "sm: watchdog request failed; closing connection", err)
+	c.Close()
 }
 
 func (cli *Client) makeDWR(osid uint32) (*diam.Message, error) {

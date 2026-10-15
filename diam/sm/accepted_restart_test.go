@@ -846,8 +846,8 @@ func TestAcceptedDPRAdmissionPrecedesCERRenewal(t *testing.T) {
 	setWireIdentity(t, dwr, avp.OriginHost, "first.example")
 	transport.message(t, dwr)
 	answer, err = diam.ReadMessage(peer, testDict)
-	if err != nil || answer.Header.CommandCode != diam.DeviceWatchdog {
-		t.Fatalf("Closing CER produced unexpected answer %v,%v", answer, err)
+	if e, ok := err.(net.Error); !ok || !e.Timeout() {
+		t.Fatalf("Closing CER/DWR produced unexpected answer %v,%v", answer, err)
 	}
 	select {
 	case <-restarts:
@@ -968,10 +968,12 @@ func TestAcceptedRestartOldDPAIsNotNewDisconnectAnswer(t *testing.T) {
 	dwr := regressionDWR(t)
 	setWireIdentity(t, dwr, avp.OriginHost, "second.example")
 	transport.message(t, dwr)
+	_ = peer.SetReadDeadline(time.Now().Add(50 * time.Millisecond))
 	answer, err := diam.ReadMessage(peer, testDict)
-	if err != nil || answer.Header.CommandCode != diam.DeviceWatchdog {
-		t.Fatalf("post-oldDPA answer=%v,%v", answer, err)
+	if e, ok := err.(net.Error); !ok || !e.Timeout() {
+		t.Fatalf("Closing post-oldDPA answer=%v,%v", answer, err)
 	}
+	_ = peer.SetReadDeadline(time.Now().Add(time.Second))
 	select {
 	case err := <-nextResult:
 		t.Fatalf("old DPA completed new Disconnect: %v", err)

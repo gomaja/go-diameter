@@ -181,6 +181,9 @@ func (m *Manager) claimRetiredRequests(s *session) []*pendingRequest {
 	defer m.pendingMu.Unlock()
 	var requests []*pendingRequest
 	for _, p := range m.pending[s] {
+		if attempt := p.entries[s]; attempt.write != nil {
+			attempt.write.Cancel()
+		}
 		delete(p.entries, s)
 		if !p.done && !p.failovering && p.current == s {
 			p.failovering = true

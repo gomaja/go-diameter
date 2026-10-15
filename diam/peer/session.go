@@ -24,35 +24,42 @@ type incoming struct {
 	delivery *protocolDelivery
 }
 type session struct {
-	retired         atomic.Bool
-	terminal        atomic.Bool // committed rejection or local close, before transport completion
-	retireErr       error
-	acceptCleaned   bool // guarded by Manager.mu
-	admitted        atomic.Bool
-	retireOnce      sync.Once
-	meta            *smpeer.Metadata
-	m               *Manager
-	c               diam.Conn
-	actor           *actor
-	gen             uint64
-	inbound         bool
-	firstMu         sync.Mutex
-	first           bool
-	rejectingFirst  bool
-	preTimer        Timer
-	writes          chan writeRequest
-	beforeAdmission func()
-	ingressMu       sync.Mutex
-	ingressClosed   bool
-	ingress         chan incoming
-	closed          chan struct{}
-	closeOnce       sync.Once
-	cerRequest      *diam.Message
-	cerHop, cerEnd  uint32
+	retired           atomic.Bool
+	closing           atomic.Bool // logical Closing, before DPR/DPA effects
+	terminal          atomic.Bool // committed rejection or local close, before transport completion
+	retireErr         error
+	acceptCleaned     bool // guarded by Manager.mu
+	admitted          atomic.Bool
+	retireOnce        sync.Once
+	meta              *smpeer.Metadata
+	m                 *Manager
+	requests          *diam.PendingRequests
+	c                 diam.Conn
+	actor             *actor
+	gen               uint64
+	inbound           bool
+	firstMu           sync.Mutex
+	first             bool
+	rejectingFirst    bool
+	preTimer          Timer
+	writes            chan writeRequest
+	beforeAdmission   func()
+	afterAdmission    func()
+	beforePublication func(*diam.Message)
+	ingressMu         sync.Mutex
+	ingressClosed     bool
+	ingress           chan incoming
+	closed            chan struct{}
+	closeOnce         sync.Once
+	cerRequest        *diam.Message
+	cerHop, cerEnd    uint32
 }
 
 func (m *Manager) newSession(c diam.Conn, a *actor, gen uint64, inbound bool) *session {
 	s := &session{m: m, c: c, actor: a, gen: gen, inbound: inbound, writes: make(chan writeRequest, m.cfg.Limits.Events), ingress: make(chan incoming, m.cfg.Limits.Events), closed: make(chan struct{})}
+	if tracker, ok := diam.ConnAs[interface{ PendingRequests() *diam.PendingRequests }](c); ok {
+		s.requests = tracker.PendingRequests()
+	}
 	// Close sets closing under this lock before it waits for session workers.
 	m.mu.Lock()
 	if m.closing || c.Closed() || a != nil && (a.retiring.Load() || !a.leaseLive()) {
@@ -263,39 +270,70 @@ func (s *session) writer() {
 		case <-s.closed:
 			return
 		case w := <-s.writes:
-			if s.isRetired() {
-				return
-			}
-			if w.pending != nil {
-				s.m.pendingMu.Lock()
-				if w.pending.done || w.pending.current != s || s.isRetired() {
-					s.m.pendingMu.Unlock()
-					continue
-				}
-				// The write begins here. A later completion cannot retract bytes
-				// already submitted to the transport (RFC 6733 §5.5.4).
-				attempt := w.pending.entries[s]
-				attempt.writing = true
-				w.pending.entries[s] = attempt
-				s.m.pendingMu.Unlock()
-			}
-			if !s.leaseAllowsWrite(w) {
-				s.close()
-				return
-			}
-			_, err := w.msg.WriteTo(s.c)
-			if err != nil {
-				s.m.reportLocal(s, w.msg, "peer: write failed; closing connection", err)
-				s.close()
-				return
-			}
-			if w.closeAfter {
-				s.close()
+			if s.isRetired() || s.writeOne(w) {
 				return
 			}
 		}
 	}
 }
+
+// writeOne retains a selected request's identifier until the native writer has
+// returned, even if logical completion removed the Manager's pending entry.
+func (s *session) writeOne(w writeRequest) bool {
+	if w.pending != nil {
+		s.m.pendingMu.Lock()
+		if w.pending.done || w.pending.current != s || s.isRetired() || s.closing.Load() {
+			s.m.pendingMu.Unlock()
+			return false
+		}
+		attempt := w.pending.entries[s]
+		attempt.writing = true
+		if s.requests != nil {
+			attempt.write = s.requests.PrepareWrite(w.msg.Header)
+		}
+		w.pending.entries[s] = attempt
+		// RFC 6733 §3: completion cannot free a selected writer's Hop-by-Hop
+		// ID while it still owns a queued native write with that same header.
+		if s.m.controls[s] == nil {
+			s.m.controls[s] = make(map[uint32]struct{})
+		}
+		s.m.controls[s][attempt.hop] = struct{}{}
+		s.m.pendingMu.Unlock()
+		defer func() {
+			if attempt.write != nil {
+				attempt.write.Release()
+			}
+			s.releaseControl(attempt.hop)
+		}()
+	}
+	if s.beforePublication != nil {
+		s.beforePublication(w.msg)
+	}
+	if w.pending != nil && s.closing.Load() {
+		return false
+	}
+	if !s.leaseAllowsWrite(w) {
+		s.close()
+		return true
+	}
+	_, err := w.msg.WriteTo(s.c)
+	if errors.Is(err, diam.ErrConnectionClosing) || errors.Is(err, diam.ErrRequestCompleted) {
+		// Closing and logical completion already dispose of this unsent leg.
+		// Rejection at the native gate must not close other pending work.
+		return false
+	}
+	if err != nil {
+		s.m.reportLocal(s, w.msg, "peer: write failed; closing connection", err)
+		s.close()
+		return true
+	}
+	if w.closeAfter {
+		s.close()
+		return true
+	}
+	return false
+}
+
 func (s *session) watch() {
 	defer s.m.wg.Done()
 	select {

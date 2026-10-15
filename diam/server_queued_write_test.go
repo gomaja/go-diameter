@@ -35,7 +35,9 @@ func TestQueuedWriterRetirementFence(t *testing.T) {
 				srv := &Server{Handler: &generationHandler{}}
 				c := srv.newConn(transport)
 				c.accepted = true
-				<-c.owner.writeGate
+				if err := c.writer.lockWrite(); err != nil {
+					t.Fatal(err)
+				}
 				type result struct {
 					n   int
 					err error
@@ -58,7 +60,7 @@ func TestQueuedWriterRetirementFence(t *testing.T) {
 				if c.retirement.Load() == 0 {
 					t.Error("renewal did not fence the queued writer")
 				}
-				c.owner.writeGate <- struct{}{}
+				c.writer.unlockWrite()
 				got := <-written
 				if got.n != 0 || !errors.Is(got.err, ErrConnectionRetired) || !errors.Is(got.err, net.ErrClosed) {
 					t.Errorf("queued old writer after retirement = %d, %v; want zero bytes and ErrConnectionRetired", got.n, got.err)

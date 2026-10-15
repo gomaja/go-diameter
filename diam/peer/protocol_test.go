@@ -698,10 +698,6 @@ func TestFakeTransportDPAIdentifiersAndPeer(t *testing.T) {
 				func(m *diam.Message) { m.Header.HopByHopID++ },
 				func(m *diam.Message) { m.Header.EndToEndID++ },
 				func(m *diam.Message) {
-					a, _ := m.FindAVP(avp.ResultCode, 0)
-					a.Data = datatype.Unsigned32(diam.UnableToComply)
-				},
-				func(m *diam.Message) {
 					a, _ := m.FindAVP(avp.OriginHost, 0)
 					a.Data = datatype.DiameterIdentity("other.example.net")
 				},

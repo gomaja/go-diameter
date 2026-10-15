@@ -31,7 +31,7 @@ type protocolClientWire struct {
 	logs   *logtest.Recorder
 }
 
-func newProtocolClientWire(t *testing.T, configure func(*Client)) *protocolClientWire {
+func newProtocolClientWire(t *testing.T, configure func(*Client), serverOptions ...func(*diam.Server)) *protocolClientWire {
 	testDict := newSMTestDictionary(creditcontrol.Dictionary())
 	clientSettings := cloneTestSettings(clientSettings, testDict)
 
@@ -56,6 +56,9 @@ func newProtocolClientWire(t *testing.T, configure func(*Client)) *protocolClien
 	go func() {
 		c, err := p.client.dial(func(activity *watchdogActivity) (diam.Conn, error) {
 			server := p.client.server("tcp", listener.Addr().String(), nil, activity)
+			for _, option := range serverOptions {
+				option(server)
+			}
 			server.OnNewConnection = func(c diam.Conn) { opened <- c }
 			return server.Dial(time.Second)
 		})

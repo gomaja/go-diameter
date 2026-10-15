@@ -103,6 +103,9 @@ func (sm *StateMachine) handleMessageError(c diam.Conn, request *diam.Message, m
 	if c.Closed() {
 		return outcome, nil
 	}
+	if !sm.closingAllowed(c, request) {
+		return outcome, nil
+	}
 	outcome = messageErrorOutcome{kind: kind, closing: messageErr != nil && messageErr.Fatal}
 	if headerErr := base.ValidateHeader(request); headerErr != nil {
 		messageErr = headerErr
@@ -110,6 +113,12 @@ func (sm *StateMachine) handleMessageError(c diam.Conn, request *diam.Message, m
 	}
 	if messageErr != nil {
 		outcome.code = messageErr.ResultCode
+	}
+	if sm.isClosing(c) {
+		// An eligible but malformed disconnect retains its diagnostics;
+		// only a valid DPR receives a DPA while Closing (RFC 6733 §5.6).
+		outcome.closing = false
+		return outcome, nil
 	}
 	if !sm.preCERMessageAllowed(c, request) {
 		logMessage(c, request, slog.LevelWarn, "sm: message before CER; closing connection", messageErr)

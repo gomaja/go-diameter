@@ -516,6 +516,44 @@ pull requests that change more than documentation.
 Between changes, Dependabot alerts and security updates cover new advisories,
 and secret scanning with push protection covers pushed secrets.
 
+## Closing
+
+Sending DPR or accepting a valid DPR latches Closing before disconnect effects
+([RFC 6733 §5.6](https://www.rfc-editor.org/rfc/rfc6733.html#section-5.6)).
+Previously admitted application/session answers still complete under their normal
+correlation and generation checks. New requests and other base commands are
+dropped before validation and dispatch, without hooks, replies or watchdog credit.
+Valid crossed/repeated DPRs receive DPA without extending the original deadline.
+A structurally valid, correlated DPA closes the transport regardless of its result.
+
+Every transport uses one outgoing request boundary: its write call must acquire
+the connection's write gate before Closing is latched. Gate acquisition registers
+answer ownership under the same lock as Closing. A queued or completed request
+cannot acquire ownership or publish after Closing; cancellation and request
+expiry remove ownership and release queued writers.
+
+The library's own connections enforce this boundary. A custom `diam.Conn`
+keeps it when it unwraps to one (`Unwrap() diam.Conn`, which `diam.ConnAs`
+follows) or exposes `PendingRequests() *diam.PendingRequests` itself.
+Otherwise peer.Manager can only tell whether it selected a request for
+writing before Closing, so such a request may still be written after it.
+
+An admitted write remains likely in flight even while blocked or after an
+uncertain write error, since bytes may already have left. This conservative
+boundary follows
+[RFC 6733 §5.4](https://www.rfc-editor.org/rfc/rfc6733.html#section-5.4)'s
+"likely in flight" guidance: DPR receives 5012 when such requests await answers,
+and their matching application/session answers remain eligible during Closing.
+Frames use the normal transport writer under the gate. A failed byte-stream
+write retains its cached error, preventing later frames from following an
+unfinished prefix.
+The initiating peer closes after either successful or unsuccessful DPA.
+
+Closing invalidates watchdog publication, activity and credit before joining
+earlier watchdog work. Disconnect deadlines are armed before that join; deadline
+expiry or transport closure releases it even when a writer or callback stays
+blocked.
+
 ## Logging and Tracing
 
 `diam.Server`, `sm.Client` and `peer.Config` each expose a `Logger *slog.Logger`.
@@ -560,7 +598,8 @@ and has its own watchdog configuration (`Timers.TwInit`, `OnPeerEvent`). Choose
 Twinit to tolerate handler latency: saturated concurrent dispatch delays reads.
 `Server.WriteTimeout` bounds socket writes, including DWR; it does not bound
 callbacks or custom `Conn` wrappers. A blocked DWR write delays the watchdog's
-own progress, DWA crediting, and Disconnect/DPR stop. Ordinary inbound dispatch
+own progress and DWA crediting. Disconnect/DPR still latch Closing immediately,
+and their deadlines bound the join of that write. Ordinary inbound dispatch
 can continue. `OnWatchdogConnEvent` must return promptly and must not call
 `Disconnect` synchronously or wait for any inbound message on the same connection;
 both can deadlock. Connection wrappers must retain the same `diam.Conn` identity
