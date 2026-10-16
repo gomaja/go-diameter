@@ -465,7 +465,7 @@ func (c *Core) reject(es []Effect, in Input, kind diam.ProtocolErrorKind, me *di
 func (c *Core) failedRejection(es []Effect, in Input, kind diam.ProtocolErrorKind, code uint32, err error) []Effect {
 	initialCER := c.phase == PreCER && in.Message != nil && in.Message.Header.CommandCode == diam.CapabilitiesExchange
 	es = c.terminate(es, Closed)
-	n := Notification{Protocol: kind, ResultCode: code, Reply: diam.ProtocolReplyFailed, ReplyCode: code, Closing: true, Message: metadata(in.Message), ReplyError: copyHandshakeError(err, c.cfg.PreserveReplyErrorFormatWrapper)}
+	n := Notification{Protocol: kind, ResultCode: code, Reply: diam.ProtocolReplyFailed, ReplyCode: code, Closing: true, Message: metadata(in.Message), ReplyError: copyHandshakeError(err, true)}
 	if initialCER {
 		n.Diagnostic = "reject-cer"
 	}

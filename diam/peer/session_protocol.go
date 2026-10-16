@@ -55,23 +55,11 @@ func (s *session) initProtocol() error {
 		Dictionary: s.m.dictionary(), ExpectedHost: expected, TLS: s.c.TLS() != nil, QueueWrites: true,
 		HandshakeTimeout: s.m.cfg.Timers.CER, ClosingTimeout: s.m.cfg.Timers.Closing,
 		Watchdog: true, WatchdogInterval: max(s.m.cfg.Timers.TwInit, watchdog.MinimumTw), Recovery: recovery,
-		CandidateDeadlineOwnedByPeer:         true,
-		IgnoreBoundHeaderlessInput:           true,
-		InitialNonCERHeaderOnError:           true,
-		RejectFatalRepeatedCER:               true,
-		ValidateCompletedCEA:                 true,
-		PreserveDecoderFatalityOnHeaderError: true,
-		ReaderOwnsMessageErrorClosure:        true,
-		RetainClosingErrorFatality:           true,
-		SeparateHeaderErrorDiagnostics:       true,
-		CloseCEROnInvalidHeaderBitsOnly:      true,
-		FatalBodyErrorKeepsWatchdogDeadline:  true,
-		FatalCEAErrorBeforeCorrelation:       true,
-		DWAOwnershipBeforeSemantics:          true,
-		DWAIdentityBeforeResult:              true,
-		PreserveReplyErrorFormatWrapper:      true,
-		AllowAnyLocalDisconnectCause:         true,
-		ValidateRequests:                     s.m.cfg.Settings.ValidateRequests, RejectUnknownMandatoryAVPs: s.m.cfg.Settings.RejectUnknownMandatoryAVPs})
+		CandidateDeadlineOwnedByPeer:    true,
+		IgnoreBoundHeaderlessInput:      true,
+		ReaderOwnsMessageErrorClosure:   true,
+		CloseCEROnInvalidHeaderBitsOnly: true,
+		ValidateRequests:                s.m.cfg.Settings.ValidateRequests, RejectUnknownMandatoryAVPs: s.m.cfg.Settings.RejectUnknownMandatoryAVPs})
 	if err != nil {
 		return err
 	}
@@ -553,7 +541,7 @@ func (a *actor) syncProtocol(s *session, in protocol.Input) {
 }
 
 func (s *session) recordProtocol(in protocol.Input, n protocol.Notification) {
-	if n.Protocol == "" {
+	if n.Protocol == "" || n.Diagnostic == "duplicate-cea" {
 		return
 	}
 	a, _ := s.binding()
@@ -609,13 +597,14 @@ func (s *session) recordProtocol(in protocol.Input, n protocol.Notification) {
 		s.m.report(s, msg, err)
 		return
 	}
-	if n.Diagnostic == "header-error" || n.Diagnostic == "reject-cer-header" {
+	headerError := n.Protocol == diam.ProtocolInvalidHeader && (n.Diagnostic == "external-message-error" || n.Diagnostic == "external-reject-cer")
+	if headerError {
 		s.m.report(s, msg, err)
-		if n.Diagnostic == "header-error" {
+		if n.Diagnostic == "external-message-error" {
 			return
 		}
 	}
-	if n.Diagnostic == "external-reject-cer" || n.Diagnostic == "reject-cer-header" {
+	if n.Diagnostic == "external-reject-cer" {
 		s.m.report(s, msg, fmt.Errorf("peer: invalid CER rejected; closing connection: %w", err))
 		return
 	}
@@ -739,21 +728,9 @@ func (s *session) notifyProtocol(in protocol.Input, n protocol.Notification, d *
 	if in.Kind == protocol.WriteResult && in.Stage == protocol.WrittenStage && in.Err != nil && n.Protocol == diam.ProtocolReplyFailure {
 		return
 	}
-	msg := in.Message
-	if msg == nil && n.Message.HasHeader {
-		msg = &diam.Message{Header: &n.Message.Header}
-	}
 	kind := n.Protocol
 	if in.ErrorInput && kind == diam.ProtocolCEARejected {
 		kind = diam.ProtocolHandshakeState
-	}
-	if kind == diam.ProtocolUnexpectedMessage && msg != nil && msg.Header.CommandCode == diam.DeviceWatchdog {
-		kind = diam.ProtocolInvalidDWA
-	}
-	if kind == diam.ProtocolUnexpectedMessage && msg != nil && msg.Header.CommandCode == diam.DisconnectPeer {
-		if s.closing.Load() {
-			kind = diam.ProtocolInvalidDPA
-		}
 	}
 	if s.m.ProtocolErrorEnabled() {
 		d.notifications = append(d.notifications, diam.ProtocolErrorEvent{Conn: s.c, Err: diam.NewProtocolError(kind, n.ResultCode), Message: n.Message, Closing: n.Closing, Reply: n.Reply, ReplyCode: n.ReplyCode})

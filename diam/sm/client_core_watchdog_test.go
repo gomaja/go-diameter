@@ -127,7 +127,7 @@ func TestClientCoreWatchdogConcurrentDuplicateDWA(t *testing.T) {
 	if len(observed) != 1 || observed[0] != WatchdogAnswerReceived || after.Pending {
 		t.Fatalf("concurrent DWA callbacks=%v watchdog=%+v; want one answer and no pending probe", observed, after)
 	}
-	if got := len(logs.RecordsWithMessage("sm: unhandled answer discarded")); got != copies-1 {
+	if got := len(logs.RecordsWithMessage("sm: DWA identifiers mismatch; answer discarded")); got != copies-1 {
 		t.Fatalf("duplicate DWA warnings = %d, want %d", got, copies-1)
 	}
 }

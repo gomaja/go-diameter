@@ -12,7 +12,7 @@ import (
 	"github.com/gomaja/go-diameter/diam/internal/base"
 )
 
-func policyProtocolNotice(t testing.TB, es []Effect) Notification {
+func protocolNotice(t testing.TB, es []Effect) Notification {
 	t.Helper()
 	for _, e := range es {
 		if e.Kind == Notify && e.Notification.Protocol != "" {
@@ -24,9 +24,13 @@ func policyProtocolNotice(t testing.TB, es []Effect) Notification {
 }
 
 func TestReaderOwnsMessageErrorClosure(t *testing.T) {
-	for _, reader := range []bool{false, true} {
-		t.Run(fmt.Sprintf("reader=%t", reader), func(t *testing.T) {
-			c := opened(t, func(cfg *Config) { cfg.ReaderOwnsMessageErrorClosure = reader })
+	for _, owner := range []string{"core", "reader", "external-admission"} {
+		t.Run(owner, func(t *testing.T) {
+			reader := owner != "core"
+			c := opened(t, func(cfg *Config) { cfg.ReaderOwnsMessageErrorClosure = owner == "reader" })
+			if owner == "external-admission" {
+				c = admitted(t, true)
+			}
 			in := receive(request(t, diam.DeviceWatchdog))
 			in.ErrorInput = true
 			in.Error = &diam.MessageError{ResultCode: diam.InvalidAVPLength, Fatal: true}
@@ -34,7 +38,7 @@ func TestReaderOwnsMessageErrorClosure(t *testing.T) {
 			if !sent.Required || sent.CloseAfter == reader {
 				t.Fatalf("fatal reply closure=%t, reader ownership=%t", sent.CloseAfter, reader)
 			}
-			n := policyProtocolNotice(t, c.Handle(complete(sent)))
+			n := protocolNotice(t, c.Handle(complete(sent)))
 			if !n.Closing || (c.Phase() == Closed) == reader {
 				t.Fatalf("fatality/closure conflated: notice=%+v phase=%v", n, c.Phase())
 			}
@@ -42,79 +46,61 @@ func TestReaderOwnsMessageErrorClosure(t *testing.T) {
 	}
 }
 
-func TestClosingMessageErrorFatalityPolicy(t *testing.T) {
-	for _, retain := range []bool{false, true} {
-		t.Run(fmt.Sprintf("retain=%t", retain), func(t *testing.T) {
-			c := opened(t, func(cfg *Config) {
-				cfg.ReaderOwnsMessageErrorClosure = true
-				cfg.RetainClosingErrorFatality = retain
-			})
+func TestClosingMessageErrorRetainsFatality(t *testing.T) {
+	for _, reader := range []bool{false, true} {
+		t.Run(fmt.Sprintf("reader=%t", reader), func(t *testing.T) {
+			c := opened(t, func(cfg *Config) { cfg.ReaderOwnsMessageErrorClosure = reader })
 			c.Handle(event(Disconnect))
 			before := c.Snapshot().Timer(ClosingTimer)
 			in := receive(request(t, diam.DisconnectPeer))
 			in.ErrorInput = true
 			in.Error = &diam.MessageError{ResultCode: diam.InvalidAVPLength, Fatal: true}
-			n := policyProtocolNotice(t, c.Handle(in))
-			if n.Closing != retain || n.Reply != diam.ProtocolReplyNone || c.Phase() != Closing || c.Snapshot().Timer(ClosingTimer) != before {
-				t.Fatalf("Closing report altered transport ownership/deadline: %+v", n)
+			n := protocolNotice(t, c.Handle(in))
+			if !n.Closing || n.Reply != diam.ProtocolReplyNone || c.Phase() != Closing || c.Snapshot().Timer(ClosingTimer) != before {
+				t.Fatalf("Closing report altered fatality/transport ownership/deadline: %+v", n)
 			}
 		})
 	}
 }
 
-func TestHeaderDiagnosisRetainsSelectedDecoderFatality(t *testing.T) {
-	for _, retain := range []bool{false, true} {
-		t.Run(fmt.Sprintf("retain=%t", retain), func(t *testing.T) {
-			c := opened(t, func(cfg *Config) {
-				cfg.ReaderOwnsMessageErrorClosure = true
-				cfg.PreserveDecoderFatalityOnHeaderError = retain
-			})
+func TestHeaderDiagnosisRetainsDecoderFatality(t *testing.T) {
+	for _, reader := range []bool{false, true} {
+		t.Run(fmt.Sprintf("reader=%t", reader), func(t *testing.T) {
+			c := opened(t, func(cfg *Config) { cfg.ReaderOwnsMessageErrorClosure = reader })
 			in := receive(request(t, diam.DeviceWatchdog))
 			in.Message.Header.CommandFlags |= diam.ProxiableFlag
 			in.ErrorInput = true
 			in.Error = &diam.MessageError{ResultCode: diam.InvalidAVPLength, Fatal: true}
 			sent := find(t, c.Handle(in), Send)
-			n := policyProtocolNotice(t, c.Handle(complete(sent)))
+			n := protocolNotice(t, c.Handle(complete(sent)))
 			cause, ok := n.CauseError.(*diam.MessageError)
-			if !ok || cause.ResultCode != diam.InvalidHDRBits || cause.Fatal != retain || !n.Closing || sent.CloseAfter || c.Phase() != Open {
-				t.Fatalf("replacement header cause or original report changed: %+v cause=%#v", n, cause)
+			if !ok || cause.ResultCode != diam.InvalidHDRBits || !cause.Fatal || !n.Closing || sent.CloseAfter == reader || (c.Phase() == Closed) == reader {
+				t.Fatalf("replacement header cause or original report changed: %+v cause=%#v phase=%v", n, cause, c.Phase())
 			}
 		})
 	}
 }
 
-func TestHeaderErrorDiagnosticClassificationPolicy(t *testing.T) {
-	for _, separate := range []bool{false, true} {
-		for _, closing := range []bool{false, true} {
-			t.Run(fmt.Sprintf("separate=%t/closing=%t", separate, closing), func(t *testing.T) {
-				c := opened(t, func(cfg *Config) {
-					cfg.ReaderOwnsMessageErrorClosure = true
-					cfg.SeparateHeaderErrorDiagnostics = separate
-				})
-				if closing {
-					c.Handle(event(Disconnect))
-				}
-				in := receive(request(t, diam.DisconnectPeer))
-				in.Message.Header.CommandFlags |= diam.ProxiableFlag
-				in.ErrorInput = true
-				in.Error = &diam.MessageError{ResultCode: diam.InvalidAVPLength}
-				es := c.Handle(in)
-				if !closing {
-					es = c.Handle(complete(find(t, es, Send)))
-				}
-				n := policyProtocolNotice(t, es)
-				kind, diagnostic := diam.ProtocolInvalidHeader, "external-message-error"
-				if separate {
-					diagnostic = "header-error"
-					if closing {
-						kind = diam.ProtocolMalformedMessage
-					}
-				}
-				if n.Protocol != kind || n.Diagnostic != diagnostic || n.ResultCode != diam.InvalidHDRBits {
-					t.Fatalf("header diagnostic=%+v, want %s/%s", n, kind, diagnostic)
-				}
-			})
-		}
+func TestHeaderErrorRetainsInvalidHeaderClassification(t *testing.T) {
+	for _, closing := range []bool{false, true} {
+		t.Run(fmt.Sprintf("closing=%t", closing), func(t *testing.T) {
+			c := opened(t, func(cfg *Config) { cfg.ReaderOwnsMessageErrorClosure = true })
+			if closing {
+				c.Handle(event(Disconnect))
+			}
+			in := receive(request(t, diam.DisconnectPeer))
+			in.Message.Header.CommandFlags |= diam.ProxiableFlag
+			in.ErrorInput = true
+			in.Error = &diam.MessageError{ResultCode: diam.InvalidAVPLength}
+			es := c.Handle(in)
+			if !closing {
+				es = c.Handle(complete(find(t, es, Send)))
+			}
+			n := protocolNotice(t, es)
+			if n.Protocol != diam.ProtocolInvalidHeader || n.Diagnostic != "external-message-error" || n.ResultCode != diam.InvalidHDRBits {
+				t.Fatalf("header diagnostic=%+v", n)
+			}
+		})
 	}
 }
 
@@ -123,7 +109,6 @@ func TestCERMessageErrorClosurePolicy(t *testing.T) {
 		t.Run(fmt.Sprintf("only-invalid-header-bits=%t", onlyBits), func(t *testing.T) {
 			c := opened(t, func(cfg *Config) {
 				cfg.ReaderOwnsMessageErrorClosure = true
-				cfg.RejectFatalRepeatedCER = true
 				cfg.CloseCEROnInvalidHeaderBitsOnly = onlyBits
 			})
 			in := receive(cer(t))
@@ -142,10 +127,10 @@ func TestCERMessageErrorClosurePolicy(t *testing.T) {
 	}
 }
 
-func TestCompletedCEAValidationPolicy(t *testing.T) {
-	for _, validate := range []bool{false, true} {
-		t.Run(fmt.Sprintf("validate=%t", validate), func(t *testing.T) {
-			c := machine(t, func(cfg *Config) { cfg.Role, cfg.ValidateCompletedCEA = Initiator, validate })
+func TestCompletedCEAUsesCorrelationDiagnostic(t *testing.T) {
+	for _, duplicate := range []bool{false, true} {
+		t.Run(fmt.Sprintf("duplicate=%t", duplicate), func(t *testing.T) {
+			c := machine(t, func(cfg *Config) { cfg.Role = Initiator })
 			sent := grant(t, c, c.Handle(event(Start)))
 			c.Handle(complete(sent))
 			answer, err := base.BuildCEA(sent.Message, remote(t).Local, diam.Success)
@@ -157,80 +142,55 @@ func TestCompletedCEAValidationPolicy(t *testing.T) {
 			release.Token = ready.Token
 			c.Handle(release)
 			answer.AVP = nil
-			n := policyProtocolNotice(t, c.Handle(receive(answer)))
-			kind, code := diam.ProtocolUnexpectedMessage, uint32(0)
-			if validate {
-				kind, code = diam.ProtocolCEARejected, diam.MissingAVP
+			diagnostic := "duplicate-cea"
+			if !duplicate {
+				answer.Header.HopByHopID++
+				diagnostic = "cea-correlation"
 			}
-			if n.Protocol != kind || n.ResultCode != code || n.Closing || c.Phase() != Open {
+			n := protocolNotice(t, c.Handle(receive(answer)))
+			if n.Protocol != diam.ProtocolUnexpectedMessage || n.ResultCode != 0 || n.Diagnostic != diagnostic || n.Closing || c.Phase() != Open {
 				t.Fatalf("completed CEA diagnostic=%+v phase=%v", n, c.Phase())
 			}
 		})
 	}
 }
 
-func TestDWAOwnershipPrecedesSemanticDiagnosticsPolicy(t *testing.T) {
-	for _, ownership := range []bool{false, true} {
-		t.Run(fmt.Sprintf("ownership-first=%t", ownership), func(t *testing.T) {
-			c := opened(t, func(cfg *Config) {
-				cfg.Watchdog, cfg.DWAOwnershipBeforeSemantics = true, ownership
-				cfg.WatchdogInterval = 6 * time.Second
-			})
-			sent := probe(t, c)
-			answer := dwa(t, sent, diam.UnableToComply)
-			answer.Header.HopByHopID++
-			n := policyProtocolNotice(t, c.Handle(receive(answer)))
-			kind, code := diam.ProtocolRejectedDWA, uint32(diam.UnableToComply)
-			if ownership {
-				kind, code = diam.ProtocolUnexpectedMessage, 0
-			}
-			if n.Protocol != kind || n.ResultCode != code || !c.Snapshot().Watchdog().Pending {
-				t.Fatalf("unowned DWA changed diagnosis/ownership: %+v", n)
-			}
-		})
+func TestDWAOwnershipPrecedesSemanticDiagnostics(t *testing.T) {
+	c := opened(t, func(cfg *Config) { cfg.Watchdog = true; cfg.WatchdogInterval = 6 * time.Second })
+	sent := probe(t, c)
+	answer := dwa(t, sent, diam.UnableToComply)
+	answer.Header.HopByHopID++
+	n := protocolNotice(t, c.Handle(receive(answer)))
+	if n.Protocol != diam.ProtocolUnexpectedMessage || n.ResultCode != 0 || n.Diagnostic != "dwa-correlation" || !c.Snapshot().Watchdog().Pending {
+		t.Fatalf("unowned DWA changed diagnosis/ownership: %+v", n)
 	}
 }
 
-func TestDWAIdentityPrecedesUnsuccessfulResultPolicy(t *testing.T) {
-	for _, identity := range []bool{false, true} {
-		t.Run(fmt.Sprintf("identity-first=%t", identity), func(t *testing.T) {
-			c := opened(t, func(cfg *Config) {
-				cfg.Watchdog, cfg.DWAIdentityBeforeResult = true, identity
-				cfg.WatchdogInterval = 6 * time.Second
-			})
-			sent := probe(t, c)
-			answer := dwa(t, sent, diam.UnableToComply)
-			for _, field := range answer.AVP {
-				if field.Code == avp.OriginHost {
-					field.Data = datatype.DiameterIdentity("other.example")
-				}
-			}
-			n := policyProtocolNotice(t, c.Handle(receive(answer)))
-			kind, code := diam.ProtocolRejectedDWA, uint32(diam.UnableToComply)
-			if identity {
-				kind, code = diam.ProtocolInvalidDWA, 0
-			}
-			if n.Protocol != kind || n.ResultCode != code || !c.Snapshot().Watchdog().Pending {
-				t.Fatalf("unbound DWA changed diagnosis/ownership: %+v", n)
-			}
-		})
+func TestDWAIdentityPrecedesUnsuccessfulResult(t *testing.T) {
+	c := opened(t, func(cfg *Config) { cfg.Watchdog = true; cfg.WatchdogInterval = 6 * time.Second })
+	sent := probe(t, c)
+	answer := dwa(t, sent, diam.UnableToComply)
+	for _, field := range answer.AVP {
+		if field.Code == avp.OriginHost {
+			field.Data = datatype.DiameterIdentity("other.example")
+		}
+	}
+	n := protocolNotice(t, c.Handle(receive(answer)))
+	if n.Protocol != diam.ProtocolInvalidDWA || n.ResultCode != 0 || !c.Snapshot().Watchdog().Pending {
+		t.Fatalf("unbound DWA changed diagnosis/ownership: %+v", n)
 	}
 }
 
-func TestReplyBuilderErrorWrapperPolicy(t *testing.T) {
-	for _, preserve := range []bool{false, true} {
-		t.Run(fmt.Sprintf("preserve=%t", preserve), func(t *testing.T) {
-			c := opened(t, func(cfg *Config) { cfg.PreserveReplyErrorFormatWrapper = preserve })
-			empty, err := dict.NewParser()
-			if err != nil {
-				t.Fatal(err)
-			}
-			in := receive(diam.NewMessage(diam.DeviceWatchdog, diam.RequestFlag, 0, 1, 2, empty))
-			es := c.reject(nil, in, diam.ProtocolInvalidRequest, &diam.MessageError{ResultCode: diam.MissingAVP})
-			n := policyProtocolNotice(t, es)
-			if got := fmt.Sprintf("%T", n.ReplyError); (got == "*fmt.wrapError") != preserve {
-				t.Fatalf("builder wrapper=%s, preserve=%t", got, preserve)
-			}
-		})
+func TestReplyBuilderErrorRetainsFormatWrapper(t *testing.T) {
+	c := opened(t)
+	empty, err := dict.NewParser()
+	if err != nil {
+		t.Fatal(err)
+	}
+	in := receive(diam.NewMessage(diam.DeviceWatchdog, diam.RequestFlag, 0, 1, 2, empty))
+	es := c.reject(nil, in, diam.ProtocolInvalidRequest, &diam.MessageError{ResultCode: diam.MissingAVP})
+	n := protocolNotice(t, es)
+	if got := fmt.Sprintf("%T", n.ReplyError); got != "*fmt.wrapError" {
+		t.Fatalf("builder wrapper=%s, want *fmt.wrapError", got)
 	}
 }

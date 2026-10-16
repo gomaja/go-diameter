@@ -156,8 +156,10 @@ func TestAcceptedWatchdogEventsHoldStopLock(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		invalid := acceptedDWA(t, request, diam.Success)
+		invalid.AVP = nil
+		receiveAcceptedTestWatchdog(w, invalid)
 		receiveAcceptedTestWatchdog(w, acceptedDWA(t, request, diam.Success))
-		receiveAcceptedTestWatchdog(w, acceptedDWA(t, regressionDWR(t), diam.TooBusy))
 		for _, event := range []WatchdogEvent{
 			WatchdogWriteFailed, WatchdogSuspect, WatchdogRecovered, WatchdogTimedOut,
 		} {

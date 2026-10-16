@@ -211,7 +211,7 @@ func TestManagerDPARequiresLocalDPROnWire(t *testing.T) {
 	unsolicited.Header.HopByHopID, unsolicited.Header.EndToEndID = 0, 0
 	for range 2 {
 		write(t, c, unsolicited)
-		correlationEvent(t, events, diam.ProtocolInvalidDPA, false)
+		correlationEvent(t, events, diam.ProtocolUnexpectedMessage, false)
 		if m.Peers()[0].State != Closing {
 			t.Fatal("unsolicited zero-ID DPA completed disconnect")
 		}
@@ -240,7 +240,7 @@ func TestManagerDPAIdentityPrecedesResultOnWire(t *testing.T) {
 	result, _ := bad.FindAVP(avp.ResultCode, 0)
 	result.Data = datatype.Unsigned32(diam.UnableToComply)
 	write(t, c, bad)
-	e := correlationEvent(t, events, diam.ProtocolInvalidDPA, false)
+	e := correlationEvent(t, events, diam.ProtocolUnexpectedMessage, false)
 	if e.Err.ResultCode() != 0 {
 		t.Fatalf("unbound peer result interpreted: %+v", e)
 	}
@@ -313,7 +313,7 @@ func TestManagerDPAOwnership(t *testing.T) {
 			}
 			a.onWire(event{s: s, msg: answer})
 			if fault == "no request" {
-				if a.state != Closing || s.c.Closed() || len(events) != 1 || events[0].Err.Kind() != diam.ProtocolInvalidDPA {
+				if a.state != Closing || s.c.Closed() || len(events) != 1 || events[0].Err.Kind() != diam.ProtocolUnexpectedMessage {
 					t.Fatalf("unsolicited DPA: state=%s events=%v", a.state, events)
 				}
 				return

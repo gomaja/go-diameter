@@ -236,13 +236,18 @@ func TestProtocolErrorCallbacksOverlapOnSameConnection(t *testing.T) {
 func TestProtocolErrorWatchdogCallbackCanStopSupervision(t *testing.T) {
 	testDict := newSMTestDictionary(creditcontrol.Dictionary())
 
-	for _, invalid := range []bool{false, true} {
-		t.Run(fmt.Sprintf("invalid=%t", invalid), func(t *testing.T) {
+	for _, variant := range []string{"unowned", "rejected", "invalid"} {
+		t.Run(variant, func(t *testing.T) {
+			invalid := variant == "invalid"
 			events := make(chan diam.ProtocolErrorEvent, 1)
 			watchdog := make(chan WatchdogEvent, 4)
 			var machine atomic.Pointer[StateMachine]
 			p := newProtocolDeliveryWire(t, 0, true, func(cfg *Settings) {
 				cfg.EnableWatchdog, cfg.WatchdogInterval = true, time.Hour
+				if variant != "unowned" {
+					cfg.WatchdogInterval = 200 * time.Millisecond
+					cfg.watchdogTiming = &watchdogTiming{floor: time.Millisecond}
+				}
 				cfg.Dict = newTestDictionary(dict.Base(), nasreq.Dictionary())
 				cfg.Dict.SetStrict(false)
 				cfg.AuthApplicationID = []*diam.AVP{diam.NewAVP(avp.AuthApplicationID, avp.Mbit, 0, datatype.Unsigned32(1001))}
@@ -261,8 +266,18 @@ func TestProtocolErrorWatchdogCallbackCanStopSupervision(t *testing.T) {
 			})
 			machine.Store(p.sm)
 			m := diam.NewMessage(diam.DeviceWatchdog, 0, 0, 0x86a0, 0x86a1, testDict)
+			if variant != "unowned" {
+				request := acceptedWatchdogOnWire(t, p.peer)
+				if observed := protocolGenerationAwait(t, watchdog); observed != WatchdogRequestSent {
+					t.Fatalf("watchdog event = %s", observed)
+				}
+				m.Header.HopByHopID, m.Header.EndToEndID = request.Header.HopByHopID, request.Header.EndToEndID
+			}
 			var payload datatype.Type = datatype.Unsigned32(diam.UnableToComply)
 			kind, code, logMessage := diam.ProtocolRejectedDWA, uint32(diam.UnableToComply), "sm: rejected DWA"
+			if variant == "unowned" {
+				kind, code, logMessage = diam.ProtocolUnexpectedMessage, 0, "sm: DWA identifiers mismatch; answer discarded"
+			}
 			if invalid {
 				payload = localhostAddress
 				kind, code, logMessage = diam.ProtocolInvalidDWA, diam.InvalidAVPLength, "sm: invalid DWA"
@@ -273,7 +288,13 @@ func TestProtocolErrorWatchdogCallbackCanStopSupervision(t *testing.T) {
 			header := p.send(t, m)
 			event := protocolGenerationAwait(t, events)
 			assertProtocolEvent(t, event, p.conn, &header, kind, code, false, diam.ProtocolReplyNone, 0)
-			if observed := protocolGenerationAwait(t, watchdog); observed != WatchdogInvalidAnswer {
+			if variant == "unowned" {
+				select {
+				case observed := <-watchdog:
+					t.Fatalf("unowned DWA received watchdog credit: %s", observed)
+				default:
+				}
+			} else if observed := protocolGenerationAwait(t, watchdog); observed != WatchdogInvalidAnswer {
 				t.Fatalf("watchdog event = %s", observed)
 			}
 			p.usable(t)

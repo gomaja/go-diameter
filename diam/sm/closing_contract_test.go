@@ -370,6 +370,12 @@ func TestClosingContractRejectedDWAInFlightWire(t *testing.T) {
 				if fault == "malformed" {
 					wantKind, wantCode = diam.ProtocolInvalidDWA, diam.MissingAVP
 				}
+				if fault == "mismatch" {
+					wantKind, wantCode = diam.ProtocolUnexpectedMessage, 0
+				}
+				if fault == "identity" {
+					wantKind, wantCode = diam.ProtocolInvalidDWA, 0
+				}
 				if e.Err.Kind() != wantKind || e.Err.ResultCode() != wantCode || e.Reply != diam.ProtocolReplyNone {
 					t.Fatalf("rejected DWA=%+v", e)
 				}

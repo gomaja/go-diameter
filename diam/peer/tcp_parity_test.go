@@ -6,8 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"net"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -16,6 +16,7 @@ import (
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/dict"
+	"github.com/gomaja/go-diameter/diam/internal/logtest"
 	"github.com/gomaja/go-diameter/diam/peer"
 	"github.com/gomaja/go-diameter/diam/sm"
 	"github.com/gomaja/go-diameter/diam/sm/smpeer"
@@ -34,15 +35,22 @@ var parityFrontends = []parityFrontend{
 }
 
 type parityTCP struct {
-	frontend parityFrontend
-	wire     net.Conn
-	dict     *dict.Parser
-	events   chan diam.ProtocolErrorEvent
-	ready    chan struct{}
-	conn     diam.Conn
-	done     <-chan error
-	close    func() <-chan error
-	send     func() <-chan parityApplicationResult
+	frontend     parityFrontend
+	wire         net.Conn
+	dict         *dict.Parser
+	events       chan diam.ProtocolErrorEvent
+	ready        chan struct{}
+	conn         diam.Conn
+	done         <-chan error
+	close        func() <-chan error
+	send         func() <-chan parityApplicationResult
+	handler      diam.MessageErrorHandler
+	closeCause   func(uint32) <-chan error
+	logs         *logtest.Recorder
+	watchdog     chan sm.WatchdogEvent
+	manager      *peer.Manager
+	completedCEA diam.Header
+	peers        chan peer.PeerEvent
 }
 
 type parityApplicationResult struct {
@@ -66,13 +74,35 @@ func parityAwait[T any](t *testing.T, ch <-chan T) T {
 // policy. Only the public construction/admission paths differ. Long protocol
 // timers keep completion dependent on messages and callbacks, not elapsed time.
 func parityStart(t *testing.T, frontend parityFrontend, handshake bool, application ...bool) *parityTCP {
+	return parityStartConfigured(t, frontend, handshake, paritySettings{application: len(application) != 0 && application[0]})
+}
+
+type paritySettings struct {
+	application bool
+	probe       bool
+	clock       *parityClock
+	interval    time.Duration
+	writeGate   *parityReplyGate
+	onCEA       diam.HandlerFunc
+}
+
+func parityStartConfigured(t *testing.T, frontend parityFrontend, handshake bool, options paritySettings) *parityTCP {
 	t.Helper()
 	h := &parityTCP{frontend: frontend, dict: contractDict(t), events: make(chan diam.ProtocolErrorEvent, 64), ready: make(chan struct{})}
+	h.logs, h.watchdog, h.peers = logtest.New(), make(chan sm.WatchdogEvent, 32), make(chan peer.PeerEvent, 64)
+	interval := time.Hour
+	if options.probe {
+		interval = 6 * time.Second
+	}
+	if options.interval != 0 {
+		interval = options.interval
+	}
 	settings := contractSettings(h.dict, true, true)
 	settings.DPRCloseTimeout = time.Hour
 	settings.HandshakeTimeout = time.Hour
 	settings.OnProtocolError = func(event diam.ProtocolErrorEvent) { h.events <- event }
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	settings.OnCEA = options.onCEA
+	logger := h.logs.Logger()
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
@@ -80,29 +110,36 @@ func parityStart(t *testing.T, frontend parityFrontend, handshake bool, applicat
 	t.Cleanup(func() { _ = listener.Close() })
 	var ready sync.Once
 	var server *diam.Server
+	native := make(chan diam.Conn, 1)
 	if frontend.manager {
-		manager, err := peer.New(peer.Config{
+		config := peer.Config{
 			Settings: settings, Logger: logger,
-			Timers: peer.Timers{TwInit: time.Hour, CER: time.Hour, Closing: time.Hour},
+			Timers: peer.Timers{TwInit: interval, CER: time.Hour, Closing: time.Hour},
 			OnPeerEvent: func(event peer.PeerEvent) {
+				h.peers <- event
 				if event.Peer.Eligible {
 					ready.Do(func() { close(h.ready) })
 				}
 			},
-		})
+		}
+		if options.clock != nil {
+			config.Clock = options.clock
+		}
+		manager, err := peer.New(config)
 		if err != nil {
 			t.Fatal(err)
 		}
-		config := peer.PeerConfig{Host: "remote.example.net", NoAutoReconnect: true}
+		h.manager, h.handler = manager, manager
+		peerConfig := peer.PeerConfig{Host: "remote.example.net", NoAutoReconnect: true}
 		if frontend.initiator {
-			config.Endpoints = []peer.Endpoint{{Network: "tcp", Address: listener.Addr().String()}}
+			peerConfig.Endpoints = []peer.Endpoint{{Network: "tcp", Address: listener.Addr().String()}}
 		} else {
-			server = &diam.Server{Dict: h.dict, Logger: logger}
+			server = &diam.Server{Dict: h.dict, Logger: logger, OnNewConnection: func(c diam.Conn) { native <- c }}
 			if err := manager.BindServer(server); err != nil {
 				t.Fatal(err)
 			}
 		}
-		if err := manager.AddPeer(config); err != nil {
+		if err := manager.AddPeer(peerConfig); err != nil {
 			t.Fatal(err)
 		}
 		h.send = func() <-chan parityApplicationResult {
@@ -115,12 +152,12 @@ func parityStart(t *testing.T, frontend parityFrontend, handshake bool, applicat
 			}()
 			return done
 		}
-		h.close = func() <-chan error {
+		h.closeCause = func(cause uint32) <-chan error {
 			done := make(chan error, 1)
 			go func() {
 				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 				defer cancel()
-				done <- manager.Close(ctx, sm.DisconnectRebooting)
+				done <- manager.Close(ctx, sm.DisconnectCause(cause))
 			}()
 			return done
 		}
@@ -136,7 +173,8 @@ func parityStart(t *testing.T, frontend parityFrontend, handshake bool, applicat
 		}
 	} else {
 		if !frontend.initiator {
-			settings.EnableWatchdog, settings.WatchdogInterval = true, time.Hour
+			settings.EnableWatchdog, settings.WatchdogInterval = true, interval
+			settings.OnWatchdogConnEvent = func(_ diam.Conn, event sm.WatchdogEvent) { h.watchdog <- event }
 		}
 		admitted := make(chan diam.Conn, 1)
 		settings.OnHandshake = func(conn diam.Conn, _ *smpeer.Metadata) {
@@ -147,7 +185,8 @@ func parityStart(t *testing.T, frontend parityFrontend, handshake bool, applicat
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(application) != 0 && application[0] {
+		h.handler = state
+		if options.application {
 			answers := make(chan *diam.Message, 8)
 			state.HandleIdx(diam.CommandIndex{AppID: contractApp, Code: contractCommand}, diam.HandlerFunc(func(_ diam.Conn, message *diam.Message) {
 				answers <- message
@@ -178,20 +217,30 @@ func parityStart(t *testing.T, frontend parityFrontend, handshake bool, applicat
 				return done
 			}
 		}
-		h.close = func() <-chan error {
+		h.closeCause = func(cause uint32) <-chan error {
 			done := make(chan error, 1)
-			go func() { done <- state.Disconnect(h.conn, sm.DisconnectRebooting, 10*time.Second) }()
+			go func() { done <- state.Disconnect(h.conn, sm.DisconnectCause(cause), 10*time.Second) }()
 			return done
 		}
 		if frontend.initiator {
-			client := &sm.Client{Dict: h.dict, Handler: state, EnableWatchdog: true, WatchdogInterval: time.Hour,
-				RetransmitInterval: time.Hour, Logger: logger}
+			client := &sm.Client{Dict: h.dict, Handler: state, EnableWatchdog: true, WatchdogInterval: interval,
+				RetransmitInterval: time.Hour, Logger: logger, OnWatchdogEvent: func(event sm.WatchdogEvent) { h.watchdog <- event }}
 			done := make(chan error, 1)
 			h.done = done
 			ctx, cancel := context.WithCancel(context.Background())
 			t.Cleanup(cancel)
 			go func() {
-				conn, err := client.DialContext(ctx, "tcp", listener.Addr().String(), nil)
+				var conn diam.Conn
+				var err error
+				if options.writeGate == nil {
+					conn, err = client.DialContext(ctx, "tcp", listener.Addr().String(), nil)
+				} else {
+					var transport net.Conn
+					transport, err = (&net.Dialer{}).DialContext(ctx, "tcp", listener.Addr().String())
+					if err == nil {
+						conn, err = client.NewConn(&parityReplyConn{Conn: transport, gate: options.writeGate}, listener.Addr().String())
+					}
+				}
 				if conn != nil {
 					// Cleanup registration is synchronized by receiving done below.
 					t.Cleanup(conn.Close)
@@ -199,7 +248,7 @@ func parityStart(t *testing.T, frontend parityFrontend, handshake bool, applicat
 				done <- err
 			}()
 		} else {
-			server = &diam.Server{Dict: h.dict, Handler: state, Logger: logger}
+			server = &diam.Server{Dict: h.dict, Handler: state, Logger: logger, OnNewConnection: func(c diam.Conn) { native <- c }}
 		}
 		// The callback's channel publishes the connection before ready is closed.
 		// The test consumes it only after the wire handshake has succeeded.
@@ -216,7 +265,11 @@ func parityStart(t *testing.T, frontend parityFrontend, handshake bool, applicat
 	}
 	if server != nil {
 		served := make(chan error, 1)
-		go func() { served <- server.Serve(listener) }()
+		servedListener := listener
+		if options.writeGate != nil {
+			servedListener = &parityReplyListener{Listener: listener, gate: options.writeGate}
+		}
+		go func() { served <- server.Serve(servedListener) }()
 		t.Cleanup(func() {
 			_ = server.Close()
 			if err := parityAwait(t, served); err != nil && !errors.Is(err, diam.ErrServerClosed) {
@@ -235,6 +288,10 @@ func parityStart(t *testing.T, frontend parityFrontend, handshake bool, applicat
 	if err != nil {
 		t.Fatal(err)
 	}
+	h.close = func() <-chan error { return h.closeCause(uint32(sm.DisconnectRebooting)) }
+	if !frontend.initiator {
+		h.conn = parityAwait(t, native)
+	}
 	t.Cleanup(func() { _ = h.wire.Close() })
 	if handshake {
 		if frontend.initiator {
@@ -244,7 +301,7 @@ func parityStart(t *testing.T, frontend parityFrontend, handshake bool, applicat
 			}
 			cea := contractBase(h.dict, diam.CapabilitiesExchange, false)
 			cea.Header.HopByHopID, cea.Header.EndToEndID = cer.Header.HopByHopID, cer.Header.EndToEndID
-			h.write(t, cea)
+			h.completedCEA = h.write(t, cea)
 		} else {
 			cer := contractBase(h.dict, diam.CapabilitiesExchange, true)
 			h.write(t, cer)
@@ -626,12 +683,6 @@ func TestProtocolTCPParityLocalClosing(t *testing.T) {
 						answer := contractBase(h.dict, diam.DisconnectPeer, false)
 						answer.Header.HopByHopID, answer.Header.EndToEndID = hop, end
 						kind, code := diam.ProtocolUnexpectedMessage, uint32(0)
-						// The core selects the same unowned-answer disposition.
-						// Manager's adapter preserves its InvalidDPA presentation
-						// while Closing; no protocol option changes wire handling.
-						if frontend.manager {
-							kind = diam.ProtocolInvalidDPA
-						}
 						switch fault {
 						case "hop":
 							answer.Header.HopByHopID++
@@ -761,53 +812,75 @@ func TestProtocolTCPParityClosingApplicationOwnership(t *testing.T) {
 	}
 }
 
-func TestProtocolTCPParityCompletedCEAValidateCompletedCEA(t *testing.T) {
-	for _, frontend := range parityFrontends {
-		if !frontend.initiator {
-			continue
-		}
-		t.Run(frontend.name, func(t *testing.T) {
-			h := parityStart(t, frontend, true)
-			cea := contractBase(h.dict, diam.CapabilitiesExchange, false)
-			contractDrop(cea, avp.OriginRealm)
-			header := h.write(t, cea)
-			// Config.ValidateCompletedCEA is true only for Manager. It preserves
-			// grammar diagnosis after handshake; Client diagnoses ownership first.
-			kind, code := diam.ProtocolUnexpectedMessage, uint32(0)
-			if frontend.manager {
-				kind, code = diam.ProtocolCEARejected, diam.MissingAVP
+func TestProtocolTCPParityCompletedCEA(t *testing.T) {
+	for _, correlation := range []string{"duplicate", "hop", "end"} {
+		for _, shape := range []string{"valid", "missing", "flags"} {
+			for _, frontend := range parityFrontends {
+				if !frontend.initiator {
+					continue
+				}
+				t.Run(correlation+"/"+shape+"/"+frontend.name, func(t *testing.T) {
+					h := parityStart(t, frontend, true)
+					cea := contractBase(h.dict, diam.CapabilitiesExchange, false)
+					cea.Header.HopByHopID, cea.Header.EndToEndID = h.completedCEA.HopByHopID, h.completedCEA.EndToEndID
+					if correlation == "hop" {
+						cea.Header.HopByHopID++
+					}
+					if correlation == "end" {
+						cea.Header.EndToEndID++
+					}
+					if shape == "missing" {
+						contractDrop(cea, avp.OriginRealm)
+					}
+					if shape == "flags" {
+						cea.Header.CommandFlags |= diam.ProxiableFlag
+					}
+					before := len(h.logs.Records())
+					header := h.write(t, cea)
+					h.event(t, header, frontend.replyDisposition(diam.ProtocolUnexpectedMessage, 0, false, false))
+					h.barrier(t)
+					h.noEvents(t)
+					if correlation == "duplicate" && len(h.logs.Records()) != before {
+						t.Fatal("completed duplicate CEA was logged")
+					}
+				})
 			}
-			h.event(t, header, frontend.replyDisposition(kind, code, false, false))
-			h.barrier(t)
-			h.noEvents(t)
-		})
+		}
 	}
 }
 
-func TestProtocolTCPParityUnownedDWADWAOwnershipBeforeSemantics(t *testing.T) {
+func TestProtocolTCPParityUnownedDWA(t *testing.T) {
 	for _, result := range []uint32{diam.Success, diam.UnableToComply} {
 		for _, frontend := range parityFrontends {
 			t.Run(fmt.Sprintf("%d/%s", result, frontend.name), func(t *testing.T) {
 				h := parityStart(t, frontend, true)
 				dwa := contractBase(h.dict, diam.DeviceWatchdog, false)
 				contractField(t, dwa, avp.ResultCode).Data = datatype.Unsigned32(result)
+				before := len(h.logs.Records())
 				header := h.write(t, dwa)
-				// Config.DWAOwnershipBeforeSemantics is true only for Manager.
-				// All paths discard the unowned answer without a reply or closure;
-				// the option selects the public diagnostic's kind and result code.
-				kind, code := diam.ProtocolRejectedDWA, result
-				if result == diam.Success {
-					kind, code = diam.ProtocolUnexpectedMessage, 0
-				}
-				if frontend.manager {
-					// Manager presents the core's unowned DWA as InvalidDWA.
-					// That adapter-owned classification does not change the
-					// selected core disposition or its ownership-first result.
-					kind, code = diam.ProtocolInvalidDWA, 0
-				}
-				h.event(t, header, frontend.replyDisposition(kind, code, false, false))
+				h.event(t, header, frontend.replyDisposition(diam.ProtocolUnexpectedMessage, 0, false, false))
 				h.barrier(t)
 				h.noEvents(t)
+				found := false
+				for _, record := range h.logs.Records()[before:] {
+					detail := record.Message + " " + fmt.Sprint(logtest.Attr(record, "error").Any())
+					if strings.Contains(detail, "DWA") && strings.Contains(detail, "mismatch") {
+						found = true
+					}
+				}
+				if !found {
+					t.Fatal("unowned DWA lost its correlation diagnostic")
+				}
+				for {
+					select {
+					case event := <-h.watchdog:
+						if event == sm.WatchdogInvalidAnswer || event == sm.WatchdogAnswerReceived {
+							t.Fatalf("unowned DWA emitted watchdog answer callback %s", event)
+						}
+					default:
+						return
+					}
+				}
 			})
 		}
 	}

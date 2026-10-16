@@ -71,9 +71,19 @@ func (c *Core) handshakeReady() Effect {
 }
 func (c *Core) cea(es []Effect, in Input) []Effect {
 	r := c.controls[diam.CapabilitiesExchange]
-	fatal := base.FatalHeaderError(in.Error) || c.cfg.FatalCEAErrorBeforeCorrelation && in.Error != nil && in.Error.Fatal
+	// RFC 6733 §3: an uncorrelated body report cannot reject a pending CER.
+	// Framing failure still terminates independently of exchange ownership.
+	fatal := base.FatalHeaderError(in.Error)
 	if !fatal && !c.matches(r, in.Message) {
-		return c.discard(es, in, diam.ProtocolUnexpectedMessage, 0)
+		// Discarding the answer does not make a fatal decoder report recoverable.
+		// The selected closure owner still ends the connection.
+		fatalInput := in.Error != nil && in.Error.Fatal
+		if fatalInput && !c.cfg.ReaderOwnsMessageErrorClosure {
+			return c.fail(es, in, diam.ProtocolUnexpectedMessage, 0)
+		}
+		es = c.discard(es, in, diam.ProtocolUnexpectedMessage, 0)
+		es[len(es)-1].Notification.Closing = fatalInput
+		return es
 	}
 	if in.Error != nil {
 		c.handshake = newHandshakeResult(in.Error, nil)

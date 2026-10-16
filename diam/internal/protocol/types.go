@@ -55,13 +55,17 @@ const (
 //   - Manager uses QueueWrites, defers initiator CER until actor acceptance and
 //     holds validated responder candidates for authorization/election. It
 //     supplies Recovery from peer history and always enables watchdogs.
-//   - The diagnostic options from IgnoreBoundHeaderlessInput through
-//     PreserveReplyErrorFormatWrapper, plus AllowAnyLocalDisconnectCause, are
-//     enabled by Manager alone. Core selects their protocol effects; adapters
-//     retain their public error types, logging and notification boundaries.
+//   - Message-error closure normally remains with Core for natively
+//     admitted StateMachine/Client connections and with the reader for Manager
+//     and externally admitted StateMachine connections. Manager selects the
+//     three ownership options below; external admission selects reader ownership
+//     from its public peer metadata. During Closing, Core discards error inputs
+//     and leaves closure to the reader and the existing Closing deadline.
 //
-// These choices preserve distinct frontend contracts. Changing a policy's
-// default or its component selection requires a separate behavior decision.
+// Closure ownership stays in Core because one serialized decision marks a
+// connection terminal and selects whether its required reply closes it once
+// written. That write's completion is a later core decision that terminates the
+// connection and disposes its timers.
 type Config struct {
 	ValidateRequests, RejectUnknownMandatoryAVPs bool
 	Connection                                   Connection
@@ -84,59 +88,27 @@ type Config struct {
 	// A peer actor owns the election deadline after a CER validates. The
 	// connection's pre-CER deadline ends when it hands that candidate over.
 	CandidateDeadlineOwnedByPeer bool
-	// IgnoreBoundHeaderlessInput discards nil/headerless input except when a
-	// responder awaits its first CER. That initial input is a handshake-state
-	// failure retaining the supplied decoder result.
+	// IgnoreBoundHeaderlessInput leaves bound nil/headerless message-error
+	// closure with Manager's reader. An initial responder input still fails
+	// admission with the supplied decoder result; native StateMachine/Client
+	// inputs retain core-owned failure and timer disposal.
 	IgnoreBoundHeaderlessInput bool
-	// InitialNonCERHeaderOnError derives an initial non-CER header diagnosis
-	// only for non-framing decoder reports. A decoded non-CER reports only the
-	// handshake-state violation, without deriving a header result code.
-	InitialNonCERHeaderOnError bool
-	// RejectFatalRepeatedCER preserves the required error reply for a repeated
-	// CER carrying a fatal decoder error, ahead of ordinary repeat disposition.
-	RejectFatalRepeatedCER bool
-	// ValidateCompletedCEA retains grammar/header diagnostics for decoded CEAs
-	// after an initiator handshake, rather than classifying duplicates first.
-	ValidateCompletedCEA bool
-	// PreserveDecoderFatalityOnHeaderError keeps the input decoder's fatal flag
-	// when base-header validation replaces its error diagnosis.
-	PreserveDecoderFatalityOnHeaderError bool
-	// ReaderOwnsMessageErrorClosure reports message errors on admitted inputs
-	// without taking transport closure from the reader. Required error replies
-	// still run; the CER header-rejection rule can select close-after-reply.
+	// ReaderOwnsMessageErrorClosure leaves admitted Manager message-error
+	// closure with its reader. Externally admitted StateMachine connections
+	// select the same ownership from metadata; native StateMachine/Client
+	// connections normally close in Core. During Closing, error inputs are
+	// discarded; the reader and Closing deadline retain closure ownership.
+	// Required replies and failed-reply closure remain core decisions.
 	ReaderOwnsMessageErrorClosure bool
-	// RetainClosingErrorFatality keeps original fatality in message-error
-	// reports during Closing, independently of transport closure ownership.
-	RetainClosingErrorFatality bool
-	// SeparateHeaderErrorDiagnostics selects distinct base-header diagnostics;
-	// a rejected request during Closing is reported as malformed input.
-	SeparateHeaderErrorDiagnostics bool
-	// CloseCEROnInvalidHeaderBitsOnly restricts message-error CER closure to
-	// InvalidHDRBits; other decoder errors leave closure with their caller.
+	// CloseCEROnInvalidHeaderBitsOnly commits Manager's CER close-after-reply
+	// only for InvalidHDRBits; framing failures remain reader-owned. Native
+	// and externally admitted StateMachine retain their CER header-rejection
+	// close-after-reply boundary. The core selects terminality and CloseAfter
+	// together; write completion later terminates and disposes the timers.
 	CloseCEROnInvalidHeaderBitsOnly bool
-	// FatalBodyErrorKeepsWatchdogDeadline excludes fatal, valid-header decoder
-	// callbacks from Tw activity. Recoverable and invalid-header input retain
-	// their ordinary decoded-activity policy.
-	FatalBodyErrorKeepsWatchdogDeadline bool
-	// FatalCEAErrorBeforeCorrelation rejects a fatal CEA decoder report before
-	// checking whether its identifiers match the pending CER.
-	FatalCEAErrorBeforeCorrelation bool
-	// DWAOwnershipBeforeSemantics classifies an unowned DWA after grammar
-	// validation but before interpreting its identity or Result-Code.
-	DWAOwnershipBeforeSemantics bool
-	// DWAIdentityBeforeResult diagnoses an unbound unsuccessful DWA by identity
-	// before interpreting its Result-Code as a rejection of the local probe.
-	DWAIdentityBeforeResult bool
-	// PreserveReplyErrorFormatWrapper retains the concrete standard fmt wrapper
-	// type around a bounded, detached error-answer builder failure.
-	PreserveReplyErrorFormatWrapper bool
 	// StateMachine's synchronous Disconnect may start after a peer DPR. Its
 	// caller deadline is independent of the peer-initiated Closing deadline.
 	LocalDisconnectInClosing bool
-	// AllowAnyLocalDisconnectCause preserves Manager.Close's existing opaque
-	// uint32 input. RFC 6733 section 5.4.3 defines only values 0-2; this local
-	// API compatibility option never relaxes validation of received DPRs.
-	AllowAnyLocalDisconnectCause bool
 	// SkipDWRGrammarAfterHook applies the control parser's discard/result rules
 	// to the hook output without repeating pre-hook wire-grammar validation.
 	SkipDWRGrammarAfterHook bool

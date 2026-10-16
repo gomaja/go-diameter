@@ -75,7 +75,7 @@ func TestProtocolErrorManagerWireDecisions(t *testing.T) {
 				t.Fatal(err)
 			}
 			return m
-		}, diam.ProtocolInvalidDWA, 0, 0, false, false},
+		}, diam.ProtocolUnexpectedMessage, 0, 0, false, false},
 		{"invalid base header", func(t *testing.T) *diam.Message { m := watchdogRequest(t); m.Header.ApplicationID = 4; return m }, diam.ProtocolInvalidHeader, 3008, 3008, false, false},
 		{"invalid answer header", func(t *testing.T) *diam.Message {
 			m := watchdogRequest(t).Answer(2001)
@@ -301,7 +301,7 @@ func TestProtocolErrorManagerDWAAndDPA(t *testing.T) {
 		result  uint32
 		mutate  func(*diam.Message)
 	}{
-		{"DWA identifier", diam.DeviceWatchdog, diam.ProtocolInvalidDWA, 0, func(m *diam.Message) { m.Header.EndToEndID++ }},
+		{"DWA identifier", diam.DeviceWatchdog, diam.ProtocolUnexpectedMessage, 0, func(m *diam.Message) { m.Header.EndToEndID++ }},
 		{"DWA identity", diam.DeviceWatchdog, diam.ProtocolInvalidDWA, 0, func(m *diam.Message) {
 			a, _ := m.FindAVP(avp.OriginHost, 0)
 			a.Data = datatype.DiameterIdentity("other.example.net")
@@ -319,8 +319,8 @@ func TestProtocolErrorManagerDWAAndDPA(t *testing.T) {
 			a, _ = m.FindAVP(avp.ResultCode, 0)
 			a.Data = datatype.Unsigned32(3002)
 		}},
-		{"DPA identifier", diam.DisconnectPeer, diam.ProtocolInvalidDPA, 0, func(m *diam.Message) { m.Header.EndToEndID++ }},
-		{"DPA identity", diam.DisconnectPeer, diam.ProtocolInvalidDPA, 0, func(m *diam.Message) {
+		{"DPA identifier", diam.DisconnectPeer, diam.ProtocolUnexpectedMessage, 0, func(m *diam.Message) { m.Header.EndToEndID++ }},
+		{"DPA identity", diam.DisconnectPeer, diam.ProtocolUnexpectedMessage, 0, func(m *diam.Message) {
 			a, _ := m.FindAVP(avp.OriginHost, 0)
 			a.Data = datatype.DiameterIdentity("other.example.net")
 		}},
@@ -708,9 +708,14 @@ func TestProtocolErrorManagerWirePendingAnswers(t *testing.T) {
 				switch fault {
 				case "identifiers":
 					answer.Header.EndToEndID++
+					kind = diam.ProtocolUnexpectedMessage
 				case "hop identifiers":
 					answer.Header.HopByHopID++
+					kind = diam.ProtocolUnexpectedMessage
 				case "identity":
+					if command == diam.DisconnectPeer {
+						kind = diam.ProtocolUnexpectedMessage
+					}
 					a, _ := answer.FindAVP(avp.OriginHost, 0)
 					a.Data = datatype.DiameterIdentity("other.example.net")
 				case "missing AVP":

@@ -78,7 +78,7 @@ func TestManagerBoundHeaderlessErrorCallbackIgnoredTCP(t *testing.T) {
 
 // Closing in a public decoder notification describes the supplied fatality.
 // The native reader owns transport closure; a direct callback can still send
-// without moving the existing watchdog deadline.
+// while receipt rearms the watchdog without granting health or probe credit.
 func TestManagerFatalBodyCallbackPreservesLiveTransportTCP(t *testing.T) {
 	for _, dialed := range []bool{false, true} {
 		for _, command := range []uint32{diam.CapabilitiesExchange, diam.DeviceWatchdog, diam.DisconnectPeer} {
@@ -116,8 +116,8 @@ func TestManagerFatalBodyCallbackPreservesLiveTransportTCP(t *testing.T) {
 							t.Fatalf("callback error answer=%+v", answer.Header)
 						}
 					}
-					if after := p.state(t); after.timer != before.timer || after.token != before.token || after.health != before.health || after.pending != before.pending || after.num != before.num {
-						t.Fatalf("fatal callback changed watchdog state/deadline: before=%+v after=%+v", before, after)
+					if after := p.state(t); after.timer == before.timer || after.token == before.token || after.health != before.health || after.pending != before.pending || after.num != before.num {
+						t.Fatalf("fatal callback did not reset Tw independently of watchdog credit: before=%+v after=%+v", before, after)
 					}
 					publicErrorDWR(t, p)
 					if p.s.c.Closed() || len(records.Records()) != start {
@@ -134,16 +134,15 @@ func TestManagerFatalBodyCallbackPreservesLiveTransportTCP(t *testing.T) {
 	}
 }
 
-func TestManagerOpenInitiatorCEAPreservesValidationDiagnosticTCP(t *testing.T) {
+func TestManagerCompletedCEARetainsCorrelationDiagnosticTCP(t *testing.T) {
 	for _, header := range []bool{false, true} {
 		t.Run(fmt.Sprintf("header=%t", header), func(t *testing.T) {
 			records := publicErrorLog(t)
 			p := newCoreActivityWire(t, true)
 			message := correlationCEA(t, capabilitiesExchangeRequest(t), "known.example.net")
-			kind, result, text := diam.ProtocolCEARejected, uint32(diam.MissingAVP), "diameter message error 5005: Diameter validation failed (5005): required AVP missing"
+			kind, result, text := diam.ProtocolUnexpectedMessage, uint32(0), "peer: unmatched answer (RFC 6733 §6.2.1)"
 			if header {
 				message.Header.CommandFlags |= diam.ProxiableFlag
-				kind, result, text = diam.ProtocolInvalidHeader, diam.InvalidHDRBits, "diameter message error 3008: invalid base command flags (RFC 6733 §§3, 3.2)"
 			} else {
 				message.AVP = nil
 			}
@@ -154,7 +153,7 @@ func TestManagerOpenInitiatorCEAPreservesValidationDiagnosticTCP(t *testing.T) {
 			expected.MessageLength = uint32(message.Len())
 			protocolErrorCheck(t, event, p.s.c, expected, kind, result, false, diam.ProtocolReplyNone, 0, 0)
 			publicErrorDWR(t, p)
-			publicErrorLogCheck(t, records, start, diam.CapabilitiesExchange, "*diam.MessageError", text)
+			publicErrorLogCheck(t, records, start, diam.CapabilitiesExchange, "*errors.errorString", text)
 		})
 	}
 }
@@ -180,7 +179,7 @@ func TestManagerClosingDPRPreservesDecoderDiagnosticTCP(t *testing.T) {
 					write(t, p.c, message)
 				} else {
 					message.Header.CommandFlags |= diam.ProxiableFlag
-					kind, result, text = diam.ProtocolMalformedMessage, diam.InvalidHDRBits, "diameter message error 3008: invalid base command flags (RFC 6733 §§3, 3.2)"
+					kind, result, text = diam.ProtocolInvalidHeader, diam.InvalidHDRBits, "diameter message error 3008: invalid base command flags (RFC 6733 §§3, 3.2)"
 					if err := p.m.HandleMessageError(p.s.c, message, &diam.MessageError{ResultCode: diam.InvalidAVPLength, Fatal: fatal}); err != nil {
 						t.Fatal(err)
 					}
@@ -223,7 +222,7 @@ func TestManagerControlAnswerErrorIdentityTCP(t *testing.T) {
 				message = correlationCEA(t, capabilitiesExchangeRequest(t), "known.example.net")
 			case "unowned-dwa":
 				message, err = base.BuildDWA(watchdogRequest(t), testBase("known.example.net"))
-				kind, text = diam.ProtocolInvalidDWA, "peer: unsolicited or mismatched DWA"
+				kind, text = diam.ProtocolUnexpectedMessage, "peer: unsolicited or mismatched DWA"
 			case "unmatched-dpa":
 				message, err = base.BuildDPA(closingDPR(t, p.m), testBase("known.example.net"))
 			default:
@@ -235,14 +234,14 @@ func TestManagerControlAnswerErrorIdentityTCP(t *testing.T) {
 				switch scenario {
 				case "dpa-identifiers":
 					message.Header.HopByHopID++
-					text = "peer: DPA identifiers mismatch"
+					kind, text = diam.ProtocolUnexpectedMessage, "peer: DPA identifiers mismatch"
 				case "dpa-host":
 					field, e := message.FindAVP(avp.OriginHost, 0)
 					if e != nil {
 						t.Fatal(e)
 					}
 					field.Data = datatype.DiameterIdentity("other.example.net")
-					text = "peer: DPA Origin-Host mismatch"
+					kind, text = diam.ProtocolUnexpectedMessage, "peer: DPA Origin-Host mismatch"
 				case "dpa-result":
 					field, e := message.FindAVP(avp.ResultCode, 0)
 					if e != nil {

@@ -62,11 +62,6 @@ func (c *Core) activity(es []Effect, in Input) []Effect {
 	if c.phase != Open || !c.cfg.Watchdog || base.FatalHeaderError(in.Error) {
 		return es
 	}
-	// Fatal body callbacks can retain the existing deadline. Invalid base
-	// headers still take the decoded-header activity path.
-	if c.cfg.FatalBodyErrorKeepsWatchdogDeadline && in.ErrorInput && in.Error != nil && in.Error.Fatal && base.ValidateHeader(in.Message) == nil {
-		return es
-	}
 	return c.watchdogArm(es, in.At, in.Interval)
 }
 
@@ -122,15 +117,17 @@ func (c *Core) dwa(es []Effect, in Input) []Effect {
 	}
 	// Grammar diagnostics precede ownership classification as library policy.
 	// RFC 6733 §§3, 6.2.1: only a correlated answer owns the local exchange.
-	if c.cfg.DWAOwnershipBeforeSemantics && !c.matches(c.controls[diam.DeviceWatchdog], m) {
-		return c.discard(es, in, diam.ProtocolUnexpectedMessage, 0)
+	if !c.matches(c.controls[diam.DeviceWatchdog], m) {
+		es = c.discard(es, in, diam.ProtocolUnexpectedMessage, 0)
+		es[len(es)-1].Notification.Diagnostic = "dwa-correlation"
+		return es
 	}
 	var parsed base.DWA
 	if err := parsed.Parse(m); err != nil {
 		return c.discardCause(es, in, diam.ProtocolInvalidDWA, err)
 	}
 	r := c.controls[diam.DeviceWatchdog]
-	if c.cfg.DWAIdentityBeforeResult && parsed.ResultCode != diam.Success && !c.bound(m, true) {
+	if parsed.ResultCode != diam.Success && !c.bound(m, true) {
 		var peer base.DWR
 		_ = peer.Parse(m)
 		err := errors.New("DWA Origin-Realm mismatch")
@@ -140,10 +137,7 @@ func (c *Core) dwa(es []Effect, in Input) []Effect {
 		return c.discardCause(es, in, diam.ProtocolInvalidDWA, err)
 	}
 	if parsed.ResultCode != diam.Success {
-
-		if c.matches(r, m) && c.bound(m, true) {
-			es = c.consumeControl(es, r, m)
-		}
+		es = c.consumeControl(es, r, m)
 		es = c.discard(es, in, diam.ProtocolRejectedDWA, parsed.ResultCode)
 		es[len(es)-1].Notification.CauseError = fmt.Errorf("DWA Result-Code %d", parsed.ResultCode)
 		return es
@@ -162,9 +156,6 @@ func (c *Core) dwa(es []Effect, in Input) []Effect {
 			}
 		}
 		return c.discardCause(es, in, diam.ProtocolInvalidDWA, err)
-	}
-	if !c.matches(r, m) {
-		return c.discard(es, in, diam.ProtocolUnexpectedMessage, 0)
 	}
 	current := c.wd
 	// A fast answer can precede the writer's return. Apply its credit to the
