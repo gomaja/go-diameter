@@ -146,11 +146,11 @@ func acceptedDWA(t *testing.T, request *diam.Message, result uint32) *diam.Messa
 
 func acceptedWatchdogState(t *testing.T, sm *StateMachine, c diam.Conn) *acceptedWatchdog {
 	t.Helper()
-	value, ok := sm.watchdogs.Load(c)
+	value, ok := acceptedTestSupervisor(sm, c)
 	if !ok {
 		t.Fatal("watchdog supervisor missing for accepted connection")
 	}
-	return value.(*acceptedWatchdog)
+	return value
 }
 
 func acceptedWatchdogStopped(t *testing.T, sm *StateMachine, c diam.Conn, state *acceptedWatchdog) {
@@ -160,8 +160,8 @@ func acceptedWatchdogStopped(t *testing.T, sm *StateMachine, c diam.Conn, state 
 	case <-time.After(2 * time.Second):
 		t.Fatal("watchdog goroutine did not exit")
 	}
-	if _, ok := sm.watchdogs.Load(c); ok {
-		t.Fatal("watchdog map retained closed connection")
+	if _, ok := acceptedTestSupervisor(sm, c); ok {
+		t.Fatal("closed connection still has a live watchdog supervisor")
 	}
 }
 
@@ -449,7 +449,7 @@ func TestAcceptedWatchdogDisabledByDefault(t *testing.T) {
 		t.Fatalf("CEA = %v", cea)
 	}
 	c := <-accepted
-	if _, ok := sm.watchdogs.Load(c); ok {
+	if _, ok := acceptedTestSupervisor(sm, c); ok {
 		t.Fatal("disabled watchdog started supervisor")
 	}
 	answer := acceptedDWA(t, regressionDWR(t), diam.Success)
@@ -580,7 +580,7 @@ func TestAcceptedWatchdogNoDWRBeforeHandshake(t *testing.T) {
 			t.Fatal("watchdog wrote before CER/CEA")
 		default:
 		}
-		if _, ok := sm.watchdogs.Load(c); ok {
+		if _, ok := acceptedTestSupervisor(sm, c); ok {
 			t.Fatal("watchdog started before handshake")
 		}
 		sm.ServeDIAM(c, regressionCER(t, testDict, 1001))
@@ -644,7 +644,7 @@ func TestAcceptedWatchdogWaitsForCEAWrite(t *testing.T) {
 				}
 				time.Sleep(4 * cfg.WatchdogInterval)
 				synctest.Wait()
-				if _, ok := sm.watchdogs.Load(c); ok {
+				if _, ok := acceptedTestSupervisor(sm, c); ok {
 					t.Fatal("watchdog started before CEA write returned")
 				}
 				select {
@@ -655,7 +655,7 @@ func TestAcceptedWatchdogWaitsForCEAWrite(t *testing.T) {
 				open()
 				<-done
 				if rejected {
-					if _, ok := sm.watchdogs.Load(c); ok {
+					if _, ok := acceptedTestSupervisor(sm, c); ok {
 						t.Fatal("rejected CER started watchdog")
 					}
 					return
@@ -719,7 +719,7 @@ func TestAcceptedWatchdogNotStartedAfterRejectedOrAbortedCER(t *testing.T) {
 				c.writeErr = errors.New("CEA write failed")
 			}
 			sm.ServeDIAM(c, request)
-			if _, ok := sm.watchdogs.Load(c); ok {
+			if _, ok := acceptedTestSupervisor(sm, c); ok {
 				t.Fatal("watchdog started without successful CEA")
 			}
 			if !c.Closed() {
@@ -758,7 +758,7 @@ func TestAcceptedWatchdogStartsAfterOnHandshake(t *testing.T) {
 		}
 		close(release)
 		<-dispatchDone
-		if _, ok := sm.watchdogs.Load(c); !ok {
+		if _, ok := acceptedTestSupervisor(sm, c); !ok {
 			t.Fatal("watchdog missing after OnHandshake returned")
 		}
 		synctest.Wait()
@@ -1140,7 +1140,7 @@ func TestSharedStateMachineWatchdogsIndependent(t *testing.T) {
 	}
 	localConn := <-accepted
 	acceptedWatchdogOnWire(t, localPeer)
-	if _, ok := sm.watchdogs.Load(localConn); !ok {
+	if _, ok := acceptedTestSupervisor(sm, localConn); !ok {
 		t.Fatal("shared StateMachine did not supervise accepted connection")
 	}
 	remoteCfg := *serverSettings
@@ -1156,7 +1156,7 @@ func TestSharedStateMachineWatchdogsIndependent(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer dialed.Close()
-	if _, ok := sm.watchdogs.Load(dialed); ok {
+	if _, ok := acceptedTestSupervisor(sm, dialed); ok {
 		t.Fatal("accepted-connection watchdog also supervised dialed connection")
 	}
 	for i := 0; i < 2; i++ {
@@ -1166,7 +1166,7 @@ func TestSharedStateMachineWatchdogsIndependent(t *testing.T) {
 			t.Fatalf("client watchdog did not send DWR %d", i+1)
 		}
 	}
-	if _, ok := sm.watchdogs.Load(dialed); ok {
+	if _, ok := acceptedTestSupervisor(sm, dialed); ok {
 		t.Fatal("dialed connection acquired second supervisor")
 	}
 	_ = localPeer.Close()
@@ -1182,8 +1182,8 @@ func TestAcceptedWatchdogEventPanicClosesConnection(t *testing.T) {
 	stateAtPanic := make(chan *acceptedWatchdog, 1)
 	var sm *StateMachine
 	cfg.OnWatchdogConnEvent = func(c diam.Conn, _ WatchdogEvent) {
-		if value, ok := sm.watchdogs.Load(c); ok {
-			stateAtPanic <- value.(*acceptedWatchdog)
+		if value, ok := acceptedTestSupervisor(sm, c); ok {
+			stateAtPanic <- value
 		}
 		panic("watchdog event callback")
 	}

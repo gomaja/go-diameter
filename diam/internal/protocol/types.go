@@ -39,14 +39,43 @@ const (
 // Config is copied by New. ResolveHostIPAddresses must be nil: address discovery
 // belongs outside mutation. Zero handshake timeout disables accepted admission's
 // deadline. QueueWrites selects queued versus completed-write accounting.
+//
+// Core owns connection phase, validation, control correlation, admission,
+// watchdog progress and protocol dispositions. Adapters serialize those decisions
+// and execute effects: sockets, native publication gates, timers, callbacks,
+// application ownership and diagnostic presentation remain outside Core.
+// StateMachine also owns public context metadata and hook invocation; Manager
+// owns peer authorization, election, routing and history across connections.
+//
+// The components select these policies when constructing a connection:
+//   - StateMachine and Client use completed writes, hooks and
+//     LocalDisconnectInClosing/SkipDWRGrammarAfterHook. Accepted admission
+//     activates immediately; Client alone keeps the CER response window after
+//     transport loss and supplies its retry budget.
+//   - Manager uses QueueWrites, defers initiator CER until actor acceptance and
+//     holds validated responder candidates for authorization/election. It
+//     supplies Recovery from peer history and always enables watchdogs.
+//   - The diagnostic options from IgnoreBoundHeaderlessInput through
+//     PreserveReplyErrorFormatWrapper, plus AllowAnyLocalDisconnectCause, are
+//     enabled by Manager alone. Core selects their protocol effects; adapters
+//     retain their public error types, logging and notification boundaries.
+//
+// These choices preserve distinct frontend contracts. Changing a policy's
+// default or its component selection requires a separate behavior decision.
 type Config struct {
-	ValidateRequests, RejectUnknownMandatoryAVPs  bool
-	Connection                                    Connection
-	Role                                          Role
-	Dictionary                                    *dict.Parser
-	Local                                         base.Settings
-	ExpectedHost                                  string
-	TLS, QueueWrites, Hooks                       bool
+	ValidateRequests, RejectUnknownMandatoryAVPs bool
+	Connection                                   Connection
+	Role                                         Role
+	Dictionary                                   *dict.Parser
+	Local                                        base.Settings
+	ExpectedHost                                 string
+	TLS                                          bool
+	// QueueWrites selects Manager's queue-acceptance boundary; StateMachine and
+	// Client report completed native writes. Later failures still terminate.
+	QueueWrites bool
+	// Hooks selects StateMachine/Client continuations. The adapter invokes each
+	// hook outside serialization; Core validates its result before proceeding.
+	Hooks                                         bool
 	HandshakeTimeout, CERInterval, ClosingTimeout time.Duration
 	MaxRetransmits                                uint
 	Watchdog                                      bool

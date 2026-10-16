@@ -33,7 +33,7 @@ func TestAcceptedWatchdogDoesNotStartOnClosedConnection(t *testing.T) {
 		c.Close()
 		startAcceptedTestWatchdog(t, sm, c)
 		synctest.Wait()
-		if _, ok := sm.watchdogs.Load(c); ok {
+		if _, ok := acceptedTestSupervisor(sm, c); ok {
 			t.Fatal("closed connection acquired watchdog")
 		}
 		time.Sleep(4 * cfg.WatchdogInterval)
@@ -66,7 +66,7 @@ func TestAcceptedWatchdogPolicyUsesJitter(t *testing.T) {
 	t.Cleanup(func() { close(c.done); <-w.exited })
 	seen := make(map[time.Duration]bool)
 	for range 1000 {
-		got := w.interval()
+		got := jitteredTw(w.policy.twinit, w.policy.jitter)
 		if got < cfg.WatchdogInterval-20*time.Millisecond || got > cfg.WatchdogInterval+20*time.Millisecond {
 			t.Fatalf("accepted Tw = %s, want [%s,%s]", got, cfg.WatchdogInterval-20*time.Millisecond, cfg.WatchdogInterval+20*time.Millisecond)
 		}

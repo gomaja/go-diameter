@@ -86,7 +86,7 @@ func TestAcceptedWatchdogWarnsWithoutLifecycleNotifier(t *testing.T) {
 		records[0].Message != "sm: watchdog disabled: connection exposes neither DispatchDone nor CloseNotifier" {
 		t.Fatalf("watchdog warning records = %v", records)
 	}
-	if _, ok := sm.watchdogs.Load(c); ok {
+	if _, ok := acceptedTestSupervisor(sm, c); ok {
 		t.Fatal("watchdog registered without a lifecycle notifier")
 	}
 }

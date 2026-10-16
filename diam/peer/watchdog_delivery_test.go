@@ -34,14 +34,14 @@ func TestManagerWatchdogExpiryWaitsForAdmittedReceives(t *testing.T) {
 			}
 			clock.fire()
 			a.handle(<-a.events)
-			if a.watchdog != WatchdogOkay || !a.pendingWatchdog {
-				t.Fatalf("expiry overtook admitted receive: %s Pending=%v", a.watchdog, a.pendingWatchdog)
+			if a.publishedWatchdog() != WatchdogOkay || !fixtureWatchdog(a).Pending {
+				t.Fatalf("expiry overtook admitted receive: %s Pending=%v", a.publishedWatchdog(), fixtureWatchdog(a).Pending)
 			}
 			in := <-s.ingress
 			a.m.processDIAMAt(s, in.msg, in.receivedAt, in.sequence)
 			a.handle(<-a.events)
-			if a.watchdog != WatchdogOkay || a.pendingWatchdog == dwa {
-				t.Fatalf("receive after simultaneous expiry: %s Pending=%v, DWA=%v", a.watchdog, a.pendingWatchdog, dwa)
+			if a.publishedWatchdog() != WatchdogOkay || fixtureWatchdog(a).Pending == dwa {
+				t.Fatalf("receive after simultaneous expiry: %s Pending=%v, DWA=%v", a.publishedWatchdog(), fixtureWatchdog(a).Pending, dwa)
 			}
 			if dwa && len(s.writes) != 0 {
 				t.Fatalf("credited DWA caused an extra probe: %d writes", len(s.writes))
@@ -71,18 +71,18 @@ func TestManagerWatchdogDecodedReceiveInvalidatesDeferredExpiry(t *testing.T) {
 			}
 			clock.fire()
 			a.handle(<-a.events)
-			if !a.pendingWatchdog || len(s.writes) != 0 {
+			if !fixtureWatchdog(a).Pending || len(s.writes) != 0 {
 				t.Fatal("expiry did not wait for admitted answer")
 			}
 			in := <-s.ingress
 			a.m.processDIAMAt(s, in.msg, in.receivedAt, in.sequence)
 			a.handle(<-a.events)
 			if recovery {
-				if a.watchdog != WatchdogReopen || a.numDWA != 1 || a.pendingWatchdog || len(s.writes) != 0 {
-					t.Fatalf("credited recovery retained expired work: state=%s NumDWA=%d Pending=%v writes=%d", a.watchdog, a.numDWA, a.pendingWatchdog, len(s.writes))
+				if a.publishedWatchdog() != WatchdogReopen || fixtureWatchdog(a).NumDWA != 1 || fixtureWatchdog(a).Pending || len(s.writes) != 0 {
+					t.Fatalf("credited recovery retained expired work: state=%s NumDWA=%d Pending=%v writes=%d", a.publishedWatchdog(), fixtureWatchdog(a).NumDWA, fixtureWatchdog(a).Pending, len(s.writes))
 				}
-			} else if a.watchdog != WatchdogOkay || !a.pendingWatchdog || len(s.writes) != 0 {
-				t.Fatalf("invalid decoded answer failed reset-only receipt: state=%s Pending=%v writes=%d", a.watchdog, a.pendingWatchdog, len(s.writes))
+			} else if a.publishedWatchdog() != WatchdogOkay || !fixtureWatchdog(a).Pending || len(s.writes) != 0 {
+				t.Fatalf("invalid decoded answer failed reset-only receipt: state=%s Pending=%v writes=%d", a.publishedWatchdog(), fixtureWatchdog(a).Pending, len(s.writes))
 			}
 		})
 	}
@@ -100,7 +100,7 @@ func TestManagerWatchdogDeferredExpiryStopsWithGeneration(t *testing.T) {
 			clock.fire()
 			expiry := <-a.events
 			a.handle(expiry)
-			if !a.pendingWatchdog || a.numDWA != 0 {
+			if !fixtureWatchdog(a).Pending || fixtureWatchdog(a).NumDWA != 0 {
 				t.Fatal("expiry overtook admitted recovery answer")
 			}
 			if retire {
@@ -114,8 +114,8 @@ func TestManagerWatchdogDeferredExpiryStopsWithGeneration(t *testing.T) {
 			in := <-s.ingress
 			a.handle(event{kind: wireEvent, s: s, msg: in.msg, receivedAt: in.receivedAt, receiveSequence: in.sequence})
 			a.handle(expiry) // even a duplicated stale callback stays inert
-			if len(s.writes) != queued || a.numDWA != 0 || a.watchdog == WatchdogSuspect {
-				t.Fatalf("stale expiry/receive changed generation: state=%s NumDWA=%d writes=%d, want %d", a.watchdog, a.numDWA, len(s.writes), queued)
+			if len(s.writes) != queued || fixtureWatchdog(a).NumDWA != 0 || a.publishedWatchdog() == WatchdogSuspect {
+				t.Fatalf("stale expiry/receive changed generation: state=%s NumDWA=%d writes=%d, want %d", a.publishedWatchdog(), fixtureWatchdog(a).NumDWA, len(s.writes), queued)
 			}
 		})
 	}

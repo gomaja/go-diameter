@@ -303,15 +303,17 @@ func TestHandshakeAllowsMessagesInEveryWiring(t *testing.T) {
 	}
 }
 
-func TestHandshakeHandlerGuardLogsBeforeClose(t *testing.T) {
+func TestHandshakeRejectionLogsBeforeClose(t *testing.T) {
 	logs := logtest.New()
 	c := loggerHandshakeConn{newHandshakeConn(), logs.Logger()}
+	sm := mustNewStateMachine(t, testMessageErrorSettings())
+	sm.HandleFunc("ALL", func(diam.Conn, *diam.Message) { t.Error("handler called before handshake") })
 	c.afterClose = func() {
 		if len(logs.Records()) != 1 {
 			t.Error("close before handshake guard record")
 		}
 	}
-	handshakeOK(func(diam.Conn, *diam.Message) { t.Error("handler called before handshake") }).ServeDIAM(c, regressionDWR(t))
+	sm.ServeDIAM(c, regressionDWR(t))
 	records := logs.Records()
 	if !c.closed.Load() || len(records) != 1 || records[0].Level != slog.LevelWarn {
 		t.Fatalf("guard closed=%t records=%v", c.closed.Load(), records)

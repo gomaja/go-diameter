@@ -81,7 +81,7 @@ func testClientOverrideControlsConnectionApplications(t *testing.T, validateRequ
 		t.Fatal(err)
 	}
 	defer conn.Close()
-	if !clientSM.supportsApplicationOn(conn, customApp) || clientSM.supportsApplicationOn(conn, 4) {
+	if !savedApplicationOfferSupports(conn, customApp) || savedApplicationOfferSupports(conn, 4) {
 		t.Fatal("client connection applications differ from the explicit CER offer")
 	}
 	var serverConn diam.Conn

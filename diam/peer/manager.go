@@ -276,7 +276,7 @@ func (m *Manager) AddPeer(cfg PeerConfig) error {
 	if _, ok := m.peers[key]; ok {
 		return fmt.Errorf("peer: duplicate Host %s", cfg.Host)
 	}
-	a := &actor{m: m, cfg: copyCfg, events: make(chan event, m.cfg.Limits.Events), done: make(chan struct{}), state: Closed, watchdog: WatchdogInitial}
+	a := &actor{m: m, cfg: copyCfg, events: make(chan event, m.cfg.Limits.Events), done: make(chan struct{}), state: Closed}
 	a.publish(nil)
 	m.peers[key] = a
 	m.wg.Add(1)

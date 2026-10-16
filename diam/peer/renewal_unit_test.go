@@ -53,7 +53,7 @@ func renewalCompositionActor(t *testing.T, state PeerState, local string, respon
 	if err != nil {
 		t.Fatal(err)
 	}
-	a := &actor{m: m, cfg: PeerConfig{Host: "known.example.net", NoAutoReconnect: true}, state: state, watchdog: WatchdogInitial, nextGen: 17, pendingGen: 11, dialing: state == WaitConnAck || state == WaitConnAckElect, events: make(chan event, 16), done: make(chan struct{})}
+	a := &actor{m: m, cfg: PeerConfig{Host: "known.example.net", NoAutoReconnect: true}, state: state, snapshotValue: fixtureHealth(WatchdogInitial), nextGen: 17, pendingGen: 11, dialing: state == WaitConnAck || state == WaitConnAckElect, events: make(chan event, 16), done: make(chan struct{})}
 	i := &session{m: m, c: newFakeConn(testDict), actor: a, gen: 11, writes: make(chan writeRequest, 16), closed: make(chan struct{}), meta: &smpeer.Metadata{OriginHost: "known.example.net", OriginRealm: "initiator.example.net", Applications: []uint32{4}}}
 	r := &session{m: m, c: newFakeConn(testDict), actor: a, gen: 7, inbound: true, writes: make(chan writeRequest, 16), ingress: make(chan incoming, 16), closed: make(chan struct{}), cerRequest: capabilitiesExchangeRequest(t), meta: &smpeer.Metadata{OriginHost: "known.example.net", OriginRealm: "old.example.net", Applications: []uint32{4}}}
 	if state == WaitICEA || state == WaitReturns || activeI {
@@ -65,14 +65,14 @@ func renewalCompositionActor(t *testing.T, state PeerState, local string, respon
 	if activeR {
 		a.active = r
 		a.meta = r.meta.Clone()
-		a.watchdog = WatchdogOkay
+		fixtureSetHealth(a, WatchdogOkay)
 		a.everOpen = true
 		r.admitted.Store(true)
 	}
 	if activeI {
 		a.active = i
 		a.meta = i.meta.Clone()
-		a.watchdog = WatchdogOkay
+		fixtureSetHealth(a, WatchdogOkay)
 		a.everOpen = true
 	}
 	renewalCoreSession(t, r, true, activeR, "old.example.net")
@@ -162,7 +162,7 @@ func TestManagerRenewalReplacementCERStateTable(t *testing.T) {
 						local = "z.example.net"
 					}
 					m, a, i, old, _ := renewalCompositionActor(t, tc.state, local, tc.responder, tc.activeR, tc.activeI)
-					oldWatchdogTimer, oldWatchdogToken := a.wdTimer, a.wdToken
+					oldWatchdogTimer, oldWatchdogToken := fixtureWatchdogTimer(a), fixtureWatchdogToken(a)
 					if err := m.HandleRetire(old.c, diam.SCTPAssociationRestart); err != nil {
 						t.Fatal(err)
 					}
@@ -191,7 +191,7 @@ func TestManagerRenewalReplacementCERStateTable(t *testing.T) {
 						if !freshConn.Closed() || i.c.Closed() || a.active != i || a.meta.OriginRealm != "initiator.example.net" {
 							t.Fatal("replacement candidate disturbed surviving initiator")
 						}
-						if a.wdTimer != oldWatchdogTimer || a.wdToken != oldWatchdogToken {
+						if fixtureWatchdogTimer(a) != oldWatchdogTimer || fixtureWatchdogToken(a) != oldWatchdogToken {
 							t.Fatal("candidate retirement changed surviving initiator watchdog timer")
 						}
 						return
@@ -251,7 +251,7 @@ func TestManagerRenewalWatchdogStatesEligibilityAndRetirement(t *testing.T) {
 				synctest.Wait()
 				// Eligibility is deliberately independent of the published health
 				// label; timer and control ownership remain the real core's.
-				a.watchdog = health
+				fixtureSetHealth(a, health)
 				a.publish(nil)
 				oldToken, oldTimer := old.protocolSnapshot().Timer(protocol.WatchdogTimer).Token, old.coreTimers[protocol.WatchdogTimer]
 				if !m.CanRenewAcceptedCER(old.c) {
@@ -261,7 +261,8 @@ func TestManagerRenewalWatchdogStatesEligibilityAndRetirement(t *testing.T) {
 					t.Fatal(err)
 				}
 				synctest.Wait()
-				if m.CanRenewAcceptedCER(old.c) || a.watchdog != WatchdogDown || a.wdTimer != nil || a.wdToken == oldToken || a.pendingWatchdog || a.watchdogHop != 0 || a.watchdogEnd != 0 || a.watchdogGen != 0 || a.numDWA != 0 {
+				retired := old.protocolSnapshot()
+				if m.CanRenewAcceptedCER(old.c) || a.publishedWatchdog() != WatchdogDown || retired.Phase() != protocol.Retired || retired.Timer(protocol.WatchdogTimer).Token != 0 || retired.Watchdog().Pending || fixtureSessionControl(old, diam.DeviceWatchdog).Logical || fixtureSessionControl(old, diam.DisconnectPeer).Logical {
 					t.Fatalf("retired %s retained health/control ownership", health)
 				}
 				oldTimer.(*fakeTimer).mu.Lock()
@@ -276,14 +277,14 @@ func TestManagerRenewalWatchdogStatesEligibilityAndRetirement(t *testing.T) {
 				m.ServeDIAM(freshConn, renewalScriptCER(t, "known.example.net", "fresh.example.net", 5, 222))
 				synctest.Wait()
 				fresh := m.getSession(freshConn)
-				if a.watchdog != WatchdogReopen || a.snapshot().Eligible || !m.CanRenewAcceptedCER(freshConn) {
+				if a.publishedWatchdog() != WatchdogReopen || a.snapshot().Eligible || !m.CanRenewAcceptedCER(freshConn) {
 					t.Fatalf("replacement of %s did not enter renewable REOPEN", health)
 				}
 				renewalCompositionCommit(a, event{kind: coreEvent, s: old, gen: old.gen, input: protocol.Input{Kind: protocol.TimerExpired, Timer: protocol.WatchdogTimer, Token: oldToken}})
 				clock.mu.Lock()
 				timers := len(clock.timers)
 				clock.mu.Unlock()
-				if a.active != fresh || fresh.isRetired() || a.watchdog != WatchdogReopen || timers == 0 {
+				if a.active != fresh || fresh.isRetired() || a.publishedWatchdog() != WatchdogReopen || timers == 0 {
 					t.Fatal("old watchdog callback changed replacement")
 				}
 			})
@@ -440,7 +441,7 @@ func TestManagerRenewalCleanupBeforeAcknowledgement(t *testing.T) {
 	c := newFakeConn()
 	cleanup := m.HandleAccept(c)
 	s := m.getSession(c)
-	a := &actor{m: m, cfg: PeerConfig{Host: "known.example.net", NoAutoReconnect: true}, state: ROpen, watchdog: WatchdogOkay, everOpen: true, events: make(chan event, 1), done: make(chan struct{})}
+	a := &actor{m: m, cfg: PeerConfig{Host: "known.example.net", NoAutoReconnect: true}, state: ROpen, snapshotValue: fixtureHealth(WatchdogOkay), everOpen: true, events: make(chan event, 1), done: make(chan struct{})}
 	s.bind(a, 7)
 	a.r, a.active = s, s
 	a.publish(nil)
@@ -503,7 +504,7 @@ func TestManagerRenewalRetirementDuringInitiatorCER(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	a := &actor{m: m, cfg: PeerConfig{Host: "known.example.net", NoAutoReconnect: true}, state: WaitConnAckElect, watchdog: WatchdogInitial, events: make(chan event, 4), done: make(chan struct{}), pendingGen: 7, nextGen: 7, dialing: true}
+	a := &actor{m: m, cfg: PeerConfig{Host: "known.example.net", NoAutoReconnect: true}, state: WaitConnAckElect, snapshotValue: fixtureHealth(WatchdogInitial), events: make(chan event, 4), done: make(chan struct{}), pendingGen: 7, nextGen: 7, dialing: true}
 	r := &session{m: m, c: newFakeConn(), actor: a, gen: 6, inbound: true, closed: make(chan struct{}), writes: make(chan writeRequest, 4), cerRequest: capabilitiesExchangeRequest(t)}
 	i := &session{m: m, c: newFakeConn(), actor: a, gen: 7, closed: make(chan struct{}), writes: make(chan writeRequest, 4)}
 	a.r = r
@@ -545,7 +546,7 @@ func TestManagerRenewalRetirementDuringInitiatorCER(t *testing.T) {
 // alternate retires; deleting its entry must not strand the next failover.
 func TestManagerRenewalRetirementDuringFailover(t *testing.T) {
 	m, _, sessions := outboundTestManager(t)
-	third := &actor{m: m, cfg: PeerConfig{Host: "c.example.net"}, done: make(chan struct{}), events: make(chan event, 4), state: IOpen, watchdog: WatchdogOkay, meta: &smpeer.Metadata{OriginHost: "c.example.net", OriginRealm: "example.net", Applications: []uint32{4}}}
+	third := &actor{m: m, cfg: PeerConfig{Host: "c.example.net"}, done: make(chan struct{}), events: make(chan event, 4), state: IOpen, snapshotValue: fixtureHealth(WatchdogOkay), meta: &smpeer.Metadata{OriginHost: "c.example.net", OriginRealm: "example.net", Applications: []uint32{4}}}
 	c := &session{m: m, c: newFakeConn(), actor: third, gen: 3, writes: make(chan writeRequest, 4), closed: make(chan struct{})}
 	third.i, third.active = c, c
 	third.publish(nil)
@@ -651,9 +652,9 @@ func TestManagerRenewalRetirementStateTable(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			a := &actor{m: m, cfg: PeerConfig{Host: "known.example.net", NoAutoReconnect: true}, state: tc.state, watchdog: tc.watchdog, everOpen: tc.activeR || tc.activeI, nextGen: 17, pendingGen: 11, dialing: tc.state == WaitConnAckElect, events: make(chan event, 1), done: make(chan struct{})}
+			a := &actor{m: m, cfg: PeerConfig{Host: "known.example.net", NoAutoReconnect: true}, state: tc.state, snapshotValue: fixtureHealth(tc.watchdog), everOpen: tc.activeR || tc.activeI, nextGen: 17, pendingGen: 11, dialing: tc.state == WaitConnAckElect, events: make(chan event, 1), done: make(chan struct{})}
 			i := &session{m: m, c: newFakeConn(), actor: a, gen: 11, closed: make(chan struct{}), writes: make(chan writeRequest, 4)}
-			r := &session{m: m, c: newFakeConn(), actor: a, gen: 7, inbound: true, closed: make(chan struct{}), writes: make(chan writeRequest, 4), cerRequest: capabilitiesExchangeRequest(t), cerHop: 31, cerEnd: 32}
+			r := &session{m: m, c: newFakeConn(), actor: a, gen: 7, inbound: true, closed: make(chan struct{}), writes: make(chan writeRequest, 4), cerRequest: capabilitiesExchangeRequest(t)}
 			a.i = i
 			if tc.responder {
 				a.r = r
@@ -715,13 +716,13 @@ func TestManagerRenewalRetirementStateTable(t *testing.T) {
 			if a.nextGen != 17 || a.pendingGen != 11 || m.nextHop != 88 || m.endToEnd.next.Load() != oldEnd {
 				t.Error("retirement reset peer or request identifiers")
 			}
-			if tc.activeR && (a.pendingWatchdog || a.watchdogHop != 0 || a.pendingDPR != 0 || a.numDWA != 0) {
+			if retired := r.protocolSnapshot(); tc.activeR && (retired.Phase() != protocol.Retired || retired.Watchdog().Pending || fixtureSessionControl(r, diam.DeviceWatchdog).Logical || fixtureSessionControl(r, diam.DisconnectPeer).Logical) {
 				t.Error("retirement retained watchdog/disconnect identifiers")
 			}
 			if tc.activeI && (!reflect.DeepEqual(i.protocolSnapshot().Controls(), surviving.Controls()) || i.protocolSnapshot().Watchdog() != surviving.Watchdog()) {
 				t.Error("candidate retirement reset surviving initiator identifiers")
 			}
-			if r.cerRequest != nil || r.cerHop != 0 || r.cerEnd != 0 {
+			if r.cerRequest != nil || fixtureSessionControl(r, diam.CapabilitiesExchange).Logical {
 				t.Error("retired CER identifiers retained")
 			}
 			if err := m.HandleRetire(r.c, diam.SCTPAssociationRestart); err != nil {
@@ -773,11 +774,11 @@ func TestManagerRenewalStaleTimerTokens(t *testing.T) {
 		a.publish(nil)
 		timer := s.protocolSnapshot().Timer(protocol.WatchdogTimer)
 		s.applyProtocol(protocol.Input{Kind: protocol.TimerExpired, Timer: protocol.WatchdogTimer, Token: timer.Token + 1, At: timer.Deadline}, nil)
-		if len(s.writes) != 0 || a.pendingWatchdog {
+		if len(s.writes) != 0 || fixtureWatchdog(a).Pending {
 			t.Fatal("stale watchdog timer sent current-generation probe")
 		}
 		s.applyProtocol(protocol.Input{Kind: protocol.TimerExpired, Timer: protocol.WatchdogTimer, Token: timer.Token, At: timer.Deadline}, nil)
-		if len(s.writes) != 1 || !a.pendingWatchdog {
+		if len(s.writes) != 1 || !fixtureWatchdog(a).Pending {
 			t.Fatal("current watchdog timer did not send probe")
 		}
 		if w := <-s.writes; w.msg.Header.CommandCode != diam.DeviceWatchdog {

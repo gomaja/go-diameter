@@ -34,16 +34,16 @@ func TestServerApplicationLookupSnapshot(t *testing.T) {
 			c := newHandshakeConn()
 			sm.ServeDIAM(c, regressionCER(t, testDict, 1001))
 			<-c.writes
-			if !sm.supportsApplicationOn(c, 1001) {
+			if !savedApplicationOfferSupports(c, 1001) {
 				t.Fatal("advertised app unsupported")
 			}
-			if n := testing.AllocsPerRun(100, func() { sm.supportsApplicationOn(c, 1001) }); n != 0 {
+			if n := testing.AllocsPerRun(100, func() { savedApplicationOfferSupports(c, 1001) }); n != 0 {
 				t.Fatalf("lookup allocated %g times; want zero", n)
 			}
 		})
 	}
 }
-func BenchmarkSupportsApplicationOn(b *testing.B) {
+func BenchmarkSavedApplicationOffer(b *testing.B) {
 	testDict := newSMTestDictionary(creditcontrol.Dictionary())
 
 	for _, explicit := range []bool{false, true} {
@@ -66,7 +66,7 @@ func BenchmarkSupportsApplicationOn(b *testing.B) {
 			b.ReportAllocs()
 			b.ResetTimer()
 			for b.Loop() {
-				sm.supportsApplicationOn(c, 1001)
+				savedApplicationOfferSupports(c, 1001)
 			}
 		})
 	}

@@ -15,7 +15,7 @@ import (
 func renewalCoreSession(t *testing.T, s *session, started, admitted bool, realm string) {
 	t.Helper()
 	owner := s.actor
-	setup := &actor{m: s.m, cfg: owner.cfg, state: Closed, watchdog: WatchdogInitial,
+	setup := &actor{m: s.m, cfg: owner.cfg, state: Closed, snapshotValue: fixtureHealth(WatchdogInitial),
 		events: make(chan event, 64), done: make(chan struct{}), nextGen: s.gen - 1, pendingGen: s.gen}
 	setup.publish(nil)
 	s.actor = setup
@@ -47,7 +47,6 @@ func renewalCoreSession(t *testing.T, s *session, started, admitted bool, realm 
 		setup.onDial(event{gen: s.gen, s: s})
 		w := renewalCoreWrite(t, s, diam.CapabilitiesExchange)
 		s.cerRequest = w.msg
-		s.cerHop, s.cerEnd = w.msg.Header.HopByHopID, w.msg.Header.EndToEndID
 		fixtureCompleteWrite(s, w)
 		if admitted {
 			cea, err := base.BuildCEA(w.msg, remote, diam.Success)

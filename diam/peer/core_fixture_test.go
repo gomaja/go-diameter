@@ -3,11 +3,13 @@ package peer
 import (
 	"errors"
 	"fmt"
+	"sync/atomic"
 	"time"
 
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/internal/base"
 	"github.com/gomaja/go-diameter/diam/internal/protocol"
+	"github.com/gomaja/go-diameter/diam/internal/watchdog"
 )
 
 // bootstrapSessionProtocol admits a fixture through the production responder
@@ -22,7 +24,7 @@ func bootstrapSessionProtocol(s *session) error {
 		return nil
 	}
 	a, manager := s.actor, s.actor.m
-	health, pending, num, peerState, failures := a.watchdog, a.pendingWatchdog, a.numDWA, a.state, a.failures
+	health, pending, num, peerState, failures := a.publishedWatchdog(), fixtureWatchdog(a).Pending, fixtureWatchdog(a).NumDWA, a.state, a.failures
 	if a.events == nil {
 		a.events = make(chan event, 64)
 	}
@@ -48,9 +50,9 @@ func bootstrapSessionProtocol(s *session) error {
 		a.nextGen--
 	}
 	if health == WatchdogDown || health == WatchdogReopen {
-		a.watchdog = WatchdogDown
+		fixtureSetHealth(a, WatchdogDown)
 	} else {
-		a.watchdog = WatchdogInitial
+		fixtureSetHealth(a, WatchdogInitial)
 	}
 	a.publish(nil)
 	s.inbound = true
@@ -193,4 +195,60 @@ func (a *actor) onOpen() {
 func (a *actor) answerDPR(s *session, msg *diam.Message) {
 	ensureSessionProtocol(s)
 	a.onWire(event{s: s, msg: msg})
+}
+
+// fixtureHealth seeds the peer observer's published health before core startup.
+func fixtureHealth(health WatchdogState) atomic.Value {
+	var value atomic.Value
+	value.Store(PeerSnapshot{Watchdog: health})
+	return value
+}
+
+func fixtureSetHealth(a *actor, health WatchdogState) {
+	if value := a.snapshotValue.Load(); value != nil {
+		p := value.(PeerSnapshot)
+		p.Watchdog = health
+		a.snapshotValue.Store(p)
+	} else {
+		a.snapshotValue.Store(PeerSnapshot{Watchdog: health})
+	}
+}
+
+func fixtureWatchdog(a *actor) watchdog.Machine {
+	if a.active == nil || a.active.core == nil {
+		return watchdog.Machine{State: watchdog.State(a.publishedWatchdog())}
+	}
+	return a.active.protocolSnapshot().Watchdog()
+}
+
+func fixtureWatchdogTimer(a *actor) Timer {
+	if a.active == nil || a.active.core == nil {
+		return nil
+	}
+	a.active.coreMu.Lock()
+	defer a.active.coreMu.Unlock()
+	return a.active.coreTimers[protocol.WatchdogTimer]
+}
+
+func fixtureWatchdogToken(a *actor) uint64 {
+	if a.active == nil || a.active.core == nil {
+		return 0
+	}
+	return a.active.protocolSnapshot().Timer(protocol.WatchdogTimer).Token
+}
+
+func fixtureSessionControl(s *session, command uint32) protocol.ControlSnapshot {
+	if s == nil || s.core == nil {
+		return protocol.ControlSnapshot{}
+	}
+	for _, control := range s.protocolSnapshot().Controls() {
+		if control.Command == command {
+			return control
+		}
+	}
+	return protocol.ControlSnapshot{}
+}
+
+func fixtureControl(a *actor, command uint32) protocol.ControlSnapshot {
+	return fixtureSessionControl(a.active, command)
 }

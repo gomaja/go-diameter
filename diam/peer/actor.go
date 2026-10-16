@@ -23,7 +23,6 @@ type event struct {
 	testHook        func()
 	receivedAt      time.Time
 	receiveSequence uint64
-	afterReceive    uint64
 	delivery        *protocolDelivery
 	messageErr      *diam.MessageError
 	kind            psmEvent
@@ -48,51 +47,37 @@ const (
 	wireEvent        psmEvent = "wire"
 	dialDone         psmEvent = "dial-done"
 	connGone         psmEvent = "conn-gone"
-	watchdogTimeout  psmEvent = "watchdog-timeout"
 	reconnectTimeout psmEvent = "reconnect-timeout"
 )
 
 type actor struct {
-	discovery         atomic.Pointer[discoveryState]
-	retiring          atomic.Bool
-	ready             *discoveryReady
-	leaseTimer        Timer
-	leaseStop         chan struct{}
-	dialCancel        context.CancelFunc
-	controlOnce       sync.Once
-	control           chan retirementCommand
-	delivery          *protocolDelivery
-	m                 *Manager
-	cfg               PeerConfig
-	events            chan event
-	done              chan struct{}
-	state             PeerState
-	i, r              *session
-	pendingGen        uint64
-	nextGen           uint64
-	token             uint64
-	timer             Timer
-	meta              *smpeer.Metadata
-	active            *session
-	pendingDPR        uint32
-	pendingDPREnd     uint32
-	pendingDPRGen     uint64
-	pendingDPRCommand uint32
-	closeCause        sm.DisconnectCause
-	closingWatchdog   bool // unanswered pre-Closing DWR, after watchdog invalidation
-	snapshotValue     atomic.Value
-	activeSession     atomic.Pointer[session]
+	discovery     atomic.Pointer[discoveryState]
+	retiring      atomic.Bool
+	ready         *discoveryReady
+	leaseTimer    Timer
+	leaseStop     chan struct{}
+	dialCancel    context.CancelFunc
+	controlOnce   sync.Once
+	control       chan retirementCommand
+	delivery      *protocolDelivery
+	m             *Manager
+	cfg           PeerConfig
+	events        chan event
+	done          chan struct{}
+	state         PeerState
+	i, r          *session
+	pendingGen    uint64
+	nextGen       uint64
+	token         uint64
+	timer         Timer
+	meta          *smpeer.Metadata
+	active        *session
+	closeCause    sm.DisconnectCause
+	snapshotValue atomic.Value
+	activeSession atomic.Pointer[session]
 
-	watchdog          WatchdogState
-	wdTimer, tcTimer  Timer
-	wdToken, tcToken  uint64
-	deferredWatchdog  *event
-	pendingWatchdog   bool
-	watchdogAnswered  bool // response ownership, separate from watchdog credit
-	watchdogHop       uint32
-	watchdogEnd       uint32
-	watchdogGen       uint64
-	numDWA            int
+	tcTimer           Timer
+	tcToken           uint64
 	everOpen          bool
 	dialing           bool
 	ownStop           bool
@@ -110,9 +95,19 @@ func (a *actor) snapshot() PeerSnapshot {
 	v.Applications = append([]uint32(nil), v.Applications...)
 	return v
 }
-func (a *actor) publish(err error) {
-	p := PeerSnapshot{Host: a.cfg.Host, State: a.state, Generation: a.nextGen, Watchdog: a.watchdog}
-	p.Eligible = (a.state == IOpen || a.state == ROpen) && a.watchdog == WatchdogOkay && a.leaseLive() && !a.ownStop
+
+// publishedWatchdog is the last health published for peer observers. The core
+// owns live watchdog progress; publication stays at the adapter's event boundary.
+func (a *actor) publishedWatchdog() WatchdogState {
+	if value := a.snapshotValue.Load(); value != nil {
+		return value.(PeerSnapshot).Watchdog
+	}
+	return WatchdogInitial
+}
+func (a *actor) publish(err error) { a.publishHealth(a.publishedWatchdog(), err) }
+func (a *actor) publishHealth(health WatchdogState, err error) {
+	p := PeerSnapshot{Host: a.cfg.Host, State: a.state, Generation: a.nextGen, Watchdog: health}
+	p.Eligible = (a.state == IOpen || a.state == ROpen) && health == WatchdogOkay && a.leaseLive() && !a.ownStop
 	if d := a.discovery.Load(); d != nil {
 		p.Dynamic = true
 		p.ExpiresAt = d.expires
@@ -174,7 +169,6 @@ func (a *actor) run() {
 			}
 			a.signalReady(ErrLeaseExpired)
 			a.stopTimer()
-			a.stopWatchdog()
 			a.stopReconnect()
 			if a.i != nil {
 				a.i.close()
@@ -245,7 +239,6 @@ func (a *actor) failWithLog(level slog.Level, text string, err error) {
 	}
 	a.active = nil
 	a.meta = nil
-	a.pendingDPRGen, a.pendingDPRCommand = 0, 0
 	a.setState(Closed, err)
 	a.lostConnection(err)
 }
@@ -254,16 +247,6 @@ func (a *actor) handle(e event) {
 		e.testHook()
 		return
 	}
-	defer func() {
-		if e.s != nil && e.receiveSequence != 0 {
-			e.s.receivedSequence = e.receiveSequence
-		}
-		if pending := a.deferredWatchdog; pending != nil &&
-			(pending.s == nil || pending.s.receivedSequence >= pending.afterReceive) {
-			a.deferredWatchdog = nil
-			a.handle(*pending)
-		}
-	}()
 	if a.handleDiscovery(e) {
 		return
 	}
@@ -499,7 +482,7 @@ func (a *actor) onCER(e event) {
 	if err := a.admitDiscovery(e.s, e.meta); err != nil {
 		a.signalReady(err)
 		a.m.report(e.s, e.msg, err)
-		e.s.applyProtocol(protocol.Input{Kind: protocol.RejectCandidate, Token: e.s.candidate, ResultCode: diam.UnknownPeer, Message: e.msg}, a.delivery)
+		e.s.applyProtocol(protocol.Input{Kind: protocol.RejectCandidate, Token: e.s.protocolSnapshot().Candidate(), ResultCode: diam.UnknownPeer, Message: e.msg}, a.delivery)
 		return
 	}
 	if a.state != Closed && a.state != WaitConnAck && a.state != WaitICEA && a.state != WaitConnAckElect && a.state != WaitReturns && a.state != IOpen && a.state != ROpen {
@@ -590,10 +573,6 @@ func (a *actor) stop(cause sm.DisconnectCause) {
 		a.dialCancel()
 	}
 	a.stopReconnect()
-	if a.state == IOpen || a.state == ROpen {
-		a.closingWatchdog = a.active != nil && a.pendingWatchdog && !a.watchdogAnswered && a.watchdogGen == a.active.gen
-	}
-	a.stopWatchdog()
 	if a.state == Closed {
 		return
 	}
@@ -615,9 +594,6 @@ func (a *actor) step(ev psmEvent, s *session, msg *diam.Message) {
 	old := a.state
 	a.state = row.next
 
-	if old == Closing && a.state != Closing {
-		a.pendingDPRGen, a.pendingDPRCommand = 0, 0
-	}
 	switch ev {
 	case iAck:
 		a.stopTimer()
@@ -666,13 +642,6 @@ func (a *actor) step(ev psmEvent, s *session, msg *diam.Message) {
 			a.active = nil
 			a.meta = nil
 		}
-	case iCEA:
-		a.stopTimer()
-		if old == WaitReturns && a.r != nil {
-			a.r.close()
-			a.r = nil
-		}
-		a.active = a.i
 	case rDisc:
 		switch old {
 		case ROpen, Closing:
@@ -682,9 +651,6 @@ func (a *actor) step(ev psmEvent, s *session, msg *diam.Message) {
 		case WaitReturns:
 			// The surviving initiator retains its core CER deadline.
 		}
-	case iNonCEA:
-		a.fail(errors.New("peer: non-CEA before handshake"))
-		return
 	case timeout:
 		connection := a.active
 		if connection == nil {
@@ -720,7 +686,6 @@ func (a *actor) step(ev psmEvent, s *session, msg *diam.Message) {
 		a.active.admitted.Store(true)
 	}
 	if old != IOpen && old != ROpen && (a.state == IOpen || a.state == ROpen) {
-		a.closingWatchdog = false
 		a.stopReconnect()
 		if a.active != nil {
 			a.syncProtocol(a.active, protocol.Input{Kind: protocol.ReleaseAdmission})
@@ -737,11 +702,15 @@ func (a *actor) sendCEA(s *session) bool {
 		a.failLocal("send CEA", errors.New("missing responder"))
 		return false
 	}
-	if s.candidate == 0 {
+	snapshot := s.protocolSnapshot()
+	candidate := snapshot.Candidate()
+	// Termination invalidates the activation token before native closure. A
+	// validated CER still supplies provenance for the core's stale disposition.
+	if candidate == 0 && snapshot.Capabilities().CER == nil {
 		a.failLocal("send CEA", errors.New("missing CER"))
 		return false
 	}
-	s.applyProtocol(protocol.Input{Kind: protocol.Activate, Token: s.candidate, Message: s.cerRequest, Recovery: a.watchdog == WatchdogDown}, a.delivery)
+	s.applyProtocol(protocol.Input{Kind: protocol.Activate, Token: candidate, Message: s.cerRequest, Recovery: a.publishedWatchdog() == WatchdogDown}, a.delivery)
 	return !s.c.Closed() && !s.isRetired()
 }
 

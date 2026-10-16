@@ -206,11 +206,11 @@ func TestAcceptedCompletedDWRNativeGate(t *testing.T) {
 		t.Fatal("completed DWR writer still waits for the application gate")
 	}
 	state.mu.Lock()
-	writes, headers := len(state.writes), len(state.writeHeaders)
+	writes := len(state.writes)
 	controls := state.core.Snapshot().Controls()
 	state.mu.Unlock()
-	if writes != 0 || headers != 0 || len(controls) != 0 {
-		t.Fatalf("completed DWR retained writer or pin: writers=%d headers=%d controls=%+v", writes, headers, controls)
+	if writes != 0 || len(controls) != 0 {
+		t.Fatalf("completed DWR retained writer or pin: writers=%d controls=%+v", writes, controls)
 	}
 	select {
 	case <-notices:

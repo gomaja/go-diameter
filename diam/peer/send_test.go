@@ -44,7 +44,7 @@ func outboundTestManager(t *testing.T) (*Manager, []*actor, []*session) {
 	actors := make([]*actor, 0, 2)
 	sessions := make([]*session, 0, 2)
 	for i, host := range []datatype.DiameterIdentity{"a.example.net", "b.example.net"} {
-		a := &actor{m: m, cfg: PeerConfig{Host: host}, done: make(chan struct{}), events: make(chan event, 8), state: IOpen, watchdog: WatchdogOkay, meta: &smpeer.Metadata{OriginHost: host, OriginRealm: "example.net", Applications: []uint32{4}}}
+		a := &actor{m: m, cfg: PeerConfig{Host: host}, done: make(chan struct{}), events: make(chan event, 8), state: IOpen, snapshotValue: fixtureHealth(WatchdogOkay), meta: &smpeer.Metadata{OriginHost: host, OriginRealm: "example.net", Applications: []uint32{4}}}
 		c := newFakeConn()
 		s := &session{m: m, c: c, actor: a, gen: uint64(i + 1), writes: make(chan writeRequest, 8), closed: make(chan struct{})}
 		a.active, a.i = s, s
@@ -104,7 +104,7 @@ func TestOutboundSelection(t *testing.T) {
 	}
 	selectHost(outboundRequest("b.example.net", "example.net"), "b.example.net", nil)
 	selectHost(outboundRequest("", "EXAMPLE.NET"), "a.example.net", nil)
-	actors[0].watchdog = WatchdogSuspect
+	fixtureSetHealth(actors[0], WatchdogSuspect)
 	actors[0].publish(nil)
 	selectHost(outboundRequest("", "example.net"), "b.example.net", nil)
 	selectHost(outboundRequest("a.example.net", "example.net"), "", ErrUnableToDeliver)
@@ -152,7 +152,7 @@ func TestConfiguredDestinationInFlightNeverReroutes(t *testing.T) {
 	}
 	result := sendAsync(m, context.Background(), outboundRequest("a.example.net", "example.net"))
 	_ = nextWrite(t, sessions[0])
-	actors[0].changeWatchdog(WatchdogSuspect, errors.New("silent"))
+	actors[0].publishWatchdog(WatchdogSuspect, errors.New("silent"))
 	select {
 	case got := <-result:
 		if !errors.Is(got.err, ErrUnableToDeliver) && !errors.Is(got.err, ErrFailover) {
@@ -373,7 +373,7 @@ func TestFailoverKeepsEndToEndAndSetsTOnlyOnRetry(t *testing.T) {
 			if first.Header.CommandFlags&diam.RetransmittedFlag != 0 {
 				t.Fatal("first send has T bit")
 			}
-			actors[0].changeWatchdog(WatchdogSuspect, errors.New("silent"))
+			actors[0].publishWatchdog(WatchdogSuspect, errors.New("silent"))
 			second := nextWrite(t, sessions[1])
 			if second.Header.CommandFlags&diam.RetransmittedFlag == 0 || second.Header.EndToEndID != first.Header.EndToEndID || second.Header.HopByHopID == first.Header.HopByHopID {
 				t.Fatalf("failover IDs/flags first=%+v second=%+v", first.Header, second.Header)
@@ -724,7 +724,7 @@ func TestFailoverWriteErrorContinuesToThirdPeer(t *testing.T) {
 	bad := m.newSession(&failingWriteConn{newFakeConn()}, actors[1], 8, false)
 	actors[1].active, actors[1].i = bad, bad
 	actors[1].publish(nil)
-	cActor := &actor{m: m, cfg: PeerConfig{Host: "c.example.net"}, done: make(chan struct{}), events: make(chan event, 8), state: IOpen, watchdog: WatchdogOkay, meta: &smpeer.Metadata{OriginHost: "c.example.net", OriginRealm: "example.net", Applications: []uint32{4}}}
+	cActor := &actor{m: m, cfg: PeerConfig{Host: "c.example.net"}, done: make(chan struct{}), events: make(chan event, 8), state: IOpen, snapshotValue: fixtureHealth(WatchdogOkay), meta: &smpeer.Metadata{OriginHost: "c.example.net", OriginRealm: "example.net", Applications: []uint32{4}}}
 	cSession := &session{m: m, c: newFakeConn(), actor: cActor, gen: 9, writes: make(chan writeRequest, 8), closed: make(chan struct{})}
 	cActor.active, cActor.i = cSession, cSession
 	cActor.publish(nil)
@@ -736,7 +736,7 @@ func TestFailoverWriteErrorContinuesToThirdPeer(t *testing.T) {
 	}
 	result := sendAsync(m, context.Background(), outboundRequest("", "example.net"))
 	_ = nextWrite(t, sessions[0])
-	actors[0].changeWatchdog(WatchdogSuspect, errors.New("silent"))
+	actors[0].publishWatchdog(WatchdogSuspect, errors.New("silent"))
 	third := nextWrite(t, cSession)
 	if third.Header.CommandFlags&diam.RetransmittedFlag == 0 {
 		t.Fatal("third attempt missing T")
@@ -756,7 +756,7 @@ func TestFailoverRetainsOriginalRequestDeadline(t *testing.T) {
 	}
 	result := sendAsync(m, context.Background(), outboundRequest("", "example.net"))
 	_ = nextWrite(t, sessions[0])
-	actors[0].changeWatchdog(WatchdogSuspect, errors.New("silent"))
+	actors[0].publishWatchdog(WatchdogSuspect, errors.New("silent"))
 	_ = nextWrite(t, sessions[1])
 	clock.mu.Lock()
 	count := len(clock.timers)
@@ -783,7 +783,7 @@ func TestOneCompletionAcrossAnswersTimeoutAndCancel(t *testing.T) {
 			defer cancel()
 			result := sendAsync(m, ctx, outboundRequest("", "example.net"))
 			original := nextWrite(t, sessions[0])
-			actors[0].changeWatchdog(WatchdogSuspect, errors.New("silent"))
+			actors[0].publishWatchdog(WatchdogSuspect, errors.New("silent"))
 			alternate := nextWrite(t, sessions[1])
 			for {
 				clock.mu.Lock()

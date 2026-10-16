@@ -69,7 +69,7 @@ func TestAcceptedWatchdogDisconnectFinishesBeforeRegistration(t *testing.T) {
 		}
 		close(c.allowLookup)
 		<-handled
-		if _, ok := sm.watchdogs.Load(c); ok {
+		if _, ok := acceptedTestSupervisor(sm, c); ok {
 			t.Error("completed Disconnect acquired a watchdog after its pending entry was removed")
 		}
 	})
@@ -170,7 +170,7 @@ func TestAcceptedWatchdogDisconnectCleanupCannotRestart(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("CER handler did not finish after OnHandshake release")
 	}
-	if _, ok := sm.watchdogs.Load(c); ok {
+	if _, ok := acceptedTestSupervisor(sm, c); ok {
 		t.Fatal("deferred watchdog startup registered during Disconnect cleanup")
 	}
 	unblockClose()

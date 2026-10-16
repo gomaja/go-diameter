@@ -12,6 +12,7 @@ import (
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/diamtest"
 	"github.com/gomaja/go-diameter/diam/dict"
+	"github.com/gomaja/go-diameter/diam/internal/protocol"
 )
 
 func TestDefaultHandshakeTimeout(t *testing.T) {
@@ -50,7 +51,7 @@ func TestHandshakeTimerStopsOnSuccessAndClose(t *testing.T) {
 			} else {
 				cleanup()
 			}
-			if state.timer.Stop() {
+			if state.timers[protocol.HandshakeTimer].Stop() {
 				t.Fatal("handshake timer was still active")
 			}
 		})
@@ -94,7 +95,7 @@ func TestAcceptedConnectionCleanupReleasesTimer(t *testing.T) {
 	if _, ok = sm.accepted.Load(c); ok {
 		t.Fatal("closed connection retained")
 	}
-	if state.timer.Stop() {
+	if state.timers[protocol.HandshakeTimer].Stop() {
 		t.Fatal("closed connection retained an active timer")
 	}
 }
@@ -113,7 +114,7 @@ func TestNegativeHandshakeTimeoutCreatesNoTimer(t *testing.T) {
 	if !ok {
 		t.Fatal("disabled timeout lost admission state")
 	}
-	if value.(*acceptedHandshake).timer != nil {
+	if value.(*acceptedHandshake).timers[protocol.HandshakeTimer] != nil {
 		t.Fatal("disabled handshake timeout created a timer")
 	}
 }

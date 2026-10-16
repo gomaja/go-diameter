@@ -361,7 +361,7 @@ func TestProtocolErrorManagerDWAAndDPA(t *testing.T) {
 				}
 				return
 			}
-			if s.c.Closed() || tc.command == diam.DeviceWatchdog && !a.pendingWatchdog || tc.command == diam.DisconnectPeer && a.state != Closing {
+			if s.c.Closed() || tc.command == diam.DeviceWatchdog && !fixtureWatchdog(a).Pending || tc.command == diam.DisconnectPeer && a.state != Closing {
 				t.Fatal("invalid answer advanced protocol state")
 			}
 		})
@@ -439,7 +439,8 @@ func TestProtocolErrorManagerTimersAndRetirement(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			a, s, _ := failureReportingActor(t)
-			a.state, a.i, a.active, a.watchdog = tc.state, s, s, tc.watchdog
+			a.state, a.i, a.active = tc.state, s, s
+			fixtureSetHealth(a, tc.watchdog)
 			switch tc.name {
 			case "handshake":
 				reportingInitiator(t, a, s, true)
@@ -621,8 +622,8 @@ func TestProtocolErrorManagerLocalReplyFailures(t *testing.T) {
 			if !s.c.Closed() || a.state != Closed || a.active != nil {
 				t.Fatalf("local failure did not close connection: closed=%v state=%v active=%p writes=%d", s.c.Closed(), a.state, a.active, len(s.writes))
 			}
-			if len(s.writes) != wantWrites || a.pendingWatchdog || a.pendingDPR != 0 {
-				t.Fatalf("failed control message advanced state: writes=%d want=%d watchdog=%v DPR=%d", len(s.writes), wantWrites, a.pendingWatchdog, a.pendingDPR)
+			if len(s.writes) != wantWrites || fixtureWatchdog(a).Pending || fixtureControl(a, diam.DisconnectPeer).Reservation.Hop != 0 {
+				t.Fatalf("failed control message advanced state: writes=%d want=%d watchdog=%v DPR=%d", len(s.writes), wantWrites, fixtureWatchdog(a).Pending, fixtureControl(a, diam.DisconnectPeer).Reservation.Hop)
 			}
 			assertFailureRecord(t, records, slog.LevelError, "peer: "+tc.operation+" failed; closing connection", s.c.RemoteAddr().String(), cause)
 			if tc.name == "CEA build" {

@@ -77,9 +77,7 @@ func (s *session) initProtocol() error {
 	}
 	s.core = core
 	s.coreTimeouts = make(chan protocol.Input, 1)
-	s.coreWrites = make(map[uint64]*diam.RequestWrite)
-	s.coreHeaders = make(map[uint64]diam.Header)
-	s.localApps = base.AdvertisedApplicationIDs(local)
+	s.coreWrites = make(map[uint64]protocolWrite)
 	s.startup = core.Handle(protocol.Input{Kind: protocol.Start, Connection: s.coreID, At: s.m.now(), DeferCER: !s.inbound})
 	return nil
 }
@@ -99,6 +97,9 @@ func (s *session) takeStartup() []protocol.Effect {
 func (s *session) protocolSnapshot() protocol.Snapshot {
 	s.coreMu.Lock()
 	defer s.coreMu.Unlock()
+	if s.core == nil {
+		return protocol.Snapshot{}
+	}
 	return s.core.Snapshot()
 }
 
@@ -207,12 +208,13 @@ func (s *session) prepareProtocol(es []protocol.Effect) []protocol.Effect {
 				s.coreTimers[e.Timer] = nil
 			}
 		case protocol.CancelSend:
-			s.coreWrites[e.Token].Cancel()
+			s.coreWrites[e.Token].ticket.Cancel()
 		case protocol.CompleteRequest:
-			h := e.Notification.Message.Header
-			for token, header := range s.coreHeaders {
-				if header.CommandCode == h.CommandCode && header.HopByHopID == h.HopByHopID && header.EndToEndID == h.EndToEndID {
-					s.coreWrites[token].Cancel()
+			// The core owns one exchange per command and has already matched
+			// this answer. Only the executor's native writer needs cancelling.
+			for _, write := range s.coreWrites {
+				if write.command == e.Notification.Message.Header.CommandCode {
+					write.ticket.Cancel()
 				}
 			}
 			out = append(out, e)
@@ -284,7 +286,6 @@ func (s *session) runProtocol(in protocol.Input, es []protocol.Effect, d *protoc
 		case protocol.Send:
 			s.sendProtocol(e, in, d)
 		case protocol.ValidatedCER:
-			s.candidate = e.Token
 			s.cerRequest = in.Message
 			s.meta = protocolMetadata(*e.Snapshot)
 			if a == nil {
@@ -380,8 +381,7 @@ func (s *session) sendProtocol(e protocol.Effect, in protocol.Input, d *protocol
 		ticket = s.requests.PrepareWrite(m.Header)
 	}
 	s.coreMu.Lock()
-	s.coreWrites[e.Token] = ticket
-	s.coreHeaders[e.Token] = *m.Header
+	s.coreWrites[e.Token] = protocolWrite{ticket: ticket, command: m.Header.CommandCode}
 	s.coreMu.Unlock()
 	w := writeRequest{msg: m, required: e.Required, closeAfter: e.CloseAfter, protocolToken: e.Token, protocolSource: in, replyDelivery: d}
 	if e.Required && s.m.ProtocolErrorEnabled() {
@@ -457,9 +457,8 @@ func controlName(m *diam.Message) string {
 func (s *session) finishProtocolWriter(w writeRequest, stage protocol.WriteStage, n int64, err error) {
 	in := protocol.Input{Kind: protocol.WriteResult, Connection: s.coreID, Token: w.protocolToken, Stage: stage, Bytes: n, ExpectedBytes: int64(w.msg.Len()), ReplyCode: answerCode(w.msg), Err: err, Message: w.protocolSource.Message, Error: w.protocolSource.Error}
 	s.coreMu.Lock()
-	ticket := s.coreWrites[w.protocolToken]
+	ticket := s.coreWrites[w.protocolToken].ticket
 	delete(s.coreWrites, w.protocolToken)
-	delete(s.coreHeaders, w.protocolToken)
 	completed := s.core.CompleteQueuedReply(in)
 	s.coreMu.Unlock()
 	ticket.Release()
@@ -516,23 +515,8 @@ func (a *actor) syncProtocol(s *session, in protocol.Input) {
 	}
 	s.coreMu.Lock()
 	progress := s.core.Progress()
-	timer := s.coreTimers[protocol.WatchdogTimer]
 	s.coreMu.Unlock()
 	wd := progress.Watchdog
-	a.wdTimer = timer
-	a.wdToken = progress.Timers[protocol.WatchdogTimer].Token
-	a.pendingWatchdog, a.numDWA = wd.Pending, wd.NumDWA
-	for _, control := range progress.Controls {
-		switch control.Command {
-		case diam.CapabilitiesExchange:
-			s.cerHop, s.cerEnd = control.Reservation.Hop, control.Reservation.End
-		case diam.DeviceWatchdog:
-			a.watchdogHop, a.watchdogEnd, a.watchdogGen = control.Reservation.Hop, control.Reservation.End, s.gen
-			a.watchdogAnswered = control.Answered
-		case diam.DisconnectPeer:
-			a.pendingDPR, a.pendingDPREnd, a.pendingDPRGen, a.pendingDPRCommand = control.Reservation.Hop, control.Reservation.End, s.gen, control.Command
-		}
-	}
 	if progress.Phase == protocol.Closing && a.state != Closing {
 		a.stopTimer()
 		a.state = Closing
@@ -544,7 +528,7 @@ func (a *actor) syncProtocol(s *session, in protocol.Input) {
 	if progress.Ready && s.inbound {
 		s.admitted.Store(true)
 	}
-	if a.watchdog != WatchdogState(wd.State) {
+	if a.publishedWatchdog() != WatchdogState(wd.State) {
 		reason := "peer: traffic restored watchdog health"
 		if !a.everOpen {
 			reason = "peer: initial connection established"
@@ -555,13 +539,13 @@ func (a *actor) syncProtocol(s *session, in protocol.Input) {
 		if wd.State == watchdog.Reopen {
 			reason = "peer: recovered connection awaiting three DWA"
 		}
-		if wd.State == watchdog.Okay && a.watchdog == WatchdogReopen {
+		if wd.State == watchdog.Okay && a.publishedWatchdog() == WatchdogReopen {
 			reason = "peer: three valid recovery DWA"
 		}
-		if in.Kind == protocol.Receive && in.Message != nil && in.Message.Header.CommandCode == diam.DeviceWatchdog && in.Message.Header.CommandFlags&diam.RequestFlag == 0 && a.watchdog != WatchdogReopen {
+		if in.Kind == protocol.Receive && in.Message != nil && in.Message.Header.CommandCode == diam.DeviceWatchdog && in.Message.Header.CommandFlags&diam.RequestFlag == 0 && a.publishedWatchdog() != WatchdogReopen {
 			reason = "peer: valid DWA restored watchdog health"
 		}
-		a.changeWatchdog(WatchdogState(wd.State), errors.New(reason))
+		a.publishWatchdog(WatchdogState(wd.State), errors.New(reason))
 		if wd.State == watchdog.Okay {
 			a.failures = 0
 		}
@@ -720,7 +704,7 @@ func (s *session) recordProtocol(in protocol.Input, n protocol.Notification) {
 			err = errors.New("peer: non-CEA before handshake")
 		case diam.ProtocolWatchdogTimeout:
 			err = errors.New("peer: watchdog suspect timeout")
-			if a.watchdog == WatchdogReopen {
+			if a.publishedWatchdog() == WatchdogReopen {
 				err = errors.New("peer: recovery DWR unanswered")
 			}
 		}

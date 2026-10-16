@@ -22,7 +22,7 @@ func failureReportingActor(t *testing.T) (*actor, *session, *logtest.Recorder) {
 	t.Helper()
 	records := logtest.New()
 	m := &Manager{cfg: Config{Settings: testSettings("local.example.net"), Logger: records.Logger(), Clock: &fakeClock{}, Timers: Timers{CER: time.Second, Closing: time.Second, TwInit: 6 * time.Second}}, callbackQ: make(chan PeerEvent, 32), controls: make(map[*session]map[uint32]struct{})}
-	a := &actor{m: m, cfg: PeerConfig{Host: "known.example.net", NoAutoReconnect: true}, state: Closed, watchdog: WatchdogInitial, events: make(chan event, 64), done: make(chan struct{})}
+	a := &actor{m: m, cfg: PeerConfig{Host: "known.example.net", NoAutoReconnect: true}, state: Closed, snapshotValue: fixtureHealth(WatchdogInitial), events: make(chan event, 64), done: make(chan struct{})}
 	s := &session{m: m, c: newFakeConn(), actor: a, gen: 1, writes: make(chan writeRequest, 8), closed: make(chan struct{})}
 	a.publish(nil)
 	t.Cleanup(s.close)
@@ -63,7 +63,8 @@ func TestActorFailureEventSequences(t *testing.T) {
 	t.Run("open watchdog failure", func(t *testing.T) {
 		a, s, _ := failureReportingActor(t)
 		<-a.m.callbackQ
-		a.state, a.i, a.active, a.watchdog, a.everOpen = IOpen, s, s, WatchdogSuspect, true
+		a.state, a.i, a.active, a.everOpen = IOpen, s, s, true
+		fixtureSetHealth(a, WatchdogSuspect)
 		reportingOpen(t, s)
 		a.publish(nil)
 		<-a.m.callbackQ
@@ -336,7 +337,8 @@ func TestActorFailureStopsTransitionPublication(t *testing.T) {
 	t.Run("reopen watchdog", func(t *testing.T) {
 		a, s, _ := failureReportingActor(t)
 		<-a.m.callbackQ
-		a.watchdog, a.everOpen = WatchdogDown, true
+		a.everOpen = true
+		fixtureSetHealth(a, WatchdogDown)
 		a.publish(nil)
 		cer := reportingInitiator(t, a, s, true)
 		for len(a.m.callbackQ) > 0 {

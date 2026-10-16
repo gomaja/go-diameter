@@ -40,7 +40,6 @@ func TestClientCancellationRejectsLateCEA(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	activity := newWatchdogActivity()
 	activity.capabilities = cli.capabilitySettings(nil)
-	activity.advertised = base.AdvertisedApplicationIDs(activity.capabilities)
 	done := make(chan error, 1)
 	go func() { _, err := cli.handshakeContext(ctx, c, activity); done <- err }()
 	t.Cleanup(func() {
