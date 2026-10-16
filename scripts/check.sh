@@ -148,8 +148,12 @@ check_format() {
 }
 
 check_test() {
+	local file v
+	for file in scripts/sctp-wire/*_test.py; do
+		echo "== $file"
+		python3 -B "$file" || return 1
+	done
 	sctp_loaded || return 1
-	local v
 	for v in "$GO_STABLE" "$GO_OLDSTABLE"; do
 		echo "== $v"
 		in_container "$v" go test ./... -count=1 -timeout 900s || return 1

@@ -23,7 +23,12 @@ wire_stop() {
  fi
 }
 
-wire_cleanup() {
+wire_cleanup() (
+ # Keep the deadline wrapper local to cleanup, including stop/wait helpers.
+ docker() {
+  command timeout --kill-after="${SCTP_WIRE_CLEANUP_KILL_AFTER:-5s}" \
+   "${SCTP_WIRE_CLEANUP_TIMEOUT:-60s}" docker "$@"
+ }
  local peer child signal file destination resource
  for peer in "$client" "$server"; do
   # Never stop or remove a resource owned by another run.
@@ -52,17 +57,28 @@ wire_cleanup() {
   [[ -n $resource ]] || continue
   docker rm -f -v "$resource" >/dev/null 2>&1 || true
  done < <(docker ps -aq --filter "label=harness=$run")
- docker ps -a --filter "label=harness=$run" --format '{{.Names}}' > "$out/cleanup-containers.txt"
- docker volume ls --filter "label=harness=$run" --format '{{.Name}}' > "$out/cleanup-volumes.txt"
- docker network ls --filter "label=harness=$run" --format '{{.Name}}' > "$out/cleanup-networks.txt"
- docker ps -a --filter "name=$run" --format '{{.Names}}' > "$out/cleanup-name.txt"
- docker volume ls --filter "name=$run" --format '{{.Name}}' > "$out/cleanup-name-volumes.txt"
- docker network ls --filter "name=$run" --format '{{.Name}}' > "$out/cleanup-name-networks.txt"
-}
+ docker ps -a --filter "label=harness=$run" --format '{{.Names}}' > "$out/cleanup-containers.txt" || true
+ docker volume ls --filter "label=harness=$run" --format '{{.Name}}' > "$out/cleanup-volumes.txt" || true
+ docker network ls --filter "label=harness=$run" --format '{{.Name}}' > "$out/cleanup-networks.txt" || true
+ docker ps -a --filter "name=$run" --format '{{.Names}}' > "$out/cleanup-name.txt" || true
+ docker volume ls --filter "name=$run" --format '{{.Name}}' > "$out/cleanup-name-volumes.txt" || true
+ docker network ls --filter "name=$run" --format '{{.Name}}' > "$out/cleanup-name-networks.txt" || true
+)
 
 wire_exit() {
- wire_cleanup
- rm -rf "$rig"
+ local status=$? int_handler term_handler
+ int_handler=$(trap -p INT)
+ term_handler=$(trap -p TERM)
+ # Further signals must not abandon cleanup or replace the saved status.
+ trap '' INT TERM
+ wire_cleanup || true
+ rm -rf "$rig" || true
+ # EXIT keeps its shield through termination; explicit calls restore handlers.
+ if [[ ${1:-} != EXIT ]]; then
+  eval "${int_handler:-trap - INT}"
+  eval "${term_handler:-trap - TERM}"
+ fi
+ return "$status"
 }
 
 wire_build() {
@@ -167,7 +183,7 @@ wire_run() {
  server=$run-server
  client=$run-client
  builder=$run-build
- trap wire_exit EXIT
+ trap 'wire_exit EXIT' EXIT
  trap 'exit 130' INT TERM
  printf '%s\n' "$run" > "$out/run-id"
  wire_build
