@@ -69,6 +69,7 @@ func TestAcceptedAdapterRetainsDialedClientRepeatedCERHooks(t *testing.T) {
 	sm := mustNewStateMachine(t, cfg, d)
 	c := newHandshakeConn()
 	c.SetContext(smpeer.NewContext(context.Background(), &smpeer.Metadata{CEA: &smparser.CEA{}, OriginHost: "peer.example", OriginRealm: "example"}))
+	primeClientTestCore(t, &Client{Handler: sm, Dict: d, RetransmitInterval: time.Hour}, c)
 	sm.ServeDIAM(c, regressionCER(t, d, 1001))
 	if hooks.Load() != 1 || notices.Load() != 1 {
 		t.Fatalf("legacy repeated CER hooks=%d notices=%d, want one each", hooks.Load(), notices.Load())

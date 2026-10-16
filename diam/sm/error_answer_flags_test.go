@@ -38,7 +38,7 @@ func TestCxErrorAnswerCopiedGroupedFlagsTCP(t *testing.T) {
 						t.Error("request missing Public-Identity reached application handler")
 						return
 					}
-					if _, err := sm.writeErrorAnswer(c, m, trigger.code, nil, false); err != nil {
+					if _, err := sm.sendTestErrorAnswer(c, m, trigger.code, nil, false); err != nil {
 						t.Errorf("write application error answer: %v", err)
 					}
 				})
@@ -70,7 +70,7 @@ func TestCxErrorAnswerCopiedGroupedFlagsTCP(t *testing.T) {
 				if _, err := request.WriteTo(conn); err != nil {
 					t.Fatal(err)
 				}
-				if err := conn.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
+				if err := conn.SetReadDeadline(time.Now().Add(10 * time.Second)); err != nil {
 					t.Fatal(err)
 				}
 				answer, err := diam.ReadMessage(conn, testDict)

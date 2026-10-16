@@ -125,7 +125,7 @@ func (c *Core) dpa(in Input) []Effect {
 	}
 	result, err := base.ValidateDPA(in.Message)
 	if err != nil {
-		return c.discard(in, diam.ProtocolInvalidDPA, 0)
+		return c.discardCause(in, diam.ProtocolInvalidDPA, err)
 	}
 	if !c.bound(in.Message, false) {
 		es := c.discard(in, diam.ProtocolUnexpectedMessage, 0)

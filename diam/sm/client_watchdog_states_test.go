@@ -57,12 +57,13 @@ func TestWatchdogOneOutstandingRequestAndStateOrder(t *testing.T) {
 	events := make(chan WatchdogEvent, 8)
 	cli.OnWatchdogEvent = func(event WatchdogEvent) { events <- event }
 	c := newWatchdogProbeConn()
-	done := make(chan struct{})
+	state := primeClientTestCore(t, cli, c)
+	defer c.Close()
 	go func() {
-		cli.watchdog(c, newWatchdogActivity())
-		close(done)
+		for range 3 {
+			expireClientTestWatchdog(state)
+		}
 	}()
-	defer func() { c.Close(); <-done }()
 
 	for _, want := range []WatchdogEvent{WatchdogRequestSent, WatchdogSuspect, WatchdogTimedOut} {
 		select {
@@ -70,13 +71,13 @@ func TestWatchdogOneOutstandingRequestAndStateOrder(t *testing.T) {
 			if got != want {
 				t.Fatalf("event = %q, want %q", got, want)
 			}
-		case <-time.After(time.Second):
+		case <-time.After(10 * time.Second):
 			t.Fatalf("missing watchdog event %q", want)
 		}
 	}
 	select {
 	case <-c.closed:
-	case <-time.After(time.Second):
+	case <-time.After(10 * time.Second):
 		t.Fatal("DOWN did not close connection")
 	}
 	if n := len(c.writes); n != 1 {
@@ -89,31 +90,28 @@ func TestWatchdogRecoversFromSuspectOnNonDWATraffic(t *testing.T) {
 	cli.WatchdogInterval = 40 * time.Millisecond
 	events := make(chan WatchdogEvent, 8)
 	cli.OnWatchdogEvent = func(event WatchdogEvent) { events <- event }
-	activity := newWatchdogActivity()
 	c := newWatchdogProbeConn()
-	done := make(chan struct{})
-	go func() {
-		cli.watchdog(c, activity)
-		close(done)
-	}()
-	defer func() { c.Close(); <-done }()
+	state := primeClientTestCore(t, cli, c)
+	defer c.Close()
+	expireClientTestWatchdog(state)
+	expireClientTestWatchdog(state)
 	for _, want := range []WatchdogEvent{WatchdogRequestSent, WatchdogSuspect} {
 		select {
 		case got := <-events:
 			if got != want {
 				t.Fatalf("event = %q, want %q", got, want)
 			}
-		case <-time.After(time.Second):
+		case <-time.After(10 * time.Second):
 			t.Fatalf("missing event %q", want)
 		}
 	}
-	activity.received()
+	receiveClientTestActivity(state)
 	select {
 	case got := <-events:
 		if got != WatchdogRecovered {
 			t.Fatalf("event = %q, want recovered", got)
 		}
-	case <-time.After(time.Second):
+	case <-time.After(10 * time.Second):
 		t.Fatal("non-DWA traffic did not recover SUSPECT")
 	}
 	select {

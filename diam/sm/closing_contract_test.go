@@ -3,6 +3,7 @@ package sm
 import (
 	"fmt"
 	"net"
+	"runtime"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -288,32 +289,14 @@ func TestClosingContractMalformedDPRWire(t *testing.T) {
 func TestClosingContractRepeatedReceiverTimerWire(t *testing.T) {
 	for _, mode := range []string{"accepted", "dialed"} {
 		t.Run(mode, func(t *testing.T) {
-			p := closingContractWire(t, mode, func(c *Settings) { c.DPRCloseTimeout = 400 * time.Millisecond })
-			started := time.Now()
+			p := closingContractWire(t, mode, func(c *Settings) { c.DPRCloseTimeout = time.Hour })
 			enterContractClosing(t, p, false, time.Second)
-			var sameTimer func() bool
-			if mode == "accepted" {
-				state := p.sm.acceptedCore(p.conn, nil, false)
-				first := state.snapshot().Timer(protocol.ClosingTimer)
-				if first.Token == 0 || first.Deadline.IsZero() {
-					t.Fatal("received DPR installed no receiver timer")
-				}
-				sameTimer = func() bool { return state.snapshot().Timer(protocol.ClosingTimer) == first }
-			} else {
-				state := p.sm.closingConnection(p.conn)
-				state.mu.Lock()
-				first := state.timer
-				state.mu.Unlock()
-				if first == nil {
-					t.Fatal("received DPR installed no receiver timer")
-				}
-				sameTimer = func() bool {
-					state.mu.Lock()
-					defer state.mu.Unlock()
-					return state.timer == first
-				}
+			state := p.sm.acceptedCore(p.conn, nil, false)
+			first := state.snapshot().Timer(protocol.ClosingTimer)
+			if first.Token == 0 || first.Deadline.IsZero() {
+				t.Fatal("received DPR installed no receiver timer")
 			}
-			time.Sleep(180 * time.Millisecond)
+			sameTimer := func() bool { return state.snapshot().Timer(protocol.ClosingTimer) == first }
 			p.send(t, closingContractDPR(t, p, 300))
 			a, err := diam.ReadMessage(p.peer, p.conn.Dictionary())
 			if err != nil || !testResultCode(a, diam.Success) {
@@ -322,40 +305,12 @@ func TestClosingContractRepeatedReceiverTimerWire(t *testing.T) {
 			if !sameTimer() {
 				t.Fatal("repeated DPR replaced original receiver timer")
 			}
+			// Expire the first captured deadline after the repeated reply. The
+			// unchanged token must still own the close deadline.
+			state.apply(protocol.Input{Kind: protocol.TimerExpired, Timer: protocol.ClosingTimer, Token: first.Token, At: first.Deadline})
 			p.closed(t)
-			if time.Since(started) > 550*time.Millisecond {
-				t.Fatal("repeated DPR extended original receiver deadline")
-			}
 			assertProtocolEvent(t, protocolEvent(t, p.events), p.conn, nil, diam.ProtocolDisconnectTimeout, 0, true, diam.ProtocolReplyNone, 0)
 		})
-	}
-}
-
-func TestClosingContractClientStalePublication(t *testing.T) {
-	cli := newLivenessClient(t)
-	c := newWatchdogProbeConn()
-	activity := newWatchdogActivity()
-	activity.stopWatchdog()
-	if cli.dwr(c, 0, &activity.watchdogSignals) {
-		t.Fatal("stale publisher succeeded after logical Closing")
-	}
-	select {
-	case <-c.writes:
-		t.Fatal("stale publisher wrote after Closing")
-	default:
-	}
-}
-
-func TestClosingContractClientIndependentLatches(t *testing.T) {
-	first, second := newWatchdogActivity(), newWatchdogActivity()
-	second.publicationMu.Lock()
-	defer second.publicationMu.Unlock()
-	stopped := make(chan struct{})
-	go func() { first.stopWatchdog(); close(stopped) }()
-	select {
-	case <-stopped:
-	case <-time.After(time.Second):
-		t.Fatal("Closing waited for an unrelated connection's publication")
 	}
 }
 
@@ -468,13 +423,26 @@ func TestClosingContractClientEOFQueuedAdmissionWire(t *testing.T) {
 	}
 	p.conn.Close()
 	<-mustConnAs[diam.CloseNotifier](t, p.conn).CloseNotify()
-	time.Sleep(10 * time.Millisecond) // let the close cleanup observer run
+	dispatchDone := mustConnAs[interface{ DispatchDone() <-chan struct{} }](t, p.conn).DispatchDone()
+	select {
+	case <-dispatchDone:
+		t.Fatal("native dispatcher finished while a decoded callback remains blocked")
+	default:
+	}
 	// A read EOF must leave Closing latched while decoded callbacks remain.
-	if !p.sm.isClosing(p.conn) {
+	if !p.sm.acceptedClosing(p.conn) {
 		t.Error("EOF removed Closing before queued callback finished")
 	}
 	close(h.release)
-	<-h.finished
+	protocolGenerationAwait(t, h.finished)
+	protocolGenerationAwait(t, dispatchDone)
+	deadline := time.Now().Add(10 * time.Second)
+	for p.sm.acceptedCore(p.conn, nil, false) != nil {
+		if time.Now().After(deadline) {
+			t.Fatal("finished dispatcher retained its production core")
+		}
+		runtime.Gosched()
+	}
 	if calls.Load() != 0 {
 		t.Fatal("queued post-DPR request reached handler after EOF")
 	}

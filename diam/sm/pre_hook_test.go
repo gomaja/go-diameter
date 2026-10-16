@@ -141,48 +141,6 @@ func TestPreHookCloseDoesNotAdmit(t *testing.T) {
 	}
 }
 
-func TestChainPreHook(t *testing.T) {
-	for _, wrap := range []string{"direct", "unwrap", "opaque"} {
-		for _, hook := range []string{"nil", "open", "close", "already closed"} {
-			t.Run(wrap+"/"+hook, func(t *testing.T) {
-				raw := newHandshakeConn()
-				var c diam.Conn = raw
-				if wrap == "unwrap" {
-					c = unwrapTestConn{unwrapTestConn{c}}
-				}
-				if wrap == "opaque" {
-					c = struct{ diam.Conn }{c}
-				}
-				var pre diam.HandlerFunc
-				calls := 0
-				if hook == "already closed" {
-					c.Close()
-				}
-				if hook != "nil" && hook != "already closed" {
-					pre = func(c diam.Conn, _ *diam.Message) {
-						calls++
-						if hook == "close" {
-							c.Close()
-						}
-					}
-				}
-				next := 0
-				chainPreHook(pre, func(diam.Conn, *diam.Message) { next++ })(c, nil)
-				wantPre, wantNext := 1, 1
-				if hook == "nil" || hook == "already closed" {
-					wantPre = 0
-				}
-				if hook == "close" || hook == "already closed" {
-					wantNext = 0
-				}
-				if calls != wantPre || next != wantNext {
-					t.Fatalf("pre=%d next=%d, want %d/%d", calls, next, wantPre, wantNext)
-				}
-			})
-		}
-	}
-}
-
 func TestPreHookHandshakeTimeoutInEveryWiring(t *testing.T) {
 	testDict := newSMTestDictionary(creditcontrol.Dictionary())
 

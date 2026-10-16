@@ -9,10 +9,8 @@ import (
 	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
 
 	"github.com/gomaja/go-diameter/diam"
-	"github.com/gomaja/go-diameter/diam/avp"
-	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/diamtest"
-	"github.com/gomaja/go-diameter/diam/internal/logtest"
+	"github.com/gomaja/go-diameter/diam/internal/protocol"
 )
 
 type validDWRGatedHandler struct {
@@ -78,37 +76,17 @@ func TestSMConcurrentCERThenValidDWROnWire(t *testing.T) {
 		}
 	}
 }
-func TestInvalidDWAHeaderDoesNotResetActivity(t *testing.T) {
-	testDict := newSMTestDictionary(creditcontrol.Dictionary())
-
-	records := logtest.New()
-	sm := mustNewStateMachine(t, testMessageErrorSettings(testDict), testDict)
-	activity := newWatchdogActivity()
-	activity.ceaReceived.Store(true)
-	activity.last.Store(123)
-	called := false
-	h := activityHandler{StateMachine: sm, activity: activity, dwa: watchdogDWAHandler(func(diam.Conn, *diam.Message, watchdogReceipt) { called = true })}
-	c := loggerHandshakeConn{newHandshakeConn(), records.Logger()}
-	m := diam.NewMessage(diam.DeviceWatchdog, 0, 4, 1, 2, testDict)
-	h.ServeDIAM(c, m)
-	if activity.last.Load() != 123 {
-		t.Error("invalid DWA reset last activity")
-	}
-	select {
-	case <-activity.signal:
-		t.Error("invalid DWA signalled watchdog activity")
-	default:
-	}
-	if called {
-		t.Fatal("invalid DWA reached watchdog handler")
-	}
-	_ = waitLog(t, records, 1)
-	m.Header.ApplicationID = 0
-	m.AddAVP(diam.NewAVP(avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("peer.example")))
-	m.AddAVP(diam.NewAVP(avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("example")))
-	m.AddAVP(diam.NewAVP(avp.ResultCode, avp.Mbit, 0, datatype.Unsigned32(diam.Success)))
-	h.ServeDIAM(c, m)
-	if activity.last.Load() == 123 || !called {
-		t.Fatal("valid DWA did not update activity")
+func TestInvalidDWAHeaderResetsTimerWithoutHealthCredit(t *testing.T) {
+	cli := newLivenessClient(t)
+	c := newWatchdogProbeConn()
+	state := primeClientTestCore(t, cli, c)
+	expireClientTestWatchdog(state)
+	expireClientTestWatchdog(state)
+	before := state.snapshot()
+	m := diam.NewMessage(diam.DeviceWatchdog, 0, 4, 1, 2, c.Dictionary())
+	state.apply(protocol.Input{Kind: protocol.Receive, Message: m, At: before.Timer(protocol.WatchdogTimer).Deadline.Add(-time.Nanosecond)})
+	after := state.snapshot()
+	if after.Watchdog() != before.Watchdog() || !after.Timer(protocol.WatchdogTimer).Deadline.After(before.Timer(protocol.WatchdogTimer).Deadline) {
+		t.Fatal("invalid DWA header changed health or failed to reset the receipt timer")
 	}
 }

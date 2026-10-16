@@ -1,13 +1,10 @@
 package sm
 
 import (
-	"errors"
-
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/internal/observe"
-	"github.com/gomaja/go-diameter/diam/sm/smparser"
 )
 
 // ProtocolErrorEnabled reports whether OnProtocolError is configured. Server
@@ -36,18 +33,6 @@ func (sm *StateMachine) protocolError(c diam.Conn, m *diam.Message, kind diam.Pr
 	sm.HandleProtocolError(event)
 }
 
-func protocolResultCode(err error) uint32 {
-	var me *diam.MessageError
-	if errors.As(err, &me) {
-		return me.ResultCode
-	}
-	var failed *smparser.ErrFailedResultCode
-	if errors.As(err, &failed) {
-		return failed.ResultCode
-	}
-	return 0
-}
-
 func protocolAnswerCode(m *diam.Message) uint32 {
 	if m == nil {
 		return 0
@@ -61,11 +46,4 @@ func protocolAnswerCode(m *diam.Message) uint32 {
 		}
 	}
 	return 0
-}
-
-func protocolReply(err error) diam.ProtocolReplyStatus {
-	if err != nil {
-		return diam.ProtocolReplyFailed
-	}
-	return diam.ProtocolReplyWritten
 }

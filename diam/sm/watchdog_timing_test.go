@@ -2,130 +2,16 @@ package sm
 
 import (
 	"log/slog"
-	"sync/atomic"
 	"testing"
 	"testing/synctest"
 	"time"
 
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/internal/logtest"
-	"github.com/gomaja/go-diameter/diam/internal/watchdog"
 )
 
 // RFC 3539 §3.4.1 [1] and Appendix A SetWatchdog: every re-arm draws a new
 // Tw, including a reset for ordinary traffic and a successful DWA.
-func TestConnWatchdogRedrawsIntervalAfterTrafficAndDWA(t *testing.T) {
-	synctest.Test(t, func(t *testing.T) {
-		c := newWatchdogProbeConn()
-		signals := newWatchdogSignals()
-		events := make(chan WatchdogEvent, 4)
-		exited := make(chan struct{})
-		var draws atomic.Int32
-		intervals := [...]time.Duration{50 * time.Millisecond, 80 * time.Millisecond, 100 * time.Millisecond, 30 * time.Millisecond}
-		w := connWatchdog{
-			conn: c, done: c.closed, signals: &signals,
-			interval: func() time.Duration {
-				n := draws.Add(1)
-				if n <= int32(len(intervals)) {
-					return intervals[n-1]
-				}
-				return time.Hour
-			},
-			send: func() bool {
-				_, _ = c.Write(nil)
-				events <- WatchdogRequestSent
-				return true
-			},
-		}
-		go func() { w.run(); close(exited) }()
-		defer func() { c.Close(); <-exited }()
-		wantRequest := func(stage string, writes int) {
-			t.Helper()
-			select {
-			case got := <-events:
-				if got != WatchdogRequestSent || len(c.writes) != writes {
-					t.Fatalf("%s: event=%s writes=%d, want request_sent/%d", stage, got, len(c.writes), writes)
-				}
-			default:
-				t.Fatalf("%s: missing DWR event", stage)
-			}
-		}
-		synctest.Wait()
-		if got := draws.Load(); got != 1 {
-			t.Fatalf("initial Tw draws = %d, want 1", got)
-		}
-
-		time.Sleep(20 * time.Millisecond)
-		signals.received()
-		synctest.Wait()
-		if got := draws.Load(); got != 2 {
-			t.Fatalf("Tw draws after received traffic = %d, want 2", got)
-		}
-		time.Sleep(80*time.Millisecond - time.Nanosecond)
-		synctest.Wait()
-		if got := len(c.writes); got != 0 {
-			t.Fatalf("DWR writes before redrawn Tw = %d, want 0", got)
-		}
-		time.Sleep(time.Nanosecond)
-		synctest.Wait()
-		wantRequest("first redrawn Tw", 1)
-		if got := draws.Load(); got != 3 {
-			t.Fatalf("Tw draws after DWR re-arm = %d, want 3", got)
-		}
-
-		signals.finishDWA(watchdogReceipt{}, true)
-		synctest.Wait()
-		if got := draws.Load(); got != 4 {
-			t.Fatalf("Tw draws after DWA = %d, want 4", got)
-		}
-		time.Sleep(30*time.Millisecond - time.Nanosecond)
-		synctest.Wait()
-		if got := len(c.writes); got != 1 {
-			t.Fatalf("DWR writes before DWA-redrawn Tw = %d, want 1", got)
-		}
-		time.Sleep(time.Nanosecond)
-		synctest.Wait()
-		wantRequest("DWA-redrawn Tw", 2)
-	})
-}
-
-// The timer and DWA can be ready together. RFC 3539 Appendix A Rcv-DWA
-// clears Pending before the expiry branch may enter SUSPECT.
-func TestConnWatchdogExpiryDrainsQueuedDWA(t *testing.T) {
-	for _, suspect := range []bool{false, true} {
-		t.Run(map[bool]string{false: "pending", true: "suspect"}[suspect], func(t *testing.T) {
-			signals := newWatchdogSignals()
-			signals.finishDWA(watchdogReceipt{}, true)
-			var events []WatchdogEvent
-			w := connWatchdog{
-				conn: newWatchdogProbeConn(), signals: &signals, interval: func() time.Duration { return time.Second },
-				observe: func(event WatchdogEvent) { events = append(events, event) },
-			}
-			state := watchdogState{pending: true, suspect: suspect}
-			window := watchdog.Window{ArmedAt: time.Now(), After: time.Second}
-			alive, waiting := w.advance(&window, &state)
-			if !alive || waiting {
-				t.Fatal("queued DWA ended watchdog")
-			}
-			if state.pending || state.suspect {
-				t.Fatalf("state after queued DWA = %+v, want OKAY without Pending", state)
-			}
-			if suspect {
-				if len(events) != 1 || events[0] != WatchdogRecovered {
-					t.Fatalf("SUSPECT recovery events = %v", events)
-				}
-			} else if len(events) != 0 {
-				t.Fatalf("queued DWA events = %v, want none", events)
-			}
-			if queuedWatchdogCredits(&signals) != 0 {
-				t.Fatal("queued DWA was not drained")
-			}
-		})
-	}
-}
-
-// RFC 3539 Appendix A INITIAL requires Connection up. A closed accepted
-// connection must not acquire a watchdog even if DispatchDone is still open.
 func TestAcceptedWatchdogDoesNotStartOnClosedConnection(t *testing.T) {
 	t.Run("no done interface", func(t *testing.T) {
 		cfg := newAcceptedWatchdogSettings()

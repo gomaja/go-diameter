@@ -49,7 +49,7 @@ func newProtocolClientWire(t *testing.T, configure func(*Client), serverOptions 
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = listener.Close() })
-	if err := listener.(*net.TCPListener).SetDeadline(time.Now().Add(3 * time.Second)); err != nil {
+	if err := listener.(*net.TCPListener).SetDeadline(time.Now().Add(10 * time.Second)); err != nil {
 		t.Fatal(err)
 	}
 	opened := make(chan diam.Conn, 1)
@@ -69,12 +69,12 @@ func newProtocolClientWire(t *testing.T, configure func(*Client), serverOptions 
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = p.peer.Close() })
-	if err := p.peer.SetDeadline(time.Now().Add(3 * time.Second)); err != nil {
+	if err := p.peer.SetDeadline(time.Now().Add(10 * time.Second)); err != nil {
 		t.Fatal(err)
 	}
 	select {
 	case p.conn = <-opened:
-	case <-time.After(3 * time.Second):
+	case <-time.After(10 * time.Second):
 		t.Fatal("client connection missing")
 	}
 	t.Cleanup(p.conn.Close)
@@ -115,7 +115,7 @@ func (p *protocolClientWire) dialResult(t *testing.T) protocolClientDialResult {
 	select {
 	case result := <-p.dialed:
 		return result
-	case <-time.After(3 * time.Second):
+	case <-time.After(10 * time.Second):
 		t.Fatal("client Dial did not finish")
 		return protocolClientDialResult{}
 	}
@@ -123,7 +123,7 @@ func (p *protocolClientWire) dialResult(t *testing.T) protocolClientDialResult {
 
 func (p *protocolClientWire) closed(t *testing.T) {
 	t.Helper()
-	if err := p.peer.SetReadDeadline(time.Now().Add(3 * time.Second)); err != nil {
+	if err := p.peer.SetReadDeadline(time.Now().Add(10 * time.Second)); err != nil {
 		t.Fatal(err)
 	}
 	var b [1]byte

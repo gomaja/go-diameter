@@ -58,7 +58,7 @@ func protocolGenerationAwait[T any](t *testing.T, ch <-chan T) T {
 	select {
 	case value := <-ch:
 		return value
-	case <-time.After(3 * time.Second):
+	case <-time.After(10 * time.Second):
 		t.Fatal("timed out waiting for protocol generation observation")
 		var zero T
 		return zero

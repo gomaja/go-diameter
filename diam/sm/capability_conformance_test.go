@@ -179,7 +179,7 @@ func TestCEAErrorsPreserveCause(t *testing.T) {
 	settings := *serverSettings
 	settings.HostIPAddresses = []datatype.Address{localhostAddress}
 	sm := mustNewStateMachine(t, &settings, testDict)
-	err := errorCEA(sm, c, regressionCER(t, testDict, 1001), smparser.ErrNoCommonApplication)
+	err := sendTestCEA(sm, c, regressionCER(t, testDict, 1001), smparser.ErrNoCommonApplication)
 	if !errors.Is(err, c.writeErr) || !errors.Is(err, smparser.ErrNoCommonApplication) {
 		t.Fatalf("errorCEA lost write cause: %v", err)
 	}
@@ -219,7 +219,7 @@ func TestCapabilityAddressErrorsPreserveCause(t *testing.T) {
 	sm := mustNewStateMachine(t, &settings, testDict)
 	c := &invalidLocalConn{newErrWriteConn(testDict)}
 	request := regressionCER(t, testDict, 1001)
-	err := errorCEA(sm, c, request, smparser.ErrNoCommonApplication)
+	err := sendTestCEA(sm, c, request, smparser.ErrNoCommonApplication)
 	var causes interface{ Unwrap() []error }
 	if !errors.Is(err, smparser.ErrNoCommonApplication) || !errors.As(err, &causes) {
 		t.Fatalf("error CEA lost capability failure: %v", err)

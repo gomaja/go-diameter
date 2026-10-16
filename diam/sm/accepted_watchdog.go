@@ -51,28 +51,46 @@ type acceptedWatchdog struct {
 
 func (sm *StateMachine) registerAcceptedWatchdog(state *acceptedHandshake) {
 	c := state.conn
-	if sm.watchdog == nil || c.Closed() || state.snapshot().Phase() != protocol.Open {
+	if state.policy == nil || c.Closed() || state.phase() != protocol.Open {
 		return
 	}
 	done := connectionDone(c)
+	if state.client != nil {
+		// Client supervision has always stopped on CloseNotify, including
+		// read EOF while native concurrent dispatch is still draining.
+		done = nil
+		if notifier, ok := diam.ConnAs[diam.CloseNotifier](c); ok {
+			done = notifier.CloseNotify()
+		}
+	}
 	if done == nil {
 		state.apply(protocol.Input{Kind: protocol.StopSupervision})
-		logMessage(c, nil, slog.LevelWarn, "sm: watchdog disabled: connection exposes neither DispatchDone nor CloseNotifier", nil)
+		text := "sm: watchdog disabled: connection exposes neither DispatchDone nor CloseNotifier"
+		if state.client != nil {
+			text = "sm: watchdog disabled: connection does not expose CloseNotifier"
+		}
+		logMessage(c, nil, slog.LevelWarn, text, nil)
 		return
 	}
-	w := &acceptedWatchdog{state: state, conn: c, policy: sm.watchdog, stopc: make(chan struct{}), exited: make(chan struct{})}
+	w := &acceptedWatchdog{state: state, conn: c, policy: state.policy, stopc: make(chan struct{}), exited: make(chan struct{})}
 	state.mu.Lock()
-	if state.watchdog != nil || state.core.Snapshot().Phase() != protocol.Open || c.Closed() {
+	if state.watchdog != nil || state.core.Phase() != protocol.Open || c.Closed() {
 		state.mu.Unlock()
 		return
 	}
 	state.watchdog = w
-	sm.watchdogs.Store(c, w)
+	if state.client == nil {
+		sm.watchdogs.Store(c, w)
+	}
 	state.mu.Unlock()
 	go func() {
 		select {
 		case <-done:
-			state.apply(protocol.Input{Kind: protocol.TransportLost})
+			if state.client != nil {
+				state.apply(protocol.Input{Kind: protocol.StopSupervision})
+			} else {
+				state.apply(protocol.Input{Kind: protocol.TransportLost})
+			}
 		case <-w.stopc:
 		}
 		w.latchStop()

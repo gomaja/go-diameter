@@ -662,7 +662,7 @@ func TestAcceptedRetiredHandshakeCannotPublish(t *testing.T) {
 	if state.snapshot().Ready() {
 		t.Fatal("retired handshake published admission")
 	}
-	handleCER(sm).ServeDIAM(c, regressionCER(t, testDict, 1001))
+	sm.ServeDIAM(c, regressionCER(t, testDict, 1001))
 	if _, ok := smpeer.FromContext(c.Context()); ok {
 		t.Fatal("retired CER published metadata")
 	}

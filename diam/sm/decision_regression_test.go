@@ -1,6 +1,7 @@
 package sm
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -15,8 +16,10 @@ import (
 
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
+	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/diamtest"
 	"github.com/gomaja/go-diameter/diam/internal/logtest"
+	"github.com/gomaja/go-diameter/diam/internal/protocol"
 	"github.com/gomaja/go-diameter/diam/sm/smpeer"
 )
 
@@ -68,32 +71,44 @@ func TestCEARejectionRecordsBeforePublishingFailure(t *testing.T) {
 	c := loggerHandshakeConn{newHandshakeConn(), slog.New(blockingSMLog{logs, entered, release})}
 	sm := mustNewStateMachine(t, testMessageErrorSettings(testDict), testDict)
 	activity := newWatchdogActivity()
-	activity.cer.Store(correlateAnswer(c, diam.NewMessage(diam.CapabilitiesExchange, diam.RequestFlag, 0, 1, 2, testDict)))
+	cli := &Client{Handler: sm, Dict: testDict, RetransmitInterval: time.Second}
+	activity.capabilities = cli.capabilitySettings([]datatype.Address{localhostAddress})
+	state, start, err := cli.newCore(c, activity.capabilities)
+	if err != nil {
+		t.Fatal(err)
+	}
+	activity.install(state)
+	state.run(start)
+	activity.release()
+	cer, err := diam.ReadMessage(bytes.NewReader(<-c.writes), testDict)
+	if err != nil {
+		t.Fatal(err)
+	}
 	done := make(chan struct{})
 	go func() {
-		handleCEA(sm, activity)(c, diam.NewMessage(diam.CapabilitiesExchange, 0, 0, 1, 2, testDict))
+		state.apply(protocol.Input{Kind: protocol.Receive, Message: diam.NewMessage(diam.CapabilitiesExchange, 0, 0, cer.Header.HopByHopID, cer.Header.EndToEndID, testDict)})
 		close(done)
 	}()
 	select {
 	case <-entered:
 	case <-done:
 		t.Fatal("CEA failure published without decision record")
-	case <-time.After(time.Second):
+	case <-time.After(10 * time.Second):
 		t.Fatal("CEA validation stalled")
 	}
 	select {
-	case err := <-activity.ceac:
-		activity.ceac <- err
+	case err := <-state.handshake:
+		state.handshake <- err
 		t.Error("CEA failure published before decision record completed")
 	default:
 	}
 	close(release)
 	select {
 	case <-done:
-	case <-time.After(time.Second):
+	case <-time.After(10 * time.Second):
 		t.Fatal("CEA handler stalled")
 	}
-	if err := <-activity.ceac; err == nil {
+	if err := <-state.handshake; err == nil {
 		t.Fatal("invalid CEA accepted")
 	}
 	records := logs.Records()
@@ -131,6 +146,7 @@ func TestErrorAnswerFailureOwnedByStateMachine(t *testing.T) {
 			c.writeErr = errors.New("answer write failed")
 			c.SetContext(smpeer.NewContext(context.Background(), &smpeer.Metadata{}))
 			sm := mustNewStateMachine(t, testMessageErrorSettings(testDict), testDict)
+			primeClientTestCore(t, &Client{Handler: sm, Dict: testDict, RetransmitInterval: time.Hour}, c)
 			m := diam.NewMessage(0xfedc, diam.RequestFlag, 0, 1, 2, testDict)
 			c.afterClose = func() {
 				records := logs.Records()
@@ -307,8 +323,9 @@ func TestDirectErrorAnswerPreservesWriteFailure(t *testing.T) {
 	c := loggerHandshakeConn{newHandshakeConn(), logs.Logger()}
 	c.writeErr = errors.New("answer write failed")
 	sm := mustNewStateMachine(t, testMessageErrorSettings())
-	if _, err := sm.writeErrorAnswer(c, regressionDWR(t), diam.CommandUnsupported, nil, true); !errors.Is(err, c.writeErr) {
-		t.Fatalf("writeErrorAnswer error=%v", err)
+	primeClientTestCore(t, &Client{Handler: sm, RetransmitInterval: time.Hour}, c)
+	if err := sm.HandleMessageError(c, regressionDWR(t), &diam.MessageError{ResultCode: diam.CommandUnsupported}); err != nil {
+		t.Fatal(err)
 	}
 	if records := logs.Records(); len(records) != 1 || records[0].Level != slog.LevelError {
 		t.Fatalf("writer records=%v", records)

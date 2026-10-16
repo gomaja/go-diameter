@@ -3,8 +3,9 @@ package sm
 import (
 	"strings"
 	"testing"
-	"testing/synctest"
 	"time"
+
+	"github.com/gomaja/go-diameter/diam/internal/protocol"
 
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
@@ -141,36 +142,20 @@ func TestDWABodyAndRecoveryWire(t *testing.T) {
 // Removing reset-only activity would time out at the original deadline;
 // treating it as Receive would emit Recovered while the probe is unvalidated.
 func TestDWAActivityResetsTwWithoutRecovery(t *testing.T) {
-	synctest.Test(t, func(t *testing.T) {
-		activity := newWatchdogActivity()
-		activity.ceaReceived.Store(true)
-		p := &loopWatchdogProbe{conn: newWatchdogProbeConn(), signals: &activity.watchdogSignals,
-			events: make(chan WatchdogEvent, 16), stop: make(chan struct{}), exited: make(chan struct{})}
-		w := connWatchdog{conn: p.conn, done: p.conn.closed, stop: p.stop, signals: p.signals,
-			interval: func() time.Duration { return loopWatchdogTw },
-			send:     func() bool { _, _ = p.conn.Write(nil); p.events <- WatchdogRequestSent; return true },
-			observe:  func(event WatchdogEvent) { p.events <- event }}
-		go func() { w.run(); close(p.exited) }()
-		t.Cleanup(func() { p.conn.Close(); <-p.exited })
-		synctest.Wait()
-		time.Sleep(2 * loopWatchdogTw)
-		synctest.Wait()
-		p.wantEvent(t, WatchdogRequestSent)
-		p.wantEvent(t, WatchdogSuspect)
-		time.Sleep(loopWatchdogTw / 2)
-		// A decoded DWA gets timer credit before body/correlation validation.
-		h := activityHandler{activity: activity, dwa: watchdogDWAHandler(func(c diam.Conn, m *diam.Message, receipt watchdogReceipt) {
-			_, _ = processDWAReceipt(c, m, &activity.watchdogSignals, nil, receipt)
-		})}
-		h.ServeDIAM(p.conn, &diam.Message{Header: &diam.Header{Version: 1, CommandCode: diam.DeviceWatchdog}})
-		synctest.Wait()
-		p.wantNoEvent(t)
-		time.Sleep(loopWatchdogTw - time.Nanosecond)
-		synctest.Wait()
-		p.wantNoEvent(t)
-		time.Sleep(time.Nanosecond)
-		synctest.Wait()
-		p.wantEvent(t, WatchdogTimedOut)
-		p.wantWrites(t, 1)
-	})
+	cli := newLivenessClient(t)
+	c := newWatchdogProbeConn()
+	state := primeClientTestCore(t, cli, c)
+	expireClientTestWatchdog(state)
+	expireClientTestWatchdog(state)
+	before := state.snapshot()
+	state.apply(protocol.Input{Kind: protocol.Receive, At: before.Timer(protocol.WatchdogTimer).Deadline.Add(-time.Nanosecond),
+		Message: &diam.Message{Header: &diam.Header{Version: 1, CommandCode: diam.DeviceWatchdog}}})
+	after := state.snapshot()
+	if after.Watchdog() != before.Watchdog() || !after.Timer(protocol.WatchdogTimer).Deadline.After(before.Timer(protocol.WatchdogTimer).Deadline) {
+		t.Fatal("unvalidated DWA did not reset Tw independently from recovery and Pending")
+	}
+	expireClientTestWatchdog(state)
+	if !c.Closed() || len(c.writes) != 1 {
+		t.Fatal("unvalidated DWA changed Pending or prevented DOWN")
+	}
 }

@@ -25,14 +25,22 @@ func TestAcceptedCoreInvalidActivityTCP(t *testing.T) {
 			var events <-chan acceptedWatchdogEvent
 			p := newProtocolWire(t, func(cfg *Settings) {
 				cfg.EnableWatchdog = true
-				cfg.WatchdogInterval = 200 * time.Millisecond
+				cfg.WatchdogInterval = time.Hour
 				cfg.watchdogTiming = &watchdogTiming{floor: time.Millisecond}
 				events = acceptedWatchdogEvents(cfg)
 			}, true)
+			state := p.sm.acceptedCore(p.conn, nil, false)
+			if state == nil {
+				t.Fatal("admitted connection lost its production core")
+			}
+			awaitProductionWatchdogTimer(t, state, false)
+			expireClientTestWatchdog(state)
 			probe := acceptedWatchdogOnWire(t, p.peer)
 			awaitAcceptedEvent(t, events, WatchdogRequestSent, p.conn)
+			awaitProductionWatchdogTimer(t, state, true)
+			expireClientTestWatchdog(state)
 			awaitAcceptedEvent(t, events, WatchdogSuspect, p.conn)
-			time.Sleep(120 * time.Millisecond)
+			before := state.snapshot()
 			m := regressionDWR(t)
 			answer := true
 			switch fault {
@@ -61,7 +69,7 @@ func TestAcceptedCoreInvalidActivityTCP(t *testing.T) {
 			case "unsolicited-cea":
 				// Use the normal capability builder to retain complete grammar.
 				var err error
-				m, err = buildSuccessCEA(p.sm, p.conn, regressionCER(t, p.conn.Dictionary(), 1001))
+				m, err = buildTestCEA(p.sm, p.conn, regressionCER(t, p.conn.Dictionary(), 1001))
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -78,10 +86,11 @@ func TestAcceptedCoreInvalidActivityTCP(t *testing.T) {
 				}
 			}
 			_ = protocolEvent(t, p.events)
+			assertInvalidActivityTimerReset(t, state, before)
 			select {
 			case e := <-events:
 				t.Fatalf("invalid activity emitted %s", e.event)
-			case <-time.After(120 * time.Millisecond):
+			default:
 			}
 			// A real, correlated successful answer is the positive control.
 			valid := acceptedDWA(t, probe, diam.Success)

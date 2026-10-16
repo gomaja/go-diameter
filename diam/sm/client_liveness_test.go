@@ -215,7 +215,7 @@ func TestWatchdogReportsWriteError(t *testing.T) {
 		}
 	}
 
-	cli.dwr(c, 0, &watchdogSignals{})
+	expireClientTestWatchdog(primeClientTestCore(t, cli, c))
 
 	if got := records.Records(); len(got) != 1 || logError(got[0]) == nil {
 		t.Fatalf("watchdog failure records = %v", got)
@@ -257,16 +257,13 @@ func TestWatchdogWriteErrorStopsRetrying(t *testing.T) {
 	cli := newLivenessClient(t)
 	c := newErrWriteConn()
 
-	done := make(chan struct{})
-	go func() {
-		cli.watchdog(c, newWatchdogActivity())
-		close(done)
-	}()
-
-	select {
-	case <-done:
-	case <-time.After(5 * time.Second):
-		t.Fatal("watchdog kept spinning after a write failure")
+	state := primeClientTestCore(t, cli, c)
+	expireClientTestWatchdog(state)
+	for range 3 {
+		expireClientTestWatchdog(state)
+	}
+	if !c.Closed() {
+		t.Fatal("watchdog kept running after a write failure")
 	}
 
 	// RFC 3539 §3.4.1: a failed DWR is never retransmitted.

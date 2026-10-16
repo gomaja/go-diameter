@@ -1,6 +1,8 @@
 package protocol
 
 import (
+	"errors"
+	"fmt"
 	"time"
 
 	"github.com/gomaja/go-diameter/diam"
@@ -12,8 +14,21 @@ func (c *Core) watchdogArm(at time.Time, interval time.Duration) []Effect {
 	if interval <= 0 {
 		interval = c.cfg.WatchdogInterval
 	}
-	es := c.stop(WatchdogTimer)
-	return append(es, c.arm(WatchdogTimer, at, interval)...)
+	if interval <= 0 {
+		return c.stop(WatchdogTimer)
+	}
+	// RFC 3539 §3.4.1: stop the previous Tw before arming its replacement.
+	// Build the ordered pair together rather than growing a one-effect slice.
+	previous := c.timers[WatchdogTimer]
+	arm := c.effect(ArmTimer)
+	arm.Timer, arm.Token, arm.Deadline = WatchdogTimer, c.token(), at.Add(interval)
+	c.timers[WatchdogTimer] = TimerSnapshot{arm.Token, arm.Deadline}
+	if previous.Token == 0 {
+		return []Effect{arm}
+	}
+	stop := c.effect(StopTimer)
+	stop.Timer, stop.Token = WatchdogTimer, previous.Token
+	return []Effect{stop, arm}
 }
 func (c *Core) watchdogUp(in Input) []Effect {
 	if !c.cfg.Watchdog {
@@ -102,8 +117,8 @@ func (c *Core) dwa(in Input) []Effect {
 		return c.discard(in, diam.ProtocolInvalidDWA, err.ResultCode)
 	}
 	var parsed base.DWA
-	if parsed.Parse(m) != nil {
-		return c.discard(in, diam.ProtocolInvalidDWA, 0)
+	if err := parsed.Parse(m); err != nil {
+		return c.discardCause(in, diam.ProtocolInvalidDWA, err)
 	}
 	r := c.controls[diam.DeviceWatchdog]
 	if parsed.ResultCode != diam.Success {
@@ -111,10 +126,24 @@ func (c *Core) dwa(in Input) []Effect {
 		if c.matches(r, m) && c.bound(m, true) {
 			es = c.consumeControl(r, m)
 		}
-		return append(es, c.discard(in, diam.ProtocolRejectedDWA, parsed.ResultCode)...)
+		rejection := c.discard(in, diam.ProtocolRejectedDWA, parsed.ResultCode)
+		rejection[len(rejection)-1].Notification.CauseError = fmt.Errorf("DWA Result-Code %d", parsed.ResultCode)
+		return append(es, rejection...)
 	}
 	if !c.bound(m, true) || m.Header.CommandFlags&diam.ErrorFlag != 0 {
-		return c.discard(in, diam.ProtocolInvalidDWA, 0)
+		var identity base.DWR
+		err := identity.Parse(m)
+		if err == nil {
+			switch {
+			case m.Header.CommandFlags&diam.ErrorFlag != 0:
+				err = errors.New("invalid DWA flags")
+			case !equalIdentity(string(identity.OriginHost), c.caps.Host):
+				err = errors.New("DWA Origin-Host mismatch")
+			default:
+				err = errors.New("DWA Origin-Realm mismatch")
+			}
+		}
+		return c.discardCause(in, diam.ProtocolInvalidDWA, err)
 	}
 	if !c.matches(r, m) {
 		return c.discard(in, diam.ProtocolUnexpectedMessage, 0)

@@ -106,63 +106,6 @@ func TestAcceptedWatchdogClosingActivity(t *testing.T) {
 	})
 }
 
-func TestConnWatchdogClosingTimer(t *testing.T) {
-	for _, tc := range []struct {
-		name     string
-		state    watchdogState
-		activity bool
-		answer   bool
-	}{
-		{name: "idle"},
-		{name: "pending", state: watchdogState{pending: true}},
-		{name: "suspect", state: watchdogState{pending: true, suspect: true}},
-		{name: "activity", state: watchdogState{pending: true, suspect: true}, activity: true},
-		{name: "answer", state: watchdogState{pending: true, suspect: true}, answer: true},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			synctest.Test(t, func(t *testing.T) {
-				c := newWatchdogProbeConn()
-				signals := newWatchdogSignals()
-				stop := make(chan struct{})
-				w := connWatchdog{
-					conn: c, stop: stop, signals: &signals,
-					send: func() bool { t.Error("timer sent DWR after stop"); return true },
-					observe: func(event WatchdogEvent) {
-						t.Errorf("timer emitted %s after stop", event)
-					},
-				}
-				timer := time.NewTimer(loopWatchdogTw)
-				defer timer.Stop()
-				time.Sleep(loopWatchdogTw)
-				close(stop)
-				if tc.activity {
-					signals.received()
-				}
-				if tc.answer {
-					signals.finishDWA(watchdogReceipt{}, true)
-				}
-				// Timer and stop are ready at the same virtual instant. Force
-				// the timer branch rather than depend on select's random choice.
-				<-timer.C
-				state := tc.state
-				if w.expire(&state) {
-					t.Error("timer rearmed after stop")
-				}
-				// RFC 6733 §5.6: stop wins even over pending recovery or DOWN.
-				if state != tc.state {
-					t.Errorf("timer changed state after stop: %+v, want %+v", state, tc.state)
-				}
-				if c.Closed() {
-					t.Error("timer closed transport after stop")
-				}
-				if tc.answer && queuedWatchdogCredits(&signals) != 1 {
-					t.Error("timer consumed queued DWA after stop")
-				}
-			})
-		})
-	}
-}
-
 func TestAcceptedWatchdogClosingEvents(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		cfg := newAcceptedWatchdogSettings()

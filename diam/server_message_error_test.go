@@ -248,7 +248,9 @@ func closePipeServer(t *testing.T, remote net.Conn, done <-chan struct{}) {
 	if err := remote.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
 		t.Errorf("close pipe: %v", err)
 	}
-	waitPipeServer(t, done)
+	// The server may still read shared handlers until this join. Cleanup must
+	// finish before a caller restores package-level routing configuration.
+	<-done
 }
 
 func waitPipeServer(t *testing.T, done <-chan struct{}) {

@@ -12,8 +12,10 @@ import (
 	"github.com/gomaja/go-diameter/diam/internal/logtest"
 
 	"github.com/gomaja/go-diameter/diam"
+	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/dict"
 	"github.com/gomaja/go-diameter/diam/internal/base"
+	"github.com/gomaja/go-diameter/diam/internal/protocol"
 	"github.com/gomaja/go-diameter/diam/sm/smpeer"
 )
 
@@ -66,14 +68,18 @@ func TestOptionalConnThroughWrappers(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
 				cfg := *serverSettings
 				cfg.DPRCloseTimeout = time.Second
+				cfg.HostIPAddresses = []datatype.Address{localhostAddress}
 				sm := mustNewStateMachine(t, &cfg, testDict)
 				inner := &writableNotifyConn{blockingDisconnectConn: &blockingDisconnectConn{dictionary: testDict, closed: make(chan struct{})}, ctx: smpeer.NewContext(context.Background(), &smpeer.Metadata{OriginHost: serverSettings.OriginHost, OriginRealm: serverSettings.OriginRealm})}
 				defer inner.Close()
-				msg, err := base.BuildDPR(inner.Dictionary(), baseSettings(sm.cfg), uint32(DisconnectBusy))
+				msg, err := base.BuildDPR(inner.Dictionary(), baseSettings(clientSettings), uint32(DisconnectBusy))
 				if err != nil {
 					t.Fatal(err)
 				}
-				handleDPR(sm)(wrap(inner), msg)
+				conn := wrap(inner)
+				state := primeAcceptedTestCore(t, sm, conn)
+				state.apply(protocol.Input{Kind: protocol.ReleaseAdmission, Token: state.snapshot().Admission()})
+				state.apply(protocol.Input{Kind: protocol.Receive, Message: msg})
 				time.Sleep(2 * time.Second)
 				synctest.Wait()
 				closed := false
@@ -95,10 +101,14 @@ func TestOptionalConnThroughWrappers(t *testing.T) {
 					}
 				}()
 				sm := mustNewStateMachine(t, serverSettings, testDict)
-				cli := &Client{Handler: sm, WatchdogInterval: time.Hour, Dict: testDict}
+				cli := &Client{EnableWatchdog: true, Handler: sm, WatchdogInterval: time.Hour, Dict: testDict}
 				inner := &observedNotifyConn{blockingDisconnectConn: &blockingDisconnectConn{dictionary: testDict, closed: make(chan struct{})}}
 				inner.Close()
-				cli.watchdog(wrap(inner), newWatchdogActivity())
+				state, _, err := cli.newCore(wrap(inner), baseSettings(sm.cfg))
+				if err != nil {
+					t.Fatal(err)
+				}
+				state.apply(protocol.Input{Kind: protocol.Retire})
 				if inner.observed != (tc.depth >= 0) {
 					t.Fatalf("watchdog discovered CloseNotifier = %v", inner.observed)
 				}
@@ -138,8 +148,8 @@ func TestWatchdogWarnsWithoutCloseNotifier(t *testing.T) {
 	logs := logtest.New()
 	inner := &blockingDisconnectConn{dictionary: testDict, closed: make(chan struct{})}
 	c := loggedWatchdogConn{inner, slog.New(logs).With("connection", "wrapped")}
-	cli := &Client{Handler: mustNewStateMachine(t, serverSettings, testDict), Dict: testDict}
-	cli.watchdog(c, newWatchdogActivity())
+	cli := &Client{EnableWatchdog: true, Handler: mustNewStateMachine(t, serverSettings, testDict), Dict: testDict}
+	primeClientTestCore(t, cli, c)
 	records := logs.Records()
 	if len(records) != 1 {
 		t.Fatalf("got %d records, want one warning", len(records))
@@ -171,8 +181,12 @@ func TestWatchdogDoesNotWarnWithCloseNotifier(t *testing.T) {
 	c := loggedNotifyingWatchdogConn{loggedWatchdogConn{inner, slog.New(logs)}, inner.closed}
 	// A long interval keeps the timer from racing the closed CloseNotify
 	// channel, which would send a DWR on the closed connection.
-	cli := &Client{Handler: mustNewStateMachine(t, serverSettings, testDict), WatchdogInterval: time.Hour, Dict: testDict}
-	cli.watchdog(unwrapTestConn{c}, newWatchdogActivity())
+	cli := &Client{EnableWatchdog: true, Handler: mustNewStateMachine(t, serverSettings, testDict), WatchdogInterval: time.Hour, Dict: testDict}
+	state, _, err := cli.newCore(unwrapTestConn{c}, baseSettings(cli.Handler.cfg))
+	if err != nil {
+		t.Fatal(err)
+	}
+	state.apply(protocol.Input{Kind: protocol.Retire})
 	if records := logs.Records(); len(records) != 0 {
 		t.Fatalf("unexpected watchdog warnings: %v", records)
 	}

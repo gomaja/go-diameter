@@ -11,10 +11,15 @@ import (
 	"github.com/gomaja/go-diameter/diam/internal/watchdog"
 )
 
+type continuation struct {
+	Input
+	repeatedCER bool
+}
+
 // Core is exclusively owned by its caller's serialization domain.
 type Core struct {
 	handshakePending, callbackReady bool
-	continuations                   map[uint64]Input
+	continuations                   map[uint64]continuation
 	closeOutcome                    Outcome
 	handshake                       HandshakeResult
 
@@ -36,9 +41,13 @@ type Core struct {
 	phase                            Phase
 	serial                           uint64
 	started, ready, terminal, frozen bool
+	passiveResponder, passiveCER     bool
+	passiveWatchdog                  bool
+	passivePresent                   bool
 	candidateToken, admission        uint64
 	caps                             Capabilities
 	cer                              *diam.Message
+	completedCEA                     *diam.Header
 	hookToken                        uint64
 	timers                           [timerCount]TimerSnapshot
 	reservations                     map[uint64]uint32
@@ -68,8 +77,11 @@ func New(cfg Config) (*Core, error) {
 		cfg.Dictionary = dict.Default
 	}
 	cfg.Local = copySettings(cfg.Local)
-	c := &Core{cfg: cfg, reservations: make(map[uint64]uint32), controls: make(map[uint32]*control), operations: make(map[uint64]*operation), continuations: make(map[uint64]Input), closeOutcome: ConnectionClosed, wd: watchdog.Machine{State: watchdog.Initial}}
+	c := &Core{cfg: cfg, reservations: make(map[uint64]uint32), controls: make(map[uint32]*control), operations: make(map[uint64]*operation), continuations: make(map[uint64]continuation), closeOutcome: ConnectionClosed, wd: watchdog.Machine{State: watchdog.Initial}}
 	c.caps = Capabilities{Local: copySettings(cfg.Local), LocalApplications: base.AdvertisedApplicationIDs(cfg.Local), TLS: cfg.TLS}
+	// Initiators have a completion obligation from construction, including a
+	// lifecycle event received before Start (RFC 6733 §5.3).
+	c.handshakePending = cfg.Role == Initiator
 	if cfg.Recovery {
 		c.wd.State = watchdog.Down
 	}
@@ -116,7 +128,7 @@ func (c *Core) terminate(phase Phase) []Effect {
 	c.candidateToken, c.hookToken, c.admission = 0, 0, 0
 	c.ready = false
 	c.callbackReady = false
-	c.continuations = make(map[uint64]Input)
+	c.continuations = make(map[uint64]continuation)
 	c.cer = nil
 	c.wdNext = nil
 	c.deferredExpiry = nil
@@ -182,7 +194,7 @@ func (c *Core) Handle(in Input) []Effect {
 	if c.phase >= Closed {
 		return nil
 	}
-	if in.RefreshLocalAddresses && c.phase == PreCER {
+	if in.RefreshLocalAddresses && (c.phase == PreCER || c.passiveResponder && in.ErrorInput) {
 		c.cfg.Local.HostIPAddresses = base.CloneAddresses(in.LocalAddresses)
 		c.caps.Local.HostIPAddresses = base.CloneAddresses(in.LocalAddresses)
 	}
@@ -210,6 +222,11 @@ func (c *Core) Handle(in Input) []Effect {
 		c.closeOutcome = Cancelled
 		return c.terminate(Closed)
 	case TransportLost:
+		if c.cfg.CERTransportLossCompatibility && c.phase == WaitCEA {
+			// EOF preserves the CER response window. Its deadline selects a
+			// retry or completes the handshake with timeout.
+			return nil
+		}
 		return c.terminate(Closed)
 	case Receive:
 		es := c.receive(in)
@@ -226,10 +243,11 @@ func (c *Core) Handle(in Input) []Effect {
 		}
 		return es
 	case Continue:
-		saved, ok := c.continuations[in.Token]
+		pending, ok := c.continuations[in.Token]
 		if !ok {
 			return nil
 		}
+		saved := pending.Input
 		delete(c.continuations, in.Token)
 		if c.hookToken == in.Token {
 			c.hookToken = 0
@@ -250,7 +268,9 @@ func (c *Core) Handle(in Input) []Effect {
 		if h.CommandCode != original.CommandCode || h.ApplicationID != original.ApplicationID || h.CommandFlags&diam.RequestFlag != original.CommandFlags&diam.RequestFlag || h.HopByHopID != original.HopByHopID || h.EndToEndID != original.EndToEndID {
 			return c.fail(saved, diam.ProtocolInvalidHeader, diam.InvalidHDRBits)
 		}
-		if original.CommandCode == diam.CapabilitiesExchange && c.phase == Open {
+		// A hook cannot reclassify a repeated CER as a fresh admission when
+		// frontend metadata is revoked meanwhile (RFC 6733 §5.6).
+		if pending.repeatedCER {
 			return c.discard(saved, diam.ProtocolUnexpectedMessage, 0)
 		}
 		if original.CommandCode == diam.DeviceWatchdog && c.cfg.DWRHookCompatibility {
@@ -325,7 +345,7 @@ func (c *Core) expire(in Input) []Effect {
 		kind = diam.ProtocolDisconnectTimeout
 	}
 	if in.Timer == ClosingTimer && c.disconnectWaiting && !c.closeLocal && c.timers[ReceiverDisconnectTimer].Token != 0 {
-		// The original peer-initiated deadline is transport closure to the
+		// The peer-initiated Closing deadline is transport closure to the
 		// later local caller, not expiry of that caller's own timeout (§5.6).
 		return append(c.terminate(Closed), c.notify(Notification{Protocol: kind, Closing: true}))
 	}
@@ -358,7 +378,7 @@ func (c *Core) fail(in Input, kind diam.ProtocolErrorKind, code uint32) []Effect
 	if kind == diam.ProtocolHandshakeTimeout && c.hookToken != 0 {
 		if saved, ok := c.continuations[c.hookToken]; ok && saved.Message.Header.CommandCode == diam.CapabilitiesExchange {
 			c.lateCERToken = c.hookToken
-			c.lateCER = saved
+			c.lateCER = saved.Input
 		}
 	}
 

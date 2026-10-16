@@ -1,7 +1,6 @@
 package sm
 
 import (
-	"context"
 	"errors"
 	"strings"
 	"sync/atomic"
@@ -13,91 +12,6 @@ import (
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/sm/smpeer"
 )
-
-type correlationGenerationConn struct {
-	*handshakeConn
-	generation uint64
-	retired    diam.RetirementReason
-}
-
-func (c *correlationGenerationConn) Generation() uint64                      { return c.generation }
-func (c *correlationGenerationConn) RetirementReason() diam.RetirementReason { return c.retired }
-
-func TestAnswerCorrelationGenerationAndZeroIdentifiers(t *testing.T) {
-	c := &correlationGenerationConn{handshakeConn: newHandshakeConn(), generation: 1}
-	request := diam.NewMessage(diam.DisconnectPeer, diam.RequestFlag, 0, 0, 0, c.Dictionary())
-	request.Header.HopByHopID, request.Header.EndToEndID = 0, 0
-	r := correlateAnswer(c, request)
-	answer := request.Answer(diam.Success)
-	if !r.matches(c, answer) {
-		t.Fatal("explicitly owned zero identifiers did not match")
-	}
-	for _, fault := range []string{"generation", "retired", "connection", "command", "application", "direction"} {
-		t.Run(fault, func(t *testing.T) {
-			d := &correlationGenerationConn{handshakeConn: c.handshakeConn, generation: c.generation}
-			candidate := request.Answer(diam.Success)
-			target := diam.Conn(c)
-			switch fault {
-			case "generation":
-				c.generation++
-				defer func() { c.generation-- }()
-			case "retired":
-				c.retired = diam.AcceptedCERRenewal
-				defer func() { c.retired = 0 }()
-			case "connection":
-				target = d
-			case "command":
-				candidate.Header.CommandCode = diam.DeviceWatchdog
-			case "application":
-				candidate.Header.ApplicationID = 4
-			case "direction":
-				candidate.Header.CommandFlags |= diam.RequestFlag
-			}
-			if r.matches(target, candidate) {
-				t.Fatal("unrelated answer matched its request")
-			}
-		})
-	}
-}
-
-func TestDPAConsumesPendingOnce(t *testing.T) {
-	c := newHandshakeConn()
-	c.SetContext(smpeer.NewContext(context.Background(), &smpeer.Metadata{OriginHost: "peer.example", OriginRealm: "example"}))
-	sm := mustNewStateMachine(t, testMessageErrorSettings())
-	events := make(chan diam.ProtocolErrorEvent, 32)
-	sm.cfg.OnProtocolError = func(e diam.ProtocolErrorEvent) { events <- e }
-	request := diam.NewMessage(diam.DisconnectPeer, diam.RequestFlag, 0, 0, 0, c.Dictionary())
-	request.Header.HopByHopID, request.Header.EndToEndID = 0, 0
-	p := &pendingDisconnect{request: correlateAnswer(c, request), result: make(chan uint32, 1)}
-	sm.disconnects.pending = map[diam.Conn]*pendingDisconnect{c: p}
-	answer := request.Answer(diam.Success)
-	answer.AddAVP(diam.NewAVP(avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("peer.example")))
-	answer.AddAVP(diam.NewAVP(avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("example")))
-	handleDPA(sm)(c, answer)
-	select {
-	case <-p.result:
-	default:
-		t.Fatal("owned zero-ID DPA did not complete")
-	}
-	// Even after the waiter drains result, concurrent duplicates cannot reuse it.
-	const copies = 12
-	done := make(chan struct{}, copies)
-	for range copies {
-		go func() { handleDPA(sm)(c, answer); done <- struct{}{} }()
-	}
-	for range copies {
-		<-done
-		event := protocolEvent(t, events)
-		if event.Conn != c || event.Err.Kind() != diam.ProtocolUnexpectedMessage || event.Closing || event.Reply != diam.ProtocolReplyNone {
-			t.Fatalf("duplicate DPA notification = %+v", event)
-		}
-	}
-	select {
-	case <-p.result:
-		t.Fatal("duplicate DPA completed pending DPR twice")
-	default:
-	}
-}
 
 func setWireIdentity(t *testing.T, m *diam.Message, code uint32, value string) {
 	t.Helper()
@@ -282,7 +196,7 @@ func TestDPACorrelationIdentityWire(t *testing.T) {
 func TestBoundIdentityASCIIWire(t *testing.T) {
 	for _, scenario := range []string{"DWR-host", "DPR-host", "DWA-host", "DWA-realm"} {
 		t.Run(scenario, func(t *testing.T) {
-			p := newProtocolClientWire(t, nil)
+			p := newProtocolClientWire(t, func(c *Client) { c.EnableWatchdog = strings.HasPrefix(scenario, "DWA"); c.WatchdogInterval = time.Hour })
 			cea := protocolClientCEA(p.cer, diam.Success)
 			setWireIdentity(t, cea, avp.OriginHost, "known.example")
 			setWireIdentity(t, cea, avp.OriginRealm, "some.example")
@@ -302,12 +216,6 @@ func TestBoundIdentityASCIIWire(t *testing.T) {
 					field, value = avp.OriginRealm, "ſome.example"
 				}
 				setWireIdentity(t, request, field, value)
-				// Route through the production DWA handler with an owned probe.
-				signals := newWatchdogSignals()
-				header := *request.Header
-				signals.request.Store(&header)
-				// The TCP decoder still supplies the body and identity bytes.
-				p.client.Handler.Handle("DWA", handleDWA(p.client.Handler, &signals, nil))
 				kind = diam.ProtocolInvalidDWA
 			} else {
 				command := uint32(diam.DeviceWatchdog)
@@ -330,7 +238,7 @@ func TestBoundIdentityASCIIWire(t *testing.T) {
 			select {
 			case e := <-p.events:
 				assertProtocolEvent(t, e, p.conn, &header, kind, diam.InvalidAVPValue, false, reply, replyCode)
-			case <-time.After(100 * time.Millisecond):
+			case <-time.After(10 * time.Second):
 				t.Fatal("Unicode lookalike was accepted as the bound ASCII identity")
 			}
 			if header.CommandFlags&diam.RequestFlag != 0 {

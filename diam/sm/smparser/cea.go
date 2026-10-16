@@ -10,7 +10,34 @@ import (
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/internal/base"
+	"github.com/gomaja/go-diameter/diam/sm/internal/parserbridge"
 )
+
+func init() { parserbridge.FromValidatedCEA = fromValidatedCEA }
+
+// fromValidatedCEA preserves the parser's public error types and partial CEA
+// evidence without parsing an already validated core result again.
+func fromValidatedCEA(parsed *base.CEA, applications []uint32, err error) (*CEA, error) {
+	var cea *CEA
+	if parsed != nil {
+		cea = (&CEA{
+			HostIPAddresses: parsed.HostIPAddresses, ResultCode: parsed.ResultCode,
+			OriginHost: parsed.OriginHost, OriginRealm: parsed.OriginRealm,
+			OriginStateID: parsed.OriginStateID, VendorID: parsed.VendorID,
+			ProductName: parsed.ProductName, SupportedVendorID: parsed.SupportedVendorID,
+			AcctApplicationID: parsed.AcctApplicationID, AuthApplicationID: parsed.AuthApplicationID,
+			VendorSpecificApplicationID: parsed.VendorSpecificApplicationID,
+			FailedAVP:                   parsed.FailedAVP, ErrorMessage: parsed.ErrorMessage, appID: applications,
+		}).Clone()
+	}
+	if failed, ok := err.(*base.ErrFailedResultCode); ok {
+		if cea == nil {
+			cea, _ = fromValidatedCEA(failed.CEA, nil, nil)
+		}
+		return cea, &ErrFailedResultCode{CEA: cea.Clone()}
+	}
+	return cea, adaptError(err)
+}
 
 // CEA is a Capabilities-Exchange-Answer message.
 // See RFC 6733 section 5.3.2 for details.

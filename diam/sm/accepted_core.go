@@ -25,20 +25,29 @@ type contextCoreKey struct{ sm *StateMachine }
 // sockets, timers, native write tickets and callbacks never enter the core.
 // RFC 6733 §§5.3–5.6; RFC 3539 §3.4.1 and Appendix A.
 type acceptedHandshake struct {
-	mu           sync.Mutex
-	core         *protocol.Core
-	sm           *StateMachine
-	conn         diam.Conn
-	id           protocol.Connection
-	sequence     uint64
-	timers       [protocol.ReceiverDisconnectTimer + 1]*time.Timer
-	timer        *time.Timer // handshake timer, retained for lifecycle inspection
-	waiter       chan error
-	waiterToken  uint64
-	held         []protocol.Input
-	writes       map[uint64]*diam.RequestWrite
-	watchdog     *acceptedWatchdog
-	observerTail <-chan struct{}
+	mu                sync.Mutex
+	core              *protocol.Core
+	sm                *StateMachine
+	conn              diam.Conn
+	id                protocol.Connection
+	sequence          uint64
+	timers            [protocol.ReceiverDisconnectTimer + 1]*time.Timer
+	timer             *time.Timer // handshake timer, retained for lifecycle inspection
+	waiter            chan error
+	waiterToken       uint64
+	held              []protocol.Input
+	writes            map[uint64]*diam.RequestWrite
+	writeHeaders      map[uint64]diam.Header
+	watchdog          *acceptedWatchdog
+	observerTail      <-chan struct{}
+	client            *Client
+	handshake         chan error
+	handshakeDone     chan struct{}
+	handshakeOnce     sync.Once
+	handshakeTimedOut bool
+	policy            *watchdogPolicy
+	initialCERDone    bool
+	initialCERErr     error
 }
 
 type acceptedObservation struct {
@@ -68,6 +77,10 @@ type acceptedBatch struct {
 }
 
 func (sm *StateMachine) acceptedCore(c diam.Conn, m *diam.Message, create bool) *acceptedHandshake {
+	return sm.acceptedCoreWithAdmission(c, m, create, m != nil)
+}
+
+func (sm *StateMachine) acceptedCoreWithAdmission(c diam.Conn, m *diam.Message, create, adopt bool) *acceptedHandshake {
 	if value, ok := sm.cores.Load(c); ok {
 		return value.(*acceptedHandshake)
 	}
@@ -77,10 +90,12 @@ func (sm *StateMachine) acceptedCore(c diam.Conn, m *diam.Message, create bool) 
 	if !create || c.Closed() {
 		return nil
 	}
-	if ctx := c.Context(); m != nil && ctx != nil {
-		if _, ok := smpeer.FromContext(ctx); ok {
-			return nil
-		}
+	if lifecycle, ok := diam.ConnAs[diam.ConnLifecycle](c); ok && lifecycle.RetirementReason() != 0 {
+		return nil
+	}
+	var peer *protocol.PeerClaims
+	if adopt {
+		peer = externalPeerClaims(c)
 	}
 	state := &acceptedHandshake{sm: sm, conn: c, id: protocol.Connection{Instance: acceptedInstance.Add(1), Generation: connectionGeneration(c)}, writes: make(map[uint64]*diam.RequestWrite)}
 	cfg := sm.capabilities(c, m)
@@ -102,21 +117,29 @@ func (sm *StateMachine) acceptedCore(c diam.Conn, m *diam.Message, create bool) 
 	if _, ok := diam.ConnAs[diam.CloseNotifier](c); !ok {
 		closingTimeout = 0
 	}
-	core, err := protocol.New(protocol.Config{Connection: state.id, Role: protocol.Responder,
+	coreConfig := protocol.Config{Connection: state.id, Role: protocol.Responder,
 		Local: cfg, Dictionary: sm.capabilityDictionary(c, m), TLS: c.TLS() != nil,
 		Hooks: true, HandshakeTimeout: d, ClosingTimeout: closingTimeout,
 		LocalDisconnectInClosing: true,
 		DWRHookCompatibility:     true,
 		Watchdog:                 sm.watchdog != nil, WatchdogInterval: interval,
-		ValidateRequests: sm.cfg.ValidateRequests, RejectUnknownMandatoryAVPs: sm.cfg.RejectUnknownMandatoryAVPs})
+		ValidateRequests: sm.cfg.ValidateRequests, RejectUnknownMandatoryAVPs: sm.cfg.RejectUnknownMandatoryAVPs}
+	var core *protocol.Core
+	var err error
+	if peer != nil {
+		core, err = protocol.NewAdmitted(coreConfig, *peer)
+	} else {
+		core, err = protocol.New(coreConfig)
+	}
 	if err != nil {
 		logMessage(c, m, slog.LevelError, "sm: protocol initialization failed; closing connection", err)
 		c.Close()
 		return nil
 	}
 	state.core = core
+	state.policy = sm.watchdog
 	var done <-chan struct{}
-	if m != nil {
+	if m != nil || peer != nil {
 		if done = connectionDone(c); done == nil {
 			return sm.storeContextCore(c, state)
 		}
@@ -134,6 +157,28 @@ func (sm *StateMachine) acceptedCore(c diam.Conn, m *diam.Message, create bool) 
 		}()
 	}
 	return state
+}
+
+// externalPeerClaims reads only the connection's saved offer. Deriving an offer
+// from current settings would change validation for manually admitted peers.
+func externalPeerClaims(c diam.Conn) *protocol.PeerClaims {
+	ctx := c.Context()
+	if ctx == nil {
+		return nil
+	}
+	metadata, ok := smpeer.FromContext(ctx)
+	if !ok || metadata == nil {
+		return nil
+	}
+	local, _ := ctx.Value(advertisedAppsKey{}).([]uint32)
+	return &protocol.PeerClaims{Host: string(metadata.OriginHost), Realm: string(metadata.OriginRealm),
+		LocalApplications: local, RemoteApplications: metadata.Applications, CER: metadata.CEA == nil}
+}
+
+func (s *acceptedHandshake) passiveResponder() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.core.PassiveResponder()
 }
 
 func (sm *StateMachine) contextCore(c diam.Conn) *acceptedHandshake {
@@ -176,18 +221,21 @@ func (s *acceptedHandshake) snapshot() protocol.Snapshot {
 }
 
 func (s *acceptedHandshake) prepare(in protocol.Input) acceptedBatch {
-	if (in.Kind == protocol.Receive || in.Kind == protocol.Continue) && len(s.sm.cfg.HostIPAddresses) == 0 && s.snapshot().Phase() == protocol.PreCER {
+	if (in.Kind == protocol.Receive || in.Kind == protocol.Continue) && len(s.sm.cfg.HostIPAddresses) == 0 && s.phase() == protocol.PreCER {
 		in.RefreshLocalAddresses = true
 		in.LocalAddresses, in.Err = getLocalAddresses(s.conn)
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.core.PassiveResponder() && (in.Kind == protocol.Receive || in.Kind == protocol.Continue || in.Kind == protocol.Disconnect) {
+		s.core.RefreshAdmission(externalPeerClaims(s.conn))
+	}
 	in.Connection = s.id
 	if in.At.IsZero() {
 		in.At = time.Now()
 	}
-	if s.sm.watchdog != nil {
-		in.Interval = jitteredTw(s.sm.watchdog.twinit, s.sm.watchdog.jitter)
+	if s.policy != nil {
+		in.Interval = jitteredTw(s.policy.twinit, s.policy.jitter)
 	}
 	if in.Kind == protocol.Receive {
 		s.sequence++
@@ -205,7 +253,7 @@ func (s *acceptedHandshake) prepare(in protocol.Input) acceptedBatch {
 		}
 	}
 	batch := s.batchLocked(in, s.core.Handle(in))
-	if in.Kind == protocol.ReleaseAdmission && s.core.Snapshot().Ready() {
+	if in.Kind == protocol.ReleaseAdmission && s.core.Ready() {
 		held := s.held
 		s.held = nil
 		for _, saved := range held {
@@ -218,12 +266,19 @@ func (s *acceptedHandshake) prepare(in protocol.Input) acceptedBatch {
 func (s *acceptedHandshake) batchLocked(in protocol.Input, effects []protocol.Effect) acceptedBatch {
 	batch := acceptedBatch{input: in}
 	batch.effects = s.prepareLocked(effects, &batch.releaseDispatch)
-	batch.observers = make([]*acceptedObservation, len(batch.effects))
 	for i, e := range batch.effects {
+		if s.client != nil && e.Kind == protocol.Notify && e.Notification.Kind == protocol.HandshakeNotice && e.Notification.Outcome == protocol.TimedOut {
+			// Delivery belongs to the committed timeout, including when caller
+			// cancellation arrives while its synchronous observer is running.
+			s.handshakeTimedOut = true
+		}
 		observe := e.Kind == protocol.Send && e.Message.Header.CommandCode == diam.DeviceWatchdog && e.Message.Header.CommandFlags&diam.RequestFlag != 0 ||
 
 			e.Kind == protocol.Notify && (e.Notification.Kind == protocol.WatchdogNotice && in.Kind != protocol.WriteResult || e.Notification.Protocol == diam.ProtocolInvalidDWA || e.Notification.Protocol == diam.ProtocolRejectedDWA || e.Notification.Protocol == diam.ProtocolWatchdogTimeout)
 		if observe {
+			if batch.observers == nil {
+				batch.observers = make([]*acceptedObservation, len(batch.effects))
+			}
 			o := &acceptedObservation{previous: s.observerTail, done: make(chan struct{})}
 			s.observerTail = o.done
 			batch.observers[i] = o
@@ -234,15 +289,17 @@ func (s *acceptedHandshake) batchLocked(in protocol.Input, effects []protocol.Ef
 
 // Freeze is acknowledged under the same admission mutex as Closing. Timer
 // installation is bounded bookkeeping; every callback/write runs after unlock.
+// The input effects belong to this batch. Compact consumed bookkeeping in
+// place; recursive expansion must detach before overwriting unread effects.
 func (s *acceptedHandshake) prepareLocked(effects []protocol.Effect, releaseDispatch *bool) []protocol.Effect {
-	var out []protocol.Effect
+	out := effects[:0]
 	for _, e := range effects {
 		// Admission release is an obligation of the committed input, including
 		// effects consumed here. Execute it only after the mutex is unlocked.
 		*releaseDispatch = *releaseDispatch || e.ReleaseDispatch
 		switch e.Kind {
 		case protocol.ValidatedCER:
-			out = append(out, s.prepareLocked(s.core.Handle(protocol.Input{Kind: protocol.Activate, Connection: s.id, Token: e.Token}), releaseDispatch)...)
+			out = append(out[:len(out):len(out)], s.prepareLocked(s.core.Handle(protocol.Input{Kind: protocol.Activate, Connection: s.id, Token: e.Token}), releaseDispatch)...)
 		case protocol.FreezeAdmission:
 			inFlight := false
 			if requests := pendingRequests(s.conn); requests != nil {
@@ -253,7 +310,7 @@ func (s *acceptedHandshake) prepareLocked(effects []protocol.Effect, releaseDisp
 				s.watchdog.latchStop()
 			}
 			out = append(out, e)
-			out = append(out, s.prepareLocked(s.core.Handle(protocol.Input{Kind: protocol.Frozen, Connection: s.id, Token: e.Token, InFlight: inFlight}), releaseDispatch)...)
+			out = append(out[:len(out):len(out)], s.prepareLocked(s.core.Handle(protocol.Input{Kind: protocol.Frozen, Connection: s.id, Token: e.Token, InFlight: inFlight}), releaseDispatch)...)
 		case protocol.ArmTimer:
 			if e.Timer == protocol.WatchdogTimer && s.watchdog == nil {
 				continue
@@ -261,7 +318,8 @@ func (s *acceptedHandshake) prepareLocked(effects []protocol.Effect, releaseDisp
 			if timer := s.timers[e.Timer]; timer != nil {
 				timer.Stop()
 			}
-			s.timers[e.Timer] = time.AfterFunc(time.Until(e.Deadline), func() { s.apply(protocol.Input{Kind: protocol.TimerExpired, Timer: e.Timer, Token: e.Token}) })
+			timerKind, token := e.Timer, e.Token
+			s.timers[timerKind] = time.AfterFunc(time.Until(e.Deadline), func() { s.apply(protocol.Input{Kind: protocol.TimerExpired, Timer: timerKind, Token: token}) })
 			if e.Timer == protocol.HandshakeTimer {
 				s.timer = s.timers[e.Timer]
 			}
@@ -275,11 +333,30 @@ func (s *acceptedHandshake) prepareLocked(effects []protocol.Effect, releaseDisp
 			if ticket := s.writes[e.Token]; ticket != nil {
 				ticket.Cancel()
 			}
+		case protocol.CompleteRequest:
+			// Complete logical ownership before a selected writer acquires
+			// the native gate. Its pin remains until the writer exits (§6.2.1).
+			m := inMessageForCompletion(e)
+			if m != nil {
+				for token, h := range s.writeHeaders {
+					if h.CommandCode == m.CommandCode && h.ApplicationID == m.ApplicationID && h.HopByHopID == m.HopByHopID && h.EndToEndID == m.EndToEndID {
+						s.writes[token].Cancel()
+					}
+				}
+			}
+			out = append(out, e)
 		default:
 			out = append(out, e)
 		}
 	}
 	return out
+}
+
+func inMessageForCompletion(e protocol.Effect) *diam.Header {
+	if e.Notification.Message.HasHeader {
+		return &e.Notification.Message.Header
+	}
+	return nil
 }
 
 func (s *acceptedHandshake) apply(in protocol.Input) { s.run(s.prepare(in)) }
