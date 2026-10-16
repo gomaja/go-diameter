@@ -244,13 +244,12 @@ func TestMalformedCEADecodeErrorPreventsAdmission(t *testing.T) {
 	defer closeManager(t, m, nil)
 	c := newFakeConn()
 	defer c.Close()
-	req := capabilitiesExchangeRequest(t)
-	s := &session{m: m, c: c, gen: 1, cerHop: req.Header.HopByHopID, cerEnd: req.Header.EndToEndID, writes: make(chan writeRequest, 8), closed: make(chan struct{})}
+	s := &session{m: m, c: c, gen: 1, writes: make(chan writeRequest, 8), closed: make(chan struct{})}
 	a := &actor{m: m, cfg: PeerConfig{Host: "known.example.net", NoAutoReconnect: true}, state: WaitICEA, i: s, events: make(chan event, 8), done: make(chan struct{})}
 	s.actor = a
 	a.publish(nil)
 	renewalCoreSession(t, s, true, false, "example.net")
-	req = s.cerRequest
+	req := s.cerRequest
 	cea, err := base.BuildCEA(req, testBase("known.example.net"), diam.Success)
 	if err != nil {
 		t.Fatal(err)

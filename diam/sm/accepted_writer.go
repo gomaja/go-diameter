@@ -55,7 +55,7 @@ func (s *acceptedHandshake) send(e protocol.Effect, source protocol.Input, obser
 		}
 		s.mu.Lock()
 		active := false
-		for _, control := range s.core.Snapshot().Controls() {
+		for _, control := range s.core.Progress().Controls {
 			if control.Command == m.Header.CommandCode && control.Logical && control.Reservation.Hop == m.Header.HopByHopID && control.Reservation.End == m.Header.EndToEndID {
 				active = true
 				break
@@ -65,11 +65,7 @@ func (s *acceptedHandshake) send(e protocol.Effect, source protocol.Input, obser
 			ticket.Cancel()
 			settled = true
 		}
-		if s.writeHeaders == nil {
-			s.writeHeaders = make(map[uint64]diam.Header)
-		}
-		s.writes[e.Token] = ticket
-		s.writeHeaders[e.Token] = *m.Header
+		s.writes[e.Token] = acceptedWrite{ticket: ticket, command: m.Header.CommandCode}
 		s.mu.Unlock()
 	}
 	// Check after hooks and writer selection. Native write gates fence a racing
@@ -101,7 +97,6 @@ func (s *acceptedHandshake) send(e protocol.Effect, source protocol.Input, obser
 	if tracked {
 		s.mu.Lock()
 		delete(s.writes, e.Token)
-		delete(s.writeHeaders, e.Token)
 		s.mu.Unlock()
 		ticket.Release()
 	}

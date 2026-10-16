@@ -78,10 +78,4 @@ func TestClientUnsignalledCoreLivesInConnectionContext(t *testing.T) {
 		}
 		return true
 	})
-	cli.Handler.watchdogs.Range(func(key, value any) bool {
-		if key == c {
-			t.Error("unsignalled dialed watchdog retained by StateMachine")
-		}
-		return true
-	})
 }

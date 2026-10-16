@@ -85,12 +85,8 @@ func TestAcceptedWatchdogClosingActivity(t *testing.T) {
 		defer close(c.done)
 		sm.ServeDIAM(c, regressionCER(t, testDict, 1001))
 		w := acceptedWatchdogState(t, sm, c)
-		sm.stopWatchdog(c)
+		stopAcceptedTestWatchdog(sm, c)
 		<-w.exited
-		// Retain the stopped entry to exercise ServeDIAM's activity hook
-		// without racing the loop's asynchronous map deletion.
-		sm.watchdogs.Store(c, w)
-		defer sm.watchdogs.Delete(c)
 		routed := false
 		sm.Handle("ALL", diam.HandlerFunc(func(diam.Conn, *diam.Message) { routed = true }))
 		timer := w.state.snapshot().Timer(protocol.WatchdogTimer)
@@ -115,7 +111,7 @@ func TestAcceptedWatchdogClosingEvents(t *testing.T) {
 		defer close(c.done)
 		startAcceptedTestWatchdog(t, sm, c)
 		w := acceptedWatchdogState(t, sm, c)
-		sm.stopWatchdog(c)
+		stopAcceptedTestWatchdog(sm, c)
 		<-w.exited
 
 		// A timer or message handler may reach the observer after stop.
@@ -167,7 +163,7 @@ func TestAcceptedWatchdogEventsHoldStopLock(t *testing.T) {
 		} {
 			w.observe(c, event)
 		}
-		sm.stopWatchdog(c)
+		stopAcceptedTestWatchdog(sm, c)
 		<-w.exited
 		if len(events) != 7 {
 			t.Fatalf("watchdog events = %v, want all seven outcomes", events)

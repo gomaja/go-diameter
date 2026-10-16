@@ -15,7 +15,7 @@ func TestReadAnswerPrecedesConnectionGone(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	a := &actor{m: m, cfg: PeerConfig{Host: "a.example.net"}, events: make(chan event, 8), done: make(chan struct{}), state: IOpen, watchdog: WatchdogOkay, meta: &smpeer.Metadata{OriginHost: "a.example.net", OriginRealm: "example.net", Applications: []uint32{4}}}
+	a := &actor{m: m, cfg: PeerConfig{Host: "a.example.net"}, events: make(chan event, 8), done: make(chan struct{}), state: IOpen, snapshotValue: fixtureHealth(WatchdogOkay), meta: &smpeer.Metadata{OriginHost: "a.example.net", OriginRealm: "example.net", Applications: []uint32{4}}}
 	c := newFakeConn()
 	s := &session{m: m, c: c, actor: a, gen: 1, writes: make(chan writeRequest, 8), ingress: make(chan incoming, 8), closed: make(chan struct{})}
 	a.active, a.i = s, s

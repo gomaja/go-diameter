@@ -117,10 +117,10 @@ func TestAcceptedRetirementCancelsProtocolState(t *testing.T) {
 	if state.snapshot().Timer(protocol.WatchdogTimer).Token != 0 {
 		t.Error("retired watchdog timer remains active")
 	}
-	if state.timer.Stop() {
+	if state.timers[protocol.HandshakeTimer].Stop() {
 		t.Error("retired admission timer remains active")
 	}
-	if _, ok := sm.watchdogs.Load(c); ok {
+	if _, ok := acceptedTestSupervisor(sm, c); ok {
 		t.Error("retired watchdog remains registered")
 	}
 	if !w.stopped.Load() {
@@ -164,7 +164,7 @@ func TestAcceptedRetirementAllowsBlockedWatchdogObserver(t *testing.T) {
 	if !w.stopped.Load() {
 		t.Error("observer hid stop latch")
 	}
-	if _, ok := sm.watchdogs.Load(c); ok {
+	if _, ok := acceptedTestSupervisor(sm, c); ok {
 		t.Error("observer kept old supervisor registered")
 	}
 	close(release)
@@ -194,11 +194,11 @@ func TestAcceptedRetirementDuringWatchdogRegistration(t *testing.T) {
 		}
 		close(c.allowLookup)
 		<-registered
-		if _, ok := sm.watchdogs.Load(c); ok {
+		if _, ok := acceptedTestSupervisor(sm, c); ok {
 			t.Fatal("watchdog resurrected after retirement")
 		}
 		startAcceptedTestWatchdog(t, sm, c)
-		if _, ok := sm.watchdogs.Load(c); ok {
+		if _, ok := acceptedTestSupervisor(sm, c); ok {
 			t.Fatal("deferred watchdog start resurrected after retirement")
 		}
 	})
@@ -736,7 +736,7 @@ func TestAcceptedRetirementReleasesDisconnectWithBlockedObserver(t *testing.T) {
 		t.Fatalf("initial admission DWA=%v,%v", dwa, err)
 	}
 	deadline := time.Now().Add(time.Second)
-	for sm.supervised(old) == nil {
+	for func() bool { _, ok := acceptedTestSupervisor(sm, old); return !ok }() {
 		if time.Now().After(deadline) {
 			t.Fatal("watchdog not registered")
 		}
@@ -923,7 +923,7 @@ func TestAcceptedRestartWatchdogStates(t *testing.T) {
 				acceptedRestartCEA(t, peer, diam.Success)
 				next := <-handshakes
 				synctest.Wait()
-				if _, ok := sm.watchdogs.Load(old); ok || !oldWatchdog.stopped.Load() {
+				if _, ok := acceptedTestSupervisor(sm, old); ok || !oldWatchdog.stopped.Load() {
 					t.Fatal("old watchdog retained after restart")
 				}
 				select {

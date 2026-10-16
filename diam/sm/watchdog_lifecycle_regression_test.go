@@ -39,7 +39,7 @@ func TestAcceptedWatchdogDisconnectDuringOnHandshake(t *testing.T) {
 		}
 		close(release) // OnHandshake returns; deferred registration runs.
 		synctest.Wait()
-		_, supervised := sm.watchdogs.Load(c)
+		_, supervised := acceptedTestSupervisor(sm, c)
 		got := make(chan *diam.Message, 1)
 		go func() { m, _ := diam.ReadMessage(peer, testDict); got <- m }()
 		select {
@@ -91,7 +91,7 @@ func TestAcceptedWatchdogTerminalCloseLocks(t *testing.T) {
 				if !c.Closed() {
 					t.Error("terminal watchdog failure did not close transport")
 				}
-				sm.stopWatchdog(c)
+				stopAcceptedTestWatchdog(sm, c)
 				<-w.exited
 			})
 		})
@@ -124,7 +124,7 @@ func TestAcceptedWatchdogStopWaitsForTerminalClose(t *testing.T) {
 				}()
 				<-entered
 				stopped := make(chan struct{})
-				go func() { sm.stopWatchdog(c); close(stopped) }()
+				go func() { stopAcceptedTestWatchdog(sm, c); close(stopped) }()
 				synctest.Wait()
 				select {
 				case <-stopped:
@@ -152,7 +152,7 @@ func TestAcceptedWatchdogEndedSupervisorIgnoresStaleDWA(t *testing.T) {
 		w := acceptedWatchdogState(t, sm, c)
 		close(notify)
 		<-w.exited
-		sm.stopWatchdog(c)
+		stopAcceptedTestWatchdog(sm, c)
 		receiveAcceptedTestWatchdog(w, acceptedDWA(t, regressionDWR(t), diam.Success))
 		select {
 		case event := <-events:
@@ -181,7 +181,7 @@ func TestAcceptedWatchdogDownCloseAfterStopReturned(t *testing.T) {
 		<-events
 		timer := w.state.snapshot().Timer(protocol.WatchdogTimer)
 		batch := w.state.prepare(protocol.Input{Kind: protocol.TimerExpired, Timer: protocol.WatchdogTimer, Token: timer.Token, At: timer.Deadline})
-		sm.stopWatchdog(c) // Closing wins before selected terminal effects execute.
+		stopAcceptedTestWatchdog(sm, c) // Closing wins before selected terminal effects execute.
 		w.state.run(batch)
 		<-w.exited
 		if c.Closed() {

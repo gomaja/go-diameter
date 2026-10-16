@@ -321,8 +321,8 @@ func TestManagerDPAOwnership(t *testing.T) {
 			if fault == "zero identifiers" && (request.Header.HopByHopID != 0 || request.Header.EndToEndID != 0) {
 				t.Fatal("fixture did not allocate zero identifiers")
 			}
-			if a.state != Closed || !s.c.Closed() || a.pendingDPRGen != 0 || a.pendingDPRCommand != 0 {
-				t.Fatalf("owned DPA did not release disconnect: state=%s gen=%d command=%d", a.state, a.pendingDPRGen, a.pendingDPRCommand)
+			if control := fixtureSessionControl(s, diam.DisconnectPeer); a.state != Closed || !s.c.Closed() || control.Logical {
+				t.Fatalf("owned DPA did not release disconnect: state=%s control=%+v", a.state, control)
 			}
 			fixtureCompleteWrite(s, selected)
 			if len(s.protocolSnapshot().Controls()) != 0 {

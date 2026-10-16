@@ -125,7 +125,7 @@ func (m *Manager) AcquireDiscovered(ctx context.Context, spec Discovery) (*Lease
 		m.mu.Unlock()
 		return nil, ErrDiscoveryOwned
 	}
-	a := &actor{m: m, cfg: spec.Peer, events: make(chan event, m.cfg.Limits.Events), done: make(chan struct{}), state: Closed, watchdog: WatchdogInitial, ready: &discoveryReady{done: make(chan struct{})}, leaseStop: make(chan struct{})}
+	a := &actor{m: m, cfg: spec.Peer, events: make(chan event, m.cfg.Limits.Events), done: make(chan struct{}), state: Closed, ready: &discoveryReady{done: make(chan struct{})}, leaseStop: make(chan struct{})}
 	a.discovery.Store(&discoveryState{spec: spec, expires: spec.ExpiresAt})
 	a.publish(nil)
 	m.peers[key] = a

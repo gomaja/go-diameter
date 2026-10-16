@@ -132,7 +132,7 @@ func (p *coreActivityWire) state(t *testing.T) coreActivityState {
 	var state coreActivityState
 	d := newProtocolDelivery()
 	p.a.commit(event{testHook: func() {
-		state = coreActivityState{p.a.watchdog, p.a.pendingWatchdog, p.a.numDWA, p.a.wdTimer, p.a.wdToken}
+		state = coreActivityState{p.a.publishedWatchdog(), fixtureWatchdog(p.a).Pending, fixtureWatchdog(p.a).NumDWA, fixtureWatchdogTimer(p.a), fixtureWatchdogToken(p.a)}
 	}}, d)
 	return state
 }
@@ -329,8 +329,8 @@ func TestManagerCoreReopenActivityTCP(t *testing.T) {
 				_ = p.c.Close()
 				awaitState(t, p.m, Closed)
 				p.fence(t)
-				if p.a.watchdog != WatchdogDown {
-					t.Fatalf("transport loss watchdog = %s", p.a.watchdog)
+				if p.a.publishedWatchdog() != WatchdogDown {
+					t.Fatalf("transport loss watchdog = %s", p.a.publishedWatchdog())
 				}
 				if dialed {
 					p.a.post(event{kind: start})

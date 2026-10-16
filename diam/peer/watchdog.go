@@ -40,14 +40,6 @@ func (a *actor) watchdogInterval() time.Duration {
 	return watchdog.Tw(a.m.cfg.Timers.TwInit, jitter, rand.Int63n)
 }
 
-func (a *actor) stopWatchdog() {
-	a.wdToken++
-	a.deferredWatchdog = nil
-	if a.wdTimer != nil {
-		a.wdTimer.Stop()
-		a.wdTimer = nil
-	}
-}
 func (a *actor) stopReconnect() {
 	a.tcToken++
 	if a.tcTimer != nil {
@@ -101,15 +93,14 @@ func (a *actor) reconnectTick() {
 	a.arm(a.m.cfg.Timers.Connect)
 	a.dial()
 }
-func (a *actor) changeWatchdog(next WatchdogState, reason error) {
-	if a.watchdog == next {
+func (a *actor) publishWatchdog(next WatchdogState, reason error) {
+	if a.publishedWatchdog() == next {
 		return
 	}
-	a.watchdog = next
 	if reason == nil {
 		reason = fmt.Errorf("peer: watchdog %s", next)
 	}
-	a.publish(reason)
+	a.publishHealth(next, reason)
 	if next == WatchdogSuspect && a.active != nil {
 		// RFC 3539 §3.4.1 and RFC 6733 §5.5.4: remove a SUSPECT
 		// connection from new selection and fail over requests in flight.
@@ -121,11 +112,9 @@ func (a *actor) lostConnection(reason error) {
 	// An initial handshake can end with transport EOF rather than a rejected
 	// CEA. Complete its acquisition acknowledgement before reconnect backoff.
 	a.signalReady(reason)
-	a.stopWatchdog()
-	a.pendingWatchdog = false // release the dead transport's outstanding probe
 	if a.everOpen {
 		// Transport closure and session failover are already owned by the caller.
-		a.changeWatchdog(WatchdogDown, reason)
+		a.publishWatchdog(WatchdogDown, reason)
 	}
 	a.scheduleReconnect()
 }

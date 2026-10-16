@@ -4,8 +4,31 @@ import (
 	"testing"
 
 	"github.com/gomaja/go-diameter/diam"
+	"github.com/gomaja/go-diameter/diam/internal/base"
 	"github.com/gomaja/go-diameter/diam/internal/protocol"
 )
+
+func acceptedTestSupervisor(sm *StateMachine, c diam.Conn) (*acceptedWatchdog, bool) {
+	state := sm.acceptedCore(c, nil, false)
+	if state == nil || state.client != nil {
+		return nil, false
+	}
+	w := state.watchdogState()
+	return w, w != nil && !w.stopped.Load()
+}
+
+func stopAcceptedTestWatchdog(sm *StateMachine, c diam.Conn) {
+	if state := sm.acceptedCore(c, nil, false); state != nil {
+		if w := state.watchdogState(); w != nil {
+			w.stop()
+		}
+	}
+}
+
+func savedApplicationOfferSupports(c diam.Conn, app uint32) bool {
+	local, _ := c.Context().Value(advertisedAppsKey{}).([]uint32)
+	return base.SupportsApplication(local, app)
+}
 
 // Private supervisor tests start after capability exchange. Drive the real
 // responder transitions, but leave CEA I/O and public handshake hooks to the

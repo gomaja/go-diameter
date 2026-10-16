@@ -58,8 +58,8 @@ func TestManagerRenewalCloseWatcherJoinsInterveningRetirement(t *testing.T) {
 		}
 		c := &renewalCloseRaceConn{fakeConn: newFakeConn(), ordinary: make(chan struct{}), ordinaryGate: make(chan struct{}), closeEntered: make(chan struct{}), closeGate: make(chan struct{})}
 		defer c.unblock()
-		a := &actor{m: m, cfg: PeerConfig{Host: "known.example.net", NoAutoReconnect: true}, state: ROpen, watchdog: WatchdogOkay, everOpen: true, events: make(chan event, 8), done: make(chan struct{})}
-		s := &session{m: m, c: c, actor: a, gen: 1, inbound: true, first: true, closed: make(chan struct{}), ingress: make(chan incoming, 4), writes: make(chan writeRequest, 4)}
+		a := &actor{m: m, cfg: PeerConfig{Host: "known.example.net", NoAutoReconnect: true}, state: ROpen, snapshotValue: fixtureHealth(WatchdogOkay), everOpen: true, events: make(chan event, 8), done: make(chan struct{})}
+		s := &session{m: m, c: c, actor: a, gen: 1, inbound: true, closed: make(chan struct{}), ingress: make(chan incoming, 4), writes: make(chan writeRequest, 4)}
 		s.admitted.Store(true)
 		a.r, a.active = s, s
 		a.meta = &smpeer.Metadata{OriginHost: "known.example.net", OriginRealm: "example.net", Applications: []uint32{4}}
@@ -116,8 +116,8 @@ func TestManagerRenewalTerminalDecisionVetoesRenewal(t *testing.T) {
 				c := &renewalCloseRaceConn{fakeConn: newFakeConn(), ordinary: make(chan struct{}), ordinaryGate: make(chan struct{}), closeEntered: make(chan struct{}), closeGate: make(chan struct{})}
 				close(c.ordinaryGate)
 				defer c.unblock()
-				a := &actor{m: m, cfg: PeerConfig{Host: "known.example.net", NoAutoReconnect: true}, state: ROpen, watchdog: WatchdogOkay, everOpen: true, events: make(chan event, 4), done: make(chan struct{})}
-				s := &session{m: m, c: c, actor: a, gen: 1, inbound: true, first: true, closed: make(chan struct{}), ingress: make(chan incoming, 4), writes: make(chan writeRequest, 4)}
+				a := &actor{m: m, cfg: PeerConfig{Host: "known.example.net", NoAutoReconnect: true}, state: ROpen, snapshotValue: fixtureHealth(WatchdogOkay), everOpen: true, events: make(chan event, 4), done: make(chan struct{})}
+				s := &session{m: m, c: c, actor: a, gen: 1, inbound: true, closed: make(chan struct{}), ingress: make(chan incoming, 4), writes: make(chan writeRequest, 4)}
 				s.admitted.Store(true)
 				a.r, a.active = s, s
 				renewalCoreSession(t, s, true, true, "example.net")

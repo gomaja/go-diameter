@@ -54,7 +54,7 @@ func newWatchdogTestActor(t *testing.T, state WatchdogState) (*actor, *session, 
 	if err != nil {
 		t.Fatal(err)
 	}
-	a := &actor{m: m, cfg: PeerConfig{Host: "known.example.net"}, state: ROpen, watchdog: state, everOpen: state != WatchdogInitial, events: make(chan event, 8), done: make(chan struct{})}
+	a := &actor{m: m, cfg: PeerConfig{Host: "known.example.net"}, state: ROpen, snapshotValue: fixtureHealth(state), everOpen: state != WatchdogInitial, events: make(chan event, 8), done: make(chan struct{})}
 	s := &session{m: m, c: newFakeConn(), actor: a, gen: 7, writes: make(chan writeRequest, 8), closed: make(chan struct{})}
 	a.r, a.active = s, s
 	a.publish(nil)
@@ -63,7 +63,7 @@ func newWatchdogTestActor(t *testing.T, state WatchdogState) (*actor, *session, 
 			t.Fatal(err)
 		}
 	}
-	t.Cleanup(func() { a.stopWatchdog(); a.stopReconnect(); s.close(); closeManager(t, m, nil) })
+	t.Cleanup(func() { a.stopReconnect(); s.close(); closeManager(t, m, nil) })
 	return a, s, clock
 }
 
@@ -98,7 +98,7 @@ func TestValidateDWACommandFlags(t *testing.T) {
 			answer := testDWA(t, a)
 			answer.Header.CommandFlags = uint8(flags)
 			a.watchdogReceive(answer)
-			valid := !a.pendingWatchdog
+			valid := !fixtureWatchdog(a).Pending
 			// RFC 6733 §§3 and 5.5.2: ignore reserved low bits; successful
 			// DWA must have all four defined command flags clear.
 			if want := flags&0xf0 == 0; valid != want {
@@ -114,8 +114,8 @@ func TestWatchdogReceiveReservedDWAFlags(t *testing.T) {
 			a, _, _ := newWatchdogTestActor(t, WatchdogReopen)
 			answer := testDWA(t, a)
 			answer.Header.CommandFlags = reserved
-			if !a.watchdogReceive(answer) || a.pendingWatchdog || a.numDWA != 1 {
-				t.Fatalf("reserved DWA flags %#02x: pending=%t recovery count=%d", reserved, a.pendingWatchdog, a.numDWA)
+			if !a.watchdogReceive(answer) || fixtureWatchdog(a).Pending || fixtureWatchdog(a).NumDWA != 1 {
+				t.Fatalf("reserved DWA flags %#02x: pending=%t recovery count=%d", reserved, fixtureWatchdog(a).Pending, fixtureWatchdog(a).NumDWA)
 			}
 		})
 	}
@@ -147,7 +147,7 @@ func TestRFC3539WatchdogTable(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			a, s, _ := newWatchdogTestActor(t, tc.state)
-			if tc.pending && !a.pendingWatchdog {
+			if tc.pending && !fixtureWatchdog(a).Pending {
 				a.sendWatchdog()
 				fixtureConsumeProbe(s)
 			}
@@ -159,8 +159,8 @@ func TestRFC3539WatchdogTable(t *testing.T) {
 			case "other":
 				a.watchdogReceive(watchdogRequest(t))
 			}
-			if a.watchdog != tc.want || a.pendingWatchdog != tc.wantPending || a.numDWA != tc.wantNum {
-				t.Fatalf("watchdog=%s pending=%t NumDWA=%d; want %s %t %d", a.watchdog, a.pendingWatchdog, a.numDWA, tc.want, tc.wantPending, tc.wantNum)
+			if a.publishedWatchdog() != tc.want || fixtureWatchdog(a).Pending != tc.wantPending || fixtureWatchdog(a).NumDWA != tc.wantNum {
+				t.Fatalf("watchdog=%s pending=%t NumDWA=%d; want %s %t %d", a.publishedWatchdog(), fixtureWatchdog(a).Pending, fixtureWatchdog(a).NumDWA, tc.want, tc.wantPending, tc.wantNum)
 			}
 			if len(s.writes) != tc.writes {
 				t.Fatalf("writes=%d want %d", len(s.writes), tc.writes)
@@ -180,20 +180,20 @@ func TestWatchdogRecoveryCreditAndSecondExpiry(t *testing.T) {
 				a.watchdogReceive(testDWA(t, a))
 			}
 			a.watchdogReceive(testDWA(t, a))
-			if a.numDWA != prior+1 || a.pendingWatchdog || a.snapshot().Eligible != (prior == 2) {
-				t.Fatalf("recovery credit state=%s NumDWA=%d Pending=%t Eligible=%t", a.watchdog, a.numDWA, a.pendingWatchdog, a.snapshot().Eligible)
+			if fixtureWatchdog(a).NumDWA != prior+1 || fixtureWatchdog(a).Pending || a.snapshot().Eligible != (prior == 2) {
+				t.Fatalf("recovery credit state=%s NumDWA=%d Pending=%t Eligible=%t", a.publishedWatchdog(), fixtureWatchdog(a).NumDWA, fixtureWatchdog(a).Pending, a.snapshot().Eligible)
 			}
 		})
 	}
 	t.Run("second unanswered expiry", func(t *testing.T) {
 		a, _, _ := newWatchdogTestActor(t, WatchdogReopen)
 		a.watchdogTick()
-		if a.numDWA != -1 || !a.pendingWatchdog {
-			t.Fatalf("first unanswered expiry state=%s NumDWA=%d Pending=%t", a.watchdog, a.numDWA, a.pendingWatchdog)
+		if fixtureWatchdog(a).NumDWA != -1 || !fixtureWatchdog(a).Pending {
+			t.Fatalf("first unanswered expiry state=%s NumDWA=%d Pending=%t", a.publishedWatchdog(), fixtureWatchdog(a).NumDWA, fixtureWatchdog(a).Pending)
 		}
 		a.watchdogTick()
-		if a.watchdog != WatchdogDown || a.pendingWatchdog || a.snapshot().Eligible {
-			t.Fatalf("second unanswered expiry state=%s Pending=%t Eligible=%t", a.watchdog, a.pendingWatchdog, a.snapshot().Eligible)
+		if a.publishedWatchdog() != WatchdogDown || fixtureWatchdog(a).Pending || a.snapshot().Eligible {
+			t.Fatalf("second unanswered expiry state=%s Pending=%t Eligible=%t", a.publishedWatchdog(), fixtureWatchdog(a).Pending, a.snapshot().Eligible)
 		}
 	})
 	for _, history := range []WatchdogState{WatchdogInitial, WatchdogDown} {
@@ -201,11 +201,11 @@ func TestWatchdogRecoveryCreditAndSecondExpiry(t *testing.T) {
 			a, s, _ := newWatchdogTestActor(t, history)
 			a.onOpen()
 			if history == WatchdogInitial {
-				if a.watchdog != WatchdogOkay || a.pendingWatchdog || !a.snapshot().Eligible || len(s.writes) != 0 {
-					t.Fatalf("initial admission state=%s Pending=%t writes=%d", a.watchdog, a.pendingWatchdog, len(s.writes))
+				if a.publishedWatchdog() != WatchdogOkay || fixtureWatchdog(a).Pending || !a.snapshot().Eligible || len(s.writes) != 0 {
+					t.Fatalf("initial admission state=%s Pending=%t writes=%d", a.publishedWatchdog(), fixtureWatchdog(a).Pending, len(s.writes))
 				}
-			} else if a.watchdog != WatchdogReopen || !a.pendingWatchdog || a.numDWA != 0 || a.snapshot().Eligible || len(s.writes) != 1 {
-				t.Fatalf("recovery admission state=%s Pending=%t NumDWA=%d writes=%d", a.watchdog, a.pendingWatchdog, a.numDWA, len(s.writes))
+			} else if a.publishedWatchdog() != WatchdogReopen || !fixtureWatchdog(a).Pending || fixtureWatchdog(a).NumDWA != 0 || a.snapshot().Eligible || len(s.writes) != 1 {
+				t.Fatalf("recovery admission state=%s Pending=%t NumDWA=%d writes=%d", a.publishedWatchdog(), fixtureWatchdog(a).Pending, fixtureWatchdog(a).NumDWA, len(s.writes))
 			}
 		})
 	}
@@ -232,7 +232,7 @@ func TestWatchdogReconnectAttemptRows(t *testing.T) {
 func TestWatchdogMatchingAndRecovery(t *testing.T) {
 	a, s, _ := newWatchdogTestActor(t, WatchdogDown)
 	a.onOpen()
-	if !a.pendingWatchdog || a.numDWA != 0 || a.snapshot().Eligible {
+	if !fixtureWatchdog(a).Pending || fixtureWatchdog(a).NumDWA != 0 || a.snapshot().Eligible {
 		t.Fatal("recovery opened before validation")
 	}
 	first := fixtureConsumeProbe(s)
@@ -247,27 +247,27 @@ func TestWatchdogMatchingAndRecovery(t *testing.T) {
 	bad := answer(first)
 	bad.Header.HopByHopID++
 	a.onWire(event{s: s, msg: bad})
-	if a.numDWA != 0 || !a.pendingWatchdog {
+	if fixtureWatchdog(a).NumDWA != 0 || !fixtureWatchdog(a).Pending {
 		t.Fatal("mismatched DWA counted")
 	}
 	a.onWire(event{s: s, msg: answer(first)})
-	if a.numDWA != 1 || a.snapshot().Eligible {
+	if fixtureWatchdog(a).NumDWA != 1 || a.snapshot().Eligible {
 		t.Fatal("first DWA made peer eligible")
 	}
 	a.onWire(event{s: s, msg: answer(first)})
-	if a.numDWA != 1 {
+	if fixtureWatchdog(a).NumDWA != 1 {
 		t.Fatal("duplicate DWA counted")
 	}
 	for want := 2; want <= 3; want++ {
 		a.watchdogTick()
 		probe := fixtureConsumeProbe(s)
 		a.onWire(event{s: s, msg: answer(probe)})
-		if a.numDWA != want || a.snapshot().Eligible != (want == 3) {
-			t.Fatalf("NumDWA=%d Eligible=%v", a.numDWA, a.snapshot().Eligible)
+		if fixtureWatchdog(a).NumDWA != want || a.snapshot().Eligible != (want == 3) {
+			t.Fatalf("NumDWA=%d Eligible=%v", fixtureWatchdog(a).NumDWA, a.snapshot().Eligible)
 		}
 	}
-	if a.watchdog != WatchdogOkay {
-		t.Fatalf("state=%s", a.watchdog)
+	if a.publishedWatchdog() != WatchdogOkay {
+		t.Fatalf("state=%s", a.publishedWatchdog())
 	}
 }
 
@@ -439,8 +439,8 @@ func TestReconnectAfterDisconnectBeforeCEA(t *testing.T) {
 	a.m.started = true
 	a.m.mu.Unlock()
 	a.onGone(s)
-	if a.state != Closed || a.watchdog != WatchdogInitial || a.tcTimer == nil {
-		t.Fatalf("CEA-stage loss: state=%s watchdog=%s Tc scheduled=%v", a.state, a.watchdog, a.tcTimer != nil)
+	if a.state != Closed || a.publishedWatchdog() != WatchdogInitial || a.tcTimer == nil {
+		t.Fatalf("CEA-stage loss: state=%s watchdog=%s Tc scheduled=%v", a.state, a.publishedWatchdog(), a.tcTimer != nil)
 	}
 }
 
@@ -485,7 +485,7 @@ func TestWatchdogDWAIdentityAndResult(t *testing.T) {
 			m := testDWA(t, a)
 			mutate.change(m)
 			a.onWire(event{s: s, msg: m})
-			if a.numDWA != 0 || !a.pendingWatchdog || a.snapshot().Eligible {
+			if fixtureWatchdog(a).NumDWA != 0 || !fixtureWatchdog(a).Pending || a.snapshot().Eligible {
 				t.Fatal("invalid DWA counted")
 			}
 		})
@@ -498,7 +498,7 @@ func TestWatchdogStaleGenerationDWA(t *testing.T) {
 	old := &session{m: a.m, c: newFakeConn(), actor: a, gen: s.gen - 1, writes: make(chan writeRequest, 8), closed: make(chan struct{})}
 	t.Cleanup(old.close)
 	a.onWire(event{s: old, msg: m})
-	if a.numDWA != 0 || !a.pendingWatchdog {
+	if fixtureWatchdog(a).NumDWA != 0 || !fixtureWatchdog(a).Pending {
 		t.Fatal("old-generation DWA counted")
 	}
 }
@@ -540,10 +540,10 @@ func TestWatchdogTransitionsEmitReasons(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer closeManager(t, m, nil)
-	a := &actor{m: m, cfg: PeerConfig{Host: "known.example.net"}, state: ROpen, watchdog: WatchdogInitial, events: make(chan event, 8), done: make(chan struct{})}
+	a := &actor{m: m, cfg: PeerConfig{Host: "known.example.net"}, state: ROpen, snapshotValue: fixtureHealth(WatchdogInitial), events: make(chan event, 8), done: make(chan struct{})}
 	a.publish(nil)
 	for _, state := range []WatchdogState{WatchdogOkay, WatchdogSuspect, WatchdogDown, WatchdogReopen, WatchdogOkay} {
-		a.changeWatchdog(state, errors.New("transition"))
+		a.publishWatchdog(state, errors.New("transition"))
 	}
 	for _, want := range []WatchdogState{WatchdogOkay, WatchdogSuspect, WatchdogDown, WatchdogReopen, WatchdogOkay} {
 		select {

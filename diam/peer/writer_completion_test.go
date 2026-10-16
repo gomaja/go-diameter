@@ -12,7 +12,7 @@ func TestSuccessfulAutomaticReplyCompletesWithoutActorEvent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	a := &actor{m: m, cfg: PeerConfig{Host: "known.example.net", NoAutoReconnect: true}, state: ROpen, watchdog: WatchdogOkay}
+	a := &actor{m: m, cfg: PeerConfig{Host: "known.example.net", NoAutoReconnect: true}, state: ROpen, snapshotValue: fixtureHealth(WatchdogOkay)}
 	s := &session{m: m, c: newFakeConn(), actor: a, gen: 3, requests: new(diam.PendingRequests)}
 	if err := bootstrapSessionProtocol(s); err != nil {
 		t.Fatal(err)
@@ -35,9 +35,9 @@ func TestSuccessfulAutomaticReplyCompletesWithoutActorEvent(t *testing.T) {
 		t.Fatal("successful automatic reply woke the actor")
 	}
 	s.coreMu.Lock()
-	writes, headers := len(s.coreWrites), len(s.coreHeaders)
+	writes := len(s.coreWrites)
 	s.coreMu.Unlock()
-	if writes != 0 || headers != 0 {
+	if writes != 0 {
 		t.Fatal("successful reply retained writer ownership")
 	}
 	if s.protocolSnapshot().Phase() != protocol.Open {

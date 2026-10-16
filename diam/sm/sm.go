@@ -298,7 +298,6 @@ type StateMachine struct {
 	contextCores  sync.Mutex // serializes cores kept in a Conn's context
 	accepted      sync.Map   // diam.Conn -> *acceptedHandshake
 	watchdog      *watchdogPolicy
-	watchdogs     sync.Map // diam.Conn -> *acceptedWatchdog
 }
 
 // New creates and initializes a new StateMachine for clients or servers.
@@ -325,13 +324,13 @@ func New(settings *Settings) (*StateMachine, error) {
 	cerHandler := diam.HandlerFunc(sm.ServeDIAM)
 	dwrHandler := diam.HandlerFunc(sm.ServeDIAM)
 	sm.mux.Handle("CER", cerHandler)
-	sm.mux.Handle("DWR", handshakeOK(dwrHandler))
-	sm.mux.Handle("DPR", handshakeOK(sm.ServeDIAM))
-	sm.mux.Handle("DPA", handshakeOK(sm.ServeDIAM))
+	sm.mux.Handle("DWR", dwrHandler)
+	sm.mux.Handle("DPR", diam.HandlerFunc(sm.ServeDIAM))
+	sm.mux.Handle("DPA", diam.HandlerFunc(sm.ServeDIAM))
 	sm.mux.HandleIdx(baseCERIdx, cerHandler)
-	sm.mux.HandleIdx(baseDWRIdx, handshakeOK(dwrHandler))
-	sm.mux.HandleIdx(baseDPRIdx, handshakeOK(sm.ServeDIAM))
-	sm.mux.HandleIdx(baseDPAIdx, handshakeOK(sm.ServeDIAM))
+	sm.mux.HandleIdx(baseDWRIdx, dwrHandler)
+	sm.mux.HandleIdx(baseDPRIdx, diam.HandlerFunc(sm.ServeDIAM))
+	sm.mux.HandleIdx(baseDPAIdx, diam.HandlerFunc(sm.ServeDIAM))
 	return sm, nil
 }
 
@@ -378,7 +377,6 @@ func (sm *StateMachine) HandleRetire(c diam.Conn, reason diam.RetirementReason) 
 		sm.accepted.CompareAndDelete(c, s)
 		if w := s.watchdogState(); w != nil {
 			w.latchStop()
-			sm.watchdogs.CompareAndDelete(c, w)
 		}
 	}
 	return nil
@@ -453,15 +451,13 @@ func (sm *StateMachine) HandleFunc(cmd string, handler diam.HandlerFunc) {
 	}
 }
 
-// handshakeOK is a wrapper for state machine handlers that only
-// calls the designated handler function if the peer has passed the
-// CER/CEA handshake.
+// Application callbacks also require the peer metadata in the public context.
+// A caller can replace that context after genuine admission; the core's bound
+// identity remains immutable while this callback gate follows the context.
 type handshakeOK diam.HandlerFunc
 
-// ServeDIAM implements the diam.Handler interface.
 func (f handshakeOK) ServeDIAM(c diam.Conn, m *diam.Message) {
 	if !admittedPeer(c) {
-		// RFC 6733 §5.6.1: reject messages before capabilities exchange.
 		logMessage(c, m, slog.LevelWarn, "sm: message before CER; closing connection", nil)
 		c.Close()
 		return

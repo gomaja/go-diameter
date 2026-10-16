@@ -195,7 +195,7 @@ func TestManagerSecondCERPreservesPendingRequests(t *testing.T) {
 				if len(s.writes) != 0 {
 					t.Fatal("second CER queued an answer")
 				}
-				if !a.pendingWatchdog || a.watchdog != WatchdogOkay || a.watchdogHop != probe.Header.HopByHopID || a.watchdogEnd != probe.Header.EndToEndID || a.watchdogGen != s.gen || a.wdTimer == nil {
+				if !fixtureWatchdog(a).Pending || a.publishedWatchdog() != WatchdogOkay || fixtureControl(a, diam.DeviceWatchdog).Reservation.Hop != probe.Header.HopByHopID || fixtureControl(a, diam.DeviceWatchdog).Reservation.End != probe.Header.EndToEndID || fixtureWatchdogTimer(a) == nil {
 					t.Fatal("second CER changed the pending watchdog")
 				}
 				m.pendingMu.Lock()
@@ -210,7 +210,7 @@ func TestManagerSecondCERPreservesPendingRequests(t *testing.T) {
 					t.Fatal(err)
 				}
 				a.onWire(event{kind: wireEvent, s: s, msg: dwa})
-				if a.pendingWatchdog || a.watchdog != WatchdogOkay {
+				if fixtureWatchdog(a).Pending || a.publishedWatchdog() != WatchdogOkay {
 					t.Fatal("pending watchdog did not accept DWA after second CER")
 				}
 				a.onWire(event{kind: wireEvent, s: s, msg: request.Answer(diam.Success)})

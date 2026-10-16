@@ -255,7 +255,7 @@ func TestProtocolErrorWatchdogCallbackCanStopSupervision(t *testing.T) {
 				cfg.OnWatchdogConnEvent = func(_ diam.Conn, event WatchdogEvent) { watchdog <- event }
 				cfg.OnProtocolError = func(event diam.ProtocolErrorEvent) {
 					// stopWatchdog acquires the same publication mutex as DWA handling.
-					machine.Load().stopWatchdog(event.Conn)
+					stopAcceptedTestWatchdog(machine.Load(), event.Conn)
 					events <- event
 				}
 			})

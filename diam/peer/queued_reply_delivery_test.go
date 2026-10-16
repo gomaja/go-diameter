@@ -94,9 +94,9 @@ func TestActorQueuedReplySuccessFinishesWithoutActorFeedback(t *testing.T) {
 		t.Fatal("successful queued DWA posted actor feedback")
 	}
 	s.coreMu.Lock()
-	writes, headers := len(s.coreWrites), len(s.coreHeaders)
+	writes := len(s.coreWrites)
 	s.coreMu.Unlock()
-	if writes != 0 || headers != 0 || s.protocolSnapshot().Phase() != protocol.Open {
+	if writes != 0 || s.protocolSnapshot().Phase() != protocol.Open {
 		t.Fatal("successful queued DWA retained writer ownership or changed phase")
 	}
 	unblockActor()

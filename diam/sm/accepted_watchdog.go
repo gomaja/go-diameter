@@ -76,9 +76,6 @@ func (sm *StateMachine) registerAcceptedWatchdog(state *acceptedHandshake) {
 		return
 	}
 	state.watchdog = w
-	if state.client == nil {
-		sm.watchdogs.Store(c, w)
-	}
 	state.mu.Unlock()
 	go func() {
 		select {
@@ -91,33 +88,12 @@ func (sm *StateMachine) registerAcceptedWatchdog(state *acceptedHandshake) {
 		case <-w.stopc:
 		}
 		w.latchStop()
-		sm.watchdogs.CompareAndDelete(c, w)
 		w.mu.Lock()
 		w.latchStop()
 		w.mu.Unlock()
 		w.closing.Wait()
 		close(w.exited)
 	}()
-}
-func (sm *StateMachine) supervised(c diam.Conn) *acceptedWatchdog {
-	if value, ok := sm.watchdogs.Load(c); ok {
-		return value.(*acceptedWatchdog)
-	}
-	return nil
-}
-func (sm *StateMachine) stopWatchdog(c diam.Conn) {
-	if state := sm.acceptedCore(c, nil, false); state != nil {
-		if w := state.watchdogState(); w != nil {
-			w.stop()
-		}
-		return
-	}
-	if w := sm.supervised(c); w != nil {
-		w.stop()
-	}
-}
-func (w *acceptedWatchdog) interval() time.Duration {
-	return jitteredTw(w.policy.twinit, w.policy.jitter)
 }
 func (w *acceptedWatchdog) latchStop() {
 	w.stopped.Store(true)

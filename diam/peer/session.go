@@ -33,6 +33,11 @@ type incoming struct {
 	err        *diam.MessageError
 	delivery   *protocolDelivery
 }
+type protocolWrite struct {
+	ticket  *diam.RequestWrite
+	command uint32
+}
+
 type session struct {
 	coreMu             sync.Mutex
 	core               *protocol.Core
@@ -41,10 +46,8 @@ type session struct {
 	coreEffects        []protocol.Effect
 	coreEffectSpare    []protocol.Effect
 	coreTimers         [protocol.ReceiverDisconnectTimer + 1]Timer
-	coreWrites         map[uint64]*diam.RequestWrite
-	coreHeaders        map[uint64]diam.Header
+	coreWrites         map[uint64]protocolWrite
 	coreTimeouts       chan protocol.Input
-	candidate          uint64
 	retired            atomic.Bool
 	closing            atomic.Bool // logical Closing, before DPR/DPA effects
 	terminal           atomic.Bool // committed rejection or local close, before transport completion
@@ -60,8 +63,6 @@ type session struct {
 	gen                uint64
 	inbound            bool
 	firstMu            sync.Mutex
-	first              bool
-	preTimer           Timer
 	writes             chan writeRequest
 	beforeAdmission    func()
 	afterAdmission     func()
@@ -69,14 +70,11 @@ type session struct {
 	beforeInFlightScan func() // observes drain inspection in tests; nil in use
 	ingressMu          sync.Mutex
 	ingressSequence    uint64 // guarded by ingressMu; successful admissions only
-	receivedSequence   uint64 // actor-owned completion of admitted receive decisions
 	ingressClosed      bool
 	ingress            chan incoming
 	closed             chan struct{}
 	closeOnce          sync.Once
 	cerRequest         *diam.Message
-	cerHop, cerEnd     uint32
-	localApps          []uint32 // applications actually advertised on this connection
 }
 
 func (m *Manager) newSession(c diam.Conn, a *actor, gen uint64, inbound bool) *session {
@@ -277,11 +275,6 @@ func (s *session) closeWithFailover(immediate bool) {
 			}
 		}
 		s.coreMu.Unlock()
-		s.firstMu.Lock()
-		if s.preTimer != nil {
-			s.preTimer.Stop()
-		}
-		s.firstMu.Unlock()
 		s.ingressMu.Lock()
 		if immediate && !s.isRetired() {
 			s.terminal.Store(true)

@@ -23,7 +23,6 @@ type watchdogActivity struct {
 	ready        chan struct{}
 	once         sync.Once
 	capabilities base.Settings
-	advertised   []uint32
 }
 
 func newWatchdogActivity() *watchdogActivity { return &watchdogActivity{ready: make(chan struct{})} }
@@ -57,7 +56,7 @@ func (h activityHandler) HandleMessageError(c diam.Conn, m *diam.Message, err *d
 func (cli *Client) newCore(c diam.Conn, local base.Settings) (*acceptedHandshake, acceptedBatch, error) {
 	s := &acceptedHandshake{sm: cli.Handler, conn: c, client: cli,
 		id:     protocol.Connection{Instance: acceptedInstance.Add(1), Generation: connectionGeneration(c)},
-		writes: make(map[uint64]*diam.RequestWrite), handshake: make(chan error, 1), handshakeDone: make(chan struct{})}
+		writes: make(map[uint64]acceptedWrite), handshake: make(chan error, 1), handshakeDone: make(chan struct{})}
 	if cli.EnableWatchdog {
 		_, jitter := cli.watchdogParameters()
 		s.policy = &watchdogPolicy{twinit: cli.WatchdogInterval, jitter: jitter, stream: cli.WatchdogStream,

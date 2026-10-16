@@ -274,7 +274,6 @@ func (cli *Client) dialContext(ctx context.Context, f dialFunc) (diam.Conn, erro
 	}
 	activity := newWatchdogActivity()
 	activity.capabilities = cli.capabilitySettings(nil)
-	activity.advertised = base.AdvertisedApplicationIDs(activity.capabilities)
 	c, err := f(activity)
 	if err != nil {
 		if ctx.Err() != nil {

@@ -35,10 +35,10 @@ func TestDiscoveryRouteOrder(t *testing.T) {
 	}
 	choose(actors[1], nil)
 	choose(actors[0], map[*actor]bool{actors[1]: true})
-	actors[1].watchdog = WatchdogSuspect
+	fixtureSetHealth(actors[1], WatchdogSuspect)
 	actors[1].publish(nil)
 	choose(actors[0], nil)
-	actors[1].watchdog = WatchdogOkay
+	fixtureSetHealth(actors[1], WatchdogOkay)
 	actors[1].publish(nil)
 	choose(actors[1], nil)
 	// Refresh changes ranking while retaining the admitted session.

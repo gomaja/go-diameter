@@ -32,12 +32,10 @@ type acceptedHandshake struct {
 	id                protocol.Connection
 	sequence          uint64
 	timers            [protocol.ReceiverDisconnectTimer + 1]*time.Timer
-	timer             *time.Timer // handshake timer, retained for lifecycle inspection
 	waiter            chan error
 	waiterToken       uint64
 	held              []protocol.Input
-	writes            map[uint64]*diam.RequestWrite
-	writeHeaders      map[uint64]diam.Header
+	writes            map[uint64]acceptedWrite
 	watchdog          *acceptedWatchdog
 	observerTail      <-chan struct{}
 	client            *Client
@@ -48,6 +46,14 @@ type acceptedHandshake struct {
 	policy            *watchdogPolicy
 	initialCERDone    bool
 	initialCERErr     error
+}
+
+// acceptedWrite binds the core's operation token to its native writer resource.
+// Retransmissions of one control share correlation in the core; completion
+// cancels all selected native writers for that command before publication.
+type acceptedWrite struct {
+	ticket  *diam.RequestWrite
+	command uint32
 }
 
 type acceptedObservation struct {
@@ -97,7 +103,7 @@ func (sm *StateMachine) acceptedCoreWithAdmission(c diam.Conn, m *diam.Message, 
 	if adopt {
 		peer = externalPeerClaims(c)
 	}
-	state := &acceptedHandshake{sm: sm, conn: c, id: protocol.Connection{Instance: acceptedInstance.Add(1), Generation: connectionGeneration(c)}, writes: make(map[uint64]*diam.RequestWrite)}
+	state := &acceptedHandshake{sm: sm, conn: c, id: protocol.Connection{Instance: acceptedInstance.Add(1), Generation: connectionGeneration(c)}, writes: make(map[uint64]acceptedWrite)}
 	cfg := sm.capabilities(c, m)
 	d := sm.cfg.HandshakeTimeout
 	if d < 0 {
@@ -320,9 +326,6 @@ func (s *acceptedHandshake) prepareLocked(effects []protocol.Effect, releaseDisp
 			}
 			timerKind, token := e.Timer, e.Token
 			s.timers[timerKind] = time.AfterFunc(time.Until(e.Deadline), func() { s.apply(protocol.Input{Kind: protocol.TimerExpired, Timer: timerKind, Token: token}) })
-			if e.Timer == protocol.HandshakeTimer {
-				s.timer = s.timers[e.Timer]
-			}
 		case protocol.StopTimer:
 			if timer := s.timers[e.Timer]; timer != nil {
 				timer.Stop()
@@ -330,17 +333,15 @@ func (s *acceptedHandshake) prepareLocked(effects []protocol.Effect, releaseDisp
 		case protocol.Hold:
 			s.held = append(s.held, *e.Input)
 		case protocol.CancelSend:
-			if ticket := s.writes[e.Token]; ticket != nil {
-				ticket.Cancel()
-			}
+			s.writes[e.Token].ticket.Cancel()
 		case protocol.CompleteRequest:
 			// Complete logical ownership before a selected writer acquires
 			// the native gate. Its pin remains until the writer exits (§6.2.1).
 			m := inMessageForCompletion(e)
 			if m != nil {
-				for token, h := range s.writeHeaders {
-					if h.CommandCode == m.CommandCode && h.ApplicationID == m.ApplicationID && h.HopByHopID == m.HopByHopID && h.EndToEndID == m.EndToEndID {
-						s.writes[token].Cancel()
+				for _, writer := range s.writes {
+					if writer.command == m.CommandCode {
+						writer.ticket.Cancel()
 					}
 				}
 			}

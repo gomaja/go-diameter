@@ -59,8 +59,8 @@ func TestClientCapabilitiesSnapshotPrecedesTransport(t *testing.T) {
 	client := &Client{Handler: mustNew(&settings), Dict: dictionary}
 	stop := errors.New("transport stopped by test")
 	_, err := client.dial(func(activity *watchdogActivity) (diam.Conn, error) {
-		if !slices.Contains(activity.advertised, 16777999) {
-			t.Fatalf("advertised applications unavailable before transport: %v", activity.advertised)
+		if ids := base.AdvertisedApplicationIDs(activity.capabilities); !slices.Contains(ids, 16777999) {
+			t.Fatalf("advertised applications unavailable before transport: %v", ids)
 		}
 		if err := dictionary.Load(strings.NewReader(`<diameter><application id="16777998" type="auth" name="Later"><vendor id="9999" name="Later"/></application></diameter>`)); err != nil {
 			t.Fatal(err)

@@ -72,11 +72,11 @@ func reportingCandidate(t *testing.T, a *actor, s *session) *diam.Message {
 	}
 	a.onWire(event{s: s, msg: request})
 	// Before the first CER, this session has no actor responder slot.
-	if s.candidate == 0 {
+	if s.protocolSnapshot().Candidate() == 0 {
 		s.applyProtocol(protocol.Input{Kind: protocol.Receive, Message: request}, nil)
 	}
-	if s.candidate == 0 || len(s.writes) != 0 {
-		t.Fatalf("election failed to hold validated CER: candidate=%d writes=%d", s.candidate, len(s.writes))
+	if s.protocolSnapshot().Candidate() == 0 || len(s.writes) != 0 {
+		t.Fatalf("election failed to hold validated CER: candidate=%d writes=%d", s.protocolSnapshot().Candidate(), len(s.writes))
 	}
 	return request
 }
@@ -122,7 +122,7 @@ func reportingReceive(a *actor, s *session, msg *diam.Message, d *protocolDelive
 }
 
 func reportingRejectCandidate(s *session, msg *diam.Message, code uint32, d *protocolDelivery) {
-	s.applyProtocol(protocol.Input{Kind: protocol.RejectCandidate, Token: s.candidate, Message: msg, ResultCode: code}, d)
+	s.applyProtocol(protocol.Input{Kind: protocol.RejectCandidate, Token: s.protocolSnapshot().Candidate(), Message: msg, ResultCode: code}, d)
 }
 
 func newReportingRawActor(t *testing.T) (*actor, *session, *fakeClock) {
@@ -132,7 +132,7 @@ func newReportingRawActor(t *testing.T) (*actor, *session, *fakeClock) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	a := &actor{m: m, cfg: PeerConfig{Host: "known.example.net", NoAutoReconnect: true}, state: Closed, watchdog: WatchdogInitial, events: make(chan event, 64), done: make(chan struct{})}
+	a := &actor{m: m, cfg: PeerConfig{Host: "known.example.net", NoAutoReconnect: true}, state: Closed, snapshotValue: fixtureHealth(WatchdogInitial), events: make(chan event, 64), done: make(chan struct{})}
 	s := &session{m: m, c: newFakeConn(), actor: a, gen: 1, writes: make(chan writeRequest, 8), closed: make(chan struct{})}
 	a.publish(nil)
 	t.Cleanup(func() { s.close(); closeManager(t, m, nil) })

@@ -21,7 +21,7 @@ func TestPreparedTimerCallbackAllocationsAreBounded(t *testing.T) {
 		}
 		release := false
 		state.prepareLocked(effects[:], &release)
-		state.timer.Stop()
+		state.timers[protocol.HandshakeTimer].Stop()
 	})
 	// A replacement needs its runtime timer and scalar callback. Consuming
 	// bookkeeping must not retain separate copies of the batch's large effects.
@@ -47,10 +47,10 @@ func TestHandshakeTimerCallbackOwnsSelectedCoordinates(t *testing.T) {
 		state.mu.Lock()
 		release := false
 		prepared := state.prepareLocked(effects, &release)
-		alias := state.timer == state.timers[protocol.HandshakeTimer]
+		installed := state.timers[protocol.HandshakeTimer] != nil
 		state.mu.Unlock()
-		if !alias || len(prepared) != 1 || prepared[0].Kind != protocol.Discard {
-			t.Fatalf("handshake timer alias=%t prepared=%+v", alias, prepared)
+		if !installed || len(prepared) != 1 || prepared[0].Kind != protocol.Discard {
+			t.Fatalf("handshake timer installed=%t prepared=%+v", installed, prepared)
 		}
 		// The batch owns this storage and may overwrite it after preparation.
 		clear(effects)

@@ -9,25 +9,6 @@ import (
 
 type advertisedAppsKey struct{}
 
-// supportsApplicationOn uses the local CER or CEA offer saved at admission.
-// The snapshot follows this connection's advertised capabilities throughout its
-// lifetime, including overrides (RFC 6733 §§5.3, 5.6).
-func (sm *StateMachine) supportsApplicationOn(c diam.Conn, appID uint32) bool {
-	return base.SupportsApplication(sm.applicationsOn(c, nil), appID)
-}
-
-func (sm *StateMachine) applicationsOn(c diam.Conn, m *diam.Message) []uint32 {
-	if c != nil && c.Context() != nil {
-		if local, ok := c.Context().Value(advertisedAppsKey{}).([]uint32); ok {
-			return local
-		}
-	}
-	if m != nil && m.Header.CommandCode == diam.CapabilitiesExchange {
-		return base.AdvertisedApplicationIDs(sm.capabilities(c, m))
-	}
-	return nil
-}
-
 // HandleMessageError implements diam.MessageErrorHandler. RFC 6733 §§7.1-7.2
 // reserve E for protocol errors; answers never receive answers. A local answer
 // failure is logged here and closes the connection; returning nil means the

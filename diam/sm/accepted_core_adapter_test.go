@@ -215,7 +215,7 @@ func TestAcceptedAdapterWatchdogObservationsFollowCoreOrder(t *testing.T) {
 		c := newAcceptedWatchdogProbeConn()
 		startAcceptedTestWatchdog(t, sm, c)
 		w := acceptedWatchdogState(t, sm, c)
-		defer func() { c.Close(); close(c.done); sm.stopWatchdog(c); <-w.exited }()
+		defer func() { c.Close(); close(c.done); stopAcceptedTestWatchdog(sm, c); <-w.exited }()
 		expireAcceptedTestWatchdog(w)
 		request, err := diam.ReadMessage(bytes.NewReader(<-c.writes), c.Dictionary())
 		if err != nil {

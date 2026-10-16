@@ -191,21 +191,15 @@ func (a *actor) retireResponder(cmd retirementCommand) {
 		}
 	}
 	if wasActive {
-		a.stopWatchdog()
-		a.pendingWatchdog = false
-		a.watchdogHop, a.watchdogEnd, a.watchdogGen = 0, 0, 0
-		a.numDWA = 0
-		a.pendingDPR, a.pendingDPREnd = 0, 0
-		a.pendingDPRGen, a.pendingDPRCommand = 0, 0
-		if a.everOpen {
-			a.watchdog = WatchdogDown
-		}
 		a.scheduleReconnect()
 	}
 	s.cerRequest = nil
-	s.cerHop, s.cerEnd = 0, 0
 	s.meta = nil
-	a.publish(fmt.Errorf("peer: accepted session generation %d retired (%v): %w", gen, cmd.reason, diam.ErrConnectionRetired))
+	health := a.publishedWatchdog()
+	if wasActive && a.everOpen {
+		health = WatchdogDown
+	}
+	a.publishHealth(health, fmt.Errorf("peer: accepted session generation %d retired (%v): %w", gen, cmd.reason, diam.ErrConnectionRetired))
 	close(cmd.done)
 }
 

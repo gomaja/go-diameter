@@ -100,7 +100,6 @@ func TestRequiredReplyFailureClosesManager(t *testing.T) {
 							a.onWire(event{s: s, msg: msg})
 						}
 					} else {
-						s.first = true
 						s.applyProtocol(protocol.Input{Kind: protocol.Receive, Message: msg, Error: &diam.MessageError{ResultCode: code}, ErrorInput: true}, nil)
 					}
 				}
