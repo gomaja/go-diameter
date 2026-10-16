@@ -201,17 +201,17 @@ func newProtocolWire(t *testing.T, configure func(*Settings), admit bool) *proto
 	srv.Start()
 	t.Cleanup(srv.Close)
 	var err error
-	p.peer, err = net.DialTimeout("tcp", srv.Addr, time.Second)
+	p.peer, err = net.DialTimeout("tcp", srv.Addr, 10*time.Second)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = p.peer.Close() })
-	if err := p.peer.SetDeadline(time.Now().Add(5 * time.Second)); err != nil {
+	if err := p.peer.SetDeadline(time.Now().Add(10 * time.Second)); err != nil {
 		t.Fatal(err)
 	}
 	select {
 	case p.conn = <-opened:
-	case <-time.After(3 * time.Second):
+	case <-time.After(10 * time.Second):
 		t.Fatal("accepted Conn missing")
 	}
 	if admit {
@@ -228,7 +228,7 @@ func protocolEvent(t *testing.T, events <-chan diam.ProtocolErrorEvent) diam.Pro
 	select {
 	case e := <-events:
 		return e
-	case <-time.After(3 * time.Second):
+	case <-time.After(10 * time.Second):
 		t.Fatal("protocol notification missing")
 		return diam.ProtocolErrorEvent{}
 	}

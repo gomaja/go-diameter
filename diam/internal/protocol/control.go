@@ -53,6 +53,9 @@ func (c *Core) reserved(in Input) []Effect {
 		if c.phase >= Closed {
 			return nil
 		}
+		if cmd == diam.CapabilitiesExchange {
+			c.handshake = newHandshakeResult(in.Err, nil)
+		}
 		return c.terminate(Closed)
 	}
 	if c.phase >= Closed || cmd == diam.DeviceWatchdog && c.phase != Open {
@@ -73,6 +76,9 @@ func (c *Core) reserved(in Input) []Effect {
 	r := &control{command: cmd, reservation: in.Reservation, logical: true}
 	c.controls[cmd] = r
 	if err != nil {
+		if cmd == diam.CapabilitiesExchange {
+			c.handshake = newHandshakeResult(err, nil)
+		}
 		return c.terminate(Closed)
 	}
 	m.Header.HopByHopID = in.Reservation.Hop
@@ -169,6 +175,9 @@ func (c *Core) writeResult(in Input) []Effect {
 		return es
 	}
 	if err != nil {
+		if c.cfg.CERTransportLossCompatibility && c.phase == WaitCEA && op.control != nil && op.control.command == diam.CapabilitiesExchange {
+			c.handshake = newHandshakeResult(err, nil)
+		}
 		es = append(es, c.terminate(Closed)...)
 		if op.required {
 			n := Notification{Protocol: diam.ProtocolReplyFailure, Reply: diam.ProtocolReplyFailed, ReplyCode: in.ReplyCode, Closing: true, Message: op.message}
@@ -228,6 +237,16 @@ func (c *Core) skippedControl(in Input, op *operation) []Effect {
 		r.logical = false
 	}
 	es := c.release(r)
+	if c.cfg.CERTransportLossCompatibility && c.phase == WaitCEA && r.command == diam.CapabilitiesExchange {
+		// A native closed gate is still the synchronous CER attempt's public
+		// error. Its skipped writer pin has already been disposed above.
+		err := in.Err
+		if err == nil {
+			err = io.ErrShortWrite
+		}
+		c.handshake = newHandshakeResult(err, nil)
+		return append(es, c.terminate(Closed)...)
+	}
 	if r.command == diam.DeviceWatchdog && !r.written && logical {
 		c.wdNext = nil
 		c.wd.Pending = false

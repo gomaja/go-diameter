@@ -133,7 +133,7 @@ type Settings struct {
 	// peer metadata, admitting the peer, building a CEA, or calling OnCEA or
 	// OnHandshake. A connection wrapper's Close must call the wrapped Close.
 	// Closing c.Connection() directly is not detected by this hook contract.
-	// On accepted connections, changing the command, application, direction or either
+	// On accepted and dialed connections, changing the command, application, direction or either
 	// identifier is a local protocol error: the connection closes and an Error
 	// record is logged. AVP changes retain the normal validation path.
 	OnCER diam.HandlerFunc
@@ -148,7 +148,7 @@ type Settings struct {
 	// hook aborts processing without building a DWA or calling OnDWA. A connection
 	// wrapper's Close must call the wrapped Close. Closing c.Connection() directly
 	// is not detected by this hook contract.
-	// On accepted connections, changing the command, application, direction or either
+	// On accepted and dialed connections, changing the command, application, direction or either
 	// identifier closes the connection and logs an Error record, as for OnCER.
 	OnDWR diam.HandlerFunc
 
@@ -292,16 +292,13 @@ var (
 type StateMachine struct {
 	cfg           *Settings
 	mux           *diam.ServeMux
-	dwrHandler    diam.Handler
 	supportedApps []*SupportedApp
 	dictionary    *dict.Parser
-	disconnects   disconnectState
 	cores         sync.Map   // diam.Conn -> per-generation accepted core
 	contextCores  sync.Mutex // serializes cores kept in a Conn's context
 	accepted      sync.Map   // diam.Conn -> *acceptedHandshake
 	watchdog      *watchdogPolicy
 	watchdogs     sync.Map // diam.Conn -> *acceptedWatchdog
-	connections   sync.Map // diam.Conn -> *closingConnection
 }
 
 // New creates and initializes a new StateMachine for clients or servers.
@@ -325,35 +322,17 @@ func New(settings *Settings) (*StateMachine, error) {
 		supportedApps: PrepareSupportedApps(dp),
 		dictionary:    settings.Dict,
 	}
-	cerHandler := handleCER(sm)
-	sm.dwrHandler = chainPreHook(settings.OnDWR, handleDWR(sm))
-	dwrHandler := diam.HandlerFunc(func(c diam.Conn, m *diam.Message) { sm.dwrHandler.ServeDIAM(c, m) })
+	cerHandler := diam.HandlerFunc(sm.ServeDIAM)
+	dwrHandler := diam.HandlerFunc(sm.ServeDIAM)
 	sm.mux.Handle("CER", cerHandler)
 	sm.mux.Handle("DWR", handshakeOK(dwrHandler))
-	sm.mux.Handle("DPR", handshakeOK(handleDPR(sm)))
-	sm.mux.Handle("DPA", handshakeOK(handleDPA(sm)))
+	sm.mux.Handle("DPR", handshakeOK(sm.ServeDIAM))
+	sm.mux.Handle("DPA", handshakeOK(sm.ServeDIAM))
 	sm.mux.HandleIdx(baseCERIdx, cerHandler)
 	sm.mux.HandleIdx(baseDWRIdx, handshakeOK(dwrHandler))
-	sm.mux.HandleIdx(baseDPRIdx, handshakeOK(handleDPR(sm)))
-	sm.mux.HandleIdx(baseDPAIdx, handshakeOK(handleDPA(sm)))
+	sm.mux.HandleIdx(baseDPRIdx, handshakeOK(sm.ServeDIAM))
+	sm.mux.HandleIdx(baseDPAIdx, handshakeOK(sm.ServeDIAM))
 	return sm, nil
-}
-
-// chainPreHook returns a HandlerFunc that invokes pre (if non-nil) before
-// next. Used to install the Settings.OnCER / Settings.OnDWR hooks without
-// changing the default handler.
-func chainPreHook(pre diam.HandlerFunc, next diam.HandlerFunc) diam.HandlerFunc {
-	return func(c diam.Conn, m *diam.Message) {
-		if pre != nil {
-			pre(c, m)
-		}
-		// RFC 6733 §§5.3, 5.5, 5.6.1: a closed transport cannot
-		// complete capabilities exchange or answer a watchdog request.
-		if c.Closed() {
-			return
-		}
-		next(c, m)
-	}
 }
 
 // Settings return the Settings object used by this StateMachine.
@@ -373,72 +352,7 @@ func (sm *StateMachine) ServeDIAM(c diam.Conn, m *diam.Message) {
 		s.run(batch)
 		return
 	}
-	sm.serveLegacy(c, m)
-}
 
-// serveLegacy is the dialed Client adapter, migrated separately in #111.
-func (sm *StateMachine) serveLegacy(c diam.Conn, m *diam.Message) {
-	release := m.BeginDispatch()
-	defer release()
-	// A previously queued callback still owns its old connection generation.
-	// Retirement maps it to transport loss (RFC 6733 §§5.5.4, 5.6).
-	if lifecycle, ok := diam.ConnAs[diam.ConnLifecycle](c); ok && lifecycle.RetirementReason() != 0 {
-		return
-	}
-	closing := sm.isClosing(c)
-	if closing && !sm.allowedWhileClosing(c, m) {
-		return
-	}
-	pendingRequests(c)
-	if m.Header.CommandCode == diam.CapabilitiesExchange && m.Header.ApplicationID == 0 && m.Header.CommandFlags&diam.RequestFlag != 0 && admittedPeer(c) {
-		if h, ok := sm.mux.Handler(m); ok {
-			h.ServeDIAM(c, m)
-		}
-		return
-	}
-	if headerErr := base.ValidateHeader(m); headerErr != nil {
-		logMessage(c, m, slog.LevelWarn, "sm: invalid message header", headerErr)
-		_ = sm.handleLegacyMessageError(c, m, headerErr)
-		return
-	}
-	if !sm.preCERMessageAllowed(c, m) {
-		logMessage(c, m, slog.LevelWarn, "sm: message before CER; closing connection", nil)
-		c.Close()
-		sm.protocolError(c, m, diam.ProtocolHandshakeState, 0, true, diam.ProtocolReplyNone, 0)
-		return
-	}
-	if baseErr := base.ValidateMessage(m); baseErr != nil {
-		sm.rejectBaseMessage(c, m, baseErr)
-		return
-	}
-	if rejection := base.ValidateRequest(m, sm.applicationsOn(c, m), sm.cfg.ValidateRequests, sm.cfg.RejectUnknownMandatoryAVPs); rejection != nil {
-		sm.rejectRequest(c, m, rejection)
-		return
-	}
-	if m.Header.CommandFlags&diam.RequestFlag == 0 &&
-		(m.Header.ApplicationID != 0 || m.Header.CommandCode != diam.DisconnectPeer &&
-			m.Header.CommandCode != diam.DeviceWatchdog && m.Header.CommandCode != diam.CapabilitiesExchange) {
-		matched := completePendingAnswer(c, m)
-		if closing && !matched {
-			return
-		}
-	}
-	// RFC 6733 §5.6: finish CER/CEA and publish DPR's Closing state before
-	// admitting the next callback or evaluating accepted CER renewal.
-	// Other admitted messages may execute application handlers concurrently.
-	baseDPR := m.Header.ApplicationID == 0 && m.Header.CommandCode == diam.DisconnectPeer && m.Header.CommandFlags&diam.RequestFlag != 0
-	if m.Header.CommandCode != diam.CapabilitiesExchange && !baseDPR {
-		release()
-	}
-	if h, ok := sm.mux.Handler(m); ok {
-		h.ServeDIAM(c, m)
-	} else {
-		sm.handleUnsupportedCommand(c, m)
-	}
-}
-
-func (sm *StateMachine) preCERMessageAllowed(c diam.Conn, m *diam.Message) bool {
-	return admittedPeer(c) || m != nil && m.Header != nil && m.Header.CommandCode == diam.CapabilitiesExchange && m.Header.CommandFlags&diam.RequestFlag != 0
 }
 
 // HandleAccept implements diam.AcceptHandler for RFC 6733 §5.6.1 admission.
@@ -480,14 +394,13 @@ func (sm *StateMachine) CanRenewAcceptedCER(c diam.Conn) bool {
 		return false
 	}
 	if s := sm.acceptedCore(c, nil, false); s != nil {
-		snap := s.snapshot()
-		return snap.Phase() == protocol.Open && snap.Ready()
+		return s.readyOpen()
 	}
 	return false
 }
 func (sm *StateMachine) acceptedClosing(c diam.Conn) bool {
 	if s := sm.acceptedCore(c, nil, false); s != nil {
-		return s.snapshot().Phase() >= protocol.Closing
+		return s.phase() >= protocol.Closing
 	}
 	return false
 }

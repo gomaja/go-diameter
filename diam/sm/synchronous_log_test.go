@@ -2,11 +2,13 @@ package sm
 
 import (
 	"context"
-	"errors"
+
 	"log/slog"
 	"testing"
+	"testing/synctest"
 	"time"
 
+	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/internal/logtest"
 )
 
@@ -65,42 +67,55 @@ func TestStateMachineRecordsAreSynchronous(t *testing.T) {
 // Publishing a Wait-I-CEA failure wakes Client.handshake, which may close the
 // connection. The decision record must complete before that publication.
 func TestWaitICEARecordsBeforePublishingFailure(t *testing.T) {
-	records := logtest.New()
-	entered, release := make(chan struct{}), make(chan struct{})
-	c := loggerHandshakeConn{newHandshakeConn(), slog.New(blockingSMLog{records, entered, release})}
-	activity := newWatchdogActivity()
-	sm := mustNewStateMachine(t, testMessageErrorSettings())
-	h := activityHandler{StateMachine: sm, activity: activity}
-	closed := make(chan struct{})
-	go func() { <-activity.ceac; c.Close(); close(closed) }()
-	done := make(chan struct{})
-	go func() { h.rejectHandshake(c, nil, errors.New("non-CEA")); close(done) }()
-	select {
-	case <-entered:
-	case <-time.After(time.Second):
-		t.Fatal("close decision not logged")
-	}
-	// No failure can be consumed, even by a concurrently running dial goroutine.
-	select {
-	case <-closed:
-		t.Error("handshake closed before decision log finished")
-	case <-time.After(20 * time.Millisecond):
-	}
-	if c.closed.Load() {
-		t.Error("rejectHandshake closed before decision log finished")
-	}
-	close(release)
-	select {
-	case <-done:
-	case <-time.After(time.Second):
-		t.Fatal("rejectHandshake did not complete")
-	}
-	select {
-	case <-closed:
-	case <-time.After(time.Second):
-		t.Fatal("handshake failure was not published")
-	}
-	if len(records.Records()) != 1 {
-		t.Fatalf("records=%v", records.Records())
-	}
+	synctest.Test(t, func(t *testing.T) {
+		records := logtest.New()
+		entered, release := make(chan struct{}), make(chan struct{})
+		c := loggerHandshakeConn{newHandshakeConn(), slog.New(blockingSMLog{records, entered, release})}
+		activity := newWatchdogActivity()
+		sm := mustNewStateMachine(t, testMessageErrorSettings())
+		cli := &Client{Handler: sm, RetransmitInterval: time.Second}
+		activity.capabilities = cli.capabilitySettings([]datatype.Address{localhostAddress})
+		state, start, err := cli.newCore(c, activity.capabilities)
+		if err != nil {
+			t.Fatal(err)
+		}
+		activity.install(state)
+		state.run(start)
+		activity.release()
+		<-c.writes
+		h := activityHandler{StateMachine: sm, activity: activity}
+		closed := make(chan struct{})
+		go func() { <-state.handshake; c.Close(); close(closed) }()
+		done := make(chan struct{})
+		go func() { h.ServeDIAM(c, regressionDWR(t)); close(done) }()
+		select {
+		case <-entered:
+		case <-time.After(10 * time.Second):
+			t.Fatal("close decision not logged")
+		}
+		synctest.Wait()
+		// No failure can be consumed, even by a concurrently running dial goroutine.
+		select {
+		case <-closed:
+			t.Error("handshake closed before decision log finished")
+		default:
+		}
+		if c.closed.Load() {
+			t.Error("handshake rejection closed before decision log finished")
+		}
+		close(release)
+		select {
+		case <-done:
+		case <-time.After(10 * time.Second):
+			t.Fatal("handshake rejection did not complete")
+		}
+		select {
+		case <-closed:
+		case <-time.After(10 * time.Second):
+			t.Fatal("handshake failure was not published")
+		}
+		if len(records.Records()) != 1 {
+			t.Fatalf("records=%v", records.Records())
+		}
+	})
 }

@@ -186,7 +186,7 @@ func TestCxSupportedVendors(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			answer, err := buildSuccessCEA(handler, nil, request)
+			answer, err := buildTestCEA(handler, nil, request)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -262,7 +262,7 @@ func TestS6aBundledCapabilities(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	answer, err := buildSuccessCEA(handler, nil, request)
+	answer, err := buildTestCEA(handler, nil, request)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -313,7 +313,7 @@ func TestSMConfiguredSupportedVendors(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			answer, err := buildSuccessCEA(handler, nil, request)
+			answer, err := buildTestCEA(handler, nil, request)
 			if err != nil {
 				t.Fatal(err)
 			}

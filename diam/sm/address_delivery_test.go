@@ -43,7 +43,7 @@ func TestDiscoveredAddressesEncodedInCERAndCEA(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			cea, err := buildSuccessCEA(sm, conn, cer)
+			cea, err := buildTestCEA(sm, conn, cer)
 			if err != nil {
 				t.Fatal(err)
 			}

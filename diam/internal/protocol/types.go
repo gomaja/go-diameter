@@ -36,7 +36,7 @@ const (
 
 // Config is copied by New. ResolveHostIPAddresses must be nil: address discovery
 // belongs outside mutation. Zero handshake timeout disables accepted admission's
-// deadline; queue and write completion policies retain the two frontend contracts.
+// deadline. QueueWrites selects queued versus completed-write accounting.
 type Config struct {
 	ValidateRequests, RejectUnknownMandatoryAVPs  bool
 	Connection                                    Connection
@@ -51,11 +51,15 @@ type Config struct {
 	WatchdogInterval                              time.Duration
 	Recovery                                      bool
 	// StateMachine's synchronous Disconnect may start after a peer DPR. Its
-	// caller deadline is independent of the original receiver Closing deadline.
+	// caller deadline is independent of the peer-initiated Closing deadline.
 	LocalDisconnectInClosing bool
-	// StateMachine retains its shared parser's post-OnDWR discard/result
+	// StateMachine applies its shared parser's post-OnDWR discard/result
 	// contract. Wire grammar is validated before selecting the hook (§5.5.1).
 	DWRHookCompatibility bool
+	// Client keeps its CER response window after EOF. With retries left,
+	// the next write's actual error completes the handshake; otherwise the
+	// response timer reports timeout. This does not govern accepted peers.
+	CERTransportLossCompatibility bool
 }
 
 // Reservation identifies a lease in the caller's shared application/control ID
@@ -122,7 +126,7 @@ const (
 // WriteResult must include the post-hook ExpectedBytes and ReplyCode. Every Send
 // needs a terminal result, including skipped and queue-rejected writes.
 type Input struct {
-	// Resolved outside the core mutex at the original pre-CER build boundary.
+	// Resolved outside the core mutex before the first CER is built.
 	RefreshLocalAddresses        bool
 	LocalAddresses               []datatype.Address
 	Kind                         InputKind
@@ -132,6 +136,7 @@ type Input struct {
 	Token                        uint64
 	Message                      *diam.Message
 	Error                        *diam.MessageError
+	ErrorInput                   bool // frontend message-error callback, including a nil description
 	Err                          error
 	Reservation                  Reservation
 	Stage                        WriteStage
@@ -225,7 +230,7 @@ type Effect struct {
 	Kind EffectKind
 	// ReleaseDispatch ends native receive admission after this decision commits,
 	// before callbacks or writes. CER and rejected requests retain their barrier
-	// through their original handshake/reply boundary (RFC 6733 §5.6).
+	// through handshake/reply completion (RFC 6733 §5.6).
 	ReleaseDispatch bool
 	Connection      Connection
 	Token           uint64

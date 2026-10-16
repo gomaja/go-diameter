@@ -13,17 +13,19 @@ import (
 
 func (s *acceptedHandshake) send(e protocol.Effect, source protocol.Input, observer *acceptedObservation) {
 	m := e.Message
+	cer := s.client != nil && m.Header.CommandCode == diam.CapabilitiesExchange && m.Header.CommandFlags&diam.RequestFlag != 0
 	if m.Header.CommandCode == diam.DisconnectPeer && m.Header.CommandFlags&diam.RequestFlag == 0 {
 		s.joinWatchdog()
 	}
 	// Core retirement invalidates selected effects even on custom transports
 	// without a native generation write gate (RFC 6733 §§5.5.4,5.6).
-	if s.conn.Closed() || s.snapshot().Phase() >= protocol.Closed {
+	if s.conn.Closed() && !cer || s.phase() >= protocol.Closed {
 		observer.finish()
 		s.apply(protocol.Input{Kind: protocol.WriteResult, Token: e.Token, Stage: protocol.SkippedStage, Err: diam.ErrConnectionRetired, ReplyCode: protocolAnswerCode(m)})
 		return
 	}
 	probe := m.Header.CommandCode == diam.DeviceWatchdog && m.Header.CommandFlags&diam.RequestFlag != 0
+	tracked := probe || s.client != nil && m.Header.CommandCode == diam.CapabilitiesExchange && m.Header.CommandFlags&diam.RequestFlag != 0
 	var w *acceptedWatchdog
 	if probe {
 		observer.wait()
@@ -34,7 +36,7 @@ func (s *acceptedHandshake) send(e protocol.Effect, source protocol.Input, obser
 			defer w.mu.Unlock()
 		}
 	}
-	if e.Notification.Protocol != "" {
+	if e.Notification.Protocol != "" && e.Notification.Diagnostic != "external-reject-cer" {
 		s.record(source, e.Notification)
 	}
 	if m.Header.CommandFlags&diam.RequestFlag == 0 {
@@ -46,24 +48,40 @@ func (s *acceptedHandshake) send(e protocol.Effect, source protocol.Input, obser
 		}
 	}
 	var ticket *diam.RequestWrite
-	if probe {
+	settled := false
+	if tracked {
 		if requests := pendingRequests(s.conn); requests != nil {
 			ticket = requests.PrepareWrite(m.Header)
 		}
 		s.mu.Lock()
+		active := false
+		for _, control := range s.core.Snapshot().Controls() {
+			if control.Command == m.Header.CommandCode && control.Logical && control.Reservation.Hop == m.Header.HopByHopID && control.Reservation.End == m.Header.EndToEndID {
+				active = true
+				break
+			}
+		}
+		if !active {
+			ticket.Cancel()
+			settled = true
+		}
+		if s.writeHeaders == nil {
+			s.writeHeaders = make(map[uint64]diam.Header)
+		}
 		s.writes[e.Token] = ticket
+		s.writeHeaders[e.Token] = *m.Header
 		s.mu.Unlock()
 	}
 	// Check after hooks and writer selection. Native write gates fence a racing
 	// Closing/retirement as well (RFC 6733 §5.6; #125).
-	skipped := s.conn.Closed() || probe && (w == nil || w.stopped.Load() || s.snapshot().Phase() != protocol.Open)
+	skipped := settled || s.conn.Closed() && !cer || probe && (w == nil || w.stopped.Load() || s.phase() != protocol.Open)
 	var n int64
 	var err error
 	if skipped {
 		err = diam.ErrConnectionClosing
 	} else if probe {
 		var count int
-		count, err = m.WriteToStream(s.conn, s.sm.watchdog.stream)
+		count, err = m.WriteToStream(s.conn, s.policy.stream)
 		n = int64(count)
 	} else {
 		n, err = m.WriteTo(s.conn)
@@ -71,16 +89,26 @@ func (s *acceptedHandshake) send(e protocol.Effect, source protocol.Input, obser
 	if err == nil && n != int64(m.Len()) {
 		err = io.ErrShortWrite
 	}
-	if probe {
+	if s.client != nil && m.Header.CommandCode == diam.CapabilitiesExchange && m.Header.CommandFlags&diam.RequestFlag != 0 {
+		// Dial's first write is synchronous. A fast successful CEA cannot
+		// hide that write's real return value (RFC 6733 §§3,5.3).
+		s.mu.Lock()
+		if !s.initialCERDone {
+			s.initialCERDone, s.initialCERErr = true, err
+		}
+		s.mu.Unlock()
+	}
+	if tracked {
 		s.mu.Lock()
 		delete(s.writes, e.Token)
+		delete(s.writeHeaders, e.Token)
 		s.mu.Unlock()
 		ticket.Release()
 	}
 	// Only a zero-byte gate rejection proves that publication was skipped.
 	// Stopping observations cannot erase an attempted write's failure, and a
 	// partial frame still requires termination (RFC 6733 §§3,5.4,5.6).
-	if probe && n == 0 && (errors.Is(err, diam.ErrConnectionClosing) || errors.Is(err, diam.ErrRequestCompleted) || errors.Is(err, diam.ErrConnectionRetired)) {
+	if tracked && n == 0 && (errors.Is(err, diam.ErrConnectionClosing) || errors.Is(err, diam.ErrRequestCompleted) || errors.Is(err, diam.ErrConnectionRetired)) {
 		skipped = true
 	}
 	if err != nil && !probe && m.Header.CommandFlags&diam.RequestFlag != 0 && m.Header.CommandCode == diam.DisconnectPeer && !s.conn.Closed() && !errors.Is(err, net.ErrClosed) && !errors.Is(err, diam.ErrConnectionRetired) {
@@ -120,11 +148,15 @@ func (s *acceptedHandshake) send(e protocol.Effect, source protocol.Input, obser
 		if probe && w != nil {
 			w.emit(WatchdogWriteFailed)
 		}
-		if e.Required || probe {
-			logMessage(s.conn, source.Message, slog.LevelError, text, err)
+		if e.Required || probe && (s.client == nil || w != nil && !w.stopped.Load() && !s.conn.Closed()) {
+			message := source.Message
+			if probe && s.client != nil {
+				message = m
+			}
+			logMessage(s.conn, message, slog.LevelError, text, err)
 		}
 	}
-	in := protocol.Input{Kind: protocol.WriteResult, Token: e.Token, Stage: protocol.WrittenStage, At: time.Now(), Message: source.Message, Bytes: n, ExpectedBytes: int64(m.Len()), ReplyCode: protocolAnswerCode(m), Err: err}
+	in := protocol.Input{Kind: protocol.WriteResult, Token: e.Token, Stage: protocol.WrittenStage, At: time.Now(), Message: source.Message, Bytes: n, ExpectedBytes: int64(m.Len()), ReplyCode: protocolAnswerCode(m), Err: err, Error: source.Error}
 	if skipped {
 		in.Stage = protocol.SkippedStage
 	}

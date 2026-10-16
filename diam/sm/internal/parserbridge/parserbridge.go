@@ -8,3 +8,8 @@ package parserbridge
 // CER the protocol core already validated, with the parser's application list,
 // without repeating the RFC 6733 §5.3 negotiation.
 var FromValidatedCER any
+
+// FromValidatedCEA is a func(*base.CEA, []uint32, error) (*smparser.CEA, error).
+// It copies a core handshake result and translates its parser error without
+// repeating RFC 6733 §5.3.2 validation.
+var FromValidatedCEA any

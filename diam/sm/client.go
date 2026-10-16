@@ -14,13 +14,13 @@ import (
 	"net/netip"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/dict"
 	"github.com/gomaja/go-diameter/diam/internal/base"
+	"github.com/gomaja/go-diameter/diam/internal/protocol"
 	"github.com/gomaja/go-diameter/diam/internal/watchdog"
 	"github.com/gomaja/go-sctp"
 )
@@ -38,6 +38,8 @@ var (
 	// attempted and none has an aswer.
 	ErrHandshakeTimeout = errors.New("handshake timeout (no response)")
 )
+
+var testHookClientBeforeStart func(*acceptedHandshake)
 
 // A Client is a diameter client that automatically performs a handshake
 // with the server after the connection is established.
@@ -112,139 +114,8 @@ type Client struct {
 	// diam.Server.Logger does for a server. Nil uses slog.Default.
 	Logger *slog.Logger
 
-	watchdogEventMu sync.Mutex
-	defaultsOnce    sync.Once
-	watchdogTiming  *watchdogTiming // unexported test override for short timers
-}
-
-type watchdogActivity struct {
-	watchdogSignals
-	ceac           chan error
-	ceaOnce        sync.Once
-	ceaReceived    atomic.Bool
-	ceaValidated   chan struct{}
-	handshakePhase atomic.Uint32 // 0 pending, 1 validated, 2 timed out
-	advertised     []uint32
-	capabilities   base.Settings
-	cer            atomic.Pointer[answerCorrelation]
-	stopc          chan struct{}
-	stopOnce       sync.Once
-	eventMu        sync.Mutex
-	terminal       sync.WaitGroup
-}
-
-func newWatchdogActivity() *watchdogActivity {
-	activity := &watchdogActivity{watchdogSignals: newWatchdogSignals(), ceac: make(chan error, 1), ceaValidated: make(chan struct{}), stopc: make(chan struct{})}
-	activity.publicationMu = &activity.eventMu
-	return activity
-}
-
-func (activity *watchdogActivity) latchStop() {
-	// RFC 6733 §5.6: Stop must not wait for a stalled DWR writer.
-	activity.stopped.Store(true)
-	activity.stopOnce.Do(func() { close(activity.stopc) })
-}
-
-func (activity *watchdogActivity) stopWatchdog() {
-	activity.latchStop()
-	if activity.publicationMu != nil {
-		activity.publicationMu.Lock()
-		activity.request.Store(nil)
-		activity.publicationMu.Unlock()
-	}
-	activity.terminal.Wait()
-}
-
-type activityHandler struct {
-	*StateMachine
-	activity *watchdogActivity
-	cea      func(diam.Conn, *diam.Message) (diam.ProtocolErrorKind, uint32)
-	dwa      watchdogDWAHandler
-}
-
-func (h activityHandler) ServeDIAM(c diam.Conn, m *diam.Message) {
-	release := m.BeginDispatch()
-	defer release()
-	if h.StateMachine != nil && !h.closingAllowed(c, m) {
-		return
-	}
-	// RFC 6733 §5.6: Wait-I-CEA / I-Rcv-Non-CEA -> Error -> Closed.
-	isCEA := isBaseCEA(m)
-	if !h.activity.ceaReceived.Load() && !isCEA {
-		h.rejectHandshake(c, m, errors.New("non-CEA received while waiting for CEA"))
-		return
-	}
-	// RFC 6733 §§2.5 and 5.5.2: invalid base headers cannot confirm liveness.
-	// StateMachine reports/discards invalid answers and answers invalid requests.
-	if base.ValidateHeader(m) != nil && !isCEA {
-		h.serveLegacy(c, m)
-		return
-	}
-	// RFC 3539 §3.4.1 [2]: any received AAA message resets Tw.
-	var receipt watchdogReceipt
-	if h.dwa != nil && !h.activity.stopped.Load() {
-		receipt = h.activity.receivedMessage(m)
-	}
-	// RFC 6733 §5.3: CEA completes the CER exchange on this connection.
-	// Do not publish its result through the shared state-machine mux.
-	if isCEA {
-		// RFC 6733 §§3, 5.3, 6.2.1: discard a stray answer without
-		// consuming admission or changing this CER generation's deadline.
-		if !h.activity.correlatedCEA(c, m) {
-			h.protocolError(c, m, diam.ProtocolUnexpectedMessage, 0, false, diam.ProtocolReplyNone, 0)
-			return
-		}
-		processed := false
-		var kind diam.ProtocolErrorKind
-		var code uint32
-		h.activity.ceaOnce.Do(func() { processed = true; kind, code = h.cea(c, m) })
-		// Once's admission mutex is released before the observational callback.
-		if !processed {
-			h.protocolError(c, m, diam.ProtocolUnexpectedMessage, 0, false, diam.ProtocolReplyNone, 0)
-		} else if kind != "" {
-			h.protocolError(c, m, kind, code, true, diam.ProtocolReplyNone, 0)
-		}
-		return
-	}
-	// RFC 6733 §5.5.2: DWA belongs to the connection that received it.
-	// Keep its handler with that connection instead of replacing a handler on
-	// the shared state-machine mux on every Dial.
-	if h.dwa != nil && isBaseDWA(m) {
-		h.dwa(c, m, receipt)
-		return
-	}
-	h.serveLegacy(c, m)
-}
-
-// HandleMessageError also enforces Wait-I-CEA for malformed input, which
-// the transport does not dispatch through ServeDIAM (RFC 6733 §5.6).
-func (h activityHandler) HandleMessageError(c diam.Conn, m *diam.Message, err *diam.MessageError) error {
-	release := m.BeginDispatch()
-	defer release()
-	if !h.activity.ceaReceived.Load() {
-		// RFC 6733 §§3, 5.3, 6.2.1: a recoverable body error does not
-		// let an unrelated CEA consume admission or its original deadline.
-		// Fatal framing errors retain the existing rejection/closure path.
-		if !err.Fatal && isBaseCEA(m) && !h.activity.correlatedCEA(c, m) {
-			h.protocolError(c, m, diam.ProtocolUnexpectedMessage, 0, false, diam.ProtocolReplyNone, 0)
-			return nil
-		}
-		h.rejectHandshake(c, m, err)
-		return nil
-	}
-	return h.StateMachine.HandleMessageError(c, m, err)
-}
-
-func isBaseCEA(m *diam.Message) bool {
-	return m != nil && m.Header != nil && m.Header.ApplicationID == 0 &&
-		m.Header.CommandCode == diam.CapabilitiesExchange && m.Header.CommandFlags&diam.RequestFlag == 0
-}
-
-func (h activityHandler) rejectHandshake(c diam.Conn, m *diam.Message, err error) {
-	logMessage(c, nil, slog.LevelWarn, "sm: Wait-I-CEA rejected message; closing connection", err)
-	h.activity.ceaOnce.Do(func() { h.activity.ceac <- err })
-	c.Close()
-	h.protocolError(c, m, diam.ProtocolHandshakeState, protocolResultCode(err), true, diam.ProtocolReplyNone, 0)
+	defaultsOnce   sync.Once
+	watchdogTiming *watchdogTiming // unexported test override for short timers
 }
 
 // WatchdogEvent identifies a bounded watchdog outcome from the
@@ -260,12 +131,6 @@ const (
 	WatchdogRecovered      WatchdogEvent = "recovered" // RFC 3539 Appendix A: traffic received in SUSPECT
 	WatchdogTimedOut       WatchdogEvent = "timeout"   // RFC 3539 Appendix A: DOWN after another Tw expiration
 )
-
-func (cli *Client) observeWatchdog(c diam.Conn, event WatchdogEvent) {
-	cli.watchdogEventMu.Lock()
-	defer cli.watchdogEventMu.Unlock()
-	cli.emitWatchdog(c, event)
-}
 
 func (cli *Client) emitWatchdog(c diam.Conn, event WatchdogEvent) {
 	if cli.OnWatchdogEvent != nil {
@@ -367,33 +232,7 @@ func (cli *Client) NewConn(rw net.Conn, addr string) (diam.Conn, error) {
 func (cli *Client) server(network, addr string, laddr net.Addr, activity *watchdogActivity) *diam.Server {
 	var handler diam.Handler = cli.Handler
 	if activity != nil {
-		h := activityHandler{StateMachine: cli.Handler, activity: activity,
-			cea: func(c diam.Conn, m *diam.Message) (diam.ProtocolErrorKind, uint32) {
-				return processCEA(cli.Handler, activity, c, m)
-			}}
-		if cli.EnableWatchdog {
-			h.dwa = watchdogDWAHandler(func(c diam.Conn, m *diam.Message, receipt watchdogReceipt) {
-				if !admittedPeer(c) {
-					activity.finishDWA(receipt, false)
-					handshakeOK(nil).ServeDIAM(c, m)
-					return
-				}
-				activity.publicationMu.Lock()
-				if activity.stopped.Load() || c.Closed() {
-					activity.publicationMu.Unlock()
-					activity.finishDWA(receipt, false)
-					return
-				}
-				kind, code := processDWAReceipt(c, m, &activity.watchdogSignals, func(c diam.Conn, event WatchdogEvent) {
-					cli.emitWatchdog(c, event)
-				}, receipt)
-				activity.publicationMu.Unlock()
-				if kind != "" {
-					cli.Handler.protocolError(c, m, kind, code, false, diam.ProtocolReplyNone, 0)
-				}
-			})
-		}
-		handler = h
+		handler = activityHandler{StateMachine: cli.Handler, activity: activity}
 	}
 	return &diam.Server{
 		Network:      network,
@@ -470,19 +309,17 @@ func (cli *Client) handshake(c diam.Conn, activity *watchdogActivity) (diam.Conn
 }
 
 func (cli *Client) handshakeContext(ctx context.Context, c diam.Conn, activity *watchdogActivity) (conn diam.Conn, err error) {
-	state := cli.Handler.closingConnection(c)
-	state.mu.Lock()
-	state.client = activity
-	state.mu.Unlock()
-	pendingRequests(c)
-	// Closing the transport also interrupts a blocked CER write. Join the callback
-	// before returning so cancellation cannot close a successfully returned Conn.
+	// Commit cancellation in the core before closing the transport, so a CEA
+	// already queued on another worker cannot publish after cancellation.
 	closed := make(chan struct{})
 	cancelDial := func() {
-		// Arbitrate cancellation against CEA acceptance before touching transport
-		// state, just as the CER timeout does (RFC 6733 §5.3).
-		activity.handshakePhase.CompareAndSwap(0, 2)
-		abortDial(c)
+		if state := activity.state(); state != nil {
+			batch := state.prepare(protocol.Input{Kind: protocol.Abort})
+			abortDial(c)
+			state.run(batch)
+		} else {
+			abortDial(c)
+		}
 	}
 	closeConn := func() {
 		if ctx.Err() != nil {
@@ -498,11 +335,20 @@ func (cli *Client) handshakeContext(ctx context.Context, c diam.Conn, activity *
 		}
 		if ctx.Err() != nil {
 			cancelDial()
+			if state := activity.state(); state != nil {
+				state.mu.Lock()
+				timedOut := state.handshakeTimedOut
+				state.mu.Unlock()
+				if timedOut {
+					// Abort above arbitrates with the timeout under the core
+					// mutex. A timeout that already won retains its callback's
+					// synchronous return boundary even if ctx is now cancelled.
+					<-state.handshakeDone
+				}
+			}
 			conn, err = nil, ctx.Err()
 		}
-		if err == nil && cli.EnableWatchdog {
-			go cli.watchdog(c, activity)
-		}
+		activity.release()
 	}()
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -534,73 +380,35 @@ func (cli *Client) handshakeContext(ctx context.Context, c diam.Conn, activity *
 
 	cfg := activity.capabilities
 	cfg.HostIPAddresses = hostAddresses
-	m, err := base.BuildCER(cli.Dict, cfg)
+	state, batch, err := cli.newCore(c, cfg)
 	if err != nil {
 		closeConn()
 		return nil, err
 	}
-	// Register before publishing bytes: a peer may answer before WriteTo returns.
-	// Client has no expected remote host; correlated CEA supplies its identity
-	// (RFC 6733 §§5.3, 6.3), independently of our local OriginHost.
-	activity.cer.Store(correlateAnswer(c, m))
-	// CEA validation ends the protocol timeout. OnHandshake completion is a
-	// separate event: an application callback may take longer than the entire
-	// retransmit budget, and Dial must still wait for it (RFC 6733 §5.3).
-	finish := func(err error) (diam.Conn, error) {
+	if testHookClientBeforeStart != nil {
+		testHookClientBeforeStart(state)
+	}
+	activity.install(state)
+	activity.release()
+	// NewConn waits for the first CER writer before returning its result.
+	state.run(batch)
+	state.mu.Lock()
+	writeErr := state.initialCERErr
+	state.mu.Unlock()
+	if writeErr != nil {
+		closeConn()
+		return nil, writeErr
+	}
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case err := <-state.handshake:
 		if err != nil {
 			closeConn()
 			return nil, err
 		}
 		return c, nil
 	}
-	waitCEA := func() (diam.Conn, error) {
-		select {
-		case <-ctx.Done():
-			return finish(ctx.Err())
-		case err := <-activity.ceac:
-			return finish(err)
-		}
-	}
-	timer := time.NewTimer(0)
-	if !timer.Stop() {
-		<-timer.C
-	}
-	defer timer.Stop()
-	for i := uint(0); ; i++ {
-		if err := ctx.Err(); err != nil {
-			return finish(err)
-		}
-		if activity.handshakePhase.Load() == 1 {
-			return waitCEA()
-		}
-		if _, err := m.WriteTo(c); err != nil {
-			closeConn()
-			return nil, err
-		}
-		timer.Reset(cli.RetransmitInterval)
-		select {
-		case <-ctx.Done():
-			return finish(ctx.Err())
-		case err := <-activity.ceac:
-			return finish(err)
-		case <-activity.ceaValidated:
-			return waitCEA()
-		case <-timer.C:
-		}
-		if i == cli.MaxRetransmits {
-			break
-		}
-	}
-	// Arbitrate a CEA arriving at the deadline. Once validation wins, a slow
-	// callback cannot be mistaken for an unanswered CER.
-	if !activity.handshakePhase.CompareAndSwap(0, 2) {
-		return waitCEA()
-	}
-
-	logMessage(c, nil, slog.LevelWarn, "sm: CEA timeout; closing connection", ErrHandshakeTimeout)
-	closeConn()
-	cli.Handler.protocolError(c, nil, diam.ProtocolHandshakeTimeout, 0, true, diam.ProtocolReplyNone, 0)
-	return nil, ErrHandshakeTimeout
 }
 
 // abortDial terminates a cancelled dial without SCTP's graceful shutdown wait
@@ -662,85 +470,6 @@ func (cli *Client) watchdogParameters() (floor, jitter time.Duration) {
 func (cli *Client) nextWatchdogInterval() time.Duration {
 	_, jitter := cli.watchdogParameters()
 	return jitteredTw(cli.WatchdogInterval, jitter)
-}
-
-func (cli *Client) watchdog(c diam.Conn, activity *watchdogActivity) {
-	notifier, ok := diam.ConnAs[diam.CloseNotifier](c)
-	if !ok {
-		activity.latchStop()
-		logMessage(c, nil, slog.LevelWarn, "sm: watchdog disabled: connection does not expose CloseNotifier", nil)
-		return
-	}
-	disconnect := notifier.CloseNotify()
-	var osid = uint32(cli.Handler.cfg.OriginStateID)
-	w := connWatchdog{
-		conn: c, done: disconnect, stop: activity.stopc, signals: &activity.watchdogSignals,
-		interval: cli.nextWatchdogInterval,
-		send:     func() bool { return cli.dwr(c, osid, &activity.watchdogSignals) },
-		observe: func(event WatchdogEvent) {
-			activity.publicationMu.Lock()
-			defer activity.publicationMu.Unlock()
-			if !activity.stopped.Load() && !c.Closed() {
-				cli.emitWatchdog(c, event)
-			}
-		},
-		timeout: func() {
-			activity.publicationMu.Lock()
-			if activity.stopped.Load() || c.Closed() {
-				activity.publicationMu.Unlock()
-				return
-			}
-			activity.terminal.Add(1)
-			activity.publicationMu.Unlock()
-			defer activity.terminal.Done()
-			logMessage(c, nil, slog.LevelWarn, "sm: watchdog timeout; closing connection", nil)
-			c.Close()
-			cli.Handler.protocolError(c, nil, diam.ProtocolWatchdogTimeout, 0, true, diam.ProtocolReplyNone, 0)
-		},
-	}
-	w.run()
-}
-
-func (cli *Client) dwr(c diam.Conn, osid uint32, signals *watchdogSignals) bool {
-	m, err := cli.makeDWR(osid)
-	if err != nil {
-		cli.closeWatchdog(c, nil, err)
-		return false
-	}
-	mu := signals.publicationMu
-	if mu == nil {
-		mu = &cli.watchdogEventMu
-	}
-	return publishDWR(c, m, signals, cli.WatchdogStream, mu, &signals.stopped,
-		func(event WatchdogEvent) { cli.emitWatchdog(c, event) }, func(err error) { cli.closeWatchdog(c, m, err) })
-}
-
-func (cli *Client) closeWatchdog(c diam.Conn, m *diam.Message, err error) {
-	var activity *watchdogActivity
-	if value, ok := cli.Handler.connections.Load(c); ok {
-		state := value.(*closingConnection)
-		state.mu.Lock()
-		activity = state.client
-		state.mu.Unlock()
-	}
-	mu := &cli.watchdogEventMu
-	if activity != nil {
-		mu = activity.publicationMu
-	}
-	mu.Lock()
-	if c.Closed() || activity != nil && activity.stopped.Load() {
-		mu.Unlock()
-		return
-	}
-	if activity != nil {
-		activity.terminal.Add(1)
-	}
-	mu.Unlock()
-	if activity != nil {
-		defer activity.terminal.Done()
-	}
-	logMessage(c, m, slog.LevelError, "sm: watchdog request failed; closing connection", err)
-	c.Close()
 }
 
 func (cli *Client) makeDWR(osid uint32) (*diam.Message, error) {

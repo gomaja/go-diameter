@@ -71,11 +71,8 @@ func TestDecoderEOFGetsMessageErrorAnswer(t *testing.T) {
 		_ = c.Close()
 		serverConn.Close()
 		srv.Close()
-		select {
-		case <-mustConnAs[interface{ DispatchDone() <-chan struct{} }](t, serverConn).DispatchDone():
-		case <-time.After(3 * time.Second):
-			t.Error("server dispatch did not finish")
-		}
+		// Join every decoder reader before the earlier cleanup restores its entry.
+		<-mustConnAs[interface{ DispatchDone() <-chan struct{} }](t, serverConn).DispatchDone()
 	})
 	if err := c.SetDeadline(time.Now().Add(3 * time.Second)); err != nil {
 		t.Fatal(err)

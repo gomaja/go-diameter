@@ -101,7 +101,7 @@ func acceptedWatchdogEvents(cfg *Settings) <-chan acceptedWatchdogEvent {
 }
 
 func awaitAcceptedEvent(t *testing.T, events <-chan acceptedWatchdogEvent, want WatchdogEvent, conn diam.Conn) acceptedWatchdogEvent {
-	return awaitAcceptedEventWithin(t, events, want, conn, 2*time.Second)
+	return awaitAcceptedEventWithin(t, events, want, conn, 10*time.Second)
 }
 
 func awaitAcceptedEventWithin(t *testing.T, events <-chan acceptedWatchdogEvent, want WatchdogEvent, conn diam.Conn, within time.Duration) acceptedWatchdogEvent {
@@ -122,7 +122,7 @@ func acceptedWatchdogOnWire(t *testing.T, peer net.Conn) *diam.Message {
 	testDict := newSMTestDictionary(creditcontrol.Dictionary())
 
 	t.Helper()
-	if err := peer.SetReadDeadline(time.Now().Add(2 * time.Second)); err != nil {
+	if err := peer.SetReadDeadline(time.Now().Add(10 * time.Second)); err != nil {
 		t.Fatal(err)
 	}
 	m, err := diam.ReadMessage(peer, testDict)

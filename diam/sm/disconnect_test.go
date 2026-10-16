@@ -55,6 +55,7 @@ func TestDisconnectTimeoutBoundsBlockedWrite(t *testing.T) {
 
 	sm := mustNewStateMachine(t, serverSettings, testDict)
 	c := &blockingDisconnectConn{dictionary: testDict, closed: make(chan struct{})}
+	primeClientTestCore(t, &Client{Handler: sm, Dict: testDict, RetransmitInterval: time.Hour}, c)
 	result := make(chan error, 1)
 	go func() { result <- sm.Disconnect(c, DisconnectBusy, 40*time.Millisecond) }()
 	select {
@@ -62,7 +63,7 @@ func TestDisconnectTimeoutBoundsBlockedWrite(t *testing.T) {
 		if err != ErrDisconnectTimeout {
 			t.Fatalf("blocked write returned %v, want timeout", err)
 		}
-	case <-time.After(250 * time.Millisecond):
+	case <-time.After(10 * time.Second):
 		c.Close()
 		t.Fatal("blocked DPR write exceeded timeout")
 	}

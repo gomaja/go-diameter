@@ -18,6 +18,7 @@ import (
 	"github.com/gomaja/go-diameter/diam/diamtest"
 	"github.com/gomaja/go-diameter/diam/dict"
 	"github.com/gomaja/go-diameter/diam/internal/logtest"
+	"github.com/gomaja/go-diameter/diam/internal/protocol"
 )
 
 func TestUnsupportedCommandAnswerTCP(t *testing.T) {
@@ -115,7 +116,7 @@ func capabilityAnswerHandler(sm *StateMachine) <-chan *diam.Message {
 	sm.HandleFunc("ALL", func(c diam.Conn, m *diam.Message) {
 		if m.Header.CommandFlags&diam.RequestFlag != 0 {
 			// Keep exercising the production unsupported-command fallback.
-			sm.handleUnsupportedCommand(c, m)
+			sm.acceptedCore(c, nil, false).apply(protocol.Input{Kind: protocol.Unhandled, Message: m})
 			return
 		}
 		answers <- m

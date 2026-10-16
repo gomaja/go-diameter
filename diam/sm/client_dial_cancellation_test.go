@@ -17,6 +17,7 @@ import (
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/diamtest"
 	"github.com/gomaja/go-diameter/diam/internal/base"
+	"github.com/gomaja/go-diameter/diam/internal/protocol"
 	"github.com/gomaja/go-diameter/diam/sm/smpeer"
 )
 
@@ -57,13 +58,13 @@ func TestClientCancellationRejectsLateCEA(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-	case <-time.After(time.Second):
+	case <-time.After(10 * time.Second):
 		t.Fatal("CER write did not start")
 	}
 	cancel()
 	select {
 	case <-closing:
-	case <-time.After(time.Second):
+	case <-time.After(10 * time.Second):
 		t.Fatal("cancellation did not start closing")
 	}
 	ceaConfig := activity.capabilities
@@ -76,7 +77,7 @@ func TestClientCancellationRejectsLateCEA(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	handleCEA(cli.Handler, activity)(c, cea)
+	activity.state().apply(protocol.Input{Kind: protocol.Receive, Message: cea})
 	if called.Load() {
 		t.Error("late CEA ran OnHandshake after cancellation started closing")
 	}
@@ -130,6 +131,68 @@ func TestClientRetransmitTimerStartsAfterWrite(t *testing.T) {
 	case <-c.writes:
 	case <-time.After(time.Second):
 		t.Fatal("CER timer was not reset after write")
+	}
+}
+
+// The first CER writer installs WriteTimeout before the transport's implicit
+// TLS handshake. A blocked ClientHello must retain that deadline.
+func TestClientTLSWriteTimeoutBeforeCER(t *testing.T) {
+	rw, peer := net.Pipe()
+	defer closeDialTest(t, peer)
+	defer closeDialTest(t, rw)
+	cli := newLivenessClient(t)
+	cli.EnableWatchdog = false
+	cli.WriteTimeout = 30 * time.Millisecond
+	cli.Handler.cfg.HostIPAddresses = append(cli.Handler.cfg.HostIPAddresses, localhostAddress)
+	transport := tls.Client(rw, &tls.Config{ServerName: "synthetic.example", MinVersion: tls.VersionTLS12})
+	done := make(chan error, 1)
+	go func() {
+		c, err := cli.NewConn(transport, "synthetic.example")
+		if c != nil {
+			c.Close()
+		}
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		var timeout net.Error
+		if !errors.As(err, &timeout) || !timeout.Timeout() {
+			t.Fatalf("got %v; want original TLS write timeout", err)
+		}
+	case <-time.After(10 * time.Second):
+		closeDialTest(t, peer)
+		<-done
+		t.Fatal("TLS ClientHello write ignored Client.WriteTimeout before CER")
+	}
+}
+
+// Normal TLS validates the CER's local addresses before waiting for the
+// implicit handshake; only InbandSecurityID=1 has an earlier explicit one.
+func TestClientTLSAddressErrorBeforeHandshake(t *testing.T) {
+	rw, peer := net.Pipe()
+	defer closeDialTest(t, peer)
+	defer closeDialTest(t, rw)
+	cli := newLivenessClient(t)
+	cli.EnableWatchdog = false
+	cli.Handler.cfg.HostIPAddresses = nil
+	transport := tls.Client(rw, &tls.Config{ServerName: "synthetic.example", MinVersion: tls.VersionTLS12})
+	done := make(chan error, 1)
+	go func() {
+		c, err := cli.NewConn(transport, "synthetic.example")
+		if c != nil {
+			c.Close()
+		}
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		if err == nil || !strings.HasPrefix(err.Error(), "diameter handshake failure:") {
+			t.Fatalf("got %v; want original local-address failure", err)
+		}
+	case <-time.After(10 * time.Second):
+		closeDialTest(t, peer)
+		<-done
+		t.Fatal("TLS handshake blocked before invalid LocalAddr could be reported")
 	}
 }
 

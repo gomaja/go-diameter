@@ -2,13 +2,13 @@ package sm
 
 import (
 	"bytes"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"testing/synctest"
 	"time"
 
 	"github.com/gomaja/go-diameter/diam"
-	"github.com/gomaja/go-diameter/diam/dict"
 	"github.com/gomaja/go-diameter/diam/internal/base"
 )
 
@@ -23,7 +23,6 @@ func (c *clientReviewDualDoneConn) CloseNotify() <-chan struct{} {
 	c.notifyCalls.Add(1)
 	return c.notify
 }
-
 func (c *clientReviewDualDoneConn) DispatchDone() <-chan struct{} { return c.dispatched }
 
 func TestClientWatchdogUsesCloseNotifierOverDispatchDone(t *testing.T) {
@@ -36,34 +35,22 @@ func TestClientWatchdogUsesCloseNotifierOverDispatchDone(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
 				cli := newLivenessClient(t)
 				cli.WatchdogInterval = time.Hour
-				c := &clientReviewDualDoneConn{
-					watchdogProbeConn: newWatchdogProbeConn(),
-					notify:            make(chan struct{}), dispatched: make(chan struct{}),
-				}
-				// RFC 3539 Appendix A: the client adapter must stop when its
-				// established CloseNotifier reports the connection down.
-				close(c.notify)
+				c := &clientReviewDualDoneConn{watchdogProbeConn: newWatchdogProbeConn(),
+					notify: make(chan struct{}), dispatched: make(chan struct{})}
 				var conn diam.Conn = c
 				if wrapped {
 					conn = unwrapTestConn{conn}
 				}
-				activity := newWatchdogActivity()
-				exited := make(chan struct{})
-				go func() {
-					cli.watchdog(conn, activity)
-					close(exited)
-				}()
-				defer func() {
-					close(c.dispatched)
-					c.Close()
-					<-exited
-				}()
+				state := primeClientTestCore(t, cli, conn)
+				w := state.watchdogState()
+				defer func() { close(c.dispatched); c.Close() }()
+				close(c.notify)
 				synctest.Wait()
-				if got := c.notifyCalls.Load(); got != 1 {
-					t.Fatalf("CloseNotify calls = %d, want one", got)
+				if c.notifyCalls.Load() == 0 {
+					t.Fatal("client did not discover CloseNotify")
 				}
 				select {
-				case <-exited:
+				case <-w.exited:
 				default:
 					t.Fatal("client watchdog remained running after CloseNotify")
 				}
@@ -76,134 +63,105 @@ func TestClientWatchdogUsesCloseNotifierOverDispatchDone(t *testing.T) {
 }
 
 func TestClientWatchdogSerializesRequestAndDWAEvents(t *testing.T) {
-	testDict := newSMTestDictionary(dict.Base())
-
-	cli := newLivenessClient(t)
-	c := &blockingPublishWatchdogConn{
-		watchdogProbeConn: newWatchdogProbeConn(),
-		entered:           make(chan struct{}), release: make(chan struct{}), written: make(chan []byte, 1),
-	}
-	type observation struct {
-		event    WatchdogEvent
-		lockHeld bool
-	}
-	observations := make(chan observation, 2)
-	cli.OnWatchdogEvent = func(event WatchdogEvent) {
-		locked := !cli.watchdogEventMu.TryLock()
-		if !locked {
-			cli.watchdogEventMu.Unlock()
+	synctest.Test(t, func(t *testing.T) {
+		cli := newLivenessClient(t)
+		c := &blockingPublishWatchdogConn{watchdogProbeConn: newWatchdogProbeConn(),
+			entered: make(chan struct{}), release: make(chan struct{}), written: make(chan []byte, 1)}
+		unblock := sync.OnceFunc(func() { close(c.release) })
+		defer unblock()
+		observations := make(chan WatchdogEvent, 2)
+		cli.OnWatchdogEvent = func(event WatchdogEvent) { observations <- event }
+		state := primeClientTestCore(t, cli, c)
+		requestDone := make(chan struct{})
+		go func() { expireClientTestWatchdog(state); close(requestDone) }()
+		<-c.entered
+		request, err := diam.ReadMessage(bytes.NewReader(<-c.written), c.Dictionary())
+		if err != nil {
+			unblock()
+			<-requestDone
+			t.Fatal(err)
 		}
-		observations <- observation{event, locked}
-	}
-	requestDone := make(chan bool, 1)
-	signals := newWatchdogSignals()
-	go func() { requestDone <- cli.dwr(c, 0, &signals) }()
-	<-c.entered
-	// RFC 6733 §5.6 R-Open: a DWA observer must not publish before its
-	// request. Holding the same mutex through write and both event callbacks
-	// proves the order without relying on goroutine scheduling.
-	if cli.watchdogEventMu.TryLock() {
-		cli.watchdogEventMu.Unlock()
-		close(c.release)
-		<-requestDone
-		t.Fatal("watchdog event lock was free during the DWR write")
-	}
-	request, err := diam.ReadMessage(bytes.NewReader(<-c.written), testDict)
-	if err != nil {
-		close(c.release)
-		<-requestDone
-		t.Fatal(err)
-	}
-	dwa, err := base.BuildDWA(request, baseSettings(clientSettings))
-	if err != nil {
-		close(c.release)
-		<-requestDone
-		t.Fatal(err)
-	}
-	dwaHandler := handleDWA(cli.Handler, &signals, cli.observeWatchdog)
-	dwaStarted := make(chan struct{})
-	dwaDone := make(chan struct{})
-	go func() {
-		close(dwaStarted)
-		dwaHandler.ServeDIAM(c, dwa)
-		close(dwaDone)
-	}()
-	<-dwaStarted
-	close(c.release)
-	if !<-requestDone {
-		t.Fatal("DWR publication failed")
-	}
-	<-dwaDone
-	for _, want := range []WatchdogEvent{WatchdogRequestSent, WatchdogAnswerReceived} {
+		dwa, err := base.BuildDWA(request, baseSettings(clientSettings))
+		if err != nil {
+			unblock()
+			<-requestDone
+			t.Fatal(err)
+		}
+		state.mu.Lock()
+		requestObservation := state.observerTail
+		state.mu.Unlock()
+		dwaDone := make(chan struct{})
+		go func() { cli.Handler.ServeDIAM(c, dwa); close(dwaDone) }()
+		synctest.Wait()
+		state.mu.Lock()
+		answerObservation := state.observerTail
+		state.mu.Unlock()
+		if answerObservation == requestObservation {
+			unblock()
+			<-requestDone
+			<-dwaDone
+			t.Fatal("DWA did not reach its production observation checkpoint")
+		}
 		select {
-		case got := <-observations:
-			if got.event != want || !got.lockHeld {
-				t.Fatalf("watchdog event = %q, lock held = %t; want %q with lock held", got.event, got.lockHeld, want)
-			}
+		case e := <-observations:
+			t.Fatalf("observer overtook the blocked request write: %s", e)
 		default:
-			t.Fatalf("missing watchdog event %q", want)
 		}
-	}
+		unblock()
+		<-requestDone
+		<-dwaDone
+		for _, want := range []WatchdogEvent{WatchdogRequestSent, WatchdogAnswerReceived} {
+			select {
+			case got := <-observations:
+				if got != want {
+					t.Fatalf("watchdog event = %q, want %q", got, want)
+				}
+			default:
+				t.Fatalf("missing watchdog event %q", want)
+			}
+		}
+	})
 }
 
 func TestClientWatchdogAdapterStateEventsHoldPublicationLock(t *testing.T) {
-	synctest.Test(t, func(t *testing.T) {
-		cli := newLivenessClient(t)
-		const tw = 50 * time.Millisecond
-		cli.WatchdogInterval = tw
-		c := newWatchdogProbeConn()
-		activity := newWatchdogActivity()
-		type observation struct {
-			event    WatchdogEvent
-			lockHeld bool
+	cli := newLivenessClient(t)
+	c := newWatchdogProbeConn()
+	state := primeClientTestCore(t, cli, c)
+	w := state.watchdogState()
+	type observation struct {
+		event  WatchdogEvent
+		locked bool
+	}
+	events := make(chan observation, 8)
+	cli.OnWatchdogEvent = func(event WatchdogEvent) {
+		locked := !w.mu.TryLock()
+		if !locked {
+			w.mu.Unlock()
 		}
-		events := make(chan observation, 8)
-		cli.OnWatchdogEvent = func(event WatchdogEvent) {
-			locked := !activity.publicationMu.TryLock()
-			if !locked {
-				activity.publicationMu.Unlock()
-			}
-			events <- observation{event, locked}
-		}
-		exited := make(chan struct{})
-		go func() {
-			cli.watchdog(c, activity)
-			close(exited)
-		}()
-		synctest.Wait()
-		defer func() { c.Close(); <-exited }()
-		want := func(event WatchdogEvent) {
-			t.Helper()
-			select {
-			case got := <-events:
-				if got.event != event || !got.lockHeld {
-					t.Fatalf("watchdog event = %q, lock held = %t; want %q with lock held", got.event, got.lockHeld, event)
-				}
-			default:
-				t.Fatalf("missing watchdog event %q", event)
-			}
-		}
-
-		time.Sleep(tw)
-		synctest.Wait()
-		want(WatchdogRequestSent)
-		time.Sleep(tw)
-		synctest.Wait()
-		want(WatchdogSuspect)
-		// RFC 3539 Appendix A: traffic recovers SUSPECT while Pending stays set.
-		activity.received()
-		synctest.Wait()
-		want(WatchdogRecovered)
-		time.Sleep(tw)
-		synctest.Wait()
-		want(WatchdogSuspect)
-		time.Sleep(tw)
-		synctest.Wait()
-		want(WatchdogTimedOut)
+		events <- observation{event, locked}
+	}
+	want := func(event WatchdogEvent) {
+		t.Helper()
 		select {
-		case <-exited:
+		case got := <-events:
+			if got.event != event || !got.locked {
+				t.Fatalf("watchdog observation = %+v, want %s under publication lock", got, event)
+			}
 		default:
-			t.Fatal("client watchdog remained running after DOWN")
+			t.Fatalf("missing watchdog event %s", event)
 		}
-	})
+	}
+	expireClientTestWatchdog(state)
+	want(WatchdogRequestSent)
+	expireClientTestWatchdog(state)
+	want(WatchdogSuspect)
+	receiveClientTestActivity(state)
+	want(WatchdogRecovered)
+	expireClientTestWatchdog(state)
+	want(WatchdogSuspect)
+	expireClientTestWatchdog(state)
+	want(WatchdogTimedOut)
+	if !c.Closed() {
+		t.Fatal("DOWN did not close the connection")
+	}
 }

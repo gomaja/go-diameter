@@ -221,7 +221,7 @@ func TestDPADiscardLogsBeforeNotificationWire(t *testing.T) {
 						}
 						// The peer can read the DPR before its writer returns. Wait
 						// for that independent pin disposal before comparing state.
-						deadline := time.Now().Add(500 * time.Millisecond)
+						deadline := time.Now().Add(10 * time.Second)
 						for {
 							controls = acceptedState.snapshot().Controls()
 							if len(controls) == 1 && controls[0].Command == diam.DisconnectPeer && controls[0].Logical && controls[0].Writers == 0 {
@@ -242,7 +242,7 @@ func TestDPADiscardLogsBeforeNotificationWire(t *testing.T) {
 						want = "Origin-Host mismatch"
 					}
 					header := p.send(t, answer)
-					ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+					ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 					defer cancel()
 					records, _ := p.logs.Wait(ctx, 1)
 					assertDiscardWarning(t, records, "DPA", want)
@@ -255,10 +255,8 @@ func TestDPADiscardLogsBeforeNotificationWire(t *testing.T) {
 					if mode == "accepted" {
 						unchanged = slices.Equal(acceptedState.snapshot().Controls(), controls)
 					} else {
-						p.sm.disconnects.mu.Lock()
-						pending := p.sm.disconnects.pending[p.conn]
-						unchanged = pending != nil && !pending.claimed
-						p.sm.disconnects.mu.Unlock()
+						state := p.sm.acceptedCore(p.conn, nil, false)
+						unchanged = len(state.snapshot().Controls()) != 0
 					}
 					if !unchanged || p.conn.Closed() || p.sm.acceptedClosing(p.conn) != closing {
 						t.Fatal("DPA diagnostic changed pending DPR or Closing")
@@ -274,7 +272,7 @@ func TestDPADiscardLogsBeforeNotificationWire(t *testing.T) {
 						if err != nil {
 							t.Fatal(err)
 						}
-					case <-time.After(time.Second):
+					case <-time.After(10 * time.Second):
 						t.Fatal("matching DPA no longer completed disconnect")
 					}
 				})

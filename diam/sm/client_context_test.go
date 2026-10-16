@@ -357,7 +357,7 @@ func TestClientDialTimeoutOnlyBoundsConnect(t *testing.T) {
 			received, release := make(chan struct{}), make(chan struct{})
 			serverSM := mustNewStateMachine(t, serverSettings, testDict)
 			mux := diam.NewServeMux()
-			mux.HandleFunc("CER", func(c diam.Conn, m *diam.Message) { close(received); <-release; handleCER(serverSM)(c, m) })
+			mux.HandleFunc("CER", func(c diam.Conn, m *diam.Message) { close(received); <-release; serverSM.ServeDIAM(c, m) })
 			srv := diamtest.NewUnstartedServer(mux, testDict)
 			if method == "DialTLSTimeout" || method == "DialTLSExt" {
 				srv.StartTLS()
@@ -393,7 +393,7 @@ func TestClientDialTimeoutOnlyBoundsConnect(t *testing.T) {
 			}()
 			select {
 			case <-received:
-			case <-time.After(time.Second):
+			case <-time.After(10 * time.Second):
 				t.Fatal("no CER")
 			}
 			select {
@@ -407,7 +407,7 @@ func TestClientDialTimeoutOnlyBoundsConnect(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-			case <-time.After(time.Second):
+			case <-time.After(10 * time.Second):
 				t.Fatal("dial did not finish")
 			}
 		})

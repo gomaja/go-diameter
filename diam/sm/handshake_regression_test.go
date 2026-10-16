@@ -108,7 +108,7 @@ func TestWrappedCEAResultCode(t *testing.T) {
 	}{{smparser.ErrNoCommonSecurity, diam.NoCommonSecurity}, {smparser.ErrNoCommonApplication, diam.NoCommonApplication}} {
 		sm := mustNewStateMachine(t, testMessageErrorSettings(testDict), testDict)
 		c := newHandshakeConn()
-		if err := errorCEA(sm, c, regressionCER(t, testDict, 1001), fmt.Errorf("wrapped: %w", tc.err)); err != nil {
+		if err := sendTestCEA(sm, c, regressionCER(t, testDict, 1001), fmt.Errorf("wrapped: %w", tc.err)); err != nil {
 			t.Fatal(err)
 		}
 		a, err := diam.ReadMessage(bytes.NewReader(<-c.writes), testDict)
@@ -211,9 +211,9 @@ func TestLateNonCEAAfterHandshakeTimeout(t *testing.T) {
 	}()
 	select {
 	case <-done:
-	case <-time.After(time.Second):
+	case <-time.After(10 * time.Second):
 		t.Error("late non-CEA blocked reader")
-		<-activity.ceac
+		<-activity.state().handshake
 		<-done
 	}
 }

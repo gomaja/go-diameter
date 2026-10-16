@@ -46,7 +46,7 @@ func TestHandshakeTimerStopsOnSuccessAndClose(t *testing.T) {
 			}
 			state := value.(*acceptedHandshake)
 			if success {
-				handleCER(sm)(c, regressionCER(t, testDict, 1001))
+				sm.ServeDIAM(c, regressionCER(t, testDict, 1001))
 			} else {
 				cleanup()
 			}

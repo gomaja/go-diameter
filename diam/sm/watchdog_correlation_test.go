@@ -1,16 +1,12 @@
 package sm
 
 import (
-	"bytes"
 	"log/slog"
-	"sync"
 	"testing"
 	"time"
 
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
-	"github.com/gomaja/go-diameter/diam/dict"
-	"github.com/gomaja/go-diameter/diam/internal/logtest"
 )
 
 const correlationTw = 150 * time.Millisecond
@@ -140,81 +136,5 @@ func TestWatchdogDWADuplicateWithoutPending(t *testing.T) {
 			assertProtocolEvent(t, protocolEvent(t, p.events), p.conn, &header,
 				diam.ProtocolUnexpectedMessage, 0, false, diam.ProtocolReplyNone, 0)
 		})
-	}
-}
-
-type immediateDWAConn struct {
-	*watchdogProbeConn
-	onWrite func([]byte)
-}
-
-func (c *immediateDWAConn) WriteStream(wire []byte, _ uint) (int, error) {
-	c.onWrite(wire)
-	return len(wire), nil
-}
-
-// The peer can answer bytes that it has read before the writer returns.
-// Moving identifier registration after WriteToStream must fail this test.
-func TestPublishDWRRegistersBeforeWriteReturns(t *testing.T) {
-	signals := newWatchdogSignals()
-	c := &immediateDWAConn{watchdogProbeConn: newWatchdogProbeConn()}
-	c.onWrite = func(wire []byte) {
-		request, err := diam.ReadMessage(bytes.NewReader(wire), newSMTestDictionary(dict.Base()))
-		if err != nil {
-			t.Fatal(err)
-		}
-		kind, code := processDWA(c, acceptedDWA(t, request, diam.Success), &signals, nil)
-		if kind != "" || code != 0 || queuedWatchdogCredits(&signals) != 1 {
-			t.Fatalf("immediate DWA = (%s, %d), acknowledgements = %d; request not registered before write", kind, code, queuedWatchdogCredits(&signals))
-		}
-	}
-	var events []WatchdogEvent
-	if !publishDWR(c, regressionDWR(t), &signals, 0, new(sync.Mutex), nil,
-		func(event WatchdogEvent) { events = append(events, event) }, nil) {
-		t.Fatal("DWR publication failed")
-	}
-	if len(events) != 1 || events[0] != WatchdogRequestSent {
-		t.Fatalf("publication events = %v", events)
-	}
-}
-
-func TestWatchdogDWAConcurrentDuplicate(t *testing.T) {
-	signals := newWatchdogSignals()
-	logs := logtest.New()
-	c := loggedWatchdogConn{Conn: newWatchdogProbeConn(), logger: logs.Logger()}
-	request := regressionDWR(t)
-	if !publishDWR(c, request, &signals, 0, new(sync.Mutex), nil, func(WatchdogEvent) {}, nil) {
-		t.Fatal("DWR publication failed")
-	}
-	const copies = 16
-	results := make(chan diam.ProtocolErrorKind, copies)
-	answers := make([]*diam.Message, copies)
-	for i := range answers {
-		answers[i] = acceptedDWA(t, request, diam.Success)
-	}
-	start := make(chan struct{})
-	for _, answer := range answers {
-		go func() {
-			<-start
-			kind, _ := processDWA(c, answer, &signals, nil)
-			results <- kind
-		}()
-	}
-	close(start)
-	credited := 0
-	for range copies {
-		switch kind := <-results; kind {
-		case "":
-			credited++
-		case diam.ProtocolUnexpectedMessage:
-		default:
-			t.Fatalf("duplicate DWA result = %s", kind)
-		}
-	}
-	if credited != 1 || queuedWatchdogCredits(&signals) != 1 {
-		t.Fatalf("duplicate DWAs credited = %d, queued = %d; want one", credited, queuedWatchdogCredits(&signals))
-	}
-	if records := logs.RecordsWithMessage("sm: unhandled answer discarded"); len(records) != copies-1 {
-		t.Fatalf("duplicate DWA warnings = %d, want %d", len(records), copies-1)
 	}
 }

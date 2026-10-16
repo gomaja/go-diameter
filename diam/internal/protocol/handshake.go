@@ -11,6 +11,8 @@ import (
 var ErrUnexpectedPeer = errors.New("protocol: unexpected peer identity")
 
 func (c *Core) candidate(in Input) []Effect {
+	// A genuine CER owns all later admission decisions (RFC 6733 §§5.3, 5.6).
+	c.passiveResponder = false
 	var parsed base.CER
 	_, err := parsed.Parse(in.Message, base.ParseOptions{Role: base.Server, TLS: c.cfg.TLS, Dictionary: c.cfg.Dictionary, LocalApplications: c.caps.LocalApplications})
 	if err != nil {
@@ -67,7 +69,11 @@ func (c *Core) cea(in Input) []Effect {
 	}
 	if err := base.ValidateMessage(in.Message); err != nil {
 		c.handshake = newHandshakeResult(err, nil)
-		return c.fail(in, base.AnswerErrorKind(in.Message), err.ResultCode)
+		kind := base.AnswerErrorKind(in.Message)
+		if base.ValidateHeader(in.Message) != nil {
+			kind = diam.ProtocolInvalidHeader
+		}
+		return c.fail(in, kind, err.ResultCode)
 	}
 	var parsed base.CEA
 	err := parsed.Parse(in.Message, base.ParseOptions{Role: base.Client, Dictionary: c.cfg.Dictionary, LocalApplications: c.caps.LocalApplications})
@@ -92,6 +98,9 @@ func (c *Core) cea(in Input) []Effect {
 	es = append(es, c.stop(HandshakeTimer)...)
 	es = append(es, c.stop(RetryTimer)...)
 	c.caps.CEA = copyCEA(&parsed)
+	header := *in.Message.Header
+	c.completedCEA = &header
+	c.caps.ParsedApplications = parsed.Applications()
 	c.negotiate(string(parsed.OriginHost), string(parsed.OriginRealm), base.AdvertisedApplicationIDs(base.Settings{AuthApplicationID: parsed.AuthApplicationID, AcctApplicationID: parsed.AcctApplicationID, VendorSpecificApplicationID: parsed.VendorSpecificApplicationID}))
 	c.phase = Open
 	c.handshakePending = true

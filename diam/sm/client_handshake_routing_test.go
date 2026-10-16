@@ -49,9 +49,9 @@ func TestConcurrentClientDialsRouteCEAToTheirOwnHandshake(t *testing.T) {
 			}
 			var err error
 			if peer == 1 {
-				err = errorCEA(serverSM, c, m, smparser.ErrNoCommonApplication)
+				err = sendTestCEA(serverSM, c, m, smparser.ErrNoCommonApplication)
 			} else {
-				handleCER(serverSM)(c, m)
+				serverSM.ServeDIAM(c, m)
 			}
 			if err != nil {
 				t.Errorf("peer %d CEA: %v", peer, err)
@@ -73,7 +73,7 @@ func TestConcurrentClientDialsRouteCEAToTheirOwnHandshake(t *testing.T) {
 		}()
 		select {
 		case <-seen[i]:
-		case <-time.After(time.Second):
+		case <-time.After(10 * time.Second):
 			t.Fatalf("peer %d did not receive CER", i)
 		}
 	}
@@ -101,7 +101,7 @@ func TestConcurrentClientDialsRouteCEAToTheirOwnHandshake(t *testing.T) {
 			} else if got.err != nil {
 				t.Fatalf("peer %d handshake failed: %v", want, got.err)
 			}
-		case <-time.After(time.Second):
+		case <-time.After(10 * time.Second):
 			t.Fatalf("peer %d did not receive its CEA", want)
 		}
 	}

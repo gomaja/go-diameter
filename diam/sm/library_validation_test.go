@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"testing"
+	"time"
 
 	"github.com/gomaja/go-diameter/diam/dict/creditcontrol"
 
@@ -60,16 +61,18 @@ func TestLibraryBuiltMessagesValidate(t *testing.T) {
 		send func(*messageErrorCaptureConn) error
 	}{
 		{"CEA-success", func(c *messageErrorCaptureConn) error {
-			a, err := buildSuccessCEA(sm, c, cer)
+			a, err := buildTestCEA(sm, c, cer)
 			if err != nil {
 				return err
 			}
 			_, err = a.WriteTo(c)
 			return err
 		}},
-		{"CEA-error", func(c *messageErrorCaptureConn) error { return errorCEA(sm, c, cer, smparser.ErrNoCommonApplication) }},
+		{"CEA-error", func(c *messageErrorCaptureConn) error {
+			return sendTestCEA(sm, c, cer, smparser.ErrNoCommonApplication)
+		}},
 		{"error-answer", func(c *messageErrorCaptureConn) error {
-			_, err := sm.writeErrorAnswer(c, cer, diam.InvalidHDRBits, nil, true)
+			_, err := sm.sendTestErrorAnswer(c, cer, diam.InvalidHDRBits, nil, true)
 			return err
 		}},
 	} {
@@ -85,6 +88,7 @@ func TestLibraryBuiltMessagesValidate(t *testing.T) {
 		request := diam.NewRequest(diam.DeviceWatchdog, 0, testDict)
 		// A non-CER error answer belongs to an admitted peer (RFC 6733 §5.6.1).
 		c := &messageErrorCaptureConn{dictionary: testDict, ctx: smpeer.NewContext(context.Background(), &smpeer.Metadata{})}
+		primeClientTestCore(t, &Client{Handler: sm, Dict: testDict, RetransmitInterval: time.Hour}, c)
 		failed := diam.NewAVP(avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("bad"))
 		if err := sm.HandleMessageError(c, request, &diam.MessageError{ResultCode: diam.InvalidAVPLength, FailedAVP: failed}); err != nil {
 			t.Fatal(err)
@@ -103,12 +107,14 @@ func TestLibraryBuiltMessagesValidate(t *testing.T) {
 	}
 	dpr.Header.CommandFlags |= diam.ProxiableFlag | diam.RetransmittedFlag
 	c := &messageErrorCaptureConn{dictionary: testDict, ctx: smpeer.NewContext(context.Background(), &smpeer.Metadata{OriginHost: settings.OriginHost, OriginRealm: settings.OriginRealm})}
-	handleDPR(sm)(c, dpr)
+	primeClientTestCore(t, &Client{Handler: sm, Dict: testDict, RetransmitInterval: time.Hour}, c)
+	sm.ServeDIAM(c, dpr)
 	validatedCapture(t, c)
 	dwr := diam.NewMessage(diam.DeviceWatchdog, diam.RequestFlag|diam.ProxiableFlag|diam.RetransmittedFlag, 0, 3, 4, testDict)
 	dwr.AddAVP(diam.NewAVP(avp.OriginHost, avp.Mbit, 0, settings.OriginHost))
 	dwr.AddAVP(diam.NewAVP(avp.OriginRealm, avp.Mbit, 0, settings.OriginRealm))
 	c = &messageErrorCaptureConn{dictionary: testDict, ctx: smpeer.NewContext(context.Background(), &smpeer.Metadata{OriginHost: settings.OriginHost, OriginRealm: settings.OriginRealm})}
-	handleDWR(sm)(c, dwr)
+	primeClientTestCore(t, &Client{Handler: sm, Dict: testDict, RetransmitInterval: time.Hour}, c)
+	sm.ServeDIAM(c, dwr)
 	validatedCapture(t, c)
 }

@@ -74,7 +74,7 @@ func TestRequiredReplyFailureClosesStateMachine(t *testing.T) {
 					}
 				}
 				c.beforeClose = func() {
-					if sm.CanRenewAcceptedCER(c) || !sm.isClosing(c) {
+					if sm.CanRenewAcceptedCER(c) || !sm.acceptedClosing(c) {
 						t.Error("required reply failure did not fence renewal before transport close")
 					}
 				}
@@ -87,14 +87,14 @@ func TestRequiredReplyFailureClosesStateMachine(t *testing.T) {
 				switch command {
 				case "CEA":
 					m = regressionCER(t, m.Dictionary(), 1001)
-					handleCER(sm)(c, m)
+					sm.ServeDIAM(c, m)
 				case "DWA":
-					handleDWR(sm)(c, m)
+					sm.ServeDIAM(c, m)
 				case "DPA":
 					m = acceptedDPR(t)
 					host, _ := m.FindAVP(avp.OriginHost, 0)
 					c.SetContext(smpeer.NewContext(context.Background(), &smpeer.Metadata{OriginHost: host.Data.(datatype.DiameterIdentity)}))
-					handleDPR(sm)(c, m)
+					sm.ServeDIAM(c, m)
 				case "error", "rejection":
 					code = diam.MissingAVP
 					if failure == "build" {
