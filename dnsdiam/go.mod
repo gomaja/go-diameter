@@ -4,7 +4,7 @@ go 1.26.0
 
 require (
 	codeberg.org/miekg/dns v0.6.97
-	github.com/gomaja/go-diameter v0.0.0-20261015000604-0d3cccfdb086
+	github.com/gomaja/go-diameter v0.0.0-20261016055347-6d023fa610f9
 )
 
 require (
