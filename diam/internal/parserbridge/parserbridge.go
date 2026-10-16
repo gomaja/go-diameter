@@ -1,4 +1,4 @@
-// Package parserbridge gives package sm the smparser conversions that are not
+// Package parserbridge gives the protocol adapters the smparser conversions that are not
 // part of smparser's public API. smparser installs each one during its
 // initialization; this package cannot import smparser, so each is held as any
 // with its concrete function type documented beside it.

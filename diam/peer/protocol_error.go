@@ -1,11 +1,8 @@
 package peer
 
 import (
-	"errors"
-
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/internal/observe"
-	"github.com/gomaja/go-diameter/diam/sm/smparser"
 )
 
 // ProtocolErrorEnabled reports whether Settings.OnProtocolError is configured.
@@ -48,22 +45,6 @@ func (m *Manager) protocolError(c diam.Conn, message *diam.Message, kind diam.Pr
 
 func (a *actor) protocolError(c diam.Conn, msg *diam.Message, kind diam.ProtocolErrorKind, result uint32, closing bool, reply diam.ProtocolReplyStatus, replyCode uint32) {
 	a.m.protocolError(c, msg, kind, result, closing, reply, replyCode, a.delivery)
-}
-
-func protocolResultCode(err error) uint32 {
-	var messageError *diam.MessageError
-	if errors.As(err, &messageError) {
-		return messageError.ResultCode
-	}
-	var failed *smparser.ErrFailedResultCode
-	if errors.As(err, &failed) {
-		return failed.ResultCode
-	}
-	var dwaError *dwaResultCodeError
-	if errors.As(err, &dwaError) {
-		return dwaError.result
-	}
-	return 0
 }
 
 var _ diam.ProtocolErrorObserver = (*Manager)(nil)

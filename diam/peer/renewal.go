@@ -5,13 +5,14 @@ import (
 	"sync"
 
 	"github.com/gomaja/go-diameter/diam"
-	"github.com/gomaja/go-diameter/diam/internal/watchdog"
+	"github.com/gomaja/go-diameter/diam/internal/protocol"
 )
 
 // protocolDelivery reserves completion storage with the admitted work. The
 // actor commits without calling an observer; the reporting worker delivers
 // synchronously after releasing Server admission (RFC 6733 §§5.6, 5.6.1).
 type protocolDelivery struct {
+	priorReply    *protocolDelivery
 	done          chan struct{}
 	once          sync.Once
 	notifications []diam.ProtocolErrorEvent
@@ -24,7 +25,11 @@ func newProtocolDelivery() *protocolDelivery { return &protocolDelivery{done: ma
 func (d *protocolDelivery) finish()          { d.once.Do(func() { close(d.done) }) }
 func (d *protocolDelivery) deliver(m *Manager) {
 	for _, notification := range d.notifications {
-		m.HandleProtocolError(notification)
+		if d.priorReply != nil {
+			d.priorReply.replyFailed(m, &notification)
+		} else {
+			m.HandleProtocolError(notification)
+		}
 	}
 	d.replyMu.Lock()
 	d.delivered = true
@@ -170,6 +175,9 @@ func (m *Manager) HandleRetire(c diam.Conn, reason diam.RetirementReason) error 
 func (a *actor) retireResponder(cmd retirementCommand) {
 	s := cmd.s
 	_, gen := s.binding()
+	if s.core != nil {
+		s.applyProtocol(protocol.Input{Kind: protocol.Retire, Reason: cmd.reason}, nil)
+	}
 	wasActive := a.active == s
 	current := a.r == s
 	if current {
@@ -190,8 +198,7 @@ func (a *actor) retireResponder(cmd retirementCommand) {
 		a.pendingDPR, a.pendingDPREnd = 0, 0
 		a.pendingDPRGen, a.pendingDPRCommand = 0, 0
 		if a.everOpen {
-			next, _ := a.watchdogCore().Step(watchdog.ConnectionDown)
-			a.watchdog = WatchdogState(next.State)
+			a.watchdog = WatchdogDown
 		}
 		a.scheduleReconnect()
 	}

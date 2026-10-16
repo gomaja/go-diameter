@@ -49,6 +49,11 @@ func outboundTestManager(t *testing.T) (*Manager, []*actor, []*session) {
 		s := &session{m: m, c: c, actor: a, gen: uint64(i + 1), writes: make(chan writeRequest, 8), closed: make(chan struct{})}
 		a.active, a.i = s, s
 		a.publish(nil)
+		if err := bootstrapSessionProtocol(s); err != nil {
+			t.Fatal(err)
+		}
+		a.state, a.i, a.r, a.active = IOpen, s, nil, s
+		a.publish(nil)
 		close(a.done)
 		m.peers[identity(host)] = a
 		actors, sessions = append(actors, a), append(sessions, s)
@@ -550,17 +555,12 @@ func TestCustomEndToEndErrorPreventsAdmission(t *testing.T) {
 }
 
 func TestManagedHopSkipsOutstandingControlRequest(t *testing.T) {
-	testDict := newTestDictionary(creditcontrol.Dictionary())
-
-	m, _, sessions := outboundTestManager(t)
+	m, actors, sessions := outboundTestManager(t)
 	if err := m.SetRoutes([]Route{{Realm: "example.net", ApplicationID: 4, PeerHosts: []datatype.DiameterIdentity{"a.example.net"}}}); err != nil {
 		t.Fatal(err)
 	}
-	control := diam.NewRequest(diam.DeviceWatchdog, 0, testDict)
-	if err := sessions[0].sendControl(control); err != nil {
-		t.Fatal("control request not queued")
-	}
-	_ = nextWrite(t, sessions[0])
+	fixtureExpireWatchdog(actors[0])
+	control := nextWrite(t, sessions[0])
 	atomic.StoreUint32(&m.nextHop, control.Header.HopByHopID-1)
 	result := sendAsync(m, context.Background(), outboundRequest("", "example.net"))
 	business := nextWrite(t, sessions[0])
@@ -574,13 +574,12 @@ func TestManagedHopSkipsOutstandingControlRequest(t *testing.T) {
 }
 
 func TestControlReservationReleasedIfSessionClosed(t *testing.T) {
-	testDict := newTestDictionary(creditcontrol.Dictionary())
-
-	m, _, sessions := outboundTestManager(t)
+	m, actors, sessions := outboundTestManager(t)
 	s := sessions[0]
 	s.close()
 	for range 64 {
-		if err := s.sendControl(diam.NewRequest(diam.DeviceWatchdog, 0, testDict)); err == nil {
+		fixtureExpireWatchdog(actors[0])
+		if len(s.writes) != 0 {
 			t.Fatal("closed session accepted control request")
 		}
 		if len(m.controls[s]) != 0 {

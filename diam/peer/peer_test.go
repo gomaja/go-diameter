@@ -13,6 +13,7 @@ import (
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/internal/base"
+	"github.com/gomaja/go-diameter/diam/internal/protocol"
 	"github.com/gomaja/go-diameter/diam/internal/testutil"
 	"github.com/gomaja/go-diameter/diam/sm"
 )
@@ -62,7 +63,7 @@ func assertActorRow(t *testing.T, state PeerState, kind psmEvent, row psmStep) {
 
 	t.Helper()
 	clock := &fakeClock{}
-	m, err := New(Config{Settings: sm.Settings{OriginHost: "local.example.net", OriginRealm: "example.net", VendorID: 1, ProductName: "table-test"}, Clock: clock})
+	m, err := New(Config{Settings: sm.Settings{Dict: testDict, OriginHost: "local.example.net", OriginRealm: "example.net", VendorID: 1, ProductName: "table-test"}, Clock: clock})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -75,11 +76,23 @@ func assertActorRow(t *testing.T, state PeerState, kind psmEvent, row psmStep) {
 	defer i.close()
 	defer r.close()
 	defer candidate.close()
+	r.inbound, candidate.inbound = true, true
+	renewalCoreSession(t, i, state != Closed && state != WaitConnAck && state != WaitConnAckElect,
+		state == IOpen || state == Closing, "example.net")
+	firstCER := kind == rConnCER && (state == Closed || state == WaitConnAck || state == WaitICEA)
+	if firstCER {
+		peerTableResponder(t, r)
+	} else {
+		renewalCoreSession(t, r, true, state == ROpen || state == Closing, "example.net")
+	}
+	peerTableResponder(t, candidate)
 	a.i = i
 	a.r = r
-	if state == IOpen {
+	a.state, a.nextGen = state, 1
+	a.active = nil
+	if state == IOpen || state == Closing && strings.HasPrefix(string(kind), "I-") {
 		a.active = i
-	} else {
+	} else if state == ROpen || state == Closing {
 		a.active = r
 	}
 	a.publish(nil)
@@ -87,7 +100,6 @@ func assertActorRow(t *testing.T, state PeerState, kind psmEvent, row psmStep) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	r.cerRequest = cer
 	var msg *diam.Message
 	s := r
 	switch kind {
@@ -107,9 +119,71 @@ func assertActorRow(t *testing.T, state PeerState, kind psmEvent, row psmStep) {
 	if kind == rConnCER && state != Closed && state != WaitConnAck && state != WaitICEA {
 		s = candidate
 	}
-	a.step(kind, s, msg)
+	if kind == stop {
+		s = a.active
+	}
+	var dpr *diam.Message
+	if state == Closing {
+		a.active.applyProtocol(protocol.Input{Kind: protocol.Disconnect, Cause: uint32(a.closeCause)}, nil)
+		w := renewalCoreWrite(t, a.active, diam.DisconnectPeer)
+		dpr = w.msg
+		fixtureCompleteWrite(a.active, w)
+	}
+	switch kind {
+	case rConnCER:
+		// A fresh transport can produce a candidate before it owns an actor
+		// slot. Its core's ValidatedCER effect performs the normal election.
+		s.applyProtocol(protocol.Input{Kind: protocol.Receive, Message: cer}, nil)
+	case iCEA:
+		msg, err = base.BuildCEA(i.cerRequest, testBase("remote.example.net"), diam.Success)
+		if err == nil {
+			a.onWire(event{s: i, msg: msg})
+		}
+	case iDWR, rDWR, iDPR, rDPR, iMessage, rMessage:
+		a.onWire(event{s: s, msg: msg})
+	case iDWA, rDWA:
+		fixtureExpireWatchdog(a)
+		w := renewalCoreWrite(t, s, diam.DeviceWatchdog)
+		fixtureCompleteWrite(s, w)
+		msg, err = base.BuildDWA(w.msg, testBase("remote.example.net"))
+		if err == nil {
+			a.onWire(event{s: s, msg: msg})
+			if s.protocolSnapshot().Watchdog().Pending {
+				t.Fatal("correlated DWA did not complete the probe")
+			}
+		}
+	case iDPA, rDPA:
+		msg, err = base.BuildDPA(dpr, testBase("remote.example.net"))
+		if err == nil {
+			a.onWire(event{s: s, msg: msg})
+		}
+	case iNonCEA:
+		msg, err = base.BuildDWR(testDict, testBase("remote.example.net"), 0)
+		if err == nil {
+			a.onWire(event{s: i, msg: msg})
+		}
+	case stop:
+		s.applyProtocol(protocol.Input{Kind: protocol.Disconnect, Cause: uint32(a.closeCause)}, nil)
+	case iDisc, rDisc:
+		s.close()
+		a.onGone(s)
+	case timeout:
+		if state == Closing {
+			reportingExpire(a.active, protocol.ClosingTimer)
+		} else {
+			a.step(kind, s, msg)
+		}
+	default:
+		a.step(kind, s, msg)
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
 	if a.state != row.next {
 		t.Fatalf("actor state=%s want %s", a.state, row.next)
+	}
+	if row.next == IOpen && a.active != i || row.next == ROpen && a.active != r {
+		t.Fatal("election did not preserve the selected connection")
 	}
 	checkWrite := func(ss *session, command uint32, request bool) {
 		t.Helper()
@@ -118,6 +192,7 @@ func assertActorRow(t *testing.T, state PeerState, kind psmEvent, row psmStep) {
 			if w.msg.Header.CommandCode != command || (w.msg.Header.CommandFlags&diam.RequestFlag != 0) != request {
 				t.Fatalf("write command=%d flags=%x", w.msg.Header.CommandCode, w.msg.Header.CommandFlags)
 			}
+			fixtureCompleteWrite(ss, w)
 		default:
 			t.Fatalf("missing write command %d", command)
 		}
@@ -277,8 +352,10 @@ func TestStaleCandidateEventsIgnored(t *testing.T) {
 		t.Fatal(err)
 	}
 	a := &actor{m: m, cfg: PeerConfig{Host: "peer.example.net"}, state: ROpen, done: make(chan struct{}), token: 7}
-	winner := &session{gen: 3}
-	loser := &session{gen: 2}
+	winner := &session{gen: 3, c: newFakeConn(testDict)}
+	loser := &session{gen: 2, c: newFakeConn(testDict)}
+	defer winner.c.Close()
+	defer loser.c.Close()
 	a.r = winner
 	a.active = winner
 	a.publish(nil)

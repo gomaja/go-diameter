@@ -106,9 +106,9 @@ func TestManagerClosingAdmissionOnWire(t *testing.T) {
 							msg := diam.NewRequest(command.code, command.app, m.dictionary())
 							switch command.code {
 							case diam.CapabilitiesExchange:
-								msg = reviewCER(t)
+								msg = capabilitiesExchangeRequest(t)
 							case diam.DeviceWatchdog:
-								msg = reviewDWR(t)
+								msg = watchdogRequest(t)
 							}
 							if !request {
 								msg = msg.Answer(diam.Success)

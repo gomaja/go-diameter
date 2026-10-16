@@ -12,16 +12,16 @@ func TestWatchdogArmPreservesEffectsAndTokens(t *testing.T) {
 				original := machine(t)
 				original.cfg.WatchdogInterval = configured
 				if active {
-					original.arm(WatchdogTimer, epoch, time.Second)
+					original.arm(nil, WatchdogTimer, epoch, time.Second)
 				}
 				candidate := *original
 				effective := interval
 				if effective <= 0 {
 					effective = configured
 				}
-				want := original.stop(WatchdogTimer)
-				want = append(want, original.arm(WatchdogTimer, epoch, effective)...)
-				got := candidate.watchdogArm(epoch, interval)
+				want := original.stop(nil, WatchdogTimer)
+				want = append(want, original.arm(nil, WatchdogTimer, epoch, effective)...)
+				got := candidate.watchdogArm(nil, epoch, interval)
 				equal := (got == nil) == (want == nil) && len(got) == len(want)
 				for i := 0; equal && i < len(got); i++ {
 					a, b := got[i], want[i]
@@ -38,7 +38,7 @@ func TestWatchdogArmPreservesEffectsAndTokens(t *testing.T) {
 func TestWatchdogTimerReplacementAllocatesOneVector(t *testing.T) {
 	c := machine(t)
 	var effects []Effect
-	allocations := testing.AllocsPerRun(100, func() { effects = c.watchdogArm(epoch, time.Second) })
+	allocations := testing.AllocsPerRun(100, func() { effects = c.watchdogArm(nil, epoch, time.Second) })
 	if len(effects) != 2 || effects[0].Kind != StopTimer || effects[1].Kind != ArmTimer {
 		t.Fatalf("replacement effects=%+v", effects)
 	}

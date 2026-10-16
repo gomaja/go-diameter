@@ -99,7 +99,7 @@ func TestManagerCompletedRequestWaitingForNativeGateOnWire(t *testing.T) {
 					close(entered)
 				}
 			}
-			held, err := base.BuildDWA(reviewDWR(t), m.baseSettings(s.c))
+			held, err := base.BuildDWA(watchdogRequest(t), m.baseSettings(s.c))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -142,7 +142,7 @@ func TestManagerCompletedRequestWaitingForNativeGateOnWire(t *testing.T) {
 				}
 				time.Sleep(time.Millisecond)
 			}
-			sentinel, err := base.BuildDWA(reviewDWR(t), m.baseSettings(s.c))
+			sentinel, err := base.BuildDWA(watchdogRequest(t), m.baseSettings(s.c))
 			if err != nil {
 				t.Fatal(err)
 			}

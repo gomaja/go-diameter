@@ -155,8 +155,8 @@ func next(name string, es ...EffectKind) matrixExpectation {
 	return matrixExpectation{effects: es, next: name}
 }
 
-// RFC 6733 §§5.3–5.6 and #108: all 16 input kinds in every phase, plus
-// validated candidate, hook, CEA-write and handshake-callback substates. The
+// Every input kind in every phase, plus validated candidate, hook, CEA-write
+// and handshake-callback substates. The
 // literal effect rows are an external contract, not calls to production guards.
 func TestEveryPhaseInputPair(t *testing.T) {
 	rows := map[string]map[InputKind]matrixExpectation{
@@ -197,7 +197,7 @@ func TestEveryPhaseInputPair(t *testing.T) {
 		"closed": {}, "retired": {},
 	}
 	for _, name := range []string{"pre", "candidate", "hook", "allocating", "waiting", "cea-write", "admission", "open", "closing-fence", "closing", "closed", "retired"} {
-		for k := Start; k <= StopSupervision; k++ {
+		for k := Start; k <= BeginCER; k++ {
 			t.Run(fmt.Sprintf("%s/input-%d", name, k), func(t *testing.T) {
 				f := matrixSetup(t, name)
 				in := matrixInput(t, name, k, f)
@@ -293,12 +293,13 @@ func matrixPayloads(t testing.TB, name string, k InputKind, f matrixFixture, bef
 		case CancelSend:
 			want.Token = f.send.Token
 		case Hold:
-			want.Input = in
+			want.Input = &in
 		case Admit:
 			want.Message = in.Message
 			want.Ownership = in.Ownership
 		case ValidatedCER, Publish, HandshakeReady:
-			want.Snapshot = f.core.Snapshot()
+			snapshot := f.core.Snapshot()
+			want.Snapshot = &snapshot
 			want.Token = want.Snapshot.Admission()
 			if e.Kind == ValidatedCER {
 				want.Token = want.Snapshot.Candidate()
@@ -320,7 +321,7 @@ func matrixPayloads(t testing.TB, name string, k InputKind, f matrixFixture, bef
 			case Activate:
 				message, err = base.BuildCEA(cer(t), f.core.cfg.Local, diam.Success)
 			case Unhandled:
-				want.Notification = Notification{Protocol: diam.ProtocolUnsupportedCommand, ResultCode: diam.CommandUnsupported, Message: metadata(in.Message)}
+				want.Notification = Notification{Protocol: diam.ProtocolUnsupportedCommand, ResultCode: diam.CommandUnsupported, Message: metadata(in.Message), Diagnostic: "unhandled"}
 				message, err = base.BuildErrorAnswer(in.Message, f.core.cfg.Local, diam.CommandUnsupported, nil, true)
 			default:
 				message, err = base.BuildDWA(in.Message, f.core.cfg.Local)

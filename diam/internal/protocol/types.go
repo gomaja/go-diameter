@@ -15,8 +15,10 @@ import (
 )
 
 // Connection distinguishes separate connections even when their generations tie.
-type Connection struct{ Instance, Generation uint64 }
-type Role uint8
+type (
+	Connection struct{ Instance, Generation uint64 }
+	Role       uint8
+)
 
 const (
 	Responder Role = iota + 1
@@ -50,16 +52,70 @@ type Config struct {
 	Watchdog                                      bool
 	WatchdogInterval                              time.Duration
 	Recovery                                      bool
+	// A peer actor owns the election deadline after a CER validates. The
+	// connection's pre-CER deadline ends when it hands that candidate over.
+	CandidateDeadlineOwnedByPeer bool
+	// IgnoreBoundHeaderlessInput discards nil/headerless input except when a
+	// responder awaits its first CER. That initial input is a handshake-state
+	// failure retaining the supplied decoder result.
+	IgnoreBoundHeaderlessInput bool
+	// InitialNonCERHeaderOnError derives an initial non-CER header diagnosis
+	// only for non-framing decoder reports. A decoded non-CER reports only the
+	// handshake-state violation, without deriving a header result code.
+	InitialNonCERHeaderOnError bool
+	// RejectFatalRepeatedCER preserves the required error reply for a repeated
+	// CER carrying a fatal decoder error, ahead of ordinary repeat disposition.
+	RejectFatalRepeatedCER bool
+	// ValidateCompletedCEA retains grammar/header diagnostics for decoded CEAs
+	// after an initiator handshake, rather than classifying duplicates first.
+	ValidateCompletedCEA bool
+	// PreserveDecoderFatalityOnHeaderError keeps the input decoder's fatal flag
+	// when base-header validation replaces its error diagnosis.
+	PreserveDecoderFatalityOnHeaderError bool
+	// ReaderOwnsMessageErrorClosure reports message errors on admitted inputs
+	// without taking transport closure from the reader. Required error replies
+	// still run; the CER header-rejection rule can select close-after-reply.
+	ReaderOwnsMessageErrorClosure bool
+	// RetainClosingErrorFatality keeps original fatality in message-error
+	// reports during Closing, independently of transport closure ownership.
+	RetainClosingErrorFatality bool
+	// SeparateHeaderErrorDiagnostics selects distinct base-header diagnostics;
+	// a rejected request during Closing is reported as malformed input.
+	SeparateHeaderErrorDiagnostics bool
+	// CloseCEROnInvalidHeaderBitsOnly restricts message-error CER closure to
+	// InvalidHDRBits; other decoder errors leave closure with their caller.
+	CloseCEROnInvalidHeaderBitsOnly bool
+	// FatalBodyErrorKeepsWatchdogDeadline excludes fatal, valid-header decoder
+	// callbacks from Tw activity. Recoverable and invalid-header input retain
+	// their ordinary decoded-activity policy.
+	FatalBodyErrorKeepsWatchdogDeadline bool
+	// FatalCEAErrorBeforeCorrelation rejects a fatal CEA decoder report before
+	// checking whether its identifiers match the pending CER.
+	FatalCEAErrorBeforeCorrelation bool
+	// DWAOwnershipBeforeSemantics classifies an unowned DWA after grammar
+	// validation but before interpreting its identity or Result-Code.
+	DWAOwnershipBeforeSemantics bool
+	// DWAIdentityBeforeResult diagnoses an unbound unsuccessful DWA by identity
+	// before interpreting its Result-Code as a rejection of the local probe.
+	DWAIdentityBeforeResult bool
+	// PreserveReplyErrorFormatWrapper retains the concrete standard fmt wrapper
+	// type around a bounded, detached error-answer builder failure.
+	PreserveReplyErrorFormatWrapper bool
 	// StateMachine's synchronous Disconnect may start after a peer DPR. Its
 	// caller deadline is independent of the peer-initiated Closing deadline.
 	LocalDisconnectInClosing bool
-	// StateMachine applies its shared parser's post-OnDWR discard/result
-	// contract. Wire grammar is validated before selecting the hook (§5.5.1).
-	DWRHookCompatibility bool
-	// Client keeps its CER response window after EOF. With retries left,
+	// AllowAnyLocalDisconnectCause preserves Manager.Close's existing opaque
+	// uint32 input. RFC 6733 section 5.4.3 defines only values 0-2; this local
+	// API compatibility option never relaxes validation of received DPRs.
+	AllowAnyLocalDisconnectCause bool
+	// SkipDWRGrammarAfterHook applies the control parser's discard/result rules
+	// to the hook output without repeating pre-hook wire-grammar validation.
+	SkipDWRGrammarAfterHook bool
+	// KeepCERDeadlineAfterTransportLoss retains a pending CER's response window
+	// after EOF. With retries left,
 	// the next write's actual error completes the handshake; otherwise the
 	// response timer reports timeout. This does not govern accepted peers.
-	CERTransportLossCompatibility bool
+	KeepCERDeadlineAfterTransportLoss bool
 }
 
 // Reservation identifies a lease in the caller's shared application/control ID
@@ -96,6 +152,8 @@ const (
 	TransportLost
 	Retire
 	StopSupervision
+	// BeginCER releases a startup deferred by its peer actor.
+	BeginCER
 )
 
 type WriteStage uint8
@@ -126,6 +184,12 @@ const (
 // WriteResult must include the post-hook ExpectedBytes and ReplyCode. Every Send
 // needs a terminal result, including skipped and queue-rejected writes.
 type Input struct {
+	// DeferCER commits initiator startup without sending or arming a response
+	// deadline until the peer actor accepts its endpoint dial completion.
+	DeferCER bool
+	// Recovery seeds accepted activation from peer history, which cannot be
+	// selected until a validated CER identifies the peer.
+	Recovery bool
 	// Resolved outside the core mutex before the first CER is built.
 	RefreshLocalAddresses        bool
 	LocalAddresses               []datatype.Address
@@ -206,6 +270,7 @@ const (
 // holds the core's mutation lock or prevents timer/lifecycle Handle calls.
 type Notification struct {
 	CauseError                   error  // detached diagnostic cause; public events retain kind/result metadata
+	ReplyError                   error  // detached error-answer construction failure
 	Diagnostic                   string // frontend log detail selected with the protocol decision
 	Kind                         NoticeKind
 	Protocol                     diam.ProtocolErrorKind
@@ -245,10 +310,12 @@ type Effect struct {
 	Notification         Notification
 	Timer                TimerKind
 	Deadline             time.Time
-	Snapshot             Snapshot
-	Input                Input
-	Ownership            uint64
-	Cause                uint32
+	// Snapshot is present on ValidatedCER, Publish, and HandshakeReady.
+	Snapshot *Snapshot
+	// Input is present on Hold and belongs to the effect recipient.
+	Input     *Input
+	Ownership uint64
+	Cause     uint32
 }
 
 // Capabilities keeps local advertisement separate from the remote offer and
@@ -315,4 +382,5 @@ func (s Snapshot) Timer(k TimerKind) TimerSnapshot {
 	}
 	return s.timers[k]
 }
+
 func (s Snapshot) Controls() []ControlSnapshot { return append([]ControlSnapshot(nil), s.controls...) }

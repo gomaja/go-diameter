@@ -83,7 +83,7 @@ func TestManagerLogsEveryUnhandledMessage(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer func() { _ = c.Close() }()
-			write(t, c, reviewCER(t))
+			write(t, c, capabilitiesExchangeRequest(t))
 			if code(t, read(t, c)) != diam.Success {
 				t.Fatal("handshake failed")
 			}
@@ -97,7 +97,7 @@ func TestManagerLogsEveryUnhandledMessage(t *testing.T) {
 				write(t, c, req.Answer(diam.Success))
 			}
 			// DWA is a wire barrier after the final answer was admitted to the actor.
-			write(t, c, reviewDWR(t))
+			write(t, c, watchdogRequest(t))
 			read(t, c)
 			got := records.Records()
 			if len(got) != 2*total {
@@ -202,10 +202,13 @@ func TestManagerLogsBeforeClosingWaitICEA(t *testing.T) {
 	defer func() { _ = c.other.Close() }()
 	s := &session{m: m, c: c, gen: 1, writes: make(chan writeRequest, 8), closed: make(chan struct{})}
 	a := &actor{m: m, cfg: PeerConfig{Host: "known.example.net", NoAutoReconnect: true}, state: WaitICEA, i: s, events: make(chan event, 8)}
+	s.actor = a
+	a.publish(nil)
+	reportingInitiator(t, a, s, false)
 	if err = c.other.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
 		t.Fatal(err)
 	}
-	a.onWire(event{kind: wireEvent, s: s, msg: reviewDWR(t)})
+	a.onWire(event{kind: wireEvent, s: s, msg: watchdogRequest(t)})
 	var b [1]byte
 	if _, err = c.other.Read(b[:]); !errors.Is(err, io.EOF) {
 		t.Fatalf("expected EOF: %v", err)

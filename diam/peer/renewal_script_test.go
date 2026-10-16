@@ -965,7 +965,7 @@ func TestManagerRenewalScriptTLSRestartClosesPhysical(t *testing.T) {
 					t.Fatal("accepted transport did not complete real TLS handshake")
 				}
 				if admitted {
-					request := reviewCER(t)
+					request := capabilitiesExchangeRequest(t)
 					if _, err := request.WriteTo(clientTLS); err != nil {
 						t.Fatal(err)
 					}
@@ -1057,7 +1057,7 @@ func TestManagerRenewalScriptDiscardsQueuedOldWrites(t *testing.T) {
 		hold.unblock()
 		synctest.Wait()
 		if hold.attempts.Load() != 1 || len(h.transport.writes) != 0 {
-			t.Fatal("queued retired writes were submitted after retirement")
+			t.Fatalf("queued retired writes were submitted after retirement: old transport attempts=%d, unread physical frames=%d", hold.attempts.Load(), len(h.transport.writes))
 		}
 		if !pair.old.Closed() || pair.next.Closed() {
 			t.Fatal("discarding queued writes affected replacement")

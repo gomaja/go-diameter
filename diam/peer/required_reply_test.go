@@ -8,6 +8,7 @@ import (
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/internal/base"
+	"github.com/gomaja/go-diameter/diam/internal/protocol"
 )
 
 type requiredReplyConn struct {
@@ -34,20 +35,31 @@ func TestRequiredReplyFailureClosesManager(t *testing.T) {
 			}
 			t.Run(command+"/"+failure, func(t *testing.T) {
 				a, s, _ := newWatchdogTestActor(t, WatchdogOkay)
+				var candidate *diam.Message
+				if command == "CEA" || command == "rejected_CEA" {
+					a, s, _ = failureReportingActor(t)
+					if failure == "build" {
+						a.m.cfg.Settings.HostIPAddresses = []datatype.Address{{}}
+					}
+					candidate = reportingCandidate(t, a, s)
+				}
 				m := a.m
 				c := &requiredReplyConn{fakeConn: s.c.(*fakeConn), failure: failure}
 				s.c = c
 				s.inbound = true
 				s.admitted.Store(true)
 				a.cfg.NoAutoReconnect = true
+				if m.sessions == nil {
+					m.sessions = make(map[diam.Conn]*session)
+				}
 				m.sessions[c] = s
-				if !m.CanRenewAcceptedCER(c) {
+				if command != "CEA" && command != "rejected_CEA" && !m.CanRenewAcceptedCER(c) {
 					t.Fatal("test connection was not eligible for renewal before the failure")
 				}
 				events := make(chan diam.ProtocolErrorEvent, 8)
 				m.cfg.Settings.OnProtocolError = func(e diam.ProtocolErrorEvent) { events <- e }
 				m.cfg.Settings.HostIPAddresses = testBase("local.example.net").HostIPAddresses
-				msg := reviewDWR(t)
+				msg := watchdogRequest(t)
 				code := uint32(diam.Success)
 				if failure == "queue" {
 					for len(s.writes) < cap(s.writes) {
@@ -59,38 +71,43 @@ func TestRequiredReplyFailureClosesManager(t *testing.T) {
 				}
 				switch command {
 				case "CEA":
-					msg = reviewCER(t)
+					msg = candidate
 					s.cerRequest = msg
 					a.sendCEA(s)
 				case "rejected_CEA":
-					msg = reviewCER(t)
+					msg = candidate
 					code = diam.NoCommonApplication
-					m.rejectCER(s, msg, code, errors.New("no common application"))
+					reportingRejectCandidate(s, msg, code, nil)
 				case "DWA":
-					a.step(rDWR, s, msg)
+					a.onWire(event{s: s, msg: msg})
 				case "DPA":
 					msg, _ = base.BuildDPR(msg.Dictionary(), testBase("known.example.net"), 0)
 					a.answerDPR(s, msg)
 				case "unsupported":
 					msg = diam.NewMessage(0xeeee, diam.RequestFlag, 0, 11, 12, msg.Dictionary())
 					code = diam.CommandUnsupported
-					m.unsupported(s, msg)
+					a.onWire(event{s: s, msg: msg})
 				case "rejection", "malformed":
 					code = diam.MissingAVP
 					if failure == "build" {
 						msg = diam.NewMessage(0xeeee, diam.RequestFlag, 0, 11, 12, msg.Dictionary())
 					}
 					if command == "rejection" {
-						m.rejectRequest(s, msg, &base.RequestError{Kind: diam.ProtocolInvalidRequest, Code: code}, false, false)
+						if failure == "build" {
+							s.applyProtocol(protocol.Input{Kind: protocol.Receive, Message: msg, Error: &diam.MessageError{ResultCode: code}, ErrorInput: true}, nil)
+						} else {
+							msg.AVP = nil
+							a.onWire(event{s: s, msg: msg})
+						}
 					} else {
 						s.first = true
-						_ = m.answerMessageError(s, msg, &diam.MessageError{ResultCode: code})
+						s.applyProtocol(protocol.Input{Kind: protocol.Receive, Message: msg, Error: &diam.MessageError{ResultCode: code}, ErrorInput: true}, nil)
 					}
 				}
 				if failure == "short" || failure == "write" {
 					select {
 					case w := <-s.writes:
-						if !s.writeOne(w) {
+						if !reportingWriteOne(t, s, w) {
 							t.Error("failed required answer did not stop its writer")
 						}
 					default:
@@ -140,8 +157,8 @@ func TestRequiredReplyShortWriteWithoutObserver(t *testing.T) {
 	a, s, _ := newWatchdogTestActor(t, WatchdogOkay)
 	c := &requiredReplyConn{fakeConn: s.c.(*fakeConn), failure: "short"}
 	s.c = c
-	a.step(rDWR, s, reviewDWR(t))
-	if !s.writeOne(requiredQueuedWrite(t, s)) || !c.Closed() || c.closes != 1 {
+	a.onWire(event{s: s, msg: watchdogRequest(t)})
+	if !reportingWriteOne(t, s, requiredQueuedWrite(t, s)) || !c.Closed() || c.closes != 1 {
 		t.Fatalf("short required reply without observer: closed=%t closes=%d", c.Closed(), c.closes)
 	}
 }
@@ -152,12 +169,12 @@ func TestRequiredReplyCompletionKeepsRequestMetadata(t *testing.T) {
 	s.c = c
 	events := make(chan diam.ProtocolErrorEvent, 2)
 	a.m.cfg.Settings.OnProtocolError = func(e diam.ProtocolErrorEvent) { events <- e }
-	msg := reviewDWR(t)
+	msg := watchdogRequest(t)
 	original := *msg.Header
-	a.step(rDWR, s, msg)
+	a.onWire(event{s: s, msg: msg})
 	msg.Header.HopByHopID++
 	msg.AVP = nil
-	if !s.writeOne(requiredQueuedWrite(t, s)) {
+	if !reportingWriteOne(t, s, requiredQueuedWrite(t, s)) {
 		t.Fatal("failed required reply retained its writer")
 	}
 	var e diam.ProtocolErrorEvent
@@ -186,10 +203,10 @@ func TestRequiredReplyLeaseRejectionReportsCompletion(t *testing.T) {
 	a, s, _ := newWatchdogTestActor(t, WatchdogOkay)
 	events := make(chan diam.ProtocolErrorEvent, 2)
 	a.m.cfg.Settings.OnProtocolError = func(e diam.ProtocolErrorEvent) { events <- e }
-	msg := reviewDWR(t)
-	a.step(rDWR, s, msg)
+	msg := watchdogRequest(t)
+	a.onWire(event{s: s, msg: msg})
 	a.discovery.Store(&discoveryState{revoked: true})
-	if !s.writeOne(requiredQueuedWrite(t, s)) || !s.c.Closed() {
+	if !reportingWriteOne(t, s, requiredQueuedWrite(t, s)) || !s.c.Closed() {
 		t.Fatal("expired lease retained the queued required answer")
 	}
 	select {

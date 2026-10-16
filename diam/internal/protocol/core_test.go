@@ -64,7 +64,7 @@ func TestRetirementIsPermanent(t *testing.T) {
 	if c.Snapshot().Phase() != Retired {
 		t.Fatal("retirement did not latch")
 	}
-	for k := Start; k <= Retire; k++ {
+	for k := Start; k <= BeginCER; k++ {
 		in := event(k)
 		in.Token = 99
 		wantKinds(t, c.Handle(in))

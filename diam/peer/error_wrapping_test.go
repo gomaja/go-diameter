@@ -36,22 +36,36 @@ func TestControlBuildErrorsPreserveCause(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer closeManager(t, m, nil)
-			// Inject invalid local address data after configuration validation.
-			m.cfg.Settings.HostIPAddresses = []datatype.Address{{}}
 			c := newFakeConn()
 			defer c.Close()
 			s := &session{m: m, c: c, writes: make(chan writeRequest, 8), closed: make(chan struct{})}
-			a := &actor{m: m, cfg: PeerConfig{Host: "known.example.net", NoAutoReconnect: true}, state: IOpen, i: s, active: s, events: make(chan event, 8)}
+			a := &actor{m: m, cfg: PeerConfig{Host: "known.example.net", NoAutoReconnect: true}, state: IOpen, i: s, active: s, events: make(chan event, 8), done: make(chan struct{})}
+			s.actor = a
+			if kind != iAck {
+				reportingOpen(t, s)
+			}
+			for len(m.callbackQ) > 0 {
+				<-m.callbackQ
+			}
+			// Invalid local address data reaches the actual CER builder.
+			m.cfg.Settings.HostIPAddresses = []datatype.Address{{}}
 			if kind == iAck {
 				a.state = WaitConnAck
 			}
-			msg := diam.NewRequest(diam.DeviceWatchdog, 0, newTestDictionary())
+			msg := watchdogRequest(t)
 			if kind != iAck {
 				for len(s.writes) < cap(s.writes) {
 					s.writes <- writeRequest{msg: msg}
 				}
 			}
-			a.step(kind, s, msg)
+			switch kind {
+			case iAck:
+				reportingInitiator(t, a, s, false)
+			case iDWR:
+				a.onWire(event{s: s, msg: msg})
+			case stop:
+				a.stop(0)
+			}
 			select {
 			case e := <-reports:
 				if e.Reason == nil || kind == iAck && errors.Unwrap(e.Reason) == nil || kind != iAck && !strings.Contains(e.Reason.Error(), "queue full") {

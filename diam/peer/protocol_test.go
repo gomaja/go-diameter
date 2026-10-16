@@ -570,6 +570,9 @@ func TestFakeTransportOpenControl(t *testing.T) {
 	a.r = s
 	a.active = s
 	a.publish(nil)
+	if err := bootstrapSessionProtocol(s); err != nil {
+		t.Fatal(err)
+	}
 	cfg := testBase("known.example.net")
 	dwr, err := base.BuildDWR(testDict, cfg, 0)
 	if err != nil {
@@ -623,6 +626,13 @@ func TestMismatchedDPRIsReportedWithoutDPA(t *testing.T) {
 			}
 			a.active = s
 			a.publish(nil)
+			if err := bootstrapSessionProtocol(s); err != nil {
+				t.Fatal(err)
+			}
+			if state == Closing {
+				a.stop(sm.DisconnectRebooting)
+				<-s.writes
+			}
 			bad, err := base.BuildDPR(testDict, testBase("other.example.net"), 0)
 			if err != nil {
 				t.Fatal(err)
@@ -679,6 +689,9 @@ func TestFakeTransportDPAIdentifiersAndPeer(t *testing.T) {
 			}
 			a.active = s
 			a.publish(nil)
+			if err := bootstrapSessionProtocol(s); err != nil {
+				t.Fatal(err)
+			}
 			a.stop(sm.DisconnectBusy)
 			if a.state != Closing {
 				t.Fatalf("state=%s", a.state)

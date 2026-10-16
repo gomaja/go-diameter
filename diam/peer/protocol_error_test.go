@@ -16,6 +16,7 @@ import (
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/internal/base"
 	"github.com/gomaja/go-diameter/diam/internal/logtest"
+	"github.com/gomaja/go-diameter/diam/internal/protocol"
 	"github.com/gomaja/go-diameter/diam/sm"
 	"github.com/gomaja/go-diameter/diam/sm/smparser"
 	"github.com/gomaja/go-diameter/diam/sm/smpeer"
@@ -69,28 +70,36 @@ func TestProtocolErrorManagerWireDecisions(t *testing.T) {
 		}, diam.ProtocolInvalidDWR, 0, 0, false, false},
 		{"invalid DPR", func(t *testing.T) *diam.Message { return diam.NewRequest(diam.DisconnectPeer, 0, testDict) }, diam.ProtocolInvalidRequest, diam.MissingAVP, diam.MissingAVP, false, false},
 		{"unsolicited DWA", func(t *testing.T) *diam.Message {
-			m, err := base.BuildDWA(reviewDWR(t), testBase("known.example.net"))
+			m, err := base.BuildDWA(watchdogRequest(t), testBase("known.example.net"))
 			if err != nil {
 				t.Fatal(err)
 			}
 			return m
 		}, diam.ProtocolInvalidDWA, 0, 0, false, false},
-		{"invalid base header", func(t *testing.T) *diam.Message { m := reviewDWR(t); m.Header.ApplicationID = 4; return m }, diam.ProtocolInvalidHeader, 3008, 3008, false, false},
-		{"invalid answer header", func(t *testing.T) *diam.Message { m := reviewDWR(t).Answer(2001); m.Header.ApplicationID = 4; return m }, diam.ProtocolInvalidHeader, 3008, 0, false, false},
-		{"invalid initial CER header", func(t *testing.T) *diam.Message { m := reviewCER(t); m.Header.ApplicationID = 4; return m }, diam.ProtocolInvalidHeader, 3008, 3008, true, true},
+		{"invalid base header", func(t *testing.T) *diam.Message { m := watchdogRequest(t); m.Header.ApplicationID = 4; return m }, diam.ProtocolInvalidHeader, 3008, 3008, false, false},
+		{"invalid answer header", func(t *testing.T) *diam.Message {
+			m := watchdogRequest(t).Answer(2001)
+			m.Header.ApplicationID = 4
+			return m
+		}, diam.ProtocolInvalidHeader, 3008, 0, false, false},
+		{"invalid initial CER header", func(t *testing.T) *diam.Message {
+			m := capabilitiesExchangeRequest(t)
+			m.Header.ApplicationID = 4
+			return m
+		}, diam.ProtocolInvalidHeader, 3008, 3008, true, true},
 		{"unknown CER identity", func(t *testing.T) *diam.Message {
-			m := reviewCER(t)
+			m := capabilitiesExchangeRequest(t)
 			a, _ := m.FindAVP(avp.OriginHost, 0)
 			a.Data = datatype.DiameterIdentity("unknown.example.net")
 			return m
 		}, diam.ProtocolCERRejected, 3010, 3010, true, true},
 		{"malformed AVP payload", func(t *testing.T) *diam.Message {
-			m := reviewDWR(t)
+			m := watchdogRequest(t)
 			m.AddAVP(diam.NewAVP(avp.InbandSecurityID, avp.Mbit, 0, datatype.Unknown{1, 2}))
 			return m
 		}, diam.ProtocolMalformedMessage, 5014, 5014, false, false},
-		{"duplicate CER", reviewCER, diam.ProtocolUnexpectedMessage, 0, 0, false, false},
-		{"pre CER traffic", reviewDWR, diam.ProtocolHandshakeState, 0, 0, true, true},
+		{"duplicate CER", capabilitiesExchangeRequest, diam.ProtocolUnexpectedMessage, 0, 0, false, false},
+		{"pre CER traffic", watchdogRequest, diam.ProtocolHandshakeState, 0, 0, true, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			events := make(chan diam.ProtocolErrorEvent, 8)
@@ -113,7 +122,7 @@ func TestProtocolErrorManagerWireDecisions(t *testing.T) {
 			}
 			t.Cleanup(func() { _ = c.Close() })
 			if !tc.preCER {
-				write(t, c, reviewCER(t))
+				write(t, c, capabilitiesExchangeRequest(t))
 				if code(t, read(t, c)) != 2001 {
 					t.Fatal("handshake failed")
 				}
@@ -163,7 +172,7 @@ func TestProtocolErrorManagerWireDecisions(t *testing.T) {
 					t.Fatal("closing decision left server connection open")
 				}
 			} else {
-				write(t, c, reviewDWR(t))
+				write(t, c, watchdogRequest(t))
 				if code(t, read(t, c)) != 2001 {
 					t.Fatal("connection not usable")
 				}
@@ -193,6 +202,7 @@ func TestProtocolErrorManagerMessageFailures(t *testing.T) {
 		t.Run(map[bool]string{false: "queued", true: "queue full"}[full], func(t *testing.T) {
 			a, s, _ := failureReportingActor(t)
 			a.state, a.i, a.active = IOpen, s, s
+			reportingOpen(t, s)
 			events := make(chan diam.ProtocolErrorEvent, 8)
 			a.m.cfg.Settings.OnProtocolError = func(e diam.ProtocolErrorEvent) { events <- e }
 			if full {
@@ -200,7 +210,7 @@ func TestProtocolErrorManagerMessageFailures(t *testing.T) {
 					s.writes <- writeRequest{}
 				}
 			}
-			msg := reviewDWR(t)
+			msg := watchdogRequest(t)
 			msg.Header.ApplicationID = 4
 			original := *msg.Header
 			a.onWire(event{s: s, msg: msg, messageErr: &diam.MessageError{ResultCode: 5014, Fatal: true}})
@@ -231,11 +241,12 @@ func TestProtocolErrorManagerMessageFailures(t *testing.T) {
 func TestProtocolErrorManagerQueuedThenClosed(t *testing.T) {
 	testDict := newTestDictionary(creditcontrol.Dictionary())
 
-	a, s, _ := failureReportingActor(t)
+	a, s, _ := newWatchdogTestActor(t, WatchdogOkay)
+	reportingStartActor(t, a)
 	var got diam.ProtocolErrorEvent
 	a.m.cfg.Settings.OnProtocolError = func(e diam.ProtocolErrorEvent) { got = e; e.Conn.Close() }
 	msg := diam.NewRequest(999, 0, testDict)
-	a.m.unsupported(s, msg)
+	reportingReceive(a, s, msg, nil)
 	protocolErrorCheck(t, got, s.c, *msg.Header, diam.ProtocolUnsupportedCommand, 3001, false, diam.ProtocolReplyQueued, 3001)
 	if !s.c.Closed() || len(s.writes) != 1 {
 		t.Fatal("callback did not follow queue admission")
@@ -246,9 +257,10 @@ func TestProtocolErrorManagerMalformedAndRejectedAnswers(t *testing.T) {
 	for _, request := range []bool{false, true} {
 		a, s, _ := failureReportingActor(t)
 		a.state, a.i, a.active = IOpen, s, s
+		reportingOpen(t, s)
 		var events []diam.ProtocolErrorEvent
 		a.m.cfg.Settings.OnProtocolError = func(e diam.ProtocolErrorEvent) { events = append(events, e) }
-		msg := reviewDWR(t)
+		msg := watchdogRequest(t)
 		if !request {
 			msg.Header.CommandFlags = 0
 		}
@@ -269,20 +281,19 @@ func TestProtocolErrorManagerPeerEventOverflow(t *testing.T) {
 
 	a, s, _ := failureReportingActor(t)
 	a.state, a.i, a.active = IOpen, s, s
+	reportingOpen(t, s)
 	for len(a.m.callbackQ) < cap(a.m.callbackQ) {
 		a.m.callbackQ <- PeerEvent{}
 	}
 	var calls int
 	a.m.cfg.Settings.OnProtocolError = func(diam.ProtocolErrorEvent) { calls++ }
-	a.m.unsupported(s, diam.NewRequest(999, 0, testDict))
+	a.onWire(event{s: s, msg: diam.NewRequest(999, 0, testDict)})
 	if calls != 1 {
 		t.Fatalf("protocol callbacks=%d", calls)
 	}
 }
 
 func TestProtocolErrorManagerDWAAndDPA(t *testing.T) {
-	testDict := newTestDictionary(creditcontrol.Dictionary())
-
 	for _, tc := range []struct {
 		name    string
 		command uint32
@@ -318,22 +329,16 @@ func TestProtocolErrorManagerDWAAndDPA(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			a, s, _ := failureReportingActor(t)
 			a.state, a.i, a.active = IOpen, s, s
+			reportingOpen(t, s)
 			var msg *diam.Message
 			var err error
 			if tc.command == diam.DeviceWatchdog {
-				msg, err = base.BuildDWA(reviewDWR(t), testBase("known.example.net"))
-				a.pendingWatchdog = true
-				a.watchdogGen = s.gen
-				a.watchdogHop, a.watchdogEnd = msg.Header.HopByHopID, msg.Header.EndToEndID
+				msg = testDWA(t, a)
 			} else {
-				req, buildErr := base.BuildDPR(testDict, testBase("known.example.net"), 0)
-				if buildErr != nil {
-					t.Fatal(buildErr)
-				}
-				msg, err = base.BuildDPA(req, testBase("known.example.net"))
-				a.state = Closing
-				a.pendingDPR, a.pendingDPREnd = msg.Header.HopByHopID, msg.Header.EndToEndID
-				a.pendingDPRGen, a.pendingDPRCommand = s.gen, diam.DisconnectPeer
+				s.applyProtocol(protocol.Input{Kind: protocol.Disconnect}, nil)
+				w := requiredQueuedWrite(t, s)
+				fixtureCompleteWrite(s, w)
+				msg, err = base.BuildDPA(w.msg, testBase("known.example.net"))
 			}
 			if err != nil {
 				t.Fatal(err)
@@ -371,34 +376,33 @@ func TestProtocolErrorManagerHandshakeDecisions(t *testing.T) {
 		run    func(*testing.T, *actor, *session) *diam.Message
 	}{
 		{"non CEA", diam.ProtocolHandshakeState, 0, func(t *testing.T, a *actor, s *session) *diam.Message {
-			a.state, a.i = WaitICEA, s
-			msg := reviewDWR(t)
+			reportingInitiator(t, a, s, true)
+			msg := watchdogRequest(t)
 			a.onWire(event{s: s, msg: msg})
 			return msg
 		}},
 		{"CEA identifiers", diam.ProtocolUnexpectedMessage, 0, func(t *testing.T, a *actor, s *session) *diam.Message {
-			a.state, a.i = WaitICEA, s
-			msg, err := base.BuildCEA(reviewCER(t), testBase("known.example.net"), 2001)
+			request := reportingInitiator(t, a, s, true)
+			msg, err := base.BuildCEA(request, testBase("known.example.net"), 2001)
 			if err != nil {
 				t.Fatal(err)
 			}
-			s.cerHop = msg.Header.HopByHopID + 1
+			msg.Header.HopByHopID++
 			a.onWire(event{s: s, msg: msg})
 			return msg
 		}},
 		{"CEA rejected", diam.ProtocolCEARejected, 3010, func(t *testing.T, a *actor, s *session) *diam.Message {
-			a.state, a.i = WaitICEA, s
-			msg, err := base.BuildCEA(reviewCER(t), testBase("known.example.net"), 3010)
+			request := reportingInitiator(t, a, s, true)
+			msg, err := base.BuildCEA(request, testBase("known.example.net"), 3010)
 			if err != nil {
 				t.Fatal(err)
 			}
-			s.cerHop, s.cerEnd = msg.Header.HopByHopID, msg.Header.EndToEndID
 			a.onWire(event{s: s, msg: msg})
 			return msg
 		}},
 		{"CER closing", diam.ProtocolHandshakeState, 0, func(t *testing.T, a *actor, s *session) *diam.Message {
 			a.state = Closing
-			msg := reviewCER(t)
+			msg := capabilitiesExchangeRequest(t)
 			a.onCER(event{s: s, msg: msg, meta: smpeer.FromCER(&smparser.CER{OriginHost: "known.example.net"})})
 			return msg
 		}},
@@ -429,20 +433,32 @@ func TestProtocolErrorManagerTimersAndRetirement(t *testing.T) {
 		kind     diam.ProtocolErrorKind
 		fire     func(*actor)
 	}{
-		{"handshake", WaitICEA, WatchdogInitial, diam.ProtocolHandshakeTimeout, func(a *actor) { a.handle(event{kind: timeout}) }},
-		{"disconnect", Closing, WatchdogOkay, diam.ProtocolDisconnectTimeout, func(a *actor) { a.handle(event{kind: timeout}) }},
+		{"handshake", WaitICEA, WatchdogInitial, diam.ProtocolHandshakeTimeout, func(a *actor) { reportingExpire(a.active, protocol.HandshakeTimer) }},
+		{"disconnect", Closing, WatchdogOkay, diam.ProtocolDisconnectTimeout, func(a *actor) { reportingExpire(a.active, protocol.ClosingTimer) }},
 		{"watchdog", IOpen, WatchdogSuspect, diam.ProtocolWatchdogTimeout, func(a *actor) { a.watchdogTick() }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			a, s, _ := failureReportingActor(t)
 			a.state, a.i, a.active, a.watchdog = tc.state, s, s, tc.watchdog
+			switch tc.name {
+			case "handshake":
+				reportingInitiator(t, a, s, true)
+				a.active = s
+			case "disconnect":
+				a.state = IOpen
+				reportingOpen(t, s)
+				s.applyProtocol(protocol.Input{Kind: protocol.Disconnect}, nil)
+				fixtureCompleteWrite(s, requiredQueuedWrite(t, s))
+			case "watchdog":
+				reportingOpen(t, s)
+			}
 			var events []diam.ProtocolErrorEvent
 			a.m.cfg.Settings.OnProtocolError = func(e diam.ProtocolErrorEvent) { events = append(events, e) }
 			tc.fire(a)
 			if len(events) != 1 || events[0].Conn != s.c || events[0].Message.HasHeader || !events[0].Closing || !errors.Is(events[0].Err, tc.kind) || events[0].Reply != diam.ProtocolReplyNone {
 				t.Fatalf("events=%+v", events)
 			}
-			a.handle(event{kind: timeout, token: a.token - 1})
+			s.applyProtocol(protocol.Input{Kind: protocol.TimerExpired, Timer: protocol.HandshakeTimer, Token: 1}, nil)
 			if len(events) != 1 {
 				t.Fatal("retired timer notified")
 			}
@@ -450,6 +466,7 @@ func TestProtocolErrorManagerTimersAndRetirement(t *testing.T) {
 	}
 	t.Run("retired answer keeps original connection", func(t *testing.T) {
 		a, s, _ := failureReportingActor(t)
+		reportingOpen(t, s)
 		var got diam.ProtocolErrorEvent
 		a.m.cfg.Settings.OnProtocolError = func(e diam.ProtocolErrorEvent) { got = e }
 		replacement := newFakeConn(testDict)
@@ -471,13 +488,14 @@ func (c protocolErrorLoggedConn) Logger() *slog.Logger { return c.logger }
 func TestProtocolErrorManagerCallbackPanic(t *testing.T) {
 	testDict := newTestDictionary(creditcontrol.Dictionary())
 
-	a, s, _ := failureReportingActor(t)
+	a, s, _ := newWatchdogTestActor(t, WatchdogOkay)
+	reportingStartActor(t, a)
 	records := logtest.New()
 	s.c = protocolErrorLoggedConn{Conn: s.c, logger: records.Logger()}
 	var calls int
 	a.m.cfg.Settings.OnProtocolError = func(diam.ProtocolErrorEvent) { calls++; panic("callback failure") }
 	for range 2 {
-		a.m.unsupported(s, diam.NewRequest(999, 0, testDict))
+		reportingReceive(a, s, diam.NewRequest(999, 0, testDict), nil)
 	}
 	if calls != 2 || len(s.writes) != 2 || s.c.Closed() {
 		t.Fatal("panic changed handling or delivery")
@@ -496,10 +514,11 @@ func TestProtocolErrorManagerCallbackPanic(t *testing.T) {
 func TestProtocolErrorManagerCallbackBackpressure(t *testing.T) {
 	testDict := newTestDictionary(creditcontrol.Dictionary())
 
-	a, s, _ := failureReportingActor(t)
+	a, s, _ := newWatchdogTestActor(t, WatchdogOkay)
+	reportingStartActor(t, a)
 	entered, release, done := make(chan struct{}), make(chan struct{}), make(chan struct{})
 	a.m.cfg.Settings.OnProtocolError = func(e diam.ProtocolErrorEvent) { close(entered); <-release }
-	go func() { a.m.unsupported(s, diam.NewRequest(999, 0, testDict)); close(done) }()
+	go func() { reportingReceive(a, s, diam.NewRequest(999, 0, testDict), nil); close(done) }()
 	select {
 	case <-entered:
 	case <-time.After(time.Second):
@@ -524,7 +543,8 @@ func TestProtocolErrorManagerCallbackBackpressure(t *testing.T) {
 func TestProtocolErrorManagerConcurrentCallbacks(t *testing.T) {
 	testDict := newTestDictionary(creditcontrol.Dictionary())
 
-	a, s, _ := failureReportingActor(t)
+	a, s, _ := newWatchdogTestActor(t, WatchdogOkay)
+	reportingStartActor(t, a)
 	entered, release, done := make(chan struct{}, 2), make(chan struct{}), make(chan struct{}, 2)
 	a.m.cfg.Settings.OnProtocolError = func(e diam.ProtocolErrorEvent) {
 		_ = a.m.getSession(s.c)
@@ -533,7 +553,7 @@ func TestProtocolErrorManagerConcurrentCallbacks(t *testing.T) {
 		<-release
 	}
 	for range 2 {
-		go func() { a.m.unsupported(s, diam.NewRequest(999, 0, testDict)); done <- struct{}{} }()
+		go func() { reportingReceive(a, s, diam.NewRequest(999, 0, testDict), nil); done <- struct{}{} }()
 	}
 	for range 2 {
 		select {
@@ -562,6 +582,15 @@ func TestProtocolErrorManagerLocalReplyFailures(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			a, s, records := failureReportingActor(t)
 			a.state, a.i, a.active = IOpen, s, s
+			if tc.name == "CEA build" {
+				a.m.cfg.Settings.HostIPAddresses = []datatype.Address{{}}
+				s.cerRequest = reportingCandidate(t, a, s)
+			} else {
+				reportingOpen(t, s)
+				for len(a.m.callbackQ) > 0 {
+					<-a.m.callbackQ
+				}
+			}
 			var events []diam.ProtocolErrorEvent
 			a.m.cfg.Settings.OnProtocolError = func(e diam.ProtocolErrorEvent) { events = append(events, e) }
 			var cause error
@@ -579,9 +608,8 @@ func TestProtocolErrorManagerLocalReplyFailures(t *testing.T) {
 			}
 			switch tc.name {
 			case "DWA enqueue":
-				a.step(iDWR, s, reviewDWR(t))
+				a.onWire(event{s: s, msg: watchdogRequest(t)})
 			case "CEA build":
-				s.cerRequest = reviewCER(t)
 				if a.sendCEA(s) {
 					t.Fatal("invalid CEA settings unexpectedly built an answer")
 				}
@@ -597,7 +625,11 @@ func TestProtocolErrorManagerLocalReplyFailures(t *testing.T) {
 				t.Fatalf("failed control message advanced state: writes=%d want=%d watchdog=%v DPR=%d", len(s.writes), wantWrites, a.pendingWatchdog, a.pendingDPR)
 			}
 			assertFailureRecord(t, records, slog.LevelError, "peer: "+tc.operation+" failed; closing connection", s.c.RemoteAddr().String(), cause)
-			assertFailureEvents(t, a, []PeerState{Closed, Closed}, []WatchdogState{WatchdogInitial, WatchdogInitial}, []string{"", "peer: " + tc.operation + ":"})
+			if tc.name == "CEA build" {
+				assertFailureEvents(t, a, []PeerState{Closed, Closed}, []WatchdogState{WatchdogInitial, WatchdogInitial}, []string{"", "peer: " + tc.operation + ":"})
+			} else {
+				assertFailureEvents(t, a, []PeerState{Closed, Closed}, []WatchdogState{WatchdogOkay, WatchdogDown}, []string{"peer: " + tc.operation + ":", "peer: " + tc.operation + ":"})
+			}
 			if tc.name == "DWA enqueue" || tc.name == "CEA build" {
 				if len(events) != 1 || !errors.Is(events[0].Err, diam.ProtocolReplyFailure) || !events[0].Closing || events[0].Reply != diam.ProtocolReplyFailed || events[0].ReplyCode != diam.Success {
 					t.Fatalf("required reply failure notification: %+v", events)
@@ -632,7 +664,7 @@ func TestProtocolErrorManagerWirePendingAnswers(t *testing.T) {
 					t.Fatal(err)
 				}
 				t.Cleanup(func() { _ = c.Close() })
-				write(t, c, reviewCER(t))
+				write(t, c, capabilitiesExchangeRequest(t))
 				read(t, c)
 				clock.waitTimers(t, 2)
 				m.mu.RLock()
@@ -743,7 +775,7 @@ func TestProtocolErrorManagerWirePendingAnswers(t *testing.T) {
 						t.Fatal("valid DPA did not complete close")
 					}
 				} else {
-					write(t, c, reviewDWR(t))
+					write(t, c, watchdogRequest(t))
 					if code(t, read(t, c)) != 2001 {
 						t.Fatal("invalid DWA changed connection")
 					}

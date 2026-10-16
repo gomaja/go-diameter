@@ -2,7 +2,9 @@ package protocol
 
 import (
 	"errors"
+	"fmt"
 	"reflect"
+	"strings"
 
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/datatype"
@@ -32,11 +34,12 @@ func (r HandshakeResult) CEA() *base.CEA {
 
 // Parser errors with mutable evidence are copied on capture and access. Plain
 // sentinels retain identity; wrapped errors retain errors.Is/errors.As behavior.
-func copyHandshakeError(err error) error {
+func copyHandshakeError(err error, preserveFormatWrapper ...bool) error {
 	if err == nil {
 		return nil
 	}
 	c := newHandshakeErrorCopy()
+	c.preserveFormatWrapper = len(preserveFormatWrapper) != 0 && preserveFormatWrapper[0]
 	return c.copyError(err, 0)
 }
 
@@ -54,6 +57,9 @@ type handshakeErrorCopy struct {
 	ceas      map[*base.CEA]*base.CEA
 	remaining int
 	cut       uint64
+	// Standard formatting wrappers can retain their concrete diagnostic type
+	// while the wrapped parser evidence remains detached and bounded.
+	preserveFormatWrapper bool
 }
 
 type handshakeErrorVisit struct {
@@ -141,6 +147,15 @@ func (c *handshakeErrorCopy) copyError(err error, depth int) error {
 			return out
 		}
 		cause := c.copyError(e.Unwrap(), depth+1)
+		// fmt's single-cause wrapper has immutable text and one private error
+		// field. Rebuild it around the bounded copy to retain its concrete
+		// diagnostic type without retaining mutable parser evidence.
+		if c.preserveFormatWrapper && v.Type() == handshakeFmtWrapType && c.cut == cut && cause != nil {
+			before, after, found := strings.Cut(message(), e.Unwrap().Error())
+			if found {
+				return fmt.Errorf("%s%w%s", before, cause, after)
+			}
+		}
 		return handshakeError{message: message(), cause: cause}
 	default:
 		// Standard immutable sentinels retain identity. Other leaf state,
@@ -264,6 +279,7 @@ func (c *handshakeErrorCopy) copyCEA(cea *base.CEA) *base.CEA {
 }
 
 var handshakeSentinelType = reflect.TypeOf(errors.New(""))
+var handshakeFmtWrapType = reflect.TypeOf(fmt.Errorf("%w", errors.New("")))
 
 func immutableHandshakeError(v reflect.Value) bool {
 	if v.Kind() != reflect.Pointer {

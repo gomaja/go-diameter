@@ -15,6 +15,7 @@ import (
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
+	"github.com/gomaja/go-diameter/diam/internal/protocol"
 	"github.com/gomaja/go-diameter/diam/sm"
 	"github.com/gomaja/go-diameter/diam/sm/smpeer"
 )
@@ -574,6 +575,9 @@ func (a *actor) closeOwnedSessions() {
 		case e := <-a.events:
 			if e.s != nil {
 				e.s.close()
+				if e.kind == coreEvent && e.input.Kind == protocol.WriteResult {
+					e.s.terminalProtocol(e.input)
+				}
 			}
 			if e.delivery != nil {
 				e.delivery.finish()

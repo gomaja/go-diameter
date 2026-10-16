@@ -33,10 +33,9 @@ import (
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/dict"
 	"github.com/gomaja/go-diameter/diam/internal/base"
+	"github.com/gomaja/go-diameter/diam/internal/protocol"
 	"github.com/gomaja/go-diameter/diam/internal/watchdog"
 	"github.com/gomaja/go-diameter/diam/sm"
-	"github.com/gomaja/go-diameter/diam/sm/smparser"
-	"github.com/gomaja/go-diameter/diam/sm/smpeer"
 	"github.com/gomaja/go-sctp"
 )
 
@@ -562,26 +561,7 @@ func (m *Manager) acceptConnection(c diam.Conn) *session {
 	if s == nil {
 		return nil
 	}
-	s.firstMu.Lock()
-	s.preTimer = m.cfg.Clock.AfterFunc(m.cfg.Timers.CER, func() {
-		s.firstMu.Lock()
-		waiting := !s.first && !s.isRetired() && !s.c.Closed()
-		if waiting {
-			s.terminal.Store(true)
-		}
-		s.firstMu.Unlock()
-		if waiting {
-			m.report(s, nil, errors.New("peer: pre-CER timeout"))
-			s.close()
-			m.protocolError(s.c, nil, diam.ProtocolHandshakeTimeout, 0, true, diam.ProtocolReplyNone, 0)
-		}
-	})
-	select {
-	case <-s.closed:
-		s.preTimer.Stop()
-	default:
-	}
-	s.firstMu.Unlock()
+
 	return s
 }
 func (m *Manager) shutdownConnection(ctx context.Context, c diam.Conn) {
@@ -632,76 +612,13 @@ func (m *Manager) processDIAMAt(s *session, msg *diam.Message, receivedAt time.T
 	if s.isRetired() {
 		return
 	}
-	c := s.c
-	if s.inbound {
-		s.firstMu.Lock()
-		if s.rejectingFirst {
-			s.firstMu.Unlock()
-			return
-		}
-		first := !s.first
-		if first {
-			s.first = true
-			if s.preTimer != nil {
-				s.preTimer.Stop()
-			}
-		}
-		s.firstMu.Unlock()
-		if first {
-			// RFC 6733 §5.6.1: pre-CER admission accepts only a CER.
-			if msg.Header.CommandCode != diam.CapabilitiesExchange || msg.Header.CommandFlags&diam.RequestFlag == 0 {
-				m.report(s, msg, errors.New("peer: first inbound message is not CER"))
-				s.close()
-				m.protocolError(c, msg, diam.ProtocolHandshakeState, 0, true, diam.ProtocolReplyNone, 0, delivery...)
-				return
-			}
-			local := m.baseSettings(c)
-			s.localApps = base.AdvertisedApplicationIDs(local)
-			if err := base.ValidateMessage(msg); err != nil {
-				m.rejectBaseMessage(s, msg, err, true, false, delivery...)
-				return
-			}
-			if rejection := base.ValidateRequest(msg, s.localApps, m.cfg.Settings.ValidateRequests, m.cfg.Settings.RejectUnknownMandatoryAVPs); rejection != nil {
-				m.rejectRequest(s, msg, rejection, true, false, delivery...)
-				return
-			}
-			cer := new(smparser.CER)
-			_, err := cer.Parse(msg, smparser.ParseOptions{Role: smparser.Server, TLS: c.TLS() != nil, Dictionary: msg.Dictionary(), LocalApplications: s.localApps})
-			if err != nil {
-				code := uint32(diam.UnableToComply)
-				if errors.Is(err, base.ErrNoCommonApplication) {
-					code = diam.NoCommonApplication
-				}
-				if errors.Is(err, base.ErrNoCommonSecurity) {
-					code = diam.NoCommonSecurity
-				}
-				m.rejectCER(s, msg, code, err, delivery...)
-				return
-			}
-			m.mu.RLock()
-			a := m.peers[identity(cer.OriginHost)]
-			m.mu.RUnlock()
-			if a == nil { // RFC 6733 §5.3: reject an unknown peer after validating its CER.
-				m.rejectCER(s, msg, diam.UnknownPeer, fmt.Errorf("peer: unknown Origin-Host %s", cer.OriginHost), delivery...)
-				return
-			}
-			if !s.bind(a, 0) {
-				return
-			}
-			e := event{kind: rConnCER, s: s, msg: msg, meta: smpeer.FromCER(cer).Clone(), receivedAt: receivedAt, receiveSequence: sequence}
-			if len(delivery) > 0 {
-				a.commit(e, delivery[0])
-			} else {
-				a.post(e)
-			}
-			return
-		}
-	}
 	a, _ := s.binding()
 	if a == nil {
-		m.report(s, msg, errors.New("peer: unbound connection message"))
-		s.close()
-		m.protocolError(c, msg, diam.ProtocolHandshakeState, 0, true, diam.ProtocolReplyNone, 0, delivery...)
+		var d *protocolDelivery
+		if len(delivery) != 0 {
+			d = delivery[0]
+		}
+		s.applyProtocol(protocol.Input{Kind: protocol.Receive, Message: msg, At: receivedAt, Sequence: sequence}, d)
 		return
 	}
 	e := event{kind: wireEvent, s: s, msg: msg, receivedAt: receivedAt, receiveSequence: sequence}
@@ -711,46 +628,7 @@ func (m *Manager) processDIAMAt(s *session, msg *diam.Message, receivedAt time.T
 		a.post(e)
 	}
 }
-func (m *Manager) rejectCER(s *session, msg *diam.Message, code uint32, reason error, delivery ...*protocolDelivery) {
-	delivery, report := m.requiredReplyDelivery(delivery)
-	defer report()
-	s.terminal.Store(true)
-	reply := diam.ProtocolReplyFailed
-	kind := diam.ProtocolCERRejected
-	if base.ValidateHeader(msg) != nil {
-		kind = diam.ProtocolInvalidHeader
-	}
-	defer func() {
-		m.protocolError(s.c, msg, kind, code, true, reply, code, delivery...)
-	}()
-	cfg := m.baseSettings(s.c)
-	var answer *diam.Message
-	var err error
-	var messageErr *diam.MessageError
-	if errors.As(reason, &messageErr) {
-		code = messageErr.ResultCode
-		// RFC 6733 §7.1.5, Verified Erratum 4615: one Failed-AVP.
-		var failed []*diam.AVP
-		if messageErr.FailedAVP != nil {
-			failed = []*diam.AVP{messageErr.FailedAVP}
-		}
-		answer, err = base.BuildErrorAnswer(msg, cfg, messageErr.ResultCode, failed, messageErr.ResultCode >= 3000 && messageErr.ResultCode < 4000)
-	} else {
-		answer, err = base.BuildCEA(msg, cfg, code)
-	}
-	if err != nil {
-		m.reportLocal(s, msg, "peer: build rejected CER answer failed; closing connection", err)
-		s.close()
-		return
-	}
-	m.report(s, msg, reason)
-	if err := s.sendRequired(answer, msg, true, code, delivery...); err != nil {
-		m.reportLocal(s, msg, "peer: send rejected CER answer failed; closing connection", err)
-		s.close()
-	} else {
-		reply = diam.ProtocolReplyQueued
-	}
-}
+
 func (m *Manager) baseSettings(c diam.Conn) base.Settings {
 	cfg := base.Settings{OriginHost: m.cfg.Settings.OriginHost, OriginRealm: m.cfg.Settings.OriginRealm, VendorID: m.cfg.Settings.VendorID, ProductName: m.cfg.Settings.ProductName, OriginStateID: m.cfg.Settings.OriginStateID, FirmwareRevision: m.cfg.Settings.FirmwareRevision, HostIPAddresses: base.CloneAddresses(m.cfg.Settings.HostIPAddresses), SupportedVendorID: m.cfg.Settings.SupportedVendorID, AuthApplicationID: m.cfg.Settings.AuthApplicationID, AcctApplicationID: m.cfg.Settings.AcctApplicationID, VendorSpecificApplicationID: m.cfg.Settings.VendorSpecificApplicationID}
 	// RFC 6733 §5.3.5: only advertise actual possible source addresses.
@@ -804,36 +682,6 @@ func (m *Manager) supportsApplication(appID uint32) bool {
 	return ok
 }
 
-func (m *Manager) unsupported(s *session, msg *diam.Message, delivery ...*protocolDelivery) {
-	delivery, report := m.requiredReplyDelivery(delivery)
-	defer report()
-	// RFC 6733 §§7.1.3, 7.2: unsupported requests receive an E-bit 3007 for
-	// an application this node does not support, otherwise 3001; answers are
-	// reported and discarded.
-	m.report(s, msg, fmt.Errorf("peer: unhandled message %d/%d", msg.Header.ApplicationID, msg.Header.CommandCode))
-	if msg.Header.CommandFlags&diam.RequestFlag == 0 {
-		m.protocolError(s.c, msg, diam.ProtocolUnexpectedMessage, 0, false, diam.ProtocolReplyNone, 0, delivery...)
-		return
-	}
-	resultCode := uint32(diam.CommandUnsupported)
-	kind := diam.ProtocolUnsupportedCommand
-	if !base.SupportsApplication(s.localApps, msg.Header.ApplicationID) {
-		resultCode = diam.ApplicationUnsupported
-		kind = diam.ProtocolUnsupportedApplication
-	}
-	answer, err := base.BuildErrorAnswer(msg, m.baseSettings(s.c), resultCode, nil, true)
-	if err == nil {
-		err = s.sendRequired(answer, msg, false, resultCode, delivery...)
-	}
-	m.reportLocal(s, msg, "peer: unsupported request answer failed", err)
-	reply := diam.ProtocolReplyQueued
-	if err != nil {
-		reply = diam.ProtocolReplyFailed
-		s.close()
-	}
-	m.protocolError(s.c, msg, kind, resultCode, err != nil, reply, resultCode, delivery...)
-}
-
 // HandleMessageError takes responsibility for a malformed message by admitting
 // it to the session's ordered queue or closing a managed connection whose queue
 // cannot admit it. Completion can occur after this returns;
@@ -865,99 +713,6 @@ func (m *Manager) HandleMessageError(c diam.Conn, msg *diam.Message, me *diam.Me
 	<-d.done
 	release()
 	d.deliver(m)
-	return nil
-}
-
-func (m *Manager) answerMessageError(s *session, msg *diam.Message, me *diam.MessageError, delivery ...*protocolDelivery) (handlingErr error) {
-	delivery, report := m.requiredReplyDelivery(delivery)
-	defer report()
-	c := s.c
-	if me == nil {
-		return nil
-	}
-	kind := diam.ProtocolMalformedMessage
-	closing := me.Fatal
-	reply, replyCode := diam.ProtocolReplyNone, uint32(0)
-	defer func() {
-		if handlingErr != nil {
-			m.reportLocal(s, msg, "peer: error answer failed; closing connection", handlingErr)
-			s.close()
-			closing, reply = true, diam.ProtocolReplyFailed
-		}
-		m.protocolError(c, msg, kind, me.ResultCode, closing, reply, replyCode, delivery...)
-	}()
-	if headerErr := base.ValidateHeader(msg); headerErr != nil && !base.FatalHeaderError(me) {
-		me = headerErr
-		kind = diam.ProtocolInvalidHeader
-	}
-	// RFC 6733 §7.1.5 and Verified Erratum 4615: carry the offending
-	// AVP in one Failed-AVP container for payload and framing failures.
-	var failed []*diam.AVP
-	if me != nil && me.FailedAVP != nil {
-		failed = []*diam.AVP{me.FailedAVP}
-	}
-	s.firstMu.Lock()
-	preCER := s.inbound && !s.first
-	if preCER {
-		s.first = true
-		if msg != nil && msg.Header != nil && me != nil && msg.Header.CommandCode == diam.CapabilitiesExchange && msg.Header.CommandFlags&diam.RequestFlag != 0 {
-			s.rejectingFirst = true
-		}
-		if s.preTimer != nil {
-			s.preTimer.Stop()
-			s.preTimer = nil
-		}
-	}
-	s.firstMu.Unlock()
-	if preCER { // RFC 6733 §5.6.1: discard malformed pre-CER traffic and close the connection.
-		closing = true
-		s.terminal.Store(true)
-		if msg == nil || msg.Header == nil || me == nil || msg.Header.CommandCode != diam.CapabilitiesExchange || msg.Header.CommandFlags&diam.RequestFlag == 0 {
-			kind = diam.ProtocolHandshakeState
-			m.report(s, msg, fmt.Errorf("peer: malformed pre-CER message; closing connection: %w", me))
-			s.close()
-			return nil
-		}
-		replyCode = me.ResultCode
-		answer, err := base.BuildErrorAnswer(msg, m.baseSettings(c), me.ResultCode, failed, me.ResultCode >= 3000 && me.ResultCode < 4000)
-		if err != nil {
-			return err
-		}
-		m.report(s, msg, fmt.Errorf("peer: malformed CER rejected; closing connection: %w", me))
-		if err := s.sendRequired(answer, msg, true, replyCode, delivery...); err != nil {
-			return fmt.Errorf("peer: write: %w", err)
-		}
-		reply = diam.ProtocolReplyQueued
-		return nil
-	}
-	if msg == nil || me == nil || msg.Header == nil {
-		return nil
-	}
-	if msg.Header.CommandFlags&diam.RequestFlag == 0 {
-		return nil
-	}
-	if !me.Fatal && !base.IsCommand(msg) {
-		if rejection := base.ValidateRequest(msg, s.localApps, m.cfg.Settings.ValidateRequests, m.cfg.Settings.RejectUnknownMandatoryAVPs, me); rejection != nil {
-			kind = rejection.Kind
-			me = &diam.MessageError{ResultCode: rejection.Code, Err: me}
-			failed = rejection.Failed
-		}
-	}
-	replyCode = me.ResultCode
-	answer, err := base.BuildErrorAnswer(msg, m.baseSettings(c), me.ResultCode, failed, me.ResultCode >= 3000 && me.ResultCode < 4000)
-	if err != nil {
-		return err
-	}
-	// RFC 6733 §§2.5, 5.3 and 7.1.3: an invalid CER establishes no capabilities.
-	closeAfter := msg.Header.CommandCode == diam.CapabilitiesExchange && me.ResultCode == diam.InvalidHDRBits
-	closing = closing || closeAfter
-	if closeAfter {
-		m.report(s, msg, fmt.Errorf("peer: invalid CER rejected; closing connection: %w", me))
-	}
-	if err := s.sendRequired(answer, msg, closeAfter, replyCode, delivery...); err != nil {
-		return fmt.Errorf("peer: write: %w", err)
-	}
-	reply = diam.ProtocolReplyQueued
 	return nil
 }
 

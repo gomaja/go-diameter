@@ -88,7 +88,7 @@ func TestManagerSecondCERKeepsConnectionOpen(t *testing.T) {
 			if request.Header.CommandCode != 272 || request.Header.ApplicationID != 4 || request.Header.CommandFlags&diam.RequestFlag == 0 {
 				t.Fatalf("application request=%+v", request.Header)
 			}
-			second := reviewCER(t)
+			second := capabilitiesExchangeRequest(t)
 			write(t, c, second)
 			e := protocolErrorReceive(t, events)
 			if err = c.SetReadDeadline(time.Now().Add(50 * time.Millisecond)); err != nil {
@@ -109,7 +109,7 @@ func TestManagerSecondCERKeepsConnectionOpen(t *testing.T) {
 				t.Fatalf("second CER completed pending request: %+v", got)
 			default:
 			}
-			dwr := reviewDWR(t)
+			dwr := watchdogRequest(t)
 			write(t, c, dwr)
 			dwa := read(t, c)
 			if code(t, dwa) != diam.Success || dwa.Header.CommandCode != diam.DeviceWatchdog || dwa.Header.CommandFlags&diam.RequestFlag != 0 || dwa.Header.HopByHopID != dwr.Header.HopByHopID || dwa.Header.EndToEndID != dwr.Header.EndToEndID {
@@ -180,9 +180,9 @@ func TestManagerSecondCERPreservesPendingRequests(t *testing.T) {
 				m.pendingMu.Unlock()
 				a.sendWatchdog()
 				probe := nextWrite(t, s)
-				a.armWatchdog()
+				// The probe publication arms the core timer.
 				before, meta, connContext := a.snapshot(), a.meta, s.c.Context()
-				second := reviewCER(t)
+				second := capabilitiesExchangeRequest(t)
 				a.onWire(event{kind: wireEvent, s: s, msg: second})
 				if s.c.Closed() || a.state != state || a.active != s || a.meta != meta || s.c.Context() != connContext || !reflect.DeepEqual(a.snapshot(), before) {
 					t.Fatal("second CER changed the admitted session")

@@ -36,32 +36,32 @@ func metadata(m *diam.Message) diam.ProtocolMessageMetadata {
 	}
 	return out
 }
-func (c *Core) reserve(command uint32) []Effect {
+func (c *Core) reserve(es []Effect, command uint32) []Effect {
 	e := c.effect(ReserveIDs)
 	e.Command = command
 	e.Token = c.token()
 	c.reservations[e.Token] = command
-	return []Effect{e}
+	return append(es, e)
 }
-func (c *Core) reserved(in Input) []Effect {
+func (c *Core) reserved(es []Effect, in Input) []Effect {
 	cmd, ok := c.reservations[in.Token]
 	if !ok {
-		return nil
+		return es
 	}
 	delete(c.reservations, in.Token)
 	if in.Err != nil {
 		if c.phase >= Closed {
-			return nil
+			return es
 		}
 		if cmd == diam.CapabilitiesExchange {
 			c.handshake = newHandshakeResult(in.Err, nil)
 		}
-		return c.terminate(Closed)
+		return c.terminate(es, Closed)
 	}
 	if c.phase >= Closed || cmd == diam.DeviceWatchdog && c.phase != Open {
 		e := c.effect(ReleaseIDs)
 		e.Reservation = in.Reservation
-		return []Effect{e}
+		return append(es, e)
 	}
 	var m *diam.Message
 	var err error
@@ -79,17 +79,22 @@ func (c *Core) reserved(in Input) []Effect {
 		if cmd == diam.CapabilitiesExchange {
 			c.handshake = newHandshakeResult(err, nil)
 		}
-		return c.terminate(Closed)
+		return c.terminate(es, Closed)
 	}
 	m.Header.HopByHopID = in.Reservation.Hop
 	m.Header.EndToEndID = in.Reservation.End
 	r.header = *m.Header
 	r.frame = copyMessage(m)
-	return c.send(m, r, false, false, false, nil)
+	return c.send(es, m, r, false, false, false, nil)
 }
-func (c *Core) send(m *diam.Message, r *control, required, closeAfter, handshake bool, notice *Notification, source ...*diam.Message) []Effect {
+func (c *Core) send(es []Effect, m *diam.Message, r *control, required, closeAfter, handshake bool, notice *Notification, source ...*diam.Message) []Effect {
 	token := c.token()
-	op := &operation{control: r, length: int64(m.Len()), required: required, closeAfter: closeAfter, handshake: handshake, notice: notice}
+	op := c.spareOperation
+	c.spareOperation = nil
+	if op == nil {
+		op = new(operation)
+	}
+	*op = operation{control: r, length: int64(m.Len()), required: required, closeAfter: closeAfter, handshake: handshake, notice: notice}
 	if notice != nil {
 		op.message = notice.Message
 	}
@@ -114,11 +119,11 @@ func (c *Core) send(m *diam.Message, r *control, required, closeAfter, handshake
 	} else {
 		e.Stage = WrittenStage
 	}
-	return []Effect{e}
+	return append(es, e)
 }
-func (c *Core) release(r *control) []Effect {
+func (c *Core) release(es []Effect, r *control) []Effect {
 	if r.logical || r.writers != 0 || r.released {
-		return nil
+		return es
 	}
 	r.released = true
 	if c.controls[r.command] == r {
@@ -126,21 +131,25 @@ func (c *Core) release(r *control) []Effect {
 	}
 	e := c.effect(ReleaseIDs)
 	e.Reservation = r.reservation
-	return []Effect{e}
+	return append(es, e)
 }
-func (c *Core) settle(r *control) []Effect { r.logical = false; r.answered = true; return c.release(r) }
-func (c *Core) writeResult(in Input) []Effect {
+func (c *Core) settle(es []Effect, r *control) []Effect {
+	r.logical = false
+	r.answered = true
+	return c.release(es, r)
+}
+func (c *Core) writeResult(es []Effect, in Input) []Effect {
 	if in.Stage > SkippedStage {
-		return nil
+		return es
 	}
 	op := c.operations[in.Token]
 	if op == nil {
-		return nil
+		return es
 	}
 	if in.Stage == SkippedStage && op.control != nil {
-		return c.skippedControl(in, op)
+		return c.skippedControl(es, in, op)
 	}
-	var es []Effect
+
 	terminal := in.Stage != QueueStage || in.Err != nil
 	err := in.Err
 	if in.Stage == SkippedStage && err == nil {
@@ -160,25 +169,26 @@ func (c *Core) writeResult(in Input) []Effect {
 	}
 	if in.Stage == QueueStage {
 		if op.queued {
-			return nil
+			return es
 		}
 		op.queued = err == nil
 	}
 	if terminal {
 		delete(c.operations, in.Token)
+		defer c.recycleOperation(op)
 		if op.control != nil {
 			op.control.writers--
-			es = append(es, c.release(op.control)...)
+			es = c.release(es, op.control)
 		}
 	}
 	if c.phase >= Closed {
 		return es
 	}
 	if err != nil {
-		if c.cfg.CERTransportLossCompatibility && c.phase == WaitCEA && op.control != nil && op.control.command == diam.CapabilitiesExchange {
+		if c.cfg.KeepCERDeadlineAfterTransportLoss && c.phase == WaitCEA && op.control != nil && op.control.command == diam.CapabilitiesExchange {
 			c.handshake = newHandshakeResult(err, nil)
 		}
-		es = append(es, c.terminate(Closed)...)
+		es = c.terminate(es, Closed)
 		if op.required {
 			n := Notification{Protocol: diam.ProtocolReplyFailure, Reply: diam.ProtocolReplyFailed, ReplyCode: in.ReplyCode, Closing: true, Message: op.message}
 			if !op.reported && op.notice != nil && op.notice.Protocol != "" {
@@ -191,10 +201,10 @@ func (c *Core) writeResult(in Input) []Effect {
 	}
 	if in.Stage == WrittenStage && op.control != nil && op.control.command == diam.DisconnectPeer && c.earlyDPA != nil {
 		saved := *c.earlyDPA
-		return append(es, c.completeDPA(saved, saved.ResultCode)...)
+		return c.completeDPA(es, saved, saved.ResultCode)
 	}
 	if op.closeAfter && in.Stage == WrittenStage {
-		es = append(es, c.terminate(Closed)...)
+		es = c.terminate(es, Closed)
 	}
 	boundary := in.Stage == WrittenStage || c.cfg.QueueWrites
 	if !boundary || op.reported {
@@ -217,10 +227,10 @@ func (c *Core) writeResult(in Input) []Effect {
 	}
 	if op.control != nil && op.control.logical {
 		if op.control.command == diam.DeviceWatchdog {
-			es = append(es, c.watchdogPublished(in)...)
+			es = c.watchdogPublished(es, in)
 		}
 		if op.control.command == diam.CapabilitiesExchange && c.cfg.CERInterval > 0 {
-			es = append(es, c.arm(RetryTimer, in.At, c.cfg.CERInterval)...)
+			es = c.arm(es, RetryTimer, in.At, c.cfg.CERInterval)
 		}
 	}
 	return es
@@ -228,16 +238,17 @@ func (c *Core) writeResult(in Input) []Effect {
 
 // #108/#125 and RFC 6733 §§3,5.6: gate cancellation ends a selected writer,
 // not the connection. A published CER still owns correlation across retries.
-func (c *Core) skippedControl(in Input, op *operation) []Effect {
+func (c *Core) skippedControl(es []Effect, in Input, op *operation) []Effect {
 	delete(c.operations, in.Token)
+	defer c.recycleOperation(op)
 	r := op.control
 	logical := r.logical
 	r.writers--
 	if r.writers == 0 && !r.written {
 		r.logical = false
 	}
-	es := c.release(r)
-	if c.cfg.CERTransportLossCompatibility && c.phase == WaitCEA && r.command == diam.CapabilitiesExchange {
+	es = c.release(es, r)
+	if c.cfg.KeepCERDeadlineAfterTransportLoss && c.phase == WaitCEA && r.command == diam.CapabilitiesExchange {
 		// A native closed gate is still the synchronous CER attempt's public
 		// error. Its skipped writer pin has already been disposed above.
 		err := in.Err
@@ -245,13 +256,13 @@ func (c *Core) skippedControl(in Input, op *operation) []Effect {
 			err = io.ErrShortWrite
 		}
 		c.handshake = newHandshakeResult(err, nil)
-		return append(es, c.terminate(Closed)...)
+		return c.terminate(es, Closed)
 	}
 	if r.command == diam.DeviceWatchdog && !r.written && logical {
 		c.wdNext = nil
 		c.wd.Pending = false
 		if c.cfg.Watchdog && c.phase == Open && c.timers[WatchdogTimer].Token == 0 {
-			es = append(es, c.watchdogArm(in.At, in.Interval)...)
+			es = c.watchdogArm(es, in.At, in.Interval)
 		}
 	}
 	return es
