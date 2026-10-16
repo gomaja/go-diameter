@@ -364,7 +364,13 @@ func sortSnapshots(p []PeerSnapshot) {
 	}
 }
 
+// Close disconnects every peer and waits for shutdown or ctx cancellation.
+// A cause outside the values defined by RFC 6733 §5.4.3 returns an
+// "invalid Disconnect-Cause" error before changing shutdown or peer state.
 func (m *Manager) Close(ctx context.Context, cause sm.DisconnectCause) error {
+	if cause > sm.DisconnectDoNotWantToTalkToYou {
+		return fmt.Errorf("invalid Disconnect-Cause %d", cause)
+	}
 	m.mu.Lock()
 	if m.closing {
 		m.mu.Unlock()

@@ -10,7 +10,7 @@ import (
 )
 
 // BuildErrorAnswer constructs RFC 6733 §§6.2 and 7 answers; Verified Errata
-// 4808 and 4887 govern Failed-AVP and local Origin-Realm respectively.
+// 4615 and 4887 govern Failed-AVP and local Origin-Realm respectively.
 func BuildErrorAnswer(request *diam.Message, cfg Settings, resultCode uint32, failedAVPs []*diam.AVP, protocolError bool) (*diam.Message, error) {
 	answer := request.Answer(0)
 	dictionary := answer.Dictionary()
@@ -54,7 +54,7 @@ func BuildErrorAnswer(request *diam.Message, cfg Settings, resultCode uint32, fa
 		}
 	}
 	if len(failedAVPs) != 0 {
-		// RFC 6733 Section 7.5 and Verified Errata 4808 require one
+		// RFC 6733 §7.1.5 and Verified Erratum 4615 require one
 		// Failed-AVP container; it may retain the Grouped hierarchy.
 		failed := &diam.GroupedAVP{AVP: failedAVPs}
 		if _, err := answer.NewAVP(avp.FailedAVP, avp.Mbit, 0, failed); err != nil {

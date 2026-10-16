@@ -55,7 +55,7 @@ func (c *Core) disconnect(es []Effect, in Input) []Effect {
 		es = c.arm(es, ReceiverDisconnectTimer, in.At, in.Timeout)
 		return c.reserve(es, diam.DisconnectPeer)
 	}
-	if c.phase != Open || in.Cause > 2 && !c.cfg.AllowAnyLocalDisconnectCause {
+	if c.phase != Open || in.Cause > 2 {
 		return append(es, c.notify(Notification{Kind: DisconnectNotice, Outcome: NotOpen}))
 	}
 	return c.beginClosing(es, in, true)

@@ -64,14 +64,8 @@ func (c *Core) receive(es []Effect, in Input) (out []Effect) {
 		var code uint32
 		if in.Error != nil {
 			code = in.Error.ResultCode
-		} else if headerErr := base.ValidateHeader(m); headerErr != nil && !c.cfg.InitialNonCERHeaderOnError {
+		} else if headerErr := base.ValidateHeader(m); headerErr != nil {
 			code = headerErr.ResultCode
-		}
-		if c.cfg.InitialNonCERHeaderOnError && in.ErrorInput && c.candidateToken == 0 && !base.FatalHeaderError(in.Error) {
-			if headerErr := base.ValidateHeader(m); headerErr != nil {
-				in.Error = headerErr
-				code = headerErr.ResultCode
-			}
 		}
 		return c.fail(es, in, diam.ProtocolHandshakeState, code)
 	}
@@ -83,9 +77,9 @@ func (c *Core) receive(es []Effect, in Input) (out []Effect) {
 			out[start].ReleaseDispatch = true
 		}
 	}()
-	// Repeated CER disposition precedes optional body revalidation; fatal
-	// decoder reports retain the frontend's rejection/close obligation.
-	fatalCER := in.Error != nil && in.Error.Fatal && (c.cfg.RejectFatalRepeatedCER || c.passiveResponder && in.ErrorInput)
+	// RFC 6733 §7, §7.1.5: a detected fatal request error retains its
+	// required answer. Decodable repeated CERs keep their ordinary disposition.
+	fatalCER := in.Error != nil && in.Error.Fatal
 	if c.phase == Open && isCER && !base.FatalHeaderError(in.Error) && !fatalCER {
 		if c.passiveResponder && c.passiveCER && in.Error == nil && !in.ErrorInput {
 			return c.discard(es, in, "", 0)
@@ -98,11 +92,10 @@ func (c *Core) receive(es []Effect, in Input) (out []Effect) {
 		}
 		return c.discard(es, in, diam.ProtocolUnexpectedMessage, 0)
 	}
-	// Client's completed CER exchange consumes no further decoded base CEA,
-	// including one with invalid semantics. Keep its correlation diagnostic
-	// ahead of validation; receipt activity above still receives no health credit.
-	// Decoder failures retain the separate message-error path below.
-	if !c.cfg.ValidateCompletedCEA && !in.ErrorInput && c.phase == Open && c.cfg.Role == Initiator && m.Header.CommandCode == diam.CapabilitiesExchange && m.Header.ApplicationID == 0 && m.Header.CommandFlags&diam.RequestFlag == 0 && in.Error == nil {
+	// RFC 6733 §3: discard duplicate or unowned completed answers before body
+	// semantics. Receipt activity receives no health credit; decoder failures
+	// retain the separate message-error path below.
+	if !in.ErrorInput && c.phase == Open && c.cfg.Role == Initiator && m.Header.CommandCode == diam.CapabilitiesExchange && m.Header.ApplicationID == 0 && m.Header.CommandFlags&diam.RequestFlag == 0 && in.Error == nil {
 		es = c.discard(es, in, diam.ProtocolUnexpectedMessage, 0)
 		es[len(es)-1].Notification.Diagnostic = "cea-correlation"
 		if h := c.completedCEA; h != nil && h.HopByHopID == m.Header.HopByHopID && h.EndToEndID == m.Header.EndToEndID {
@@ -113,9 +106,7 @@ func (c *Core) receive(es []Effect, in Input) (out []Effect) {
 	originalFatal := in.Error != nil && in.Error.Fatal
 	if err := base.ValidateHeader(m); err != nil && !base.FatalHeaderError(in.Error) {
 		// Fatality is independent of which diagnosis wins header precedence.
-		if c.cfg.PreserveDecoderFatalityOnHeaderError {
-			err.Fatal = originalFatal
-		}
+		err.Fatal = originalFatal
 		in.Error = err
 	}
 	if in.Error != nil {
@@ -250,7 +241,12 @@ func (c *Core) messageError(es []Effect, in Input, originalFatal bool) []Effect 
 		return c.externalMessageError(es, in, kind, originalFatal)
 	}
 	if c.phase == Closing {
-		return c.discard(es, in, kind, me.ResultCode)
+		// Closing selects no new reply or termination for message errors.
+		// Preserve fatality in the report; the reader and Closing deadline
+		// retain responsibility for closing the connection.
+		es = c.discard(es, in, kind, me.ResultCode)
+		es[len(es)-1].Notification.Closing = originalFatal
+		return es
 	}
 	if m.Header.CommandFlags&diam.RequestFlag == 0 {
 		if me.Fatal {
@@ -272,16 +268,6 @@ func (c *Core) externalMessageError(es []Effect, in Input, kind diam.ProtocolErr
 	n := Notification{Protocol: kind, Message: metadata(in.Message), Closing: originalFatal, Diagnostic: "external-message-error"}
 	if me != nil {
 		n.ResultCode, n.CauseError = me.ResultCode, copyHandshakeError(me)
-	}
-	headerDiagnosis := c.cfg.SeparateHeaderErrorDiagnostics && kind == diam.ProtocolInvalidHeader
-	if headerDiagnosis {
-		n.Diagnostic = "header-error"
-		if c.phase == Closing && in.Message.Header.CommandFlags&diam.RequestFlag != 0 {
-			n.Protocol = diam.ProtocolMalformedMessage
-		}
-	}
-	if c.phase == Closing && !c.cfg.RetainClosingErrorFatality {
-		n.Closing = false
 	}
 	if c.phase == Closing || in.Message.Header == nil || in.Message.Header.CommandFlags&diam.RequestFlag == 0 {
 		return append(es, c.effect(Discard), c.notify(n))
@@ -309,9 +295,6 @@ func (c *Core) externalMessageError(es []Effect, in Input, kind diam.ProtocolErr
 	}
 	if terminal {
 		c.terminal, n.Closing, n.Diagnostic = true, true, "external-reject-cer"
-		if headerDiagnosis {
-			n.Diagnostic = "reject-cer-header"
-		}
 	}
 	return c.send(es, answer, nil, true, terminal, false, &n)
 }

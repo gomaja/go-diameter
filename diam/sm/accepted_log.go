@@ -96,6 +96,10 @@ func (s *acceptedHandshake) record(in protocol.Input, n protocol.Notification) {
 			text = "sm: CEA identifiers mismatch; answer discarded"
 			break
 		}
+		if n.Diagnostic == "dwa-correlation" {
+			text = "sm: DWA identifiers mismatch; answer discarded"
+			break
+		}
 		if n.Diagnostic == "dpa-correlation" {
 			text = "sm: DPA identifiers mismatch; answer discarded"
 			break

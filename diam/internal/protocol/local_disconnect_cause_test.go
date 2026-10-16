@@ -9,39 +9,40 @@ import (
 	"github.com/gomaja/go-diameter/diam/datatype"
 )
 
-func TestLocalDisconnectAllowsOpaqueCause(t *testing.T) {
-	for _, enabled := range []bool{false, true} {
-		for _, cause := range []uint32{0, 1, 2, 3, ^uint32(0)} {
-			t.Run(fmt.Sprintf("allow-any=%t/cause=%d", enabled, cause), func(t *testing.T) {
-				c := opened(t, func(cfg *Config) { cfg.AllowAnyLocalDisconnectCause = enabled })
-				in := event(Disconnect)
-				in.Cause = cause
-				if !enabled && cause > 2 {
-					wantKinds(t, c.Handle(in), Notify)
-					if c.Snapshot().Phase() != Open {
-						t.Fatal("default rejected cause changed connection phase")
-					}
-					return
+func TestLocalDisconnectValidatesCause(t *testing.T) {
+	for _, cause := range []uint32{0, 1, 2, 3, ^uint32(0)} {
+		t.Run(fmt.Sprintf("cause=%d", cause), func(t *testing.T) {
+			c := opened(t)
+			in := event(Disconnect)
+			in.Cause = cause
+			if cause > 2 {
+				before := c.Snapshot()
+				effects := c.Handle(in)
+				wantKinds(t, effects, Notify)
+				n := find(t, effects, Notify).Notification
+				if n.Kind != DisconnectNotice || n.Outcome != NotOpen || c.Phase() != Open || c.Snapshot().Timer(WatchdogTimer) != before.Timer(WatchdogTimer) {
+					t.Fatal("rejected cause changed connection phase or timer")
 				}
-				reservation := find(t, fence(t, c, in, false), ReserveIDs)
-				allocated := event(ReserveResult)
-				allocated.Token = reservation.Token
-				allocated.Reservation = Reservation{Token: reservation.Token, Hop: 71, End: 72}
-				sent := find(t, c.Handle(allocated), Send)
-				value, err := sent.Message.FindAVP(avp.DisconnectCause, 0)
-				if err != nil || value.Data != datatype.Enumerated(cause) {
-					t.Fatalf("Disconnect-Cause=%v, %v; want %d", value, err, cause)
-				}
-				if sent.Message.Header.CommandCode != diam.DisconnectPeer || c.Snapshot().Phase() != Closing {
-					t.Fatal("local disconnect did not send DPR in Closing")
-				}
-			})
-		}
+				return
+			}
+			reservation := find(t, fence(t, c, in, false), ReserveIDs)
+			allocated := event(ReserveResult)
+			allocated.Token = reservation.Token
+			allocated.Reservation = Reservation{Token: reservation.Token, Hop: 71, End: 72}
+			sent := find(t, c.Handle(allocated), Send)
+			value, err := sent.Message.FindAVP(avp.DisconnectCause, 0)
+			if err != nil || value.Data != datatype.Enumerated(cause) {
+				t.Fatalf("Disconnect-Cause=%v, %v; want %d", value, err, cause)
+			}
+			if sent.Message.Header.CommandCode != diam.DisconnectPeer || c.Phase() != Closing {
+				t.Fatal("local disconnect did not send DPR in Closing")
+			}
+		})
 	}
 }
 
-func TestOpaqueLocalCauseDoesNotRelaxReceivedDPR(t *testing.T) {
-	c := opened(t, func(cfg *Config) { cfg.AllowAnyLocalDisconnectCause = true })
+func TestReceivedDPRRejectsUndefinedCause(t *testing.T) {
+	c := opened(t)
 	dpr := request(t, diam.DisconnectPeer)
 	value, err := dpr.FindAVP(avp.DisconnectCause, 0)
 	if err != nil {

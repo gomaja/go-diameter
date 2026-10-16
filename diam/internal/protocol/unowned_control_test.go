@@ -14,7 +14,7 @@ import (
 func TestInitialUnownedControlAnswerRetainsBodyValidation(t *testing.T) {
 	for _, command := range []uint32{diam.DeviceWatchdog, diam.DisconnectPeer} {
 		t.Run(controlTestName(command), func(t *testing.T) {
-			c := opened(t, func(cfg *Config) { cfg.DWAOwnershipBeforeSemantics = true })
+			c := opened(t)
 			msg := diam.NewMessage(command, 0, 0, 91, 92, c.cfg.Dictionary)
 			n := find(t, c.Handle(receive(msg)), Notify).Notification
 			want := diam.ProtocolInvalidDWA
@@ -41,7 +41,6 @@ func TestUnownedControlAnswerRetainsGrammarDiagnostics(t *testing.T) {
 	for _, command := range []uint32{diam.DeviceWatchdog, diam.DisconnectPeer} {
 		t.Run(controlTestName(command), func(t *testing.T) {
 			c := opened(t, func(cfg *Config) {
-				cfg.DWAOwnershipBeforeSemantics = true
 				cfg.Watchdog = true
 				cfg.WatchdogInterval = 6 * time.Second
 			})
@@ -75,7 +74,6 @@ func TestUnownedControlGrammarAfterCompletedExchange(t *testing.T) {
 	for _, variant := range []string{"malformed-duplicate", "malformed-stray", "other-command", "new-generation"} {
 		t.Run(variant, func(t *testing.T) {
 			configure := func(cfg *Config) {
-				cfg.DWAOwnershipBeforeSemantics = true
 				cfg.Watchdog = true
 				cfg.WatchdogInterval = 6 * time.Second
 			}
@@ -110,7 +108,6 @@ func TestUnownedControlGrammarAfterCompletedExchange(t *testing.T) {
 
 func TestRejectedDWAIdentityPrecedesResult(t *testing.T) {
 	c := opened(t, func(cfg *Config) {
-		cfg.DWAIdentityBeforeResult = true
 		cfg.Watchdog = true
 		cfg.WatchdogInterval = 6 * time.Second
 	})
@@ -134,7 +131,6 @@ func TestUnownedDWAResultCannotRejectExchange(t *testing.T) {
 	for _, state := range []string{"initial", "current", "completed"} {
 		t.Run(state, func(t *testing.T) {
 			c := opened(t, func(cfg *Config) {
-				cfg.DWAOwnershipBeforeSemantics = true
 				cfg.Watchdog = true
 				cfg.WatchdogInterval = 6 * time.Second
 			})

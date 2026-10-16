@@ -10,10 +10,9 @@ import (
 )
 
 // RFC 6733 §§3 and 7.1.3 distinguish framing loss from an invalid base
-// command header. Header precedence retains each frontend's established
-// observer and transport contract: Manager preserves the original fatal flag;
-// StateMachine's replacement header diagnosis is recoverable.
-func TestHeaderValidationFatalDispositionPolicy(t *testing.T) {
+// command header. Replacing a diagnosis preserves the decoder's fatality;
+// reader ownership independently determines transport closure.
+func TestHeaderValidationPreservesFatalityAndClosureOwnership(t *testing.T) {
 	descriptions := []struct {
 		name                   string
 		code                   uint32
@@ -28,17 +27,15 @@ func TestHeaderValidationFatalDispositionPolicy(t *testing.T) {
 		{"fatal-version", diam.UnsupportedVersion, true, true, false},
 		{"fatal-message-length", diam.InvalidMessageLength, true, true, false},
 	}
-	for _, manager := range []bool{false, true} {
+	for _, reader := range []bool{false, true} {
 		for _, command := range []uint32{diam.CapabilitiesExchange, diam.DeviceWatchdog, diam.DisconnectPeer} {
 			for _, req := range []bool{false, true} {
 				for _, description := range descriptions {
-					name := fmt.Sprintf("manager=%t/command=%d/request=%t/%s", manager, command, req, description.name)
+					name := fmt.Sprintf("reader=%t/command=%d/request=%t/%s", reader, command, req, description.name)
 					t.Run(name, func(t *testing.T) {
 						c := opened(t, func(cfg *Config) {
-							cfg.ReaderOwnsMessageErrorClosure = manager
-							cfg.PreserveDecoderFatalityOnHeaderError = manager
-							cfg.SeparateHeaderErrorDiagnostics = manager
-							cfg.CloseCEROnInvalidHeaderBitsOnly = manager
+							cfg.ReaderOwnsMessageErrorClosure = reader
+							cfg.CloseCEROnInvalidHeaderBitsOnly = reader
 						})
 						msg := request(t, command)
 						if !req {
@@ -71,7 +68,7 @@ func TestHeaderValidationFatalDispositionPolicy(t *testing.T) {
 						if req && sends != 1 {
 							t.Fatalf("request selected %d answers, want one", sends)
 						}
-						wantClosing := description.framing || manager && description.fatal || req && command == diam.CapabilitiesExchange
+						wantClosing := description.fatal || req && command == diam.CapabilitiesExchange
 						wantCode := uint32(diam.InvalidHDRBits)
 						wantKind := diam.ProtocolInvalidHeader
 						if description.framing {
@@ -90,7 +87,7 @@ func TestHeaderValidationFatalDispositionPolicy(t *testing.T) {
 							t.Fatalf("header/error precedence notification=%+v, want %s/%d closing=%t", notice, wantKind, wantCode, wantClosing)
 						}
 						wantClosed := wantClosing
-						if manager {
+						if reader {
 							wantClosed = req && command == diam.CapabilitiesExchange && !description.framing
 						}
 						if got := c.Snapshot().Phase(); (got == Closed) != wantClosed {

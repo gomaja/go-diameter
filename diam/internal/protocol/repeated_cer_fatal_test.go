@@ -7,26 +7,25 @@ import (
 	"github.com/gomaja/go-diameter/diam"
 )
 
-// Manager retains the required fatal-error answer while leaving transport
-// closure to the decoder's caller. StateMachine has its own repeat policy.
+// Fatal repeated CERs require an error answer; reader ownership determines
+// whether the core also closes after the answer completes.
 func TestRepeatedCERFatalDecoderDisposition(t *testing.T) {
-	for _, manager := range []bool{false, true} {
+	for _, reader := range []bool{false, true} {
 		for _, errorInput := range []bool{false, true} {
 			for _, fatal := range []bool{false, true} {
-				t.Run(fmt.Sprintf("manager=%t/error-input=%t/fatal=%t", manager, errorInput, fatal), func(t *testing.T) {
+				t.Run(fmt.Sprintf("reader=%t/error-input=%t/fatal=%t", reader, errorInput, fatal), func(t *testing.T) {
 					c := opened(t, func(cfg *Config) {
-						cfg.RejectFatalRepeatedCER = manager
-						cfg.ReaderOwnsMessageErrorClosure = manager
+						cfg.ReaderOwnsMessageErrorClosure = reader
 						cfg.QueueWrites = true
 					})
 					input := receive(cer(t))
 					input.ErrorInput = errorInput
 					input.Error = &diam.MessageError{ResultCode: diam.InvalidAVPLength, Fatal: fatal}
 					effects := c.Handle(input)
-					if !manager || !fatal {
+					if !fatal {
 						notice := find(t, effects, Notify).Notification
 						if notice.Protocol != diam.ProtocolUnexpectedMessage || notice.ResultCode != 0 || notice.Closing || notice.Reply != diam.ProtocolReplyNone || c.Snapshot().Phase() != Open {
-							t.Fatalf("recoverable/frontend repeated CER disposition changed: %+v phase=%v", notice, c.Snapshot().Phase())
+							t.Fatalf("recoverable repeated CER disposition changed: %+v phase=%v", notice, c.Snapshot().Phase())
 						}
 						for _, effect := range effects {
 							if effect.Kind == Send || effect.Kind == Close {
@@ -36,7 +35,7 @@ func TestRepeatedCERFatalDecoderDisposition(t *testing.T) {
 						return
 					}
 					sent := find(t, effects, Send)
-					if !sent.Required || sent.CloseAfter || resultCode(t, sent.Message) != diam.InvalidAVPLength || sent.Message.Header.CommandCode != diam.CapabilitiesExchange || sent.Message.Header.HopByHopID != input.Message.Header.HopByHopID || sent.Message.Header.EndToEndID != input.Message.Header.EndToEndID {
+					if !sent.Required || sent.CloseAfter == reader || resultCode(t, sent.Message) != diam.InvalidAVPLength || sent.Message.Header.CommandCode != diam.CapabilitiesExchange || sent.Message.Header.HopByHopID != input.Message.Header.HopByHopID || sent.Message.Header.EndToEndID != input.Message.Header.EndToEndID {
 						t.Fatalf("fatal repeated CER required answer changed: %+v", sent)
 					}
 					queued := event(WriteResult)
@@ -53,11 +52,11 @@ func TestRepeatedCERFatalDecoderDisposition(t *testing.T) {
 					written := complete(sent)
 					written.ReplyCode = diam.InvalidAVPLength
 					effects = c.Handle(written)
-					if c.Snapshot().Phase() != Open {
-						t.Fatal("fatal callback took transport closure from its caller")
+					if (c.Snapshot().Phase() == Closed) == reader {
+						t.Fatalf("fatal repeated CER closure ownership changed: reader=%t phase=%v", reader, c.Snapshot().Phase())
 					}
 					for _, effect := range effects {
-						if effect.Kind == Notify || effect.Kind == Close {
+						if effect.Kind == Notify || reader && effect.Kind == Close {
 							t.Fatalf("successful reply duplicated its report or closed the transport: %+v", effect)
 						}
 					}

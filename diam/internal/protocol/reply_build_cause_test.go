@@ -33,9 +33,7 @@ func TestRejectionBuildFailureRetainsTypedBuilderCause(t *testing.T) {
 	for _, open := range []bool{false, true} {
 		t.Run(fmt.Sprintf("open=%t", open), func(t *testing.T) {
 			cfg := func(cfg *Config) {
-				cfg.PreserveReplyErrorFormatWrapper = true
 				cfg.ReaderOwnsMessageErrorClosure = true
-				cfg.RejectFatalRepeatedCER = true
 			}
 			c := machine(t, cfg)
 			if open {

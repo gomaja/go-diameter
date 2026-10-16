@@ -77,7 +77,7 @@ func TestWatchdogDWACorrelation(t *testing.T) {
 					awaitAcceptedEvent(t, events, WatchdogSuspect, p.conn)
 					assertProtocolEvent(t, protocolEvent(t, p.events), p.conn, &header,
 						diam.ProtocolUnexpectedMessage, 0, false, diam.ProtocolReplyNone, 0)
-					records := p.logs.RecordsWithMessage("sm: unhandled answer discarded")
+					records := p.logs.RecordsWithMessage("sm: DWA identifiers mismatch; answer discarded")
 					if len(records) != 1 || records[0].Level != slog.LevelWarn {
 						t.Fatalf("unmatched DWA log records = %v, want one warning", records)
 					}

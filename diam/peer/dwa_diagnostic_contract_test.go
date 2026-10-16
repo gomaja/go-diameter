@@ -55,7 +55,7 @@ func TestManagerDWAOwnershipPreservesDiagnosticsTCP(t *testing.T) {
 							t.Fatal(err)
 						}
 						field.Data = datatype.Unsigned32(diam.UnableToComply)
-						result = 0
+						kind, result = diam.ProtocolUnexpectedMessage, 0
 						if phase == "current" {
 							kind, result = diam.ProtocolRejectedDWA, diam.UnableToComply
 						}

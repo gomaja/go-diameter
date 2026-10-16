@@ -89,13 +89,13 @@ func TestProtocolErrorRetainedWire(t *testing.T) {
 			m.AddAVP(diam.NewAVP(avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("example")))
 			return m
 		}, diam.ProtocolInvalidDWA, diam.InvalidAVPLength, false, "sm: invalid DWA", slog.LevelWarn},
-		{"A10_rejected_DWA", func(c *Settings) { c.EnableWatchdog = true; c.WatchdogInterval = time.Hour }, func(*testing.T) *diam.Message {
+		{"A10_unowned_DWA", func(c *Settings) { c.EnableWatchdog = true; c.WatchdogInterval = time.Hour }, func(*testing.T) *diam.Message {
 			m := diam.NewMessage(diam.DeviceWatchdog, 0, 0, 17, 18, testDict)
 			m.AddAVP(diam.NewAVP(avp.ResultCode, avp.Mbit, 0, datatype.Unsigned32(5012)))
 			m.AddAVP(diam.NewAVP(avp.OriginHost, avp.Mbit, 0, datatype.DiameterIdentity("peer.example")))
 			m.AddAVP(diam.NewAVP(avp.OriginRealm, avp.Mbit, 0, datatype.DiameterIdentity("example")))
 			return m
-		}, diam.ProtocolRejectedDWA, 5012, false, "sm: rejected DWA", slog.LevelWarn},
+		}, diam.ProtocolUnexpectedMessage, 0, false, "sm: DWA identifiers mismatch; answer discarded", slog.LevelWarn},
 		{"A11_invalid_DPR", nil, func(*testing.T) *diam.Message {
 			return diam.NewMessage(diam.DisconnectPeer, diam.RequestFlag, 0, 17, 18, testDict)
 		}, diam.ProtocolInvalidRequest, diam.MissingAVP, true, "sm: invalid request", slog.LevelWarn},
