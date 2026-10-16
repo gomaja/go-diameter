@@ -30,6 +30,14 @@ func BenchmarkInboundMessages(b *testing.B) {
 	}
 }
 
+// BenchmarkCloseNotifyMessages measures a caller that explicitly retains early
+// peer-loss notification while exchanging application and watchdog messages.
+func BenchmarkCloseNotifyMessages(b *testing.B) {
+	for _, exchange := range []string{"ApplicationRequest", "ApplicationAnswer", "WatchdogExchange"} {
+		b.Run(exchange, func(b *testing.B) { benchmarkInboundMessages(b, "DialedCloseNotify", exchange) })
+	}
+}
+
 func benchmarkInboundMessages(b *testing.B, side, exchange string) {
 	dictionary, err := dict.New(dict.Base(), creditcontrol.Dictionary())
 	if err != nil {
@@ -183,6 +191,9 @@ func messageCostPeer(b *testing.B, machine *sm.StateMachine, dictionary *dict.Pa
 			b.Fatal(result.err)
 		}
 		b.Cleanup(result.conn.Close)
+		if side == "DialedCloseNotify" {
+			result.conn.(diam.CloseNotifier).CloseNotify()
+		}
 	}
 	return peer
 }

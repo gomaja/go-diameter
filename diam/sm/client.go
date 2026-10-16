@@ -59,6 +59,18 @@ var testHookClientBeforeStart func(*acceptedHandshake)
 // connection lifecycle. Client starts its watchdog after the handshake and
 // does not reconnect connections it has closed.
 //
+// On native TCP and TLS connections, supervision observes transport loss when
+// the message reader next reads the socket. A running sequential callback or a
+// reader waiting for concurrent dispatch capacity can delay that observation;
+// watchdog timers and Disconnect deadlines remain active. Calling CloseNotify
+// on the connection, also from a callback, makes the connection read ahead of
+// dispatch, so that loss is seen while a callback runs unless earlier data
+// still awaits dispatch (see diam.CloseNotifier).
+// MultistreamConn connections report loss through their transport.
+// Without read-ahead, ReadTimeout resets for each message read: a deadline that
+// expires during blocked dispatch can be replaced when reading resumes, without
+// observing a timeout.
+//
 // A custom message handler for Device-Watchdog-Answer (DWA) can be registered.
 // With watchdog enabled, Client handles DWA on its connections first.
 // For custom connections whose LocalAddr is neither a TCP nor SCTP address,

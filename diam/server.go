@@ -21,6 +21,7 @@ import (
 
 	"github.com/gomaja/go-diameter/diam/dict"
 	"github.com/gomaja/go-diameter/diam/internal/observe"
+	"github.com/gomaja/go-diameter/diam/internal/transport"
 	"github.com/gomaja/go-sctp"
 )
 
@@ -91,6 +92,15 @@ type Conn interface {
 type CloseNotifier interface {
 	// CloseNotify returns a channel that is closed
 	// when the client connection has gone away.
+	//
+	// On TCP and TLS, the first call makes the connection read the socket
+	// one chunk ahead of message dispatch, so that peer loss is seen while a
+	// callback runs unless data received before it still awaits dispatch;
+	// this adds a goroutine handoff to every socket read. A dialed connection
+	// starts reading ahead once any socket read in progress returns, also
+	// when the call comes from a callback; TLS waits for the handshake to
+	// finish. An accepted connection starts at its next read. A
+	// MultistreamConn reports loss through its transport instead.
 	CloseNotify() <-chan struct{}
 }
 
@@ -109,23 +119,60 @@ type AcceptHandler interface {
 // reads and switches, if its mutex is held.
 type liveSwitchReader struct {
 	sync.Mutex
-	r         io.Reader
-	pr        io.Reader
-	pipeCopyF func()
+	r             io.Reader
+	accepted      *bool // The initial generation's role is fixed before serving.
+	pr            io.Reader
+	pipeCopyF     func()
+	onReadGone    func()
+	readGone      bool
+	reading       atomic.Bool
+	switchPending atomic.Bool
 }
 
 func (sr *liveSwitchReader) Read(p []byte) (n int, err error) {
 	sr.Lock()
-	// Check if closeNotifier was created prior to this Read call & start it
+	sr.startPending()
+	if sr.accepted != nil && *sr.accepted {
+		r := sr.r
+		sr.Unlock()
+		return r.Read(p)
+	}
+	sr.reading.Store(true)
+	r := sr.r
+	sr.Unlock()
+	n, err = r.Read(p)
+	sr.reading.Store(false)
+	if sr.switchPending.Load() {
+		sr.Lock()
+		sr.startPending()
+		sr.Unlock()
+	}
+	if err != nil {
+		var restart *TransportRestartError
+		if !errors.As(err, &restart) {
+			// Registration can occur while the socket read is in progress.
+			sr.Lock()
+			sr.readGone = true
+			gone := sr.onReadGone
+			sr.Unlock()
+			if gone != nil {
+				gone()
+			}
+		}
+	}
+	return n, err
+}
+
+// startPending transfers reader ownership only after the direct read returns.
+// The caller holds the mutex and no socket read is in progress.
+func (sr *liveSwitchReader) startPending() {
 	if sr.pr != nil && sr.pipeCopyF != nil {
 		go sr.pipeCopyF()
 		sr.r = sr.pr
 		sr.pr = nil
 		sr.pipeCopyF = nil
+		sr.switchPending.Store(false)
 	}
-	r := sr.r
-	sr.Unlock()
-	return r.Read(p)
 }
 
 // conn represents the server side of a diameter connection.
@@ -169,6 +216,16 @@ type conn struct {
 }
 
 func (c *conn) closeNotify() <-chan struct{} {
+	return c.closeSignal(true)
+}
+
+// readDone observes terminal transport reads without reading ahead of dispatch.
+// MultistreamConn retains its transport-owned asynchronous error observer.
+func (c *conn) readDone() <-chan struct{} {
+	return c.closeSignal(false)
+}
+
+func (c *conn) closeSignal(monitor bool) <-chan struct{} {
 	c.mu.Lock()
 	if c.closeNotifyc == nil {
 		c.closeNotifyc = make(chan struct{})
@@ -180,7 +237,18 @@ func (c *conn) closeNotify() <-chan struct{} {
 	gone := c.clientGone
 	c.mu.Unlock()
 	if !gone {
-		c.owner.monitor(c)
+		_, multi := c.rwc.(MultistreamConn)
+		if monitor || multi {
+			c.owner.monitor(c)
+		} else {
+			c.owner.sr.Lock()
+			c.owner.sr.onReadGone = c.owner.notifyReadGone
+			readGone := c.owner.sr.readGone
+			c.owner.sr.Unlock()
+			if readGone {
+				c.owner.notifyReadGone()
+			}
+		}
 	}
 	return result
 }
@@ -235,7 +303,7 @@ func (c *conn) serve() {
 			c = p.current
 			p.mu.Unlock()
 		}
-		// RFC 6733 §5.6: finish already received messages before normal EOF closure.
+		// Finish already received messages before normal EOF closure.
 		c.hwg.Wait()
 		if err := p.close(); err != nil && !errors.Is(err, net.ErrClosed) {
 			c.log(slog.LevelDebug, "diam: close connection", slog.Any(logKeyError, err))
@@ -550,6 +618,7 @@ func (c *conn) dictionary() *dict.Parser {
 // A response represents the server side of a diameter response.
 // It implements the Conn and CloseNotifier interfaces.
 type response struct {
+	transport.Signal
 	conn     *conn           // socket, reader and writer
 	xmu      sync.Mutex      // guards ctx
 	ctx      context.Context // context for this Conn

@@ -54,14 +54,11 @@ func (sm *StateMachine) registerAcceptedWatchdog(state *acceptedHandshake) {
 	if state.policy == nil || c.Closed() || state.phase() != protocol.Open {
 		return
 	}
-	done := connectionDone(c)
+	var done <-chan struct{}
 	if state.client != nil {
-		// Client supervision has always stopped on CloseNotify, including
-		// read EOF while native concurrent dispatch is still draining.
-		done = nil
-		if notifier, ok := diam.ConnAs[diam.CloseNotifier](c); ok {
-			done = notifier.CloseNotify()
-		}
+		done = clientConnectionDone(c)
+	} else {
+		done = connectionDone(c)
 	}
 	if done == nil {
 		state.apply(protocol.Input{Kind: protocol.StopSupervision})

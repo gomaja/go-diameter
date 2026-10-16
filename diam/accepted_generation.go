@@ -11,6 +11,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/gomaja/go-diameter/diam/internal/transport"
 )
 
 const retirementTimeout = time.Second
@@ -49,11 +51,12 @@ func (p *physicalConn) newGeneration(old *conn) *conn {
 		c.accepted = old.accepted
 		c.tlsState = old.tlsState
 	}
-	c.writer = &response{conn: c}
+	c.writer = &response{conn: c, Signal: transport.Signal(c.readDone)}
 	if _, multi := p.rwc.(MultistreamConn); !multi {
 		if p.reader == nil {
 			p.sr = &c.sr
 			p.sr.r = p.rwc
+			p.sr.accepted = &c.accepted
 			p.reader = bufio.NewReader(p.sr)
 		}
 		c.buf = bufio.NewReadWriter(p.reader, bufio.NewWriter(p.rwc))
@@ -68,7 +71,7 @@ func (p *physicalConn) close() error {
 	return p.closePhysical(true)
 }
 
-// RFC 6733 §5.6: transport loss must not publish Closed before callbacks for
+// Transport loss does not publish Closed before callbacks for
 // already decoded messages finish. Their reader publishes it on exit.
 func (p *physicalConn) closeAfterReadError() error {
 	return p.closePhysical(false)
@@ -316,6 +319,16 @@ func (c *conn) renew(reason RetirementReason, restart *TransportRestartError) *c
 	return next
 }
 
+// Read loss ends supervision without completing callbacks for
+// already decoded messages or publishing the generation's Closed state.
+func (p *physicalConn) notifyReadGone() {
+	p.mu.Lock()
+	p.readGone = true
+	current := p.current
+	p.mu.Unlock()
+	current.notifyClientGone()
+}
+
 // monitor is installed once per transport. The reader bridge forwards restart
 // as an ordered event, since io.Pipe.CloseWithError cannot represent a renewal.
 func (p *physicalConn) monitor(c *conn) {
@@ -340,26 +353,53 @@ func (p *physicalConn) monitor(c *conn) {
 		bridge := &orderedReader{events: make(chan restartReadEvent), closed: p.done}
 		p.sr.pr = bridge
 		p.sr.pipeCopyF = func() {
-			bridge.copy(source, func() {
-				p.mu.Lock()
-				p.readGone = true
-				current := p.current
-				p.mu.Unlock()
-				current.notifyClientGone()
-			})
+			if c.handshakeDone != nil {
+				select {
+				case <-c.handshakeDone:
+				case <-p.done:
+					return
+				}
+			}
+			bridge.copy(source, p.notifyReadGone)
+		}
+		// Dialed byte streams start read-ahead when the direct reader is
+		// available. Accepted byte streams switch on their next reader call.
+		readGone := false
+		if !c.accepted {
+			p.sr.onReadGone = p.notifyReadGone
+			readGone = p.sr.readGone
+			p.sr.switchPending.Store(true)
+			if !p.sr.reading.Load() {
+				p.sr.startPending()
+			}
 		}
 		p.sr.Unlock()
+		if readGone {
+			p.notifyReadGone()
+		}
 	})
 }
 
 type restartReadEvent struct {
-	data []byte
-	err  error
+	data   []byte
+	err    error
+	buffer *[32 << 10]byte
 }
+
+var restartReadBuffers = sync.Pool{New: func() any { return new([32 << 10]byte) }}
+
+func (r *orderedReader) releaseReadBuffer(buffer *[32 << 10]byte) {
+	if r.testHookBufferReleased != nil {
+		r.testHookBufferReleased(buffer)
+	}
+	restartReadBuffers.Put(buffer)
+}
+
 type orderedReader struct {
-	events  chan restartReadEvent
-	closed  <-chan struct{}
-	pending restartReadEvent
+	events                 chan restartReadEvent
+	closed                 <-chan struct{}
+	pending                restartReadEvent
+	testHookBufferReleased func(*[32 << 10]byte)
 }
 
 func (r *orderedReader) Read(b []byte) (int, error) {
@@ -376,24 +416,35 @@ func (r *orderedReader) Read(b []byte) (int, error) {
 		return n, nil
 	}
 	err := r.pending.err
+	// The consumer owns a handed-off buffer until all its bytes are consumed.
+	if r.pending.buffer != nil {
+		r.releaseReadBuffer(r.pending.buffer)
+	}
 	r.pending = restartReadEvent{}
 	return n, err
 }
 func (r *orderedReader) copy(source io.Reader, gone func()) {
 	for {
-		b := make([]byte, 32<<10)
+		buffer := restartReadBuffers.Get().(*[32 << 10]byte)
+		b := buffer[:]
 		n, err := source.Read(b)
-		var restart *TransportRestartError
-		terminal := err != nil && !errors.As(err, &restart)
+		terminal := false
+		if err != nil {
+			var restart *TransportRestartError
+			terminal = !errors.As(err, &restart)
+		}
 		if terminal {
 			gone()
 		}
 		if n > 0 || err != nil {
 			select {
-			case r.events <- restartReadEvent{b[:n], err}:
+			case r.events <- restartReadEvent{data: b[:n], err: err, buffer: buffer}:
 			case <-r.closed:
+				r.releaseReadBuffer(buffer)
 				return
 			}
+		} else {
+			r.releaseReadBuffer(buffer)
 		}
 		if terminal {
 			return
