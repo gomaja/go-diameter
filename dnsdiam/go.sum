@@ -1,9 +1,9 @@
 codeberg.org/miekg/dns v0.6.97 h1:XjPru7Wlm7tY9MmcA6RUJbd7/HKFmifKuFn37SERi1c=
 codeberg.org/miekg/dns v0.6.97/go.mod h1:58Y3ZTg6Z5ZEm/ZAAwHehbZfrD4u5mE4RByHoPEMyKk=
-github.com/gomaja/go-ctxsync v0.0.0-20261014212015-de26fb453109 h1:Gtss4S+dHo2G5OaLQTie3Jxxao+Mm++1jQArPw6xyto=
-github.com/gomaja/go-ctxsync v0.0.0-20261014212015-de26fb453109/go.mod h1:DHmXkdnCX0SXFMVg+lQy+VX3T+8wOl9pyHL59VMzcPw=
-github.com/gomaja/go-sctp v0.0.0-20261015040308-001e3ddea46c h1:eF6Bx9PmjgbbYAXcIUskMbCIeS8vKMFA5Rub6THi4ws=
-github.com/gomaja/go-sctp v0.0.0-20261015040308-001e3ddea46c/go.mod h1:vhJBNP0FsbqGN7MavOEB7sFzrxQ74mJdkaoz4e/ViFs=
+github.com/gomaja/go-ctxsync v0.0.0-20261015170731-23c9cb67b19b h1:uZUS8FpD0aJfzLwz4sVXuZy7QeBkNr2S0w6yMfNJGa0=
+github.com/gomaja/go-ctxsync v0.0.0-20261015170731-23c9cb67b19b/go.mod h1:DHmXkdnCX0SXFMVg+lQy+VX3T+8wOl9pyHL59VMzcPw=
+github.com/gomaja/go-sctp v0.0.0-20261016073553-b48239f970d4 h1:9M2c2XsoUCPsWKBKNGv96XB8mJhTuIIlzzSodYh1mSs=
+github.com/gomaja/go-sctp v0.0.0-20261016073553-b48239f970d4/go.mod h1:jPq4cFMuSmF6x0UB4yExAJqEDOkfxLYwWzyFSRLQfR8=
 golang.org/x/crypto v0.58.0 h1:COkYLr4k7nDI4r6QtMML2AfzeIswWHAJthLS6K/M/54=
 golang.org/x/crypto v0.58.0/go.mod h1:Xh+kl5A+M0gMiWDytH2Hhr5Z7WbNCpv/eB/EFgfSk+w=
 golang.org/x/net v0.61.0 h1:RR+6j/BTBCrggOLugxa+66R8FvoN6MHlzDlZIbN9YFw=
