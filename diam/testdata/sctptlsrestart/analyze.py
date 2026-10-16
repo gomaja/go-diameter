@@ -1,12 +1,12 @@
-import csv,pathlib,re,subprocess,sys
+import csv,pathlib,re,runpy,sys
 out=pathlib.Path(sys.argv[1]).resolve()
-run=(out/'run-id').read_text().strip()
+tshark=runpy.run_path(str(pathlib.Path(__file__).resolve().parents[3]/'scripts/sctp-wire/tshark.py'))['tshark']
 fields=['frame.number','frame.time_epoch','ip.src','sctp.chunk_type','sctp.srcport','sctp.dstport']
 rows=[]
 for role in ['client','server']:
- cmd=['docker','run','--rm','--label',f'harness={run}','--mount',f'type=bind,src={out},dst=/evidence,readonly','i81-wire-tools:go1.27.2','tshark','-r',f'/evidence/{role}-wire.pcapng','-Y','sctp','-T','fields']
- for f in fields:cmd+=['-e',f]
- proc=subprocess.run(cmd,text=True,capture_output=True,check=True)
+ arguments=['-Y','sctp','-T','fields']
+ for f in fields:arguments+=['-e',f]
+ proc=tshark(out,f'{role}-wire.pcapng',*arguments)
  (out/f'{role}-packets.tsv').write_text(proc.stdout)
  parsed=[dict(zip(fields,row)) for row in csv.reader(proc.stdout.splitlines(),delimiter='\t')]
  assert any('6' in r['sctp.chunk_type'].split(',') for r in parsed),'ABORT absent at capture point'

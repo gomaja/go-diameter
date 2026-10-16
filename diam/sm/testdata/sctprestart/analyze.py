@@ -2,22 +2,20 @@
 import csv
 import pathlib
 import re
-import subprocess
+import runpy
 import sys
 
 out = pathlib.Path(sys.argv[1]).resolve()
-image = 'i81-wire-tools:go1.27.2'
-run_id = (out / 'run-id').read_text().strip()
+tshark = runpy.run_path(str(pathlib.Path(__file__).resolve().parents[4] / 'scripts/sctp-wire/tshark.py'))['tshark']
 fields = ['frame.number', 'frame.time_epoch', 'ip.src', 'sctp.chunk_type', 'sctp.data_sid', 'diameter.cmd.code', 'diameter.flags.request', 'diameter.hopbyhopid', 'diameter.endtoendid', 'diameter.Result-Code', 'diameter.Origin-Host', 'diameter.Auth-Application-Id', 'diameter.Origin-State-Id']
-cmd = ['docker', 'run', '--rm', '--label', f'harness={run_id}', '--mount', f'type=bind,src={out},dst=/evidence,readonly', image, 'tshark', '-r', '/evidence/client.pcapng', '-Y', 'sctp', '-T', 'fields']
+arguments = ['-Y', 'sctp', '-T', 'fields']
 for field in fields:
-    cmd.extend(['-e', field])
-result = subprocess.run(cmd, text=True, capture_output=True, check=True)
+    arguments.extend(['-e', field])
+result = tshark(out, 'client.pcapng', *arguments)
 (out / 'packets.tsv').write_text(result.stdout)
 (out / 'tshark-errors.txt').write_text(result.stderr)
 rows = [dict(zip(fields, row)) for row in csv.reader(result.stdout.splitlines(), delimiter='\t')]
-server_cmd = [arg.replace('/evidence/client.pcapng', '/evidence/server.pcapng') for arg in cmd]
-server_result = subprocess.run(server_cmd, text=True, capture_output=True, check=True)
+server_result = tshark(out, 'server.pcapng', *arguments)
 (out / 'server-packets.tsv').write_text(server_result.stdout)
 server_rows = [dict(zip(fields, row)) for row in csv.reader(server_result.stdout.splitlines(), delimiter='\t')]
 assert any(row['sctp.chunk_type'] == '6' for row in server_rows), 'ABORT did not reach receiver capture point'

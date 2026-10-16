@@ -1,9 +1,19 @@
 This local SCTP restart harness runs `peer.Manager` against two privileged Linux containers. The alternate peer runs in the primary client's namespace; captures on both `eth0` interfaces cover both associations. No SCTP socket runs on the host. The Go driver is excluded from ordinary package discovery by `testdata` and requires the `sctprestart` build tag.
 
-Run from the repository root, with Docker and the existing `i81-wire-tools:go1.27.2` image available:
+The runner requires Docker with SCTP support, Bash and Python 3. It uses
+`scripts/sctp-wire/harness.sh`, the shared Dockerfile and tshark exporter.
+Every runner independently builds `sctp-wire-tools:go1.27.2` when absent or
+verifies it when present, then records and uses its immutable image ID. No sm
+run is required first. Set `SCTP_WIRE_IMAGE` to select a different or fresh tag.
+Python 3 runs the package-local analyzer; tshark runs in the recorded image.
+
+Invoke the runner from any directory using its path. Arguments remain
+`[source checkout] [output root] [variant]`, with this checkout, a unique
+`sctp-wire-peer-evidence-*` directory under `${TMPDIR:-/tmp}`, and `basic`
+as defaults. For example, from the repository root:
 
 ```sh
-diam/peer/testdata/sctprestart/run.sh "$PWD" /tmp/i93-wire basic
+diam/peer/testdata/sctprestart/run.sh "$PWD" /path/to/evidence/peer basic
 ```
 
 The third argument selects `basic`, `changed-identity`, `changed-apps`, `alternate-stream`, `fragment`, `watchdog`, or `deadline`. Each run writes evidence under a subdirectory named for that variant. Pass a frozen source checkout as the first argument to compare baseline and changed implementations; the builder overlays only this driver onto that checkout. The driver compiles against the public Manager APIs on both versions.
@@ -18,17 +28,22 @@ Watchdog analysis uses the replacement CER's host and the restart hook's new gen
 
 The harness wrapper forwards each message synchronously to Manager. After `ServeDIAM` returns from protocol commit, it reads `Manager.Peers()` and records a `RECOVERY_CHECKPOINT` containing the processed CER/DWA command, both identifiers, connection generation and peer snapshot. A TCP control connection on server port 3869 delivers that checkpoint to the client. The client waits for the CER checkpoint before answering recovery probes, and for each DWA checkpoint before sending the next DWA. The analyzer requires REOPEN/ineligible at admission and after DWA 1 and 2, then OKAY/eligible after DWA 3 (RFC 3539 section 3.4.1 and Appendix A). Every checkpoint must match the corresponding captured message and precede the next answer's delivery. Asynchronous `OnPeerEvent` callbacks do not establish recovery boundaries; delayed, missing or queued recovery callbacks cannot affect this check. Initial admission and the alternate peer cannot satisfy recovery. No additional Manager accessor is required.
 
-Run the analyzer's synthetic packet/log regression suite in Docker:
+Run the analyzer's synthetic packet/log regression suite from the repository root:
 
 ```sh
-docker run --rm --user "$(id -u):$(id -g)" \
-  --mount "type=bind,src=$PWD,dst=/source,readonly" \
-  -w /source/diam/peer/testdata/sctprestart \
-  i81-wire-tools:go1.27.2 python3 -B -m unittest -v analyze_test
+python3 -B -m unittest discover -s diam/peer/testdata/sctprestart -p '*_test.py' -v
 ```
 
 These tests execute the analyzer CLI with synthetic tshark output. They check its acceptance and rejection boundaries; the live two-container watchdog run supplies packet capture evidence.
 
-Missing Docker, the image, SCTP support, tshark, captures, restart evidence, or assertions fails the command. Evidence includes packet tables, raw application request bytes, captures and SHA-256 hashes, logs, build and dependency versions, image identity, kernel version, and receiver drop counters. Run-specific containers and networks are labeled, removed on every exit path, and checked by label and name. No volumes are created.
+Missing Docker, SCTP support, tshark, captures, restart evidence, or assertions fails the command. Evidence includes packet tables, raw application request bytes, captures and SHA-256 hashes, logs, build and dependency versions, image identity, kernel version, and receiver drop counters. Run-specific containers and networks are labeled, removed on every exit path, and checked by label and name. No volumes are created.
+
+Compilation copies source into the builder's writable
+container layer and mounts no host Go caches. Artifacts are copied out as the
+calling user; privileged peers bind only the binary. Container/network names
+use unique `sctp-wire-*` prefixes and temporary directories use
+`sctp-wire-build.*`. Docker CLI configuration stays in that temporary
+directory. Set `TMPDIR` to choose its location; no files are written outside
+that directory and the output directory.
 
 The harness does not test TLS, dialed association renewal, packet loss/reordering, or peer state election races. Unit and scripted transport tests cover those policy and concurrency cases. Its packet checks and observed generations establish a real accepted SCTP association restart, not a fresh listener connection.
