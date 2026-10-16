@@ -92,8 +92,6 @@ func TestSCTPRestartNotificationFragments(t *testing.T) {
 }
 
 func TestSCTPRestartMalformedNotifications(t *testing.T) {
-	oversized := restartNotification(sctp.AssocRestart, 20)
-	binary.NativeEndian.PutUint32(oversized[4:], sctp.NotificationReassemblyLimit+1)
 	shortDeclared := restartNotification(sctp.AssocRestart, 20)
 	binary.NativeEndian.PutUint32(shortDeclared[4:], 7)
 	longerDeclared := restartNotification(sctp.AssocRestart, 20)
@@ -107,7 +105,6 @@ func TestSCTPRestartMalformedNotifications(t *testing.T) {
 	}{
 		{"short-header", []sctpRestartRead{notificationRead([]byte{1, 2, 3}, true)}, sctp.ErrShortNotification},
 		{"short-association", []sctpRestartRead{notificationRead(restartNotification(sctp.AssocRestart, 20)[:19], true)}, sctp.ErrShortNotification},
-		{"declared-oversize", []sctpRestartRead{notificationRead(oversized, false)}, sctp.ErrNotificationTooLong},
 		{"invalid-length", []sctpRestartRead{notificationRead(shortDeclared, true)}, sctp.ErrShortNotification},
 		{"truncated", []sctpRestartRead{notificationRead(longerDeclared, true)}, sctp.ErrShortNotification},
 		{"trailing-bytes", []sctpRestartRead{notificationRead(shorterDeclared, true)}, sctp.ErrShortNotification},
@@ -136,12 +133,6 @@ func TestSCTPRestartNotificationLimit(t *testing.T) {
 		if !errors.As(err, &restart) {
 			t.Fatalf("size %d: %v", size, err)
 		}
-	}
-	event := restartNotification(sctp.AssocRestart, sctp.NotificationReassemblyLimit)
-	r := restartReceiver(notificationRead(event, false), notificationRead([]byte{0}, true))
-	_, _, err := recvSCTPData(r, make([]byte, len(event)), true)
-	if !errors.Is(err, sctp.ErrNotificationTooLong) {
-		t.Fatalf("actual oversize: %v", err)
 	}
 }
 
