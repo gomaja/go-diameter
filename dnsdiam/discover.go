@@ -11,6 +11,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/gomaja/go-diameter/diam/datatype"
 )
 
 // Config selects a resolver and bounds the S-NAPTR search. A nil
@@ -131,6 +133,14 @@ func knownTransport(t Transport) bool { return t == TLS || t == DTLS || t == TCP
 // absolute rejects escaped and non-ASCII labels; callers provide IDNA A-labels.
 // Service owner names may contain underscores, host and realm identities may not.
 func absolute(name string, service bool) (string, error) {
+	if !service {
+		if !datatype.DiameterIdentity(name).Valid() {
+			return "", ErrInvalid
+		}
+		return strings.ToLower(strings.TrimSuffix(name, ".")) + ".", nil
+	}
+	// RFC 6733 §5.2, as updated by RFC 8553 §2.2: service owner
+	// labels may contain underscores and are not Diameter identities.
 	for i := 0; i < len(name); i++ {
 		if name[i] >= 128 {
 			return "", ErrInvalid
@@ -148,7 +158,7 @@ func absolute(name string, service bool) (string, error) {
 			return "", ErrInvalid
 		}
 		for _, c := range []byte(label) {
-			if c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '-' || service && c == '_' {
+			if c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '-' || c == '_' {
 				continue
 			}
 			return "", ErrInvalid
