@@ -23,7 +23,7 @@ import (
 // RFC 9846 §6.2 covers failed TLS closure. Go 1.27.2's readRecordOrCCS caches
 // non-temporary transport read errors, so that TLS reader cannot resume.
 func TestBuiltInSCTPTLSRestartWireServer(t *testing.T) {
-	addr := os.Getenv("F4_SERVER_ADDR")
+	addr := os.Getenv("SCTP_TLS_RESTART_SERVER_ADDR")
 	if addr == "" {
 		t.Skip("requires the two-container SCTP/TLS restart harness")
 	}
@@ -72,7 +72,7 @@ func TestBuiltInSCTPTLSRestartWireServer(t *testing.T) {
 	case <-time.After(10 * time.Second):
 		t.Fatal("real TLS CER/CEA did not finish")
 	}
-	if err := os.WriteFile("/tmp/f4-admitted", []byte("ready"), 0600); err != nil {
+	if err := os.WriteFile("/tmp/sctp-tls-restart-admitted", []byte("ready"), 0600); err != nil {
 		t.Fatal(err)
 	}
 	// No ReadTimeout is configured. The restarted peer sends no DATA, so a
@@ -99,7 +99,7 @@ func TestBuiltInSCTPTLSRestartWireServer(t *testing.T) {
 func TestBuiltInSCTPTLSRestartWireClient(t *testing.T) {
 	testDict := newTestDictionary(dict.Base())
 
-	addr, local, phase := os.Getenv("F4_SERVER_ADDR"), os.Getenv("F4_CLIENT_ADDR"), os.Getenv("F4_PHASE")
+	addr, local, phase := os.Getenv("SCTP_TLS_RESTART_SERVER_ADDR"), os.Getenv("SCTP_TLS_RESTART_CLIENT_ADDR"), os.Getenv("SCTP_TLS_RESTART_PHASE")
 	if addr == "" || local == "" || phase == "" {
 		t.Skip("requires the two-container SCTP/TLS restart harness")
 	}
@@ -160,7 +160,7 @@ func TestBuiltInSCTPTLSRestartWireClient(t *testing.T) {
 		t.Fatal("TLS CEA identifiers do not match")
 	}
 	t.Log("INITIAL_TLS_CER_CEA_COMPLETE SO_LINGER=0")
-	if err := os.WriteFile("/tmp/f4-client-ready", []byte("ready"), 0600); err != nil {
+	if err := os.WriteFile("/tmp/sctp-tls-restart-client-ready", []byte("ready"), 0600); err != nil {
 		t.Fatal(err)
 	}
 	select {}
