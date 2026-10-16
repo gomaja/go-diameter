@@ -7,35 +7,37 @@ The image pins Go 1.27.2 and installs tshark, iptables and iproute2. Each run ow
 a dedicated labeled Docker bridge, joins its children, copies captures out,
 and removes its containers and network. It mounts no host Go cache.
 
-Run from the repository root, writing evidence outside the checkout:
+All three restart scenarios use `scripts/sctp-wire/harness.sh`, its shared
+Dockerfile, and its tshark exporter. Each runner builds
+`sctp-wire-tools:go1.27.2` when absent and verifies it when present; no other
+scenario needs to run first. `SCTP_WIRE_IMAGE` selects another tag, including a
+fresh tag for an independent first run. A run records the immutable image ID
+and uses it for compilation, peers and later analysis. Python 3 runs the local
+analyzer; only tshark runs in an analysis container.
+
+Invoke the runner from any directory using its path. The arguments remain
+`[source checkout] [output root] [variant]`; source defaults to this checkout,
+variant to `basic`, and output to a unique `sctp-wire-sm-evidence-*` directory
+under `${TMPDIR:-/tmp}`. Evidence is placed in the variant subdirectory.
+For example, from the repository root:
 
 ```sh
-bash diam/sm/testdata/sctprestart/run.sh "$PWD" /tmp/i81-wire-fixed basic
+bash diam/sm/testdata/sctprestart/run.sh "$PWD" /path/to/evidence/sm basic
 ```
 
-The optional Go test entry point also runs inside Docker. Mount the repository
-and a throwaway scratch directory at their original absolute host paths: the
-Docker daemon must see those paths when the runner starts its peers. For example,
-using a scratch directory chosen outside the checkout:
+The optional `sctprestart` tagged `TestAcceptedSCTPRestartWire` entry point
+invokes the same runner. Run it inside a Linux Docker container with the Docker
+CLI and socket available. Mount the checkout and `TMPDIR` at their original
+absolute host paths so sibling containers can bind them. The test removes its
+own temporary evidence; use the standalone runner to retain captures.
 
-```sh
-export I81_WIRE_SCRATCH=/absolute/path/to/scratch/i81-wire-test
-mkdir -p "$I81_WIRE_SCRATCH"
-docker run --rm --label harness=i81-wire-orchestrator \
-  --mount "type=bind,src=$PWD,dst=$PWD,readonly" \
-  --mount "type=bind,src=$I81_WIRE_SCRATCH,dst=$I81_WIRE_SCRATCH" \
-  --mount type=bind,src=/usr/bin/docker,dst=/usr/bin/docker,readonly \
-  --mount type=bind,src=/usr/libexec/docker/cli-plugins/docker-buildx,dst=/usr/libexec/docker/cli-plugins/docker-buildx,readonly \
-  --mount type=bind,src=/var/run/docker.sock,dst=/var/run/docker.sock \
-  -e TMPDIR="$I81_WIRE_SCRATCH" -w "$PWD" i81-wire-tools:go1.27.2 \
-  go test -tags=sctprestart ./diam/sm \
-    -run '^TestAcceptedSCTPRestartWire$' -count=1 -v -timeout 3m
-```
-
-Build `i81-wire-tools:go1.27.2` with the Dockerfile in this directory first. The
-Docker CLI and buildx paths above are the installed paths used for validation;
-adjust those mounts if the local installation differs. The test's temporary
-directory is removed by Go. Use the standalone runner to retain packet captures.
+Compilation copies source into the builder's writable container layer. No
+host Go cache is mounted, and build artifacts are copied out as the calling
+user. Privileged peers bind only the fixture binary. Every run uses unique
+`sctp-wire-*` container/network names and a `sctp-wire-build.*` temporary
+directory; cleanup touches only that run's labeled resources. Docker CLI
+configuration stays in the temporary directory. Set `TMPDIR` to choose its
+location; the runner writes only there and in its output directory.
 
 The client binds source port 43868, completes CER/CEA, sets SO_LINGER enabled
 with zero timeout, and is killed and reaped. The server drops client ABORT on
@@ -57,16 +59,16 @@ operations and `ResetForRestart` to the product adapter; no dependency is patche
 To compare with the original defect using the exact same harness:
 
 ```sh
-mkdir -p /tmp/i81-wire-baseline-source
-git archive 49b6c8c | tar -x -C /tmp/i81-wire-baseline-source
+mkdir -p /path/to/scratch/baseline-source
+git archive 49b6c8c | tar -x -C /path/to/scratch/baseline-source
 bash diam/sm/testdata/sctprestart/run.sh \
-  /tmp/i81-wire-baseline-source /tmp/i81-wire-baseline basic
+  /path/to/scratch/baseline-source /path/to/evidence/baseline basic
 ```
 
 The runner copies the tagged peer into a throwaway source tree inside its build
 container, so a baseline lacking the helper is supported. The expected failure
 is `FAIL phase=2 CEA ... i/o timeout`, with the second CER present on the wire
-and no matching CEA. `analyze.py /tmp/i81-wire-baseline/basic` independently
+and no matching CEA. `analyze.py /path/to/evidence/baseline/basic` independently
 checks the capture and exits nonzero for that missing answer.
 
 Repeat the fixed run with `changed-apps`, `alternate-stream`, `watchdog`, and
