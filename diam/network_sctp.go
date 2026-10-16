@@ -8,7 +8,6 @@ import (
 	"bytes"
 	"container/heap"
 	"context"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -85,24 +84,12 @@ func recvSCTPData(r sctpMessageReceiver, b []byte, restartAware bool) (int, sctp
 			}
 			return n, info, nil
 		}
-		// Notifications are records and may require several receives to reach
-		// MSG_EOR (RFC 6458 §6). Bound their storage before decoding §6.1.1.
+		// RecvMsg checks notification lengths and bounds reassembly before
+		// returning pieces. Collect through MSG_EOR (RFC 6458 §6) to decode the event.
 		if n <= 0 || n > len(b) {
 			return 0, sctp.MsgInfo{}, sctp.ErrShortNotification
 		}
-		if n > sctp.NotificationReassemblyLimit-len(notification) {
-			return 0, sctp.MsgInfo{}, sctp.ErrNotificationTooLong
-		}
 		notification = append(notification, b[:n]...)
-		if len(notification) >= 8 {
-			declared := binary.NativeEndian.Uint32(notification[4:8])
-			if declared > sctp.NotificationReassemblyLimit {
-				return 0, sctp.MsgInfo{}, sctp.ErrNotificationTooLong
-			}
-			if declared < 8 || uint64(len(notification)) > uint64(declared) {
-				return 0, sctp.MsgInfo{}, sctp.ErrShortNotification
-			}
-		}
 		if !info.EOR {
 			continue
 		}
