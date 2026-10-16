@@ -16,6 +16,7 @@ import (
 	"github.com/gomaja/go-diameter/diam/avp"
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/internal/base"
+	"github.com/gomaja/go-diameter/diam/internal/protocol"
 )
 
 type capabilityWireConn struct {
@@ -42,6 +43,10 @@ func TestQueuedCERPrecedesMalformedRequest(t *testing.T) {
 	c := &capabilityWireConn{fakeConn: newFakeConn(testDict), wire: make(chan []byte, 8)}
 	// Deliberately hold the dispatcher until both reader callbacks have run.
 	s := &session{m: m, c: c, inbound: true, writes: make(chan writeRequest, 8), ingress: make(chan incoming, 8), closed: make(chan struct{})}
+	if err := s.initProtocol(); err != nil {
+		t.Fatal(err)
+	}
+	s.runProtocol(protocol.Input{Kind: protocol.Start}, s.takeStartup(), nil)
 	m.sessions[c] = s
 	defer func() { s.close(); m.unregister(s); closeManager(t, m, nil) }()
 	cer, err := base.BuildCER(testDict, testBase("known.example.net"))

@@ -14,7 +14,7 @@ import (
 
 // RFC 6733 §§5.4,5.5,6.3: these discarded controls retain the existing
 // StateMachine log cause and observer result, including a modified hook body.
-func TestAcceptedInvalidControlLogCompatibilityWire(t *testing.T) {
+func TestAcceptedInvalidControlLogEvidenceWire(t *testing.T) {
 	for _, variant := range []string{"DWR-bound-host", "DPR-bound-host", "DWR-post-hook-missing-host"} {
 		t.Run(variant, func(t *testing.T) {
 			var mutated atomic.Bool

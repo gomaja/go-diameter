@@ -12,16 +12,15 @@ import (
 	"time"
 
 	"github.com/gomaja/go-diameter/diam"
-	"github.com/gomaja/go-diameter/diam/avp"
-	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/dict"
-	"github.com/gomaja/go-diameter/diam/internal/base"
+	"github.com/gomaja/go-diameter/diam/internal/protocol"
 	"github.com/gomaja/go-diameter/diam/sm"
-	"github.com/gomaja/go-diameter/diam/sm/smparser"
 	"github.com/gomaja/go-diameter/diam/sm/smpeer"
 )
 
 type event struct {
+	// testHook observes actor-owned state at an event boundary; nil in use.
+	testHook        func()
 	receivedAt      time.Time
 	receiveSequence uint64
 	afterReceive    uint64
@@ -36,6 +35,8 @@ type event struct {
 	cause           sm.DisconnectCause
 	discovery       *discoveryCommand
 	leaseState      *discoveryState
+	input           protocol.Input
+	replyDelivery   *protocolDelivery
 }
 
 const (
@@ -43,6 +44,7 @@ const (
 	discoveryStop    psmEvent = "discovery-stop"
 	discoveryExpire  psmEvent = "discovery-expire"
 	discoveryRefresh psmEvent = "discovery-refresh"
+	coreEvent        psmEvent = "core"
 	wireEvent        psmEvent = "wire"
 	dialDone         psmEvent = "dial-done"
 	connGone         psmEvent = "conn-gone"
@@ -157,21 +159,10 @@ func (a *actor) run() {
 			case cmd := <-control:
 				a.retireResponder(cmd)
 			case <-leaseStop:
-				a.handleDiscovery(event{kind: discoveryStop})
+				a.handleEvent(event{kind: discoveryStop})
 				leaseStop = nil
 			case e := <-a.events:
-				d := e.delivery
-				if d == nil {
-					d = newProtocolDelivery()
-				}
-				a.delivery = d
-				a.handle(e)
-				a.delivery = nil
-				d.finish()
-				if e.delivery == nil && len(d.notifications) > 0 {
-					a.m.wg.Add(1)
-					go func() { defer a.m.wg.Done(); d.deliver(a.m) }()
-				}
+				a.handleEvent(e)
 			}
 		}
 		if (a.m.isClosing() || a.discovery.Load() != nil && a.ownStop) && a.state == Closed {
@@ -195,6 +186,25 @@ func (a *actor) run() {
 		}
 	}
 }
+
+// A writer can report failure after an event accepted its reply without any
+// admission notices. Finalize that delivery too, with observers off the actor.
+func (a *actor) handleEvent(e event) {
+	d := e.delivery
+	if d == nil {
+		d = newProtocolDelivery()
+	}
+	a.delivery = d
+	d.priorReply = e.replyDelivery
+	a.handle(e)
+	a.delivery = nil
+	d.finish()
+	if e.delivery == nil {
+		a.m.wg.Add(1)
+		go func() { defer a.m.wg.Done(); d.deliver(a.m) }()
+	}
+}
+
 func (m *Manager) isClosing() bool { m.mu.RLock(); v := m.closing; m.mu.RUnlock(); return v }
 func (a *actor) stopTimer() {
 	a.token++
@@ -240,6 +250,10 @@ func (a *actor) failWithLog(level slog.Level, text string, err error) {
 	a.lostConnection(err)
 }
 func (a *actor) handle(e event) {
+	if e.testHook != nil {
+		e.testHook()
+		return
+	}
 	defer func() {
 		if e.s != nil && e.receiveSequence != 0 {
 			e.s.receivedSequence = e.receiveSequence
@@ -264,21 +278,16 @@ func (a *actor) handle(e event) {
 		a.onDial(e)
 		return
 	}
-	if e.s != nil && e.s.isRetired() {
-		return
-	}
-	if e.kind == watchdogTimeout {
-		if e.token == a.wdToken && a.active != nil && !a.active.isRetired() && e.gen == a.active.gen {
-			// RFC 3539 §3.4.1, Appendix A: messages already admitted at
-			// expiry commit their receive/DWA decisions before that expiry.
-			if e.s != nil && e.s.receivedSequence < e.afterReceive {
-				a.deferredWatchdog = &e
-				return
-			}
-			a.watchdogTick()
+	if e.kind == coreEvent {
+		if e.s != nil {
+			e.s.applyProtocol(e.input, a.delivery)
 		}
 		return
 	}
+	if e.s != nil && e.s.isRetired() {
+		return
+	}
+
 	if e.kind == reconnectTimeout {
 		if e.token == a.tcToken {
 			a.tcTimer = nil
@@ -311,6 +320,9 @@ func (a *actor) handle(e event) {
 		return
 	}
 	if e.kind == connGone {
+		if e.s != nil && e.s.core != nil {
+			e.s.applyProtocol(protocol.Input{Kind: protocol.TransportLost}, a.delivery)
+		}
 		a.onGone(e.s)
 		a.m.failoverSession(e.s)
 		return
@@ -458,6 +470,10 @@ func (a *actor) onDial(e event) {
 		}
 		return
 	}
+	if e.s.c.Closed() || e.s.protocolSnapshot().Phase() >= protocol.Closed {
+		a.failLocal("send CER", net.ErrClosed)
+		return
+	}
 	a.i = e.s
 	a.step(iAck, e.s, nil)
 	if a.state == WaitReturns {
@@ -482,7 +498,8 @@ func (a *actor) onCER(e event) {
 	}
 	if err := a.admitDiscovery(e.s, e.meta); err != nil {
 		a.signalReady(err)
-		a.m.rejectCER(e.s, e.msg, diam.UnknownPeer, err, a.delivery)
+		a.m.report(e.s, e.msg, err)
+		e.s.applyProtocol(protocol.Input{Kind: protocol.RejectCandidate, Token: e.s.candidate, ResultCode: diam.UnknownPeer, Message: e.msg}, a.delivery)
 		return
 	}
 	if a.state != Closed && a.state != WaitConnAck && a.state != WaitICEA && a.state != WaitConnAckElect && a.state != WaitReturns && a.state != IOpen && a.state != ROpen {
@@ -528,288 +545,20 @@ func (a *actor) elect() {
 }
 func (a *actor) onWire(e event) {
 	s := e.s
-	msg := e.msg
-	if s == nil || msg == nil || msg.Header == nil {
+	if s == nil || s.isRetired() {
 		return
 	}
-	if (s != a.i && s != a.r) || s.gen == 0 {
-		if msg.Header.CommandFlags&diam.RequestFlag == 0 && msg.Header.ApplicationID != 0 {
+	if s != a.i && s != a.r || s.gen == 0 {
+		msg := e.msg
+		if msg != nil && msg.Header != nil && msg.Header.CommandFlags&diam.RequestFlag == 0 && msg.Header.ApplicationID != 0 {
 			a.m.report(s, msg, errors.New("peer: answer on retired connection generation (RFC 6733 §6.2.1)"))
 			a.protocolError(s.c, msg, diam.ProtocolUnexpectedMessage, 0, false, diam.ProtocolReplyNone, 0)
 		}
 		return
-	} // RFC 6733 §5.6: ignore retired candidate generations.
-	isI := s == a.i
-	cmd := msg.Header.CommandCode
-	req := msg.Header.CommandFlags&diam.RequestFlag != 0
-	if a.state == WaitICEA || a.state == WaitReturns {
-		isCEA := isI && cmd == diam.CapabilitiesExchange && !req && msg.Header.ApplicationID == 0
-		// RFC 6733 §§3, 5.3, 6.2.1: correlate recognizable CEA headers
-		// before rejecting a recoverable body error. A stray answer owns
-		// neither admission nor its deadline; fatal framing still rejects.
-		if isCEA && (e.messageErr == nil || !e.messageErr.Fatal) &&
-			(s.cerHop != msg.Header.HopByHopID || s.cerEnd != msg.Header.EndToEndID) {
-			a.m.report(s, msg, errors.New("peer: CEA identifiers mismatch"))
-			a.protocolError(s.c, msg, diam.ProtocolUnexpectedMessage, 0, false, diam.ProtocolReplyNone, 0)
-			return
-		}
-		if isCEA && e.messageErr == nil {
-			if err := base.ValidateMessage(msg); err != nil {
-				a.fail(fmt.Errorf("peer: invalid CEA: %w", err))
-				kind := diam.ProtocolCEARejected
-				if base.ValidateHeader(msg) != nil {
-					kind = diam.ProtocolInvalidHeader
-				}
-				a.protocolError(s.c, msg, kind, err.ResultCode, true, diam.ProtocolReplyNone, 0)
-				return
-			}
-			cea := new(smparser.CEA)
-			if err := cea.Parse(msg, smparser.ParseOptions{Role: smparser.Client, LocalApplications: s.localApps}); err != nil {
-				a.fail(fmt.Errorf("peer: invalid CEA: %w", err))
-				if a.m.cfg.Settings.OnProtocolError != nil {
-					a.protocolError(s.c, msg, diam.ProtocolCEARejected, protocolResultCode(err), true, diam.ProtocolReplyNone, 0)
-				}
-				return
-			}
-			if compareIdentity(cea.OriginHost, a.cfg.Host) != 0 {
-				a.fail(errors.New("peer: CEA Origin-Host mismatch"))
-				a.protocolError(s.c, msg, diam.ProtocolCEARejected, 0, true, diam.ProtocolReplyNone, 0)
-				return
-			}
-			meta := smpeer.FromCEA(cea).Clone()
-			if err := a.admitDiscovery(s, meta); err != nil {
-				a.fail(err)
-				return
-			}
-			s.meta = meta
-			a.meta = s.meta.Clone()
-			s.releaseControl(s.cerHop)
-			if s.requests != nil {
-				s.requests.MatchAnswer(msg, true)
-			}
-			a.step(iCEA, s, msg)
-			return
-		}
-		if isI {
-			a.step(iNonCEA, s, msg)
-			result := uint32(0)
-			if e.messageErr != nil {
-				result = e.messageErr.ResultCode
-			}
-			a.protocolError(s.c, msg, diam.ProtocolHandshakeState, result, true, diam.ProtocolReplyNone, 0)
-		} else {
-			// RFC 6733 §5.6 has no R-Rcv-Message action in Wait-Returns.
-			// As in Wait-Conn-Ack/Elect, close all pre-CEA traffic on R.
-			reason := error(e.messageErr)
-			if e.messageErr == nil {
-				reason = errors.New("peer: message before answering connection handshake")
-			}
-			a.m.report(s, msg, reason)
-			s.close()
-			result := uint32(0)
-			if e.messageErr != nil {
-				result = e.messageErr.ResultCode
-			}
-			a.protocolError(s.c, msg, diam.ProtocolHandshakeState, result, true, diam.ProtocolReplyNone, 0)
-		}
-		return
 	}
-	if a.state != IOpen && a.state != ROpen && a.state != Closing {
-		a.m.report(s, msg, errors.New("peer: message before handshake"))
-		s.close()
-		result := uint32(0)
-		if e.messageErr != nil {
-			result = e.messageErr.ResultCode
-		}
-		a.protocolError(s.c, msg, diam.ProtocolHandshakeState, result, true, diam.ProtocolReplyNone, 0)
-		return
-	}
-	// RFC 6733 §5.6: Closing admits disconnect traffic only. The
-	// maintainer's drain policy also admits answers owned by requests already
-	// sent on this generation. Decide before validation, error answers and
-	// watchdog effects; ineligible traffic has no hooks or wire response.
-	if a.state == Closing {
-		if s != a.active {
-			return
-		}
-		disconnect := cmd == diam.DisconnectPeer && msg.Header.ApplicationID == 0
-		if !disconnect && (req || !a.m.matchesPendingAnswer(s, msg)) {
-			return
-		}
-	}
-	if a.state != Closing && (e.messageErr == nil || !e.messageErr.Fatal) && cmd == diam.CapabilitiesExchange && req && msg.Header.ApplicationID == 0 {
-		a.watchdogReceiveAt(msg, e.receivedAt)
-		reason := errors.New("peer: ignoring CER on admitted connection; accepted CER renewal is disabled or ineligible")
-		a.m.reportFailure(s, msg, slog.LevelWarn, reason.Error(), reason)
-		a.protocolError(s.c, msg, diam.ProtocolUnexpectedMessage, 0, false, diam.ProtocolReplyNone, 0)
-		return
-	}
+	s.applyProtocol(protocol.Input{Kind: protocol.Receive, Message: e.msg, Error: e.messageErr, ErrorInput: e.messageErr != nil, At: e.receivedAt, Sequence: e.receiveSequence}, a.delivery)
+}
 
-	if headerErr := base.ValidateHeader(msg); headerErr != nil && !base.FatalHeaderError(e.messageErr) {
-		a.m.report(s, msg, headerErr)
-		if !req {
-			closing := e.messageErr != nil && e.messageErr.Fatal
-			a.protocolError(s.c, msg, diam.ProtocolInvalidHeader, headerErr.ResultCode, closing, diam.ProtocolReplyNone, 0)
-			return
-		} // RFC 6733 §§2.5 and 7: invalid DWA/DPA is discarded.
-		headerErr.Fatal = e.messageErr != nil && e.messageErr.Fatal
-		e.messageErr = headerErr
-	}
-	if e.messageErr != nil {
-		if a.state == Closing {
-			// RFC 6733 §5.6: the crossed/repeated DPR policy admits valid
-			// requests only. Preserve decoding diagnostics without an error
-			// answer that would introduce new Closing work.
-			a.protocolError(s.c, msg, diam.ProtocolMalformedMessage, e.messageErr.ResultCode, e.messageErr.Fatal, diam.ProtocolReplyNone, 0)
-			return
-		}
-		// The actor queued CEA before this error answer (RFC 6733 §§5.6, 7).
-		_ = a.m.answerMessageError(s, msg, e.messageErr, a.delivery)
-		return
-	}
-
-	if s != a.active {
-		return
-	}
-	if a.state != Closing && !a.watchdogReceiveAt(msg, e.receivedAt) {
-		return
-	}
-	if err := base.ValidateMessage(msg); err != nil {
-		a.m.rejectBaseMessage(s, msg, err, false, a.state == Closing, a.delivery)
-		return
-	}
-	if rejection := base.ValidateRequest(msg, s.localApps, a.m.cfg.Settings.ValidateRequests, a.m.cfg.Settings.RejectUnknownMandatoryAVPs); rejection != nil {
-		a.m.rejectRequest(s, msg, rejection, false, a.state == Closing, a.delivery)
-		return
-	}
-	if a.state == Closing {
-		if cmd == diam.DisconnectPeer && !req && msg.Header.ApplicationID == 0 {
-			// RFC 6733 §§3, 5.4.2, 6.2.1: require a locally owned DPR
-			// in this generation, even when both identifiers are zero.
-			if a.pendingDPRGen != s.gen || a.pendingDPRCommand != cmd ||
-				msg.Header.HopByHopID != a.pendingDPR || msg.Header.EndToEndID != a.pendingDPREnd {
-				a.m.report(s, msg, errors.New("peer: DPA identifiers mismatch"))
-				a.protocolError(s.c, msg, diam.ProtocolInvalidDPA, 0, false, diam.ProtocolReplyNone, 0)
-				return
-			}
-			result, err := base.ValidateDPA(msg)
-			if err != nil {
-				a.m.report(s, msg, err)
-				a.protocolError(s.c, msg, diam.ProtocolInvalidDPA, 0, false, diam.ProtocolReplyNone, 0)
-				return
-			}
-			// RFC 6733 §§5.4.2, 6.3: bind the structurally valid answer
-			// to the admitted identity before interpreting its Result-Code.
-			host, err := msg.FindAVP(avp.OriginHost, 0)
-			if err != nil || compareIdentity(host.Data.(datatype.DiameterIdentity), a.cfg.Host) != 0 {
-				a.m.report(s, msg, errors.New("peer: DPA Origin-Host mismatch"))
-				a.protocolError(s.c, msg, diam.ProtocolInvalidDPA, 0, false, diam.ProtocolReplyNone, 0)
-				return
-			}
-			if result != diam.Success {
-				a.m.report(s, msg, fmt.Errorf("peer: DPA Result-Code %d", result))
-				a.protocolError(s.c, msg, diam.ProtocolPeerRejected, result, true, diam.ProtocolReplyNone, 0)
-			}
-			// RFC 6733 §5.4: the DPA receiver initiates transport disconnect,
-			// including a valid unsuccessful answer; preserve its diagnostic.
-			a.pendingDPRGen, a.pendingDPRCommand = 0, 0
-			if isI {
-				s.releaseControl(a.pendingDPR)
-				a.step(iDPA, s, msg)
-			} else {
-				s.releaseControl(a.pendingDPR)
-				a.step(rDPA, s, msg)
-			}
-		} else if cmd == diam.DisconnectPeer && req && a.validDPR(s, msg) {
-			// Crossed/repeated DPR interoperability policy: answer without
-			// rearming the first Closing deadline (RFC 6733 §5.6).
-			a.answerDPR(s, msg)
-		} else if !req {
-			a.m.receiveClosingAnswer(s, msg)
-		}
-		return
-	}
-	switch {
-	case cmd == diam.DeviceWatchdog && req && msg.Header.ApplicationID == 0:
-		var dwr base.DWR
-		if err := dwr.Parse(msg); err != nil {
-			a.m.report(s, msg, err)
-			a.protocolError(s.c, msg, diam.ProtocolInvalidDWR, 0, false, diam.ProtocolReplyNone, 0)
-			return
-		}
-		if compareIdentity(dwr.OriginHost, a.cfg.Host) != 0 {
-			a.m.report(s, msg, errors.New("peer: DWR Origin-Host mismatch"))
-			a.protocolError(s.c, msg, diam.ProtocolInvalidDWR, 0, false, diam.ProtocolReplyNone, 0)
-			return
-		}
-		if isI {
-			a.step(iDWR, s, msg)
-		} else {
-			a.step(rDWR, s, msg)
-		}
-	case cmd == diam.DeviceWatchdog && !req && msg.Header.ApplicationID == 0:
-		if isI {
-			a.step(iDWA, s, msg)
-		} else {
-			a.step(rDWA, s, msg)
-		}
-	case cmd == diam.DisconnectPeer && req && msg.Header.ApplicationID == 0:
-		if !a.validDPR(s, msg) {
-			return
-		}
-		if isI {
-			a.step(iDPR, s, msg)
-		} else {
-			a.step(rDPR, s, msg)
-		}
-	default:
-		if a.watchdog == WatchdogReopen {
-			return
-		} // RFC 3539 Appendix A: Throwaway(non-DWA).
-		if isI {
-			a.step(iMessage, s, msg)
-		} else {
-			a.step(rMessage, s, msg)
-		}
-	}
-}
-func (a *actor) validDPR(s *session, msg *diam.Message) bool {
-	if _, err := base.ValidateDPR(msg); err != nil {
-		a.m.report(s, msg, err)
-		a.protocolError(s.c, msg, diam.ProtocolInvalidDPR, 0, false, diam.ProtocolReplyNone, 0)
-		return false
-	}
-	// RFC 6733 §§5.1, 5.4.1: accept a DPR only from this connection's peer.
-	host, err := msg.FindAVP(avp.OriginHost, 0)
-	if err != nil || compareIdentity(host.Data.(datatype.DiameterIdentity), a.cfg.Host) != 0 {
-		a.m.report(s, msg, errors.New("peer: DPR Origin-Host mismatch"))
-		a.protocolError(s.c, msg, diam.ProtocolInvalidDPR, 0, false, diam.ProtocolReplyNone, 0)
-		return false
-	}
-	return true
-}
-func (a *actor) answerDPR(s *session, msg *diam.Message) {
-	if _, err := base.ValidateDPR(msg); err != nil {
-		a.m.report(s, msg, err)
-		a.protocolError(s.c, msg, diam.ProtocolInvalidDPR, 0, false, diam.ProtocolReplyNone, 0)
-		return
-	}
-	result := uint32(diam.Success)
-	if a.closingWatchdog || a.m.hasInFlightRequests(s) {
-		// RFC 6733 §5.4 recommends an error for likely in-flight messages.
-		// §7.1.5's DIAMETER_UNABLE_TO_COMPLY (5012) covers this unspecified
-		// rejection; no invalid AVP or unsupported command is implicated.
-		result = diam.UnableToComply
-	}
-	dpa, err := base.BuildDPAResult(msg, a.m.baseSettings(s.c), result)
-	if err == nil {
-		err = s.sendRequired(dpa, msg, false, result)
-	}
-	if err != nil {
-		a.m.reportLocal(s, msg, "peer: DPA answer failed; closing connection", err)
-		a.requiredReplyFailed(s, msg, result)
-	}
-}
 func (a *actor) onGone(s *session) {
 	if s == nil {
 		return
@@ -865,43 +614,17 @@ func (a *actor) step(ev psmEvent, s *session, msg *diam.Message) {
 	}
 	old := a.state
 	a.state = row.next
-	if a.state == Closing && old != Closing && s != nil {
-		// Keep the in-flight decision after stopWatchdog invalidates its
-		// probe credit; a DWR sent before Closing still awaits an answer.
-		a.closingWatchdog = a.closingWatchdog || a.pendingWatchdog && !a.watchdogAnswered && a.watchdogGen == s.gen
-		// RFC 6733 §5.6: publish Closing admission before DPR/DPA effects.
-		// The pending lock fences Send reservations against this transition.
-		a.m.closeAdmission(s)
-		if s.requests != nil && a.closingWatchdog {
-			// Queuing DWR precedes native write-gate admission. RFC 6733
-			// §5.4's in-flight decision uses that shared Closing boundary.
-			answer := &diam.Message{Header: &diam.Header{CommandCode: diam.DeviceWatchdog,
-				HopByHopID: a.watchdogHop, EndToEndID: a.watchdogEnd}}
-			a.closingWatchdog = s.requests.MatchAnswer(answer, false)
-		}
-	}
+
 	if old == Closing && a.state != Closing {
 		a.pendingDPRGen, a.pendingDPRCommand = 0, 0
 	}
 	switch ev {
 	case iAck:
 		a.stopTimer()
-		a.arm(a.m.cfg.Timers.CER)
 		if a.i != nil {
-			local := a.m.baseSettings(a.i.c)
-			a.i.localApps = base.AdvertisedApplicationIDs(local)
-			m, err := base.BuildCER(a.m.dictionary(), local)
-			if err != nil {
-				a.failLocal("build CER", err)
-				return
-			}
-			if err := a.i.sendControl(m); err != nil {
-				a.failLocal("send CER", err)
-				return
-			}
-			a.i.cerHop = m.Header.HopByHopID
-			a.i.cerEnd = m.Header.EndToEndID
+			a.i.runProtocol(protocol.Input{Kind: protocol.Start}, a.i.takeStartup(), a.delivery)
 		}
+
 	case iNack:
 		if old == WaitConnAckElect {
 			a.active = a.r
@@ -957,7 +680,7 @@ func (a *actor) step(ev psmEvent, s *session, msg *diam.Message) {
 			a.active = nil
 			a.meta = nil
 		case WaitReturns:
-			a.arm(a.m.cfg.Timers.CER)
+			// The surviving initiator retains its core CER deadline.
 		}
 	case iNonCEA:
 		a.fail(errors.New("peer: non-CEA before handshake"))
@@ -979,60 +702,30 @@ func (a *actor) step(ev psmEvent, s *session, msg *diam.Message) {
 			a.protocolError(connection.c, nil, kind, 0, true, diam.ProtocolReplyNone, 0)
 		}
 		return
-	case iDWR, rDWR:
-		dwa, err := base.BuildDWA(msg, a.m.baseSettings(s.c))
-		if err != nil {
-			a.failLocal("build DWA", err)
-			a.requiredReplyFailed(s, msg, diam.Success)
-			return
-		}
-		if err := s.sendRequired(dwa, msg, false, diam.Success); err != nil {
-			a.failLocal("send DWA", err)
-			a.requiredReplyFailed(s, msg, diam.Success)
-			return
-		}
-	case iDPR, rDPR:
-		a.stopTimer()
-		a.stopWatchdog()
-		cause, _ := base.ValidateDPR(msg)
-		// RFC 6733 §5.4.3: only REBOOTING permits periodic reconnection.
-		a.suppressReconnect = cause == uint32(sm.DisconnectBusy) || cause == uint32(sm.DisconnectDoNotWantToTalkToYou)
-		a.answerDPR(s, msg)
-		a.arm(a.m.cfg.Timers.Closing)
 	case stop:
 		a.stopTimer()
-		dpr, err := base.BuildDPR(a.m.dictionary(), a.m.baseSettings(s.c), uint32(a.closeCause))
-		if err != nil {
-			a.failLocal("build DPR", err)
+		if s != nil {
+			s.applyProtocol(protocol.Input{Kind: protocol.Disconnect, Cause: uint32(a.closeCause)}, a.delivery)
+		}
+		if a.state == Closed {
 			return
 		}
-		if err := s.sendControl(dpr); err != nil {
-			a.failLocal("send DPR", err)
-			return
-		}
-		a.pendingDPR = dpr.Header.HopByHopID
-		a.pendingDPREnd = dpr.Header.EndToEndID
-		// RFC 6733 §§5.4.2, 6.2.1: Closing alone does not own a DPR.
-		a.pendingDPRGen, a.pendingDPRCommand = s.gen, dpr.Header.CommandCode
-		a.arm(a.m.cfg.Timers.Closing)
 	case iDPA, rDPA:
 		a.stopTimer()
 		s.close()
-		a.active = nil
-		a.meta = nil
-	case iMessage, rMessage:
-		if msg.Header.CommandFlags&diam.RequestFlag == 0 {
-			a.m.receiveAnswer(s, msg, a.delivery)
-		} else {
-			a.m.unsupported(s, msg, a.delivery)
-		}
+		a.active, a.meta = nil, nil
+
 	}
 	if a.active != nil && a.active.inbound && (a.state == ROpen) && !a.active.isRetired() {
 		a.active.admitted.Store(true)
 	}
 	if old != IOpen && old != ROpen && (a.state == IOpen || a.state == ROpen) {
 		a.closingWatchdog = false
-		a.onOpen()
+		a.stopReconnect()
+		if a.active != nil {
+			a.syncProtocol(a.active, protocol.Input{Kind: protocol.ReleaseAdmission})
+		}
+		a.everOpen = true
 		if a.state == Closed {
 			return
 		}
@@ -1043,29 +736,31 @@ func (a *actor) sendCEA(s *session) bool {
 	if s == nil {
 		a.failLocal("send CEA", errors.New("missing responder"))
 		return false
-	} // RFC 6733 §§5.3.2, 5.6.
-	msg := s.cerRequest
-	if msg == nil {
+	}
+	if s.candidate == 0 {
 		a.failLocal("send CEA", errors.New("missing CER"))
 		return false
 	}
-	local := a.m.baseSettings(s.c)
-	s.localApps = base.AdvertisedApplicationIDs(local)
-	answer, err := base.BuildCEA(msg, local, diam.Success)
-	if err != nil {
-		a.failLocal("build CEA", err)
-		a.requiredReplyFailed(s, msg, diam.Success)
-		return false
+	s.applyProtocol(protocol.Input{Kind: protocol.Activate, Token: s.candidate, Message: s.cerRequest, Recovery: a.watchdog == WatchdogDown}, a.delivery)
+	return !s.c.Closed() && !s.isRetired()
+}
+
+// Core admission selects this event; peer election decides which leg survives.
+func (a *actor) openInitiator(s *session) {
+	row, ok := transition(a.state, iCEA)
+	if !ok {
+		return
 	}
-	if err := s.sendRequired(answer, msg, false, diam.Success); err != nil {
-		if s.isRetired() {
-			return false
-		}
-		a.failLocal("send CEA", err)
-		a.requiredReplyFailed(s, msg, diam.Success)
-		return false
+	old := a.state
+	a.state = row.next
+	a.stopTimer()
+	a.stopReconnect()
+	if old == WaitReturns && a.r != nil {
+		a.r.close()
+		a.r = nil
 	}
-	return true
+	a.active = s
+	a.meta = s.meta.Clone()
 }
 
 // dictionary preserves the configured parser identity; its nil fallback is

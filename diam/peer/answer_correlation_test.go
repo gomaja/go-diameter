@@ -119,7 +119,7 @@ func TestManagerCEACorrelationOnWire(t *testing.T) {
 				}
 				// Duplicate CEA cannot replace the identity learned on admission.
 				write(t, c, correlationCEA(t, cer, "other.example.net"))
-				write(t, c, reviewDWR(t))
+				write(t, c, watchdogRequest(t))
 				if answer := read(t, c); answer.Header.CommandCode != diam.DeviceWatchdog || code(t, answer) != diam.Success {
 					t.Fatalf("duplicate CEA disturbed admission: %v", answer)
 				}
@@ -182,7 +182,7 @@ func correlationReceiver(t *testing.T) (*Manager, net.Conn, *fakeClock, <-chan d
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = c.Close() })
-	write(t, c, reviewCER(t))
+	write(t, c, capabilitiesExchangeRequest(t))
 	if code(t, read(t, c)) != diam.Success {
 		t.Fatal("CEA rejected")
 	}
@@ -268,39 +268,65 @@ func TestManagerDPAOwnership(t *testing.T) {
 		t.Run(fault, func(t *testing.T) {
 			a, s, _ := failureReportingActor(t)
 			a.state, a.i, a.active = IOpen, s, s
-			a.stop(sm.DisconnectRebooting)
-			dpr := (<-s.writes).msg
-			gen, command := a.pendingDPRGen, a.pendingDPRCommand
-			switch fault {
-			case "no request":
-				a.pendingDPRGen = 0
-			case "stale generation":
-				a.pendingDPRGen = s.gen + 1
-			case "wrong command":
-				a.pendingDPRCommand = diam.DeviceWatchdog
-			case "zero identifiers":
-				dpr.Header.HopByHopID, dpr.Header.EndToEndID = 0, 0
-				a.pendingDPR, a.pendingDPREnd = 0, 0
+			if err := bootstrapSessionProtocol(s); err != nil {
+				t.Fatal(err)
 			}
-			answer, err := base.BuildDPA(dpr, testBase("known.example.net"))
+			var request *diam.Message
+			var selected writeRequest
+			if fault == "no request" {
+				var err error
+				request, err = base.BuildDPR(a.m.dictionary(), testBase("known.example.net"), 0)
+				if err != nil {
+					t.Fatal(err)
+				}
+				a.onWire(event{s: s, msg: request})
+				<-s.writes
+			} else {
+				if fault == "zero identifiers" {
+					a.m.nextHop = ^uint32(0)
+					a.m.endToEnd.next.Store(0)
+				}
+				a.stop(sm.DisconnectRebooting)
+				selected = <-s.writes
+				request = selected.msg
+			}
+			answer, err := base.BuildDPA(request, testBase("known.example.net"))
 			if err != nil {
 				t.Fatal(err)
 			}
 			var events []diam.ProtocolErrorEvent
 			a.m.cfg.Settings.OnProtocolError = func(e diam.ProtocolErrorEvent) { events = append(events, e) }
-			a.onWire(event{s: s, msg: answer})
-			if fault != "zero identifiers" {
-				if a.state != Closing || s.c.Closed() || len(events) != 1 || events[0].Err.Kind() != diam.ProtocolInvalidDPA {
-					t.Fatalf("unowned DPA completed disconnect: state=%s closed=%t events=%v", a.state, s.c.Closed(), events)
+			switch fault {
+			case "stale generation":
+				stale := &session{m: a.m, c: newFakeConn(), gen: s.gen - 1}
+				a.onWire(event{s: stale, msg: answer})
+				if a.state != Closing || s.c.Closed() || len(events) != 0 {
+					t.Fatal("stale connection completed disconnect")
 				}
-				// A rejected answer must leave the actual owned request consumable.
-				a.pendingDPRGen, a.pendingDPRCommand = gen, command
-				a.onWire(event{s: s, msg: answer})
-			} else if len(events) != 0 {
-				t.Fatalf("owned zero identifiers rejected: %v", events)
+			case "wrong command":
+				wrong := *answer.Header
+				wrong.CommandCode = diam.DeviceWatchdog
+				a.onWire(event{s: s, msg: &diam.Message{Header: &wrong}})
+				if a.state != Closing || s.c.Closed() || len(events) != 0 {
+					t.Fatal("different command completed disconnect")
+				}
+			}
+			a.onWire(event{s: s, msg: answer})
+			if fault == "no request" {
+				if a.state != Closing || s.c.Closed() || len(events) != 1 || events[0].Err.Kind() != diam.ProtocolInvalidDPA {
+					t.Fatalf("unsolicited DPA: state=%s events=%v", a.state, events)
+				}
+				return
+			}
+			if fault == "zero identifiers" && (request.Header.HopByHopID != 0 || request.Header.EndToEndID != 0) {
+				t.Fatal("fixture did not allocate zero identifiers")
 			}
 			if a.state != Closed || !s.c.Closed() || a.pendingDPRGen != 0 || a.pendingDPRCommand != 0 {
 				t.Fatalf("owned DPA did not release disconnect: state=%s gen=%d command=%d", a.state, a.pendingDPRGen, a.pendingDPRCommand)
+			}
+			fixtureCompleteWrite(s, selected)
+			if len(s.protocolSnapshot().Controls()) != 0 {
+				t.Fatal("answered DPR retained its completed writer")
 			}
 		})
 	}

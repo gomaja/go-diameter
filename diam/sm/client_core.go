@@ -74,9 +74,9 @@ func (cli *Client) newCore(c diam.Conn, local base.Settings) (*acceptedHandshake
 	core, err := protocol.New(protocol.Config{Connection: s.id, Role: protocol.Initiator,
 		Local: local, Dictionary: cli.Dict, TLS: secured, Hooks: true,
 		CERInterval: max(cli.RetransmitInterval, time.Nanosecond), MaxRetransmits: cli.MaxRetransmits,
-		ClosingTimeout: closingTimeout, LocalDisconnectInClosing: true, DWRHookCompatibility: true,
-		CERTransportLossCompatibility: true,
-		Watchdog:                      cli.EnableWatchdog, WatchdogInterval: interval,
+		ClosingTimeout: closingTimeout, LocalDisconnectInClosing: true, SkipDWRGrammarAfterHook: true,
+		KeepCERDeadlineAfterTransportLoss: true,
+		Watchdog:                          cli.EnableWatchdog, WatchdogInterval: interval,
 		ValidateRequests: cli.Handler.cfg.ValidateRequests, RejectUnknownMandatoryAVPs: cli.Handler.cfg.RejectUnknownMandatoryAVPs})
 	if err != nil {
 		return nil, acceptedBatch{}, err

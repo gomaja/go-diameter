@@ -160,7 +160,10 @@ func (s *acceptedHandshake) record(in protocol.Input, n protocol.Notification) {
 		if n.Diagnostic == "local-disconnect" {
 			err = ErrDisconnectTimeout
 		}
-		if (err == nil || n.Protocol == diam.ProtocolInvalidRequest || n.Protocol == diam.ProtocolUnsupportedAVP) && n.ResultCode != 0 {
+		// Construction failure reports the header classification publicly while
+		// the core retains the detached validation cause for its own consumers.
+		headerConstructionFailure := n.Protocol == diam.ProtocolInvalidHeader && n.Reply == diam.ProtocolReplyFailed && n.ReplyError != nil
+		if (err == nil || n.Protocol == diam.ProtocolInvalidRequest || n.Protocol == diam.ProtocolUnsupportedAVP || headerConstructionFailure) && n.ResultCode != 0 {
 			err = diam.NewProtocolError(n.Protocol, n.ResultCode)
 		}
 		if n.Protocol == diam.ProtocolUnsupportedCommand || n.Protocol == diam.ProtocolUnsupportedApplication {

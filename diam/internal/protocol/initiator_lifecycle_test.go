@@ -48,7 +48,7 @@ func TestInitiatorLifecycleAtCERBoundaries(t *testing.T) {
 		for _, close := range []InputKind{TransportLost, Abort, Retire} {
 			t.Run(fmt.Sprintf("%s/close%d", stage, close), func(t *testing.T) {
 				c := machine(t, func(cfg *Config) {
-					cfg.Role, cfg.CERTransportLossCompatibility = Initiator, true
+					cfg.Role, cfg.KeepCERDeadlineAfterTransportLoss = Initiator, true
 					cfg.HandshakeTimeout, cfg.CERInterval = 0, time.Second
 				})
 				start := c.Handle(event(Start))
@@ -108,7 +108,7 @@ func TestInitiatorLifecycleAtCERBoundaries(t *testing.T) {
 func TestClientCERWriteErrorEvidence(t *testing.T) {
 	for _, stage := range []WriteStage{WrittenStage, SkippedStage} {
 		t.Run(fmt.Sprint(stage), func(t *testing.T) {
-			c := machine(t, func(cfg *Config) { cfg.Role, cfg.CERTransportLossCompatibility = Initiator, true })
+			c := machine(t, func(cfg *Config) { cfg.Role, cfg.KeepCERDeadlineAfterTransportLoss = Initiator, true })
 			sent := grant(t, c, c.Handle(event(Start)))
 			in := complete(sent)
 			in.Stage, in.Err, in.Bytes = stage, net.ErrClosed, 0

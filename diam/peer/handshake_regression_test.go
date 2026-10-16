@@ -28,7 +28,7 @@ func (h consumingErrorHandler) HandleMessageError(c diam.Conn, msg *diam.Message
 	_, err = a.WriteTo(c)
 	return err
 }
-func reviewPeerServer(t *testing.T, wrap bool) (*Manager, net.Conn) {
+func acceptedPeerServer(t *testing.T, wrap bool) (*Manager, net.Conn) {
 	testDict := newTestDictionary(creditcontrol.Dictionary())
 
 	t.Helper()
@@ -60,7 +60,7 @@ func reviewPeerServer(t *testing.T, wrap bool) (*Manager, net.Conn) {
 	t.Cleanup(func() { _ = c.Close() })
 	return m, c
 }
-func reviewCER(t *testing.T) *diam.Message {
+func capabilitiesExchangeRequest(t *testing.T) *diam.Message {
 	testDict := newTestDictionary(creditcontrol.Dictionary())
 
 	t.Helper()
@@ -70,7 +70,7 @@ func reviewCER(t *testing.T) *diam.Message {
 	}
 	return m
 }
-func reviewDWR(t *testing.T) *diam.Message {
+func watchdogRequest(t *testing.T) *diam.Message {
 	testDict := newTestDictionary(creditcontrol.Dictionary())
 
 	t.Helper()
@@ -81,18 +81,18 @@ func reviewDWR(t *testing.T) *diam.Message {
 	return m
 }
 func TestConsumedMessageErrorDoesNotStallManager(t *testing.T) {
-	_, c := reviewPeerServer(t, true)
-	write(t, c, reviewCER(t))
+	_, c := acceptedPeerServer(t, true)
+	write(t, c, capabilitiesExchangeRequest(t))
 	if a := read(t, c); code(t, a) != diam.Success {
 		t.Fatal(a)
 	}
-	bad := reviewDWR(t)
+	bad := watchdogRequest(t)
 	bad.AddAVP(diam.NewAVP(avp.InbandSecurityID, avp.Mbit, 0, datatype.Unknown{1, 2}))
 	write(t, c, bad)
 	if a := read(t, c); code(t, a) != diam.InvalidAVPLength {
 		t.Fatal(a)
 	}
-	next := reviewDWR(t)
+	next := watchdogRequest(t)
 	write(t, c, next)
 	a := read(t, c)
 	if code(t, a) != diam.Success || a.Header.HopByHopID != next.Header.HopByHopID {
@@ -102,15 +102,15 @@ func TestConsumedMessageErrorDoesNotStallManager(t *testing.T) {
 func TestPeerBaseHeaderApplicationOnWire(t *testing.T) {
 	for _, cmd := range []uint32{diam.CapabilitiesExchange, diam.DeviceWatchdog, diam.DisconnectPeer} {
 		t.Run(fmt.Sprint(cmd), func(t *testing.T) {
-			manager, c := reviewPeerServer(t, false)
+			manager, c := acceptedPeerServer(t, false)
 			records := manager.cfg.Logger.Handler().(*logtest.Recorder)
-			req := reviewCER(t)
+			req := capabilitiesExchangeRequest(t)
 			if cmd != diam.CapabilitiesExchange {
 				write(t, c, req)
 				if a := read(t, c); code(t, a) != diam.Success {
 					t.Fatal(a)
 				}
-				req = reviewDWR(t)
+				req = watchdogRequest(t)
 				req.Header.CommandCode = cmd
 			}
 			req.Header.ApplicationID = 4
@@ -138,7 +138,7 @@ func TestPeerBaseHeaderApplicationOnWire(t *testing.T) {
 			req.Header.CommandFlags = 0
 			req.AddAVP(diam.NewAVP(avp.ResultCode, avp.Mbit, 0, datatype.Unsigned32(diam.Success)))
 			write(t, c, req)
-			next := reviewDWR(t)
+			next := watchdogRequest(t)
 			write(t, c, next)
 			a = read(t, c)
 			if code(t, a) != diam.Success || a.Header.HopByHopID != next.Header.HopByHopID {
@@ -167,8 +167,8 @@ func TestPeerBaseHeaderApplicationOnWire(t *testing.T) {
 func TestPeerCERMissingIdentityOnWire(t *testing.T) {
 	for _, missing := range []uint32{avp.OriginHost, avp.OriginRealm} {
 		t.Run(fmt.Sprint(missing), func(t *testing.T) {
-			_, c := reviewPeerServer(t, false)
-			req := reviewCER(t)
+			_, c := acceptedPeerServer(t, false)
+			req := capabilitiesExchangeRequest(t)
 			for i, a := range req.AVP {
 				if a.Code == missing {
 					req.AVP = append(req.AVP[:i], req.AVP[i+1:]...)
@@ -216,7 +216,10 @@ func testWaitReturnsAnsweringConnection(t *testing.T, malformed bool) {
 	defer s.close()
 	m.wg.Add(1)
 	go s.writer()
-	a := &actor{m: m, cfg: PeerConfig{Host: "known.example.net", NoAutoReconnect: true}, state: WaitReturns, r: s, events: make(chan event, 8)}
+	a := &actor{m: m, cfg: PeerConfig{Host: "known.example.net", NoAutoReconnect: true}, state: WaitReturns, r: s, events: make(chan event, 8), done: make(chan struct{})}
+	s.actor, s.inbound = a, true
+	a.publish(nil)
+	renewalCoreSession(t, s, true, false, "example.net")
 	if err = c.other.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
 		t.Fatal(err)
 	}
@@ -224,7 +227,7 @@ func testWaitReturnsAnsweringConnection(t *testing.T, malformed bool) {
 	if malformed {
 		me = &diam.MessageError{ResultCode: diam.InvalidAVPLength, FailedAVP: diam.NewAVP(avp.InbandSecurityID, avp.Mbit, 0, datatype.Unknown{1, 2})}
 	}
-	a.onWire(event{kind: wireEvent, s: s, msg: reviewDWR(t), messageErr: me})
+	a.onWire(event{kind: wireEvent, s: s, msg: watchdogRequest(t), messageErr: me})
 	answer, err := diam.ReadMessage(c.other, testDict)
 	if !errors.Is(err, io.EOF) {
 		t.Fatalf("expected close without a pre-CEA answer: answer=%v err=%v", answer, err)
@@ -241,9 +244,13 @@ func TestMalformedCEADecodeErrorPreventsAdmission(t *testing.T) {
 	defer closeManager(t, m, nil)
 	c := newFakeConn()
 	defer c.Close()
-	req := reviewCER(t)
+	req := capabilitiesExchangeRequest(t)
 	s := &session{m: m, c: c, gen: 1, cerHop: req.Header.HopByHopID, cerEnd: req.Header.EndToEndID, writes: make(chan writeRequest, 8), closed: make(chan struct{})}
-	a := &actor{m: m, cfg: PeerConfig{Host: "known.example.net", NoAutoReconnect: true}, state: WaitICEA, i: s, events: make(chan event, 8)}
+	a := &actor{m: m, cfg: PeerConfig{Host: "known.example.net", NoAutoReconnect: true}, state: WaitICEA, i: s, events: make(chan event, 8), done: make(chan struct{})}
+	s.actor = a
+	a.publish(nil)
+	renewalCoreSession(t, s, true, false, "example.net")
+	req = s.cerRequest
 	cea, err := base.BuildCEA(req, testBase("known.example.net"), diam.Success)
 	if err != nil {
 		t.Fatal(err)
@@ -267,7 +274,7 @@ func TestClosedSessionErrorIsNotQueueFull(t *testing.T) {
 	m.sessions[c] = s
 	s.close()
 	defer m.unregister(s)
-	msg := reviewDWR(t)
+	msg := watchdogRequest(t)
 	messageErr := &diam.MessageError{ResultCode: diam.InvalidHDRBits}
 	if err = s.enqueueIncoming(incoming{msg: msg, err: messageErr}); !errors.Is(err, net.ErrClosed) {
 		t.Fatalf("closed ingress error=%v", err)
@@ -275,16 +282,14 @@ func TestClosedSessionErrorIsNotQueueFull(t *testing.T) {
 	if err = m.HandleMessageError(c, msg, messageErr); err != nil {
 		t.Fatalf("closed managed connection was not handled: %v", err)
 	}
-	if err = m.answerMessageError(s, reviewDWR(t), &diam.MessageError{ResultCode: diam.InvalidHDRBits}); !errors.Is(err, net.ErrClosed) {
-		t.Fatalf("closed write error=%v", err)
-	}
+
 }
 
 func TestPeerInvalidCERAfterHandshakeCloses(t *testing.T) {
-	_, c := reviewPeerServer(t, false)
-	write(t, c, reviewCER(t))
+	_, c := acceptedPeerServer(t, false)
+	write(t, c, capabilitiesExchangeRequest(t))
 	read(t, c)
-	req := reviewCER(t)
+	req := capabilitiesExchangeRequest(t)
 	req.Header.ApplicationID = 4
 	write(t, c, req)
 	a := read(t, c)

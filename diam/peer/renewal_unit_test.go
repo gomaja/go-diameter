@@ -17,6 +17,7 @@ import (
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/internal/base"
 	"github.com/gomaja/go-diameter/diam/internal/logtest"
+	"github.com/gomaja/go-diameter/diam/internal/protocol"
 	"github.com/gomaja/go-diameter/diam/sm/smpeer"
 )
 
@@ -54,7 +55,7 @@ func renewalCompositionActor(t *testing.T, state PeerState, local string, respon
 	}
 	a := &actor{m: m, cfg: PeerConfig{Host: "known.example.net", NoAutoReconnect: true}, state: state, watchdog: WatchdogInitial, nextGen: 17, pendingGen: 11, dialing: state == WaitConnAck || state == WaitConnAckElect, events: make(chan event, 16), done: make(chan struct{})}
 	i := &session{m: m, c: newFakeConn(testDict), actor: a, gen: 11, writes: make(chan writeRequest, 16), closed: make(chan struct{}), meta: &smpeer.Metadata{OriginHost: "known.example.net", OriginRealm: "initiator.example.net", Applications: []uint32{4}}}
-	r := &session{m: m, c: newFakeConn(testDict), actor: a, gen: 7, inbound: true, writes: make(chan writeRequest, 16), ingress: make(chan incoming, 16), closed: make(chan struct{}), cerRequest: reviewCER(t), meta: &smpeer.Metadata{OriginHost: "known.example.net", OriginRealm: "old.example.net", Applications: []uint32{4}}}
+	r := &session{m: m, c: newFakeConn(testDict), actor: a, gen: 7, inbound: true, writes: make(chan writeRequest, 16), ingress: make(chan incoming, 16), closed: make(chan struct{}), cerRequest: capabilitiesExchangeRequest(t), meta: &smpeer.Metadata{OriginHost: "known.example.net", OriginRealm: "old.example.net", Applications: []uint32{4}}}
 	if state == WaitICEA || state == WaitReturns || activeI {
 		a.i = i
 	}
@@ -73,19 +74,16 @@ func renewalCompositionActor(t *testing.T, state PeerState, local string, respon
 		a.meta = i.meta.Clone()
 		a.watchdog = WatchdogOkay
 		a.everOpen = true
-		if state == IOpen {
-			a.armWatchdog()
-		}
 	}
-	if state == WaitICEA || state == WaitReturns {
-		request, err := base.BuildCER(testDict, m.baseSettings(i.c))
-		if err != nil {
-			t.Fatal(err)
-		}
-		i.cerRequest = request
-		i.cerHop = request.Header.HopByHopID
-		i.cerEnd = request.Header.EndToEndID
+	renewalCoreSession(t, r, true, activeR, "old.example.net")
+	renewalCoreSession(t, i, state == WaitICEA || state == WaitReturns || activeI, activeI, "initiator.example.net")
+	if a.active != nil {
+		a.syncProtocol(a.active, protocol.Input{Kind: protocol.ReleaseAdmission})
 	}
+	if state == Closing {
+		a.active.applyProtocol(protocol.Input{Kind: protocol.Disconnect}, nil)
+	}
+	a.nextGen = 17
 	a.publish(nil)
 	m.peers[identity(a.cfg.Host)] = a
 	m.sessions[r.c] = r
@@ -125,8 +123,6 @@ func renewalCompositionCEA(t *testing.T, m *Manager, a *actor, i *session) {
 			t.Fatal("initiator CER not queued")
 		}
 	}
-	request.Header.HopByHopID = i.cerHop
-	request.Header.EndToEndID = i.cerEnd
 	cfg := testBase("known.example.net")
 	cfg.OriginRealm = "initiator.example.net"
 	cfg.AuthApplicationID = []*diam.AVP{diam.NewAVP(avp.AuthApplicationID, avp.Mbit, 0, datatype.Unsigned32(4))}
@@ -249,15 +245,15 @@ func TestManagerRenewalWatchdogStatesEligibilityAndRetirement(t *testing.T) {
 		t.Run(string(health), func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
 				m, a, _, old, clock := renewalCompositionActor(t, ROpen, "z.example.net", true, true, false)
+				timer := old.protocolSnapshot().Timer(protocol.WatchdogTimer)
+				renewalCompositionCommit(a, event{kind: coreEvent, s: old, input: protocol.Input{Kind: protocol.TimerExpired, Timer: protocol.WatchdogTimer, Token: timer.Token, At: timer.Deadline}})
+				fixtureCompleteWrite(old, renewalCoreWrite(t, old, diam.DeviceWatchdog))
+				synctest.Wait()
+				// Eligibility is deliberately independent of the published health
+				// label; timer and control ownership remain the real core's.
 				a.watchdog = health
-				a.pendingWatchdog = true
-				a.watchdogHop = 41
-				a.watchdogEnd = 42
-				a.watchdogGen = old.gen
-				a.numDWA = 2
-				a.armWatchdog()
-				oldToken, oldTimer := a.wdToken, a.wdTimer
 				a.publish(nil)
+				oldToken, oldTimer := old.protocolSnapshot().Timer(protocol.WatchdogTimer).Token, old.coreTimers[protocol.WatchdogTimer]
 				if !m.CanRenewAcceptedCER(old.c) {
 					t.Fatalf("admitted active R with %s was ineligible", health)
 				}
@@ -283,7 +279,7 @@ func TestManagerRenewalWatchdogStatesEligibilityAndRetirement(t *testing.T) {
 				if a.watchdog != WatchdogReopen || a.snapshot().Eligible || !m.CanRenewAcceptedCER(freshConn) {
 					t.Fatalf("replacement of %s did not enter renewable REOPEN", health)
 				}
-				renewalCompositionCommit(a, event{kind: watchdogTimeout, gen: old.gen, token: oldToken})
+				renewalCompositionCommit(a, event{kind: coreEvent, s: old, gen: old.gen, input: protocol.Input{Kind: protocol.TimerExpired, Timer: protocol.WatchdogTimer, Token: oldToken}})
 				clock.mu.Lock()
 				timers := len(clock.timers)
 				clock.mu.Unlock()
@@ -414,10 +410,14 @@ func TestManagerRenewalRejectedAdmissionWins(t *testing.T) {
 			c := newFakeConn()
 			s := &session{m: m, c: c, inbound: true, writes: make(chan writeRequest, 4), ingress: make(chan incoming, 4), closed: make(chan struct{})}
 			m.sessions[c] = s
+			if err := s.initProtocol(); err != nil {
+				t.Fatal(err)
+			}
+			s.runProtocol(protocol.Input{Kind: protocol.Start}, s.takeStartup(), nil)
 			if malformed {
-				_ = m.answerMessageError(s, reviewCER(t), &diam.MessageError{ResultCode: diam.InvalidAVPLength})
+				s.applyProtocol(protocol.Input{Kind: protocol.Receive, Message: capabilitiesExchangeRequest(t), Error: &diam.MessageError{ResultCode: diam.InvalidAVPLength}, ErrorInput: true}, nil)
 			} else {
-				m.processDIAM(s, reviewCER(t))
+				m.processDIAM(s, capabilitiesExchangeRequest(t))
 			}
 			if len(s.writes) != 1 {
 				t.Fatal("rejection did not queue its CEA")
@@ -473,26 +473,26 @@ func TestManagerRenewalCleanupBeforeAcknowledgement(t *testing.T) {
 func TestManagerRenewalStaleStateTimer(t *testing.T) {
 	for _, state := range []PeerState{WaitICEA, Closing} {
 		t.Run(string(state), func(t *testing.T) {
-			a, s, _ := newWatchdogTestActor(t, WatchdogOkay)
-			a.state = state
-			if state == WaitICEA {
-				a.i = s
-				a.r = nil
-				a.active = nil
+			a, s, _ := failureReportingActor(t)
+			a.state, a.i = WaitICEA, s
+			renewalCoreSession(t, s, true, state == Closing, "example.net")
+			timerKind := protocol.HandshakeTimer
+			if state == Closing {
+				a.active = s
+				s.applyProtocol(protocol.Input{Kind: protocol.Disconnect}, nil)
+				timerKind = protocol.ClosingTimer
 			}
+			a.publish(nil)
 			notifications := make(chan diam.ProtocolErrorEvent, 2)
 			a.m.cfg.Settings.OnProtocolError = func(e diam.ProtocolErrorEvent) { notifications <- e }
-			a.arm(time.Second)
-			oldToken := a.token
-			a.arm(time.Second)
-			a.handle(event{kind: timeout, token: oldToken})
+			timer := s.protocolSnapshot().Timer(timerKind)
+			s.applyProtocol(protocol.Input{Kind: protocol.TimerExpired, Timer: timerKind, Token: timer.Token + 1, At: timer.Deadline}, nil)
 			if a.state != state || s.c.Closed() {
 				t.Errorf("stale timer ended new %s exchange: state=%s closed=%t", state, a.state, s.c.Closed())
 			}
 			if len(notifications) != 0 {
 				t.Error("stale timer emitted a protocol notification")
 			}
-			a.stopTimer()
 		})
 	}
 }
@@ -504,13 +504,15 @@ func TestManagerRenewalRetirementDuringInitiatorCER(t *testing.T) {
 		t.Fatal(err)
 	}
 	a := &actor{m: m, cfg: PeerConfig{Host: "known.example.net", NoAutoReconnect: true}, state: WaitConnAckElect, watchdog: WatchdogInitial, events: make(chan event, 4), done: make(chan struct{}), pendingGen: 7, nextGen: 7, dialing: true}
-	r := &session{m: m, c: newFakeConn(), actor: a, gen: 6, inbound: true, closed: make(chan struct{}), writes: make(chan writeRequest, 4), cerRequest: reviewCER(t)}
+	r := &session{m: m, c: newFakeConn(), actor: a, gen: 6, inbound: true, closed: make(chan struct{}), writes: make(chan writeRequest, 4), cerRequest: capabilitiesExchangeRequest(t)}
 	i := &session{m: m, c: newFakeConn(), actor: a, gen: 7, closed: make(chan struct{}), writes: make(chan writeRequest, 4)}
 	a.r = r
 	a.meta = &smpeer.Metadata{OriginHost: "known.example.net", OriginRealm: "example.net", Applications: []uint32{4}}
 	a.publish(nil)
 	m.peers[identity(a.cfg.Host)] = a
 	m.sessions[r.c] = r
+	renewalCoreSession(t, r, true, false, "example.net")
+	renewalCoreSession(t, i, false, false, "example.net")
 	entered, release := make(chan struct{}), make(chan struct{})
 	i.beforeAdmission = func() { close(entered); <-release }
 	m.wg.Add(1)
@@ -649,9 +651,9 @@ func TestManagerRenewalRetirementStateTable(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			a := &actor{m: m, cfg: PeerConfig{Host: "known.example.net", NoAutoReconnect: true}, state: tc.state, watchdog: tc.watchdog, everOpen: tc.activeR || tc.activeI, nextGen: 17, pendingGen: 11, dialing: tc.state == WaitConnAckElect, events: make(chan event, 1), done: make(chan struct{}), pendingDPR: 41, pendingDPREnd: 42, pendingWatchdog: true, watchdogHop: 43, watchdogEnd: 44, watchdogGen: 7, numDWA: 2}
+			a := &actor{m: m, cfg: PeerConfig{Host: "known.example.net", NoAutoReconnect: true}, state: tc.state, watchdog: tc.watchdog, everOpen: tc.activeR || tc.activeI, nextGen: 17, pendingGen: 11, dialing: tc.state == WaitConnAckElect, events: make(chan event, 1), done: make(chan struct{})}
 			i := &session{m: m, c: newFakeConn(), actor: a, gen: 11, closed: make(chan struct{}), writes: make(chan writeRequest, 4)}
-			r := &session{m: m, c: newFakeConn(), actor: a, gen: 7, inbound: true, closed: make(chan struct{}), writes: make(chan writeRequest, 4), cerRequest: reviewCER(t), cerHop: 31, cerEnd: 32}
+			r := &session{m: m, c: newFakeConn(), actor: a, gen: 7, inbound: true, closed: make(chan struct{}), writes: make(chan writeRequest, 4), cerRequest: capabilitiesExchangeRequest(t), cerHop: 31, cerEnd: 32}
 			a.i = i
 			if tc.responder {
 				a.r = r
@@ -663,12 +665,27 @@ func TestManagerRenewalRetirementStateTable(t *testing.T) {
 				a.active = i
 			}
 			a.meta = &smpeer.Metadata{OriginHost: a.cfg.Host, OriginRealm: "example.net", Applications: []uint32{4}}
+			renewalCoreSession(t, r, true, tc.activeR, "example.net")
+			renewalCoreSession(t, i, tc.state == WaitICEA || tc.state == WaitReturns || tc.activeI, tc.activeI, "example.net")
+			if a.active != nil {
+				a.syncProtocol(a.active, protocol.Input{Kind: protocol.ReleaseAdmission})
+				fixtureExpireWatchdog(a)
+				fixtureConsumeProbe(a.active)
+				if tc.watchdog == WatchdogSuspect {
+					fixtureExpireWatchdog(a)
+				}
+				if tc.state == Closing {
+					a.active.applyProtocol(protocol.Input{Kind: protocol.Disconnect}, nil)
+				}
+			}
+			a.nextGen = 17
+			surviving := i.protocolSnapshot()
 			a.publish(nil)
 			m.peers[identity(a.cfg.Host)] = a
 			m.sessions[r.c] = r
 			m.nextHop = 88
 			oldEnd := m.endToEnd.next.Load()
-			a.events <- event{kind: wireEvent, s: r, msg: reviewCER(t)}
+			a.events <- event{kind: wireEvent, s: r, msg: capabilitiesExchangeRequest(t)}
 			retired := make(chan error, 1)
 			go func() { retired <- m.HandleRetire(r.c, diam.SCTPAssociationRestart) }()
 			select {
@@ -701,7 +718,7 @@ func TestManagerRenewalRetirementStateTable(t *testing.T) {
 			if tc.activeR && (a.pendingWatchdog || a.watchdogHop != 0 || a.pendingDPR != 0 || a.numDWA != 0) {
 				t.Error("retirement retained watchdog/disconnect identifiers")
 			}
-			if tc.activeI && (a.watchdogHop != 43 || a.pendingDPR != 41 || a.numDWA != 2) {
+			if tc.activeI && (!reflect.DeepEqual(i.protocolSnapshot().Controls(), surviving.Controls()) || i.protocolSnapshot().Watchdog() != surviving.Watchdog()) {
 				t.Error("candidate retirement reset surviving initiator identifiers")
 			}
 			if r.cerRequest != nil || r.cerHop != 0 || r.cerEnd != 0 {
@@ -727,13 +744,21 @@ func TestManagerRenewalStaleTimerTokens(t *testing.T) {
 	for _, state := range []PeerState{WaitICEA, Closing} {
 		t.Run(string(state), func(t *testing.T) {
 			a, s, _ := failureReportingActor(t)
-			a.state, a.i, a.active, a.token = state, s, s, 20
+			a.state, a.i = WaitICEA, s
+			renewalCoreSession(t, s, true, state == Closing, "example.net")
+			timerKind := protocol.HandshakeTimer
+			if state == Closing {
+				a.active = s
+				s.applyProtocol(protocol.Input{Kind: protocol.Disconnect}, nil)
+				timerKind = protocol.ClosingTimer
+			}
 			a.publish(nil)
-			a.handle(event{kind: timeout, token: 19})
+			timer := s.protocolSnapshot().Timer(timerKind)
+			s.applyProtocol(protocol.Input{Kind: protocol.TimerExpired, Timer: timerKind, Token: timer.Token + 1, At: timer.Deadline}, nil)
 			if a.state != state || s.c.Closed() {
 				t.Fatalf("stale timer closed current session: state=%s closed=%t", a.state, s.c.Closed())
 			}
-			a.handle(event{kind: timeout, token: 20})
+			s.applyProtocol(protocol.Input{Kind: protocol.TimerExpired, Timer: timerKind, Token: timer.Token, At: timer.Deadline}, nil)
 			if a.state != Closed || !s.c.Closed() {
 				t.Fatal("current timer did not close waiting session")
 			}
@@ -741,13 +766,17 @@ func TestManagerRenewalStaleTimerTokens(t *testing.T) {
 	}
 	t.Run("watchdog", func(t *testing.T) {
 		a, s, _ := failureReportingActor(t)
-		a.state, a.r, a.active, a.watchdog, a.wdToken = ROpen, s, s, WatchdogOkay, 20
+		s.inbound = true
+		a.state, a.r, a.active = ROpen, s, s
+		renewalCoreSession(t, s, true, true, "example.net")
+		a.syncProtocol(s, protocol.Input{Kind: protocol.ReleaseAdmission})
 		a.publish(nil)
-		a.handle(event{kind: watchdogTimeout, token: 19, gen: s.gen})
+		timer := s.protocolSnapshot().Timer(protocol.WatchdogTimer)
+		s.applyProtocol(protocol.Input{Kind: protocol.TimerExpired, Timer: protocol.WatchdogTimer, Token: timer.Token + 1, At: timer.Deadline}, nil)
 		if len(s.writes) != 0 || a.pendingWatchdog {
 			t.Fatal("stale watchdog timer sent current-generation probe")
 		}
-		a.handle(event{kind: watchdogTimeout, token: 20, gen: s.gen})
+		s.applyProtocol(protocol.Input{Kind: protocol.TimerExpired, Timer: protocol.WatchdogTimer, Token: timer.Token, At: timer.Deadline}, nil)
 		if len(s.writes) != 1 || !a.pendingWatchdog {
 			t.Fatal("current watchdog timer did not send probe")
 		}

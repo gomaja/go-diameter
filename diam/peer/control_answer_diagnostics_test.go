@@ -74,7 +74,7 @@ func TestProtocolErrorManagerDWAResultCodeOnWire(t *testing.T) {
 				t.Fatalf("handshake failed: %v", answer)
 			}
 			awaitState(t, m, ROpen)
-			originalConn := round2SessionConn(t, m, remote)
+			originalConn := protocolDiagnosticSessionConn(t, m, remote)
 			clock.fire()
 			request := read(t, remote)
 			if request.Header.CommandCode != diam.DeviceWatchdog || request.Header.CommandFlags&diam.RequestFlag == 0 {
@@ -92,7 +92,7 @@ func TestProtocolErrorManagerDWAResultCodeOnWire(t *testing.T) {
 			if tc.duplicate {
 				answer.AVP = append([]*diam.AVP{diam.NewAVP(avp.ResultCode, avp.Mbit, 0, datatype.Unsigned32(2001))}, answer.AVP...)
 			} else {
-				round2PrependNestedResult(answer, 2001)
+				prependNestedResultCode(answer, 2001)
 			}
 			answer.Header.MessageLength = uint32(answer.Len())
 			write(t, remote, answer)
@@ -102,7 +102,7 @@ func TestProtocolErrorManagerDWAResultCodeOnWire(t *testing.T) {
 				kind, result = diam.ProtocolInvalidDWA, diam.AVPOccursTooManyTimes
 			}
 			protocolErrorCheck(t, e, originalConn, *answer.Header, kind, result, false, diam.ProtocolReplyNone, 0, 0)
-			logged := round2CheckOnlyProtocolLog(t, records)
+			logged := onlyProtocolDiagnosticLogError(t, records)
 			if tc.duplicate {
 				var messageErr *diam.MessageError
 				if !errors.As(logged, &messageErr) || messageErr.ResultCode != diam.AVPOccursTooManyTimes {
@@ -112,13 +112,13 @@ func TestProtocolErrorManagerDWAResultCodeOnWire(t *testing.T) {
 				t.Fatalf("DWA diagnostic changed: %v", logged)
 			}
 			// A rejected DWA neither answers an answer nor closes the connection.
-			next := reviewDWR(t)
+			next := watchdogRequest(t)
 			write(t, remote, next)
 			response := read(t, remote)
 			if code(t, response) != 2001 || response.Header.HopByHopID != next.Header.HopByHopID || response.Header.EndToEndID != next.Header.EndToEndID {
 				t.Fatalf("unexpected answer: %+v", response)
 			}
-			round2NoExtraProtocolEvent(t, events)
+			requireNoAdditionalProtocolEvent(t, events)
 		})
 	}
 }
@@ -132,8 +132,8 @@ func TestProtocolErrorManagerCEAParserCodeOnWire(t *testing.T) {
 		result uint32
 		mutate func(*diam.Message)
 	}{
-		{"strict nested success", true, 5012, func(m *diam.Message) { round2PrependNestedResult(m, 2001) }},
-		{"non-strict nested success", false, 5012, func(m *diam.Message) { round2PrependNestedResult(m, 2001) }},
+		{"strict nested success", true, 5012, func(m *diam.Message) { prependNestedResultCode(m, 2001) }},
+		{"non-strict nested success", false, 5012, func(m *diam.Message) { prependNestedResultCode(m, 2001) }},
 		{"non-strict malformed Address", false, 5004, func(m *diam.Message) {
 			for _, a := range m.AVP {
 				if a.Code == avp.ResultCode {
@@ -181,7 +181,7 @@ func TestProtocolErrorManagerCEAParserCodeOnWire(t *testing.T) {
 			if request.Header.CommandCode != diam.CapabilitiesExchange || request.Header.CommandFlags&diam.RequestFlag == 0 {
 				t.Fatalf("not CER: %+v", request.Header)
 			}
-			originalConn := round2SessionConn(t, m, remote)
+			originalConn := protocolDiagnosticSessionConn(t, m, remote)
 			answer, err := base.BuildCEA(request, testBase("known.example.net"), 5012)
 			if err != nil {
 				t.Fatal(err)
@@ -191,7 +191,7 @@ func TestProtocolErrorManagerCEAParserCodeOnWire(t *testing.T) {
 			write(t, remote, answer)
 			e := protocolErrorReceive(t, events)
 			protocolErrorCheck(t, e, originalConn, *answer.Header, diam.ProtocolCEARejected, tc.result, true, diam.ProtocolReplyNone, 0, 0)
-			logged := round2CheckOnlyProtocolLog(t, records)
+			logged := onlyProtocolDiagnosticLogError(t, records)
 			if tc.result == 5004 {
 				var parseErr *diam.MessageError
 				if !errors.As(logged, &parseErr) || parseErr.ResultCode != 5004 || parseErr.FailedAVP == nil || parseErr.FailedAVP.Code != avp.HostIPAddress {
@@ -211,17 +211,17 @@ func TestProtocolErrorManagerCEAParserCodeOnWire(t *testing.T) {
 				t.Fatalf("want EOF without an answer, got bytes=%d err=%v", n, err)
 			}
 			awaitState(t, m, Closed)
-			round2NoExtraProtocolEvent(t, events)
+			requireNoAdditionalProtocolEvent(t, events)
 		})
 	}
 }
 
-func round2PrependNestedResult(m *diam.Message, result uint32) {
+func prependNestedResultCode(m *diam.Message, result uint32) {
 	failed := diam.NewAVP(avp.FailedAVP, avp.Mbit, 0, &diam.GroupedAVP{AVP: []*diam.AVP{diam.NewAVP(avp.ResultCode, avp.Mbit, 0, datatype.Unsigned32(result))}})
 	m.AVP = append([]*diam.AVP{failed}, m.AVP...)
 }
 
-func round2SessionConn(t *testing.T, m *Manager, remote net.Conn) diam.Conn {
+func protocolDiagnosticSessionConn(t *testing.T, m *Manager, remote net.Conn) diam.Conn {
 	t.Helper()
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -234,7 +234,7 @@ func round2SessionConn(t *testing.T, m *Manager, remote net.Conn) diam.Conn {
 	return nil
 }
 
-func round2CheckOnlyProtocolLog(t *testing.T, records *logtest.Recorder) error {
+func onlyProtocolDiagnosticLogError(t *testing.T, records *logtest.Recorder) error {
 	t.Helper()
 	got := records.Records()
 	if len(got) != 1 || got[0].Level != slog.LevelWarn || got[0].Message != "peer: protocol error" {
@@ -247,7 +247,7 @@ func round2CheckOnlyProtocolLog(t *testing.T, records *logtest.Recorder) error {
 	return err
 }
 
-func round2NoExtraProtocolEvent(t *testing.T, events <-chan diam.ProtocolErrorEvent) {
+func requireNoAdditionalProtocolEvent(t *testing.T, events <-chan diam.ProtocolErrorEvent) {
 	t.Helper()
 	select {
 	case extra := <-events:

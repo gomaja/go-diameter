@@ -19,6 +19,9 @@ func TestReadAnswerPrecedesConnectionGone(t *testing.T) {
 	c := newFakeConn()
 	s := &session{m: m, c: c, actor: a, gen: 1, writes: make(chan writeRequest, 8), ingress: make(chan incoming, 8), closed: make(chan struct{})}
 	a.active, a.i = s, s
+	if err := bootstrapSessionProtocol(s); err != nil {
+		t.Fatal(err)
+	}
 	a.publish(nil)
 	m.peers[identity(a.cfg.Host)] = a
 	m.sessions[c] = s

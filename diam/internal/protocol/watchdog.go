@@ -10,125 +10,143 @@ import (
 	"github.com/gomaja/go-diameter/diam/internal/watchdog"
 )
 
-func (c *Core) watchdogArm(at time.Time, interval time.Duration) []Effect {
+func (c *Core) watchdogArm(es []Effect, at time.Time, interval time.Duration) []Effect {
 	if interval <= 0 {
 		interval = c.cfg.WatchdogInterval
 	}
 	if interval <= 0 {
-		return c.stop(WatchdogTimer)
+		return c.stop(es, WatchdogTimer)
 	}
 	// RFC 3539 §3.4.1: stop the previous Tw before arming its replacement.
-	// Build the ordered pair together rather than growing a one-effect slice.
 	previous := c.timers[WatchdogTimer]
 	arm := c.effect(ArmTimer)
 	arm.Timer, arm.Token, arm.Deadline = WatchdogTimer, c.token(), at.Add(interval)
 	c.timers[WatchdogTimer] = TimerSnapshot{arm.Token, arm.Deadline}
 	if previous.Token == 0 {
-		return []Effect{arm}
+		return append(es, arm)
 	}
 	stop := c.effect(StopTimer)
 	stop.Timer, stop.Token = WatchdogTimer, previous.Token
-	return []Effect{stop, arm}
+	return append(es, stop, arm)
 }
-func (c *Core) watchdogUp(in Input) []Effect {
+func (c *Core) watchdogUp(es []Effect, in Input) []Effect {
 	if !c.cfg.Watchdog {
-		return nil
+		return es
 	}
 	next, actions := c.wd.Step(watchdog.ConnectionUp)
 	c.wd = next
 	if actions.Send {
 		c.wdNext = &next
 		c.wd.Pending = false
-		return c.reserve(diam.DeviceWatchdog)
+		return c.reserve(es, diam.DeviceWatchdog)
 	}
 	if actions.Reset {
-		return c.watchdogArm(in.At, in.Interval)
+		return c.watchdogArm(es, in.At, in.Interval)
 	}
-	return nil
+	return es
 }
-func (c *Core) watchdogPublished(in Input) []Effect {
+func (c *Core) watchdogPublished(es []Effect, in Input) []Effect {
 	if c.phase != Open || c.wdNext == nil {
-		return nil
+		return es
 	}
 	c.wd = *c.wdNext
 	c.wdNext = nil
-	es := c.watchdogArm(in.At, in.Interval)
+	es = c.watchdogArm(es, in.At, in.Interval)
 	return append(es, c.notify(Notification{Kind: WatchdogNotice, Watchdog: c.wd.State}))
 }
 
 // RFC 3539 §3.4.1 [2], Appendix A: any eligible decoded activity resets Tw;
 // #108 withholds health credit from invalid traffic and Pending credit from
 // everything except a validated, correlated, successful DWA.
-func (c *Core) activity(in Input) []Effect {
+func (c *Core) activity(es []Effect, in Input) []Effect {
 	if c.phase != Open || !c.cfg.Watchdog || base.FatalHeaderError(in.Error) {
-		return nil
+		return es
 	}
-	return c.watchdogArm(in.At, in.Interval)
+	// Fatal body callbacks can retain the existing deadline. Invalid base
+	// headers still take the decoded-header activity path.
+	if c.cfg.FatalBodyErrorKeepsWatchdogDeadline && in.ErrorInput && in.Error != nil && in.Error.Fatal && base.ValidateHeader(in.Message) == nil {
+		return es
+	}
+	return c.watchdogArm(es, in.At, in.Interval)
 }
 
-func (c *Core) validActivity() []Effect {
+func (c *Core) validActivity(es []Effect) []Effect {
 	if c.phase != Open || !c.cfg.Watchdog {
-		return nil
+		return es
 	}
 	next, actions := c.wd.Step(watchdog.Receive)
 	c.wd = next
 	if actions.Failback {
-		return []Effect{c.notify(Notification{Kind: WatchdogNotice, Watchdog: next.State})}
+		return append(es, c.notify(Notification{Kind: WatchdogNotice, Watchdog: next.State}))
 	}
-	return nil
+	return es
 }
-func (c *Core) watchdogExpired(in Input) []Effect {
+func (c *Core) watchdogExpired(es []Effect, in Input) []Effect {
 	if c.phase != Open || !c.cfg.Watchdog {
-		return nil
+		return es
 	}
 	if in.AfterReceive > c.receivedSequence {
 		saved := in
 		c.deferredExpiry = &saved
-		return nil
+		return es
 	}
 	// A selected probe is not Pending until publication. Activity may have
 	// armed another Tw meanwhile; do not allocate a second probe or overwrite
 	// the first reservation (RFC 3539 Appendix A, #108 publication boundary).
 	if c.wdNext != nil {
-		return c.watchdogArm(in.At, in.Interval)
+		return c.watchdogArm(es, in.At, in.Interval)
 	}
 	next, actions := c.wd.Step(watchdog.Expired)
 	if actions.Close {
-		return c.fail(in, diam.ProtocolWatchdogTimeout, 0)
+		return c.fail(es, in, diam.ProtocolWatchdogTimeout, 0)
 	}
-	es := c.stop(WatchdogTimer)
+	es = c.stop(es, WatchdogTimer)
 	if actions.Send {
 		c.wdNext = &next
-		return append(es, c.reserve(diam.DeviceWatchdog)...)
+		return c.reserve(es, diam.DeviceWatchdog)
 	}
 	c.wd = next
 	if actions.Failover {
 		es = append(es, c.notify(Notification{Kind: WatchdogNotice, Watchdog: next.State}))
 	}
 	if actions.Reset {
-		es = append(es, c.watchdogArm(in.At, in.Interval)...)
+		es = c.watchdogArm(es, in.At, in.Interval)
 	}
 	return es
 }
-func (c *Core) dwa(in Input) []Effect {
+func (c *Core) dwa(es []Effect, in Input) []Effect {
 	m := in.Message
 	if err := base.ValidateMessage(m); err != nil {
 		in.Error = err
-		return c.discard(in, diam.ProtocolInvalidDWA, err.ResultCode)
+		return c.discard(es, in, diam.ProtocolInvalidDWA, err.ResultCode)
+	}
+	// Grammar diagnostics precede ownership classification as library policy.
+	// RFC 6733 §§3, 6.2.1: only a correlated answer owns the local exchange.
+	if c.cfg.DWAOwnershipBeforeSemantics && !c.matches(c.controls[diam.DeviceWatchdog], m) {
+		return c.discard(es, in, diam.ProtocolUnexpectedMessage, 0)
 	}
 	var parsed base.DWA
 	if err := parsed.Parse(m); err != nil {
-		return c.discardCause(in, diam.ProtocolInvalidDWA, err)
+		return c.discardCause(es, in, diam.ProtocolInvalidDWA, err)
 	}
 	r := c.controls[diam.DeviceWatchdog]
-	if parsed.ResultCode != diam.Success {
-		var es []Effect
-		if c.matches(r, m) && c.bound(m, true) {
-			es = c.consumeControl(r, m)
+	if c.cfg.DWAIdentityBeforeResult && parsed.ResultCode != diam.Success && !c.bound(m, true) {
+		var peer base.DWR
+		_ = peer.Parse(m)
+		err := errors.New("DWA Origin-Realm mismatch")
+		if !equalIdentity(string(peer.OriginHost), c.caps.Host) {
+			err = errors.New("DWA Origin-Host mismatch")
 		}
-		rejection := c.discard(in, diam.ProtocolRejectedDWA, parsed.ResultCode)
-		rejection[len(rejection)-1].Notification.CauseError = fmt.Errorf("DWA Result-Code %d", parsed.ResultCode)
-		return append(es, rejection...)
+		return c.discardCause(es, in, diam.ProtocolInvalidDWA, err)
+	}
+	if parsed.ResultCode != diam.Success {
+
+		if c.matches(r, m) && c.bound(m, true) {
+			es = c.consumeControl(es, r, m)
+		}
+		es = c.discard(es, in, diam.ProtocolRejectedDWA, parsed.ResultCode)
+		es[len(es)-1].Notification.CauseError = fmt.Errorf("DWA Result-Code %d", parsed.ResultCode)
+		return es
 	}
 	if !c.bound(m, true) || m.Header.CommandFlags&diam.ErrorFlag != 0 {
 		var identity base.DWR
@@ -143,10 +161,10 @@ func (c *Core) dwa(in Input) []Effect {
 				err = errors.New("DWA Origin-Realm mismatch")
 			}
 		}
-		return c.discardCause(in, diam.ProtocolInvalidDWA, err)
+		return c.discardCause(es, in, diam.ProtocolInvalidDWA, err)
 	}
 	if !c.matches(r, m) {
-		return c.discard(in, diam.ProtocolUnexpectedMessage, 0)
+		return c.discard(es, in, diam.ProtocolUnexpectedMessage, 0)
 	}
 	current := c.wd
 	// A fast answer can precede the writer's return. Apply its credit to the
@@ -157,8 +175,8 @@ func (c *Core) dwa(in Input) []Effect {
 	}
 	next, actions := current.Step(watchdog.ReceiveDWA)
 	c.wd = next
-	es := c.consumeControl(r, m)
-	es = append(es, c.settle(r)...)
+	es = c.consumeControl(es, r, m)
+	es = c.settle(es, r)
 	es = append(es, c.notify(Notification{Kind: WatchdogNotice, Watchdog: next.State, Diagnostic: "answer"}))
 	if actions.Failback {
 		es = append(es, c.notify(Notification{Kind: WatchdogNotice, Watchdog: next.State}))
@@ -166,12 +184,12 @@ func (c *Core) dwa(in Input) []Effect {
 	return es
 }
 
-func (c *Core) consumeControl(r *control, m *diam.Message) []Effect {
+func (c *Core) consumeControl(es []Effect, r *control, m *diam.Message) []Effect {
 	if r.answered {
-		return nil
+		return es
 	}
 	r.answered = true
-	return []Effect{c.consumed(m)}
+	return append(es, c.consumed(m))
 }
 
 func (c *Core) consumed(m *diam.Message) Effect {

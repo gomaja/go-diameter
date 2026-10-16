@@ -10,7 +10,7 @@ import (
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/internal/base"
-	"github.com/gomaja/go-diameter/diam/sm/internal/parserbridge"
+	"github.com/gomaja/go-diameter/diam/internal/parserbridge"
 )
 
 func init() { parserbridge.FromValidatedCEA = fromValidatedCEA }

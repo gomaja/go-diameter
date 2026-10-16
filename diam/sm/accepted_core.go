@@ -121,7 +121,7 @@ func (sm *StateMachine) acceptedCoreWithAdmission(c diam.Conn, m *diam.Message, 
 		Local: cfg, Dictionary: sm.capabilityDictionary(c, m), TLS: c.TLS() != nil,
 		Hooks: true, HandshakeTimeout: d, ClosingTimeout: closingTimeout,
 		LocalDisconnectInClosing: true,
-		DWRHookCompatibility:     true,
+		SkipDWRGrammarAfterHook:  true,
 		Watchdog:                 sm.watchdog != nil, WatchdogInterval: interval,
 		ValidateRequests: sm.cfg.ValidateRequests, RejectUnknownMandatoryAVPs: sm.cfg.RejectUnknownMandatoryAVPs}
 	var core *protocol.Core
@@ -328,7 +328,7 @@ func (s *acceptedHandshake) prepareLocked(effects []protocol.Effect, releaseDisp
 				timer.Stop()
 			}
 		case protocol.Hold:
-			s.held = append(s.held, e.Input)
+			s.held = append(s.held, *e.Input)
 		case protocol.CancelSend:
 			if ticket := s.writes[e.Token]; ticket != nil {
 				ticket.Cancel()

@@ -60,7 +60,7 @@ func TestBaseValidationPermanentErrorContract(t *testing.T) {
 	}
 }
 
-type round2Fault struct {
+type baseValueFault struct {
 	name   string
 	field  uint32
 	result uint32
@@ -68,8 +68,8 @@ type round2Fault struct {
 	add    bool
 }
 
-func round2Faults() []round2Fault {
-	return []round2Fault{
+func baseValueFaults() []baseValueFault {
+	return []baseValueFault{
 		{"destination host", avp.DestinationHost, diam.AVPNotAllowed, datatype.DiameterIdentity("destination.example.net"), true},
 		{"destination realm", avp.DestinationRealm, diam.AVPNotAllowed, datatype.DiameterIdentity("example.net"), true},
 		{"host high octet", avp.OriginHost, diam.InvalidAVPValue, datatype.DiameterIdentity("peer\xff.example"), false},
@@ -82,7 +82,7 @@ func round2Faults() []round2Fault {
 	}
 }
 
-func (f round2Fault) apply(t *testing.T, m *diam.Message) {
+func (f baseValueFault) apply(t *testing.T, m *diam.Message) {
 	t.Helper()
 	if f.add {
 		m.AddAVP(diam.NewAVP(f.field, avp.Mbit, 0, f.value))
@@ -94,7 +94,7 @@ func (f round2Fault) apply(t *testing.T, m *diam.Message) {
 func TestBaseValidationValuesRequestContract(t *testing.T) {
 	for _, frontend := range []string{"sm", "manager"} {
 		for _, command := range []uint32{diam.CapabilitiesExchange, diam.DeviceWatchdog, diam.DisconnectPeer} {
-			for _, fault := range round2Faults()[2:] {
+			for _, fault := range baseValueFaults()[2:] {
 				if fault.field == avp.SupportedVendorID && command != diam.CapabilitiesExchange {
 					continue
 				}
@@ -113,7 +113,7 @@ func TestBaseValidationValuesAnswerContract(t *testing.T) {
 	for _, frontend := range []string{"sm", "manager"} {
 		for _, command := range []uint32{diam.CapabilitiesExchange, diam.DeviceWatchdog, diam.DisconnectPeer} {
 			for _, flags := range []uint8{0, diam.ErrorFlag} {
-				for _, fault := range round2Faults() {
+				for _, fault := range baseValueFaults() {
 					if fault.field == avp.SupportedVendorID && command != diam.CapabilitiesExchange {
 						continue
 					}

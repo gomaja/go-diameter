@@ -36,7 +36,14 @@ func FuzzManagedDWA(f *testing.F) {
 		if err != nil || msg == nil || msg.Header == nil || msg.Header.CommandCode != diam.DeviceWatchdog || msg.Header.ApplicationID != 0 || msg.Header.CommandFlags&diam.RequestFlag != 0 {
 			return
 		}
-		a := actor{cfg: PeerConfig{Host: "known.example.net"}}
-		_ = a.validateDWA(msg)
+		a, s, _ := newWatchdogTestActor(t, WatchdogReopen)
+		// Keep the fuzzer's header/body variation while installing only the owned
+		// exchange coordinates, so validation proceeds through the production core.
+		valid := testDWA(t, a)
+		msg.Header.HopByHopID, msg.Header.EndToEndID = valid.Header.HopByHopID, valid.Header.EndToEndID
+		a.onWire(event{s: s, msg: msg})
+		if snapshot := s.protocolSnapshot(); snapshot.Watchdog().NumDWA > 1 {
+			t.Fatalf("one fuzz input earned multiple recovery credits: %+v", snapshot.Watchdog())
+		}
 	})
 }

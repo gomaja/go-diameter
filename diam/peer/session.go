@@ -10,18 +10,21 @@ import (
 
 	"github.com/gomaja/go-diameter/diam"
 	"github.com/gomaja/go-diameter/diam/avp"
+	"github.com/gomaja/go-diameter/diam/internal/protocol"
 	"github.com/gomaja/go-diameter/diam/sm/smpeer"
 )
 
 var errQueueFull = errors.New("peer: queue full")
 
 type writeRequest struct {
-	msg           *diam.Message
-	closeAfter    bool
-	pending       *pendingRequest
-	required      bool
-	reply         *diam.ProtocolErrorEvent
-	replyDelivery *protocolDelivery
+	protocolToken  uint64
+	protocolSource protocol.Input
+	msg            *diam.Message
+	closeAfter     bool
+	pending        *pendingRequest
+	required       bool
+	reply          *diam.ProtocolErrorEvent
+	replyDelivery  *protocolDelivery
 }
 type incoming struct {
 	receivedAt time.Time
@@ -31,42 +34,58 @@ type incoming struct {
 	delivery   *protocolDelivery
 }
 type session struct {
-	retired           atomic.Bool
-	closing           atomic.Bool // logical Closing, before DPR/DPA effects
-	terminal          atomic.Bool // committed rejection or local close, before transport completion
-	retireErr         error
-	acceptCleaned     bool // guarded by Manager.mu
-	admitted          atomic.Bool
-	retireOnce        sync.Once
-	meta              *smpeer.Metadata
-	m                 *Manager
-	requests          *diam.PendingRequests
-	c                 diam.Conn
-	actor             *actor
-	gen               uint64
-	inbound           bool
-	firstMu           sync.Mutex
-	first             bool
-	rejectingFirst    bool
-	preTimer          Timer
-	writes            chan writeRequest
-	beforeAdmission   func()
-	afterAdmission    func()
-	beforePublication func(*diam.Message)
-	ingressMu         sync.Mutex
-	ingressSequence   uint64 // guarded by ingressMu; successful admissions only
-	receivedSequence  uint64 // actor-owned completion of admitted receive decisions
-	ingressClosed     bool
-	ingress           chan incoming
-	closed            chan struct{}
-	closeOnce         sync.Once
-	cerRequest        *diam.Message
-	cerHop, cerEnd    uint32
-	localApps         []uint32 // applications actually advertised on this connection
+	coreMu             sync.Mutex
+	core               *protocol.Core
+	coreID             protocol.Connection
+	startup            []protocol.Effect
+	coreEffects        []protocol.Effect
+	coreEffectSpare    []protocol.Effect
+	coreTimers         [protocol.ReceiverDisconnectTimer + 1]Timer
+	coreWrites         map[uint64]*diam.RequestWrite
+	coreHeaders        map[uint64]diam.Header
+	coreTimeouts       chan protocol.Input
+	candidate          uint64
+	retired            atomic.Bool
+	closing            atomic.Bool // logical Closing, before DPR/DPA effects
+	terminal           atomic.Bool // committed rejection or local close, before transport completion
+	retireErr          error
+	acceptCleaned      bool // guarded by Manager.mu
+	admitted           atomic.Bool
+	retireOnce         sync.Once
+	meta               *smpeer.Metadata
+	m                  *Manager
+	requests           *diam.PendingRequests
+	c                  diam.Conn
+	actor              *actor
+	gen                uint64
+	inbound            bool
+	firstMu            sync.Mutex
+	first              bool
+	preTimer           Timer
+	writes             chan writeRequest
+	beforeAdmission    func()
+	afterAdmission     func()
+	beforePublication  func(*diam.Message)
+	beforeInFlightScan func() // observes drain inspection in tests; nil in use
+	ingressMu          sync.Mutex
+	ingressSequence    uint64 // guarded by ingressMu; successful admissions only
+	receivedSequence   uint64 // actor-owned completion of admitted receive decisions
+	ingressClosed      bool
+	ingress            chan incoming
+	closed             chan struct{}
+	closeOnce          sync.Once
+	cerRequest         *diam.Message
+	cerHop, cerEnd     uint32
+	localApps          []uint32 // applications actually advertised on this connection
 }
 
 func (m *Manager) newSession(c diam.Conn, a *actor, gen uint64, inbound bool) *session {
 	s := &session{m: m, c: c, actor: a, gen: gen, inbound: inbound, writes: make(chan writeRequest, m.cfg.Limits.Events), ingress: make(chan incoming, m.cfg.Limits.Events), closed: make(chan struct{})}
+	if err := s.initProtocol(); err != nil {
+		m.reportLocal(s, nil, "peer: protocol initialization failed; closing connection", err)
+		c.Close()
+		return nil
+	}
 	if tracker, ok := diam.ConnAs[interface{ PendingRequests() *diam.PendingRequests }](c); ok {
 		s.requests = tracker.PendingRequests()
 	}
@@ -74,12 +93,15 @@ func (m *Manager) newSession(c diam.Conn, a *actor, gen uint64, inbound bool) *s
 	m.mu.Lock()
 	if m.closing || c.Closed() || a != nil && (a.retiring.Load() || !a.leaseLive()) {
 		m.mu.Unlock()
-		c.Close()
+		s.close()
 		return nil
 	}
 	m.sessions[c] = s
 	m.wg.Add(3)
 	m.mu.Unlock()
+	if inbound {
+		s.runProtocol(protocol.Input{Kind: protocol.Start}, s.takeStartup(), nil)
+	}
 	go s.writer()
 	go s.watch()
 	go s.dispatch()
@@ -132,7 +154,7 @@ func (s *session) dispatch() {
 				if a, _ := s.binding(); a != nil {
 					a.post(event{kind: wireEvent, s: s, msg: in.msg, messageErr: in.err, receivedAt: in.receivedAt, receiveSequence: in.sequence})
 				} else {
-					_ = s.m.answerMessageError(s, in.msg, in.err)
+					s.applyProtocol(protocol.Input{Kind: protocol.Receive, Message: in.msg, Error: in.err, ErrorInput: true, At: in.receivedAt, Sequence: in.sequence}, nil)
 				}
 			} else {
 				s.m.processDIAMAt(s, in.msg, in.receivedAt, in.sequence)
@@ -144,7 +166,7 @@ func (s *session) dispatch() {
 			if a, _ := s.binding(); a != nil {
 				a.commit(event{kind: wireEvent, s: s, msg: in.msg, messageErr: in.err, receivedAt: in.receivedAt, receiveSequence: in.sequence}, d)
 			} else {
-				_ = s.m.answerMessageError(s, in.msg, in.err, d)
+				s.applyProtocol(protocol.Input{Kind: protocol.Receive, Message: in.msg, Error: in.err, ErrorInput: true, At: in.receivedAt, Sequence: in.sequence}, d)
 			}
 		} else {
 			s.m.processDIAMAt(s, in.msg, in.receivedAt, in.sequence, d)
@@ -167,6 +189,8 @@ func (s *session) dispatch() {
 			}
 		case in := <-s.ingress:
 			dispatch(in)
+		case in := <-s.coreTimeouts:
+			s.postProtocol(in)
 		}
 	}
 }
@@ -226,25 +250,6 @@ func (s *session) sendWrite(w writeRequest) error {
 		return errQueueFull
 	}
 }
-func (s *session) sendControl(msg *diam.Message) error {
-	if msg == nil || msg.Header == nil || msg.Header.CommandFlags&diam.RequestFlag == 0 {
-		return ErrInvalidRequest
-	}
-	m := s.m
-	m.pendingMu.Lock()
-	hop := m.nextHopIDLocked(s, 0, false)
-	msg.Header.HopByHopID = hop
-	if m.controls[s] == nil {
-		m.controls[s] = make(map[uint32]struct{})
-	}
-	m.controls[s][hop] = struct{}{}
-	m.pendingMu.Unlock()
-	if err := s.send(msg, false); err != nil {
-		s.releaseControl(hop)
-		return err
-	}
-	return nil
-}
 func (s *session) releaseControl(hop uint32) {
 	s.m.pendingMu.Lock()
 	delete(s.m.controls[s], hop)
@@ -260,7 +265,18 @@ func (s *session) closeObserved() {
 	s.closeWithFailover(false)
 }
 func (s *session) closeWithFailover(immediate bool) {
+	if immediate {
+		s.abortProtocol()
+	}
 	s.closeOnce.Do(func() {
+		s.coreMu.Lock()
+		for i, timer := range s.coreTimers {
+			if timer != nil {
+				timer.Stop()
+				s.coreTimers[i] = nil
+			}
+		}
+		s.coreMu.Unlock()
 		s.firstMu.Lock()
 		if s.preTimer != nil {
 			s.preTimer.Stop()
@@ -284,12 +300,24 @@ func (s *session) closeWithFailover(immediate bool) {
 }
 func (s *session) writer() {
 	defer s.m.wg.Done()
+	defer func() {
+		for {
+			select {
+			case w := <-s.writes:
+				if w.protocolToken != 0 {
+					s.finishProtocolWriter(w, protocol.SkippedStage, 0, diam.ErrConnectionRetired)
+				}
+			default:
+				return
+			}
+		}
+	}()
 	for {
 		select {
 		case <-s.closed:
 			return
 		case w := <-s.writes:
-			if s.isRetired() || s.writeOne(w) {
+			if s.writeOne(w) {
 				return
 			}
 		}
@@ -299,6 +327,12 @@ func (s *session) writer() {
 // writeOne retains a selected request's identifier until the native writer has
 // returned, even if logical completion removed the Manager's pending entry.
 func (s *session) writeOne(w writeRequest) bool {
+	if w.protocolToken != 0 {
+		return s.writeProtocol(w)
+	}
+	if s.isRetired() {
+		return true
+	}
 	if w.pending != nil {
 		s.m.pendingMu.Lock()
 		if w.pending.done || w.pending.current != s || s.isRetired() || s.closing.Load() {

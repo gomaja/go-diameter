@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gomaja/go-diameter/diam"
+	"github.com/gomaja/go-diameter/diam/internal/protocol"
 	"github.com/gomaja/go-diameter/diam/sm/smpeer"
 )
 
@@ -62,6 +63,8 @@ func TestManagerRenewalCloseWatcherJoinsInterveningRetirement(t *testing.T) {
 		s.admitted.Store(true)
 		a.r, a.active = s, s
 		a.meta = &smpeer.Metadata{OriginHost: "known.example.net", OriginRealm: "example.net", Applications: []uint32{4}}
+		renewalCoreSession(t, s, true, true, "example.net")
+		a.syncProtocol(s, protocol.Input{Kind: protocol.ReleaseAdmission})
 		a.publish(nil)
 		m.peers[identity(a.cfg.Host)] = a
 		m.sessions[c] = s
@@ -117,6 +120,8 @@ func TestManagerRenewalTerminalDecisionVetoesRenewal(t *testing.T) {
 				s := &session{m: m, c: c, actor: a, gen: 1, inbound: true, first: true, closed: make(chan struct{}), ingress: make(chan incoming, 4), writes: make(chan writeRequest, 4)}
 				s.admitted.Store(true)
 				a.r, a.active = s, s
+				renewalCoreSession(t, s, true, true, "example.net")
+				a.syncProtocol(s, protocol.Input{Kind: protocol.ReleaseAdmission})
 				a.publish(nil)
 				m.peers[identity(a.cfg.Host)] = a
 				m.sessions[c] = s
@@ -138,7 +143,7 @@ func TestManagerRenewalTerminalDecisionVetoesRenewal(t *testing.T) {
 					closing = make(chan struct{})
 					go func() { s.close(); close(closing) }()
 					renewalScriptReceive(t, c.closeEntered, "terminal Close blocked at transport")
-				} else if err := s.send(reviewCER(t).Answer(diam.InvalidHDRBits), true); err != nil {
+				} else if err := s.send(capabilitiesExchangeRequest(t).Answer(diam.InvalidHDRBits), true); err != nil {
 					t.Fatal(err)
 				}
 				if c.Closed() {

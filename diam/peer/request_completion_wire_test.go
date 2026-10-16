@@ -107,7 +107,7 @@ func TestManagerCompletedSelectedRequestOnWire(t *testing.T) {
 			}
 			// A following answer joins this writer without creating new request
 			// ownership; receipt proves the selected slot has been drained.
-			sentinel, err := base.BuildDWA(reviewDWR(t), m.baseSettings(s.c))
+			sentinel, err := base.BuildDWA(watchdogRequest(t), m.baseSettings(s.c))
 			if err != nil {
 				t.Fatal(err)
 			}

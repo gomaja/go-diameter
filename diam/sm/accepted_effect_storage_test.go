@@ -16,7 +16,7 @@ func TestPreparedEffectsReuseOwnedStorage(t *testing.T) {
 	s := &acceptedHandshake{}
 	effects := []protocol.Effect{
 		{Kind: protocol.StopTimer, Timer: protocol.WatchdogTimer, ReleaseDispatch: true},
-		{Kind: protocol.Hold, Input: protocol.Input{Token: 91}},
+		{Kind: protocol.Hold, Input: &protocol.Input{Token: 91}},
 		{Kind: protocol.Discard, Token: 92},
 		{Kind: protocol.Notify, Token: 93},
 	}
@@ -103,7 +103,7 @@ func TestBatchObserversAllocateOnlyWhenRequired(t *testing.T) {
 	compacted := s.batchLocked(in, []protocol.Effect{
 		{Kind: protocol.StopTimer, Timer: protocol.WatchdogTimer},
 		{Kind: protocol.Notify, Notification: protocol.Notification{Kind: protocol.WatchdogNotice}},
-		{Kind: protocol.Hold, Input: protocol.Input{Token: 101}},
+		{Kind: protocol.Hold, Input: &protocol.Input{Token: 101}},
 		{Kind: protocol.Discard, Token: 102},
 		{Kind: protocol.Notify, ReleaseDispatch: true, Notification: protocol.Notification{Kind: protocol.WatchdogNotice}},
 	})

@@ -11,7 +11,7 @@ import (
 	"github.com/gomaja/go-diameter/diam/datatype"
 	"github.com/gomaja/go-diameter/diam/dict"
 	"github.com/gomaja/go-diameter/diam/internal/base"
-	"github.com/gomaja/go-diameter/diam/sm/internal/parserbridge"
+	"github.com/gomaja/go-diameter/diam/internal/parserbridge"
 )
 
 func init() {

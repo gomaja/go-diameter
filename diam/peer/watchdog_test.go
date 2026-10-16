@@ -3,6 +3,7 @@ package peer
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"strings"
 	"sync/atomic"
@@ -57,115 +58,154 @@ func newWatchdogTestActor(t *testing.T, state WatchdogState) (*actor, *session, 
 	s := &session{m: m, c: newFakeConn(), actor: a, gen: 7, writes: make(chan writeRequest, 8), closed: make(chan struct{})}
 	a.r, a.active = s, s
 	a.publish(nil)
+	if state != WatchdogInitial && state != WatchdogDown {
+		if err := bootstrapSessionProtocol(s); err != nil {
+			t.Fatal(err)
+		}
+	}
 	t.Cleanup(func() { a.stopWatchdog(); a.stopReconnect(); s.close(); closeManager(t, m, nil) })
 	return a, s, clock
 }
 
 func testDWA(t *testing.T, a *actor) *diam.Message {
 	t.Helper()
-	request, err := base.BuildDWR(a.m.dictionary(), testBase("local.example.net"), 0)
-	if err != nil {
-		t.Fatal(err)
+	ensureSessionProtocol(a.active)
+	if !a.active.protocolSnapshot().Watchdog().Pending {
+		a.sendWatchdog()
 	}
-	a.pendingWatchdog, a.watchdogHop, a.watchdogEnd, a.watchdogGen = true, request.Header.HopByHopID, request.Header.EndToEndID, a.active.gen
-	answer, err := base.BuildDWA(request, testBase("known.example.net"))
-	if err != nil {
-		t.Fatal(err)
+	if len(a.active.writes) > 0 {
+		fixtureConsumeProbe(a.active)
 	}
-	return answer
+	for _, control := range a.active.protocolSnapshot().Controls() {
+		if control.Command == diam.DeviceWatchdog && control.Logical {
+			request := diam.NewMessage(diam.DeviceWatchdog, diam.RequestFlag, 0, control.Reservation.Hop, control.Reservation.End, a.m.dictionary())
+			request.Header.HopByHopID, request.Header.EndToEndID = control.Reservation.Hop, control.Reservation.End
+			answer, err := base.BuildDWA(request, testBase("known.example.net"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			return answer
+		}
+	}
+	t.Fatal("core has no owned DWR")
+	return nil
 }
 
 func TestValidateDWACommandFlags(t *testing.T) {
-	a, _, _ := newWatchdogTestActor(t, WatchdogOkay)
-	answer := testDWA(t, a)
 	for flags := 0; flags <= 255; flags++ {
-		answer.Header.CommandFlags = uint8(flags)
-		err := a.validateDWA(answer)
-		// RFC 6733 §§3 and 5.5.2: ignore the reserved low bits, but
-		// a successful DWA still cannot carry any defined command flag.
-		wantError := flags&0xf0 != 0
-		if (err != nil) != wantError {
-			t.Errorf("DWA flags %#02x: error = %v, want error %t", flags, err, wantError)
-		}
+		t.Run(fmt.Sprintf("%02x", flags), func(t *testing.T) {
+			a, _, _ := newWatchdogTestActor(t, WatchdogOkay)
+			answer := testDWA(t, a)
+			answer.Header.CommandFlags = uint8(flags)
+			a.watchdogReceive(answer)
+			valid := !a.pendingWatchdog
+			// RFC 6733 §§3 and 5.5.2: ignore reserved low bits; successful
+			// DWA must have all four defined command flags clear.
+			if want := flags&0xf0 == 0; valid != want {
+				t.Fatalf("DWA flags %#02x: credit=%t, want %t", flags, valid, want)
+			}
+		})
 	}
 }
 
 func TestWatchdogReceiveReservedDWAFlags(t *testing.T) {
-	a, _, _ := newWatchdogTestActor(t, WatchdogReopen)
 	for reserved := uint8(0); reserved <= 0x0f; reserved++ {
-		a.numDWA = 0
-		answer := testDWA(t, a)
-		answer.Header.CommandFlags = reserved
-		if !a.watchdogReceive(answer) || a.pendingWatchdog || a.numDWA != 1 {
-			t.Fatalf("reserved DWA flags %#02x: pending=%t recovery count=%d", reserved, a.pendingWatchdog, a.numDWA)
-		}
+		t.Run(fmt.Sprintf("%02x", reserved), func(t *testing.T) {
+			a, _, _ := newWatchdogTestActor(t, WatchdogReopen)
+			answer := testDWA(t, a)
+			answer.Header.CommandFlags = reserved
+			if !a.watchdogReceive(answer) || a.pendingWatchdog || a.numDWA != 1 {
+				t.Fatalf("reserved DWA flags %#02x: pending=%t recovery count=%d", reserved, a.pendingWatchdog, a.numDWA)
+			}
+		})
 	}
 }
 
-// Every row is named after the RFC 3539 Appendix A state/event/guard.
+// RFC 3539 Appendix A admitted rows are exercised through production core
+// timers and receipts. INITIAL/DOWN transport admission is covered separately
+// by Manager's handshake/reconnect tests rather than fabricated DWA ownership.
 func TestRFC3539WatchdogTable(t *testing.T) {
-	type row struct {
-		name        string
-		state       WatchdogState
-		event       string
-		pending     bool
-		num         int
-		want        WatchdogState
-		wantPending bool
-		wantNum     int
-		writes      int
-	}
-	rows := []row{
-		{"INITIAL/connection up", WatchdogInitial, "up", false, 0, WatchdogOkay, false, 0, 0},
-		{"INITIAL/Tw expires", WatchdogInitial, "timer", false, 0, WatchdogInitial, false, 0, 0},
-		{"INITIAL/DWA", WatchdogInitial, "dwa", true, 0, WatchdogInitial, false, 0, 0},
-		{"INITIAL/other message", WatchdogInitial, "other", false, 0, WatchdogInitial, false, 0, 0},
-		{"OKAY/valid DWA", WatchdogOkay, "dwa", true, 0, WatchdogOkay, false, 0, 0},
-		{"OKAY/other message", WatchdogOkay, "other", true, 0, WatchdogOkay, true, 0, 0},
-		{"OKAY/Tw expires no pending", WatchdogOkay, "timer", false, 0, WatchdogOkay, true, 0, 1},
-		{"OKAY/Tw expires pending", WatchdogOkay, "timer", true, 0, WatchdogSuspect, true, 0, 0},
-		{"OKAY/connection down", WatchdogOkay, "down", false, 0, WatchdogDown, false, 0, 0},
-		{"SUSPECT/valid DWA", WatchdogSuspect, "dwa", true, 0, WatchdogOkay, false, 0, 0},
-		{"SUSPECT/other message", WatchdogSuspect, "other", true, 0, WatchdogOkay, true, 0, 0},
-		{"SUSPECT/Tw expires", WatchdogSuspect, "timer", true, 0, WatchdogDown, false, 0, 0},
-		{"SUSPECT/connection down", WatchdogSuspect, "down", true, 0, WatchdogDown, false, 0, 0},
-		{"DOWN/Tw expires", WatchdogDown, "timer", false, 0, WatchdogDown, false, 0, 0},
-		{"DOWN/connection up", WatchdogDown, "up", false, 9, WatchdogReopen, true, 0, 1},
-		{"DOWN/DWA", WatchdogDown, "dwa", true, 0, WatchdogDown, false, 0, 0},
-		{"DOWN/other message", WatchdogDown, "other", false, 0, WatchdogDown, false, 0, 0},
-		{"REOPEN/valid DWA NumDWA 0", WatchdogReopen, "dwa", true, 0, WatchdogReopen, false, 1, 0},
-		{"REOPEN/valid DWA NumDWA 1", WatchdogReopen, "dwa", true, 1, WatchdogReopen, false, 2, 0},
-		{"REOPEN/valid DWA NumDWA 2", WatchdogReopen, "dwa", true, 2, WatchdogOkay, false, 3, 0},
-		{"REOPEN/other message", WatchdogReopen, "other", true, 0, WatchdogReopen, true, 0, 0},
-		{"REOPEN/Tw expires no pending", WatchdogReopen, "timer", false, 0, WatchdogReopen, true, 0, 1},
-		{"REOPEN/Tw expires pending first", WatchdogReopen, "timer", true, 0, WatchdogReopen, true, -1, 0},
-		{"REOPEN/Tw expires pending second", WatchdogReopen, "timer", true, -1, WatchdogDown, false, -1, 0},
-		{"REOPEN/connection down", WatchdogReopen, "down", true, 1, WatchdogDown, false, 1, 0},
-	}
-	for _, tc := range rows {
+	for _, tc := range []struct {
+		name            string
+		state           WatchdogState
+		pending         bool
+		event           string
+		want            WatchdogState
+		wantPending     bool
+		wantNum, writes int
+	}{
+		{"OKAY/Tw expires no pending", WatchdogOkay, false, "timer", WatchdogOkay, true, 0, 1},
+		{"OKAY/Tw expires pending", WatchdogOkay, true, "timer", WatchdogSuspect, true, 0, 0},
+		{"OKAY/valid DWA", WatchdogOkay, true, "dwa", WatchdogOkay, false, 0, 0},
+		{"OKAY/valid other message", WatchdogOkay, true, "other", WatchdogOkay, true, 0, 1},
+		{"SUSPECT/valid DWA", WatchdogSuspect, true, "dwa", WatchdogOkay, false, 0, 0},
+		{"SUSPECT/valid other message", WatchdogSuspect, true, "other", WatchdogOkay, true, 0, 1},
+		{"SUSPECT/Tw expires", WatchdogSuspect, true, "timer", WatchdogDown, false, 0, 0},
+		{"REOPEN/first valid DWA", WatchdogReopen, true, "dwa", WatchdogReopen, false, 1, 0},
+		{"REOPEN/valid other message", WatchdogReopen, true, "other", WatchdogReopen, true, 0, 1},
+		{"REOPEN/first unanswered expiry", WatchdogReopen, true, "timer", WatchdogReopen, true, -1, 0},
+	} {
 		t.Run(tc.name, func(t *testing.T) {
 			a, s, _ := newWatchdogTestActor(t, tc.state)
-			a.pendingWatchdog, a.numDWA = tc.pending, tc.num
+			if tc.pending && !a.pendingWatchdog {
+				a.sendWatchdog()
+				fixtureConsumeProbe(s)
+			}
 			switch tc.event {
-			case "up":
-				a.onOpen()
-			case "down":
-				a.onGone(s)
 			case "timer":
 				a.watchdogTick()
 			case "dwa":
 				a.watchdogReceive(testDWA(t, a))
 			case "other":
-				a.watchdogReceive(diam.NewRequest(999, 0, a.m.dictionary()))
+				a.watchdogReceive(watchdogRequest(t))
 			}
 			if a.watchdog != tc.want || a.pendingWatchdog != tc.wantPending || a.numDWA != tc.wantNum {
-				t.Fatalf("watchdog=%s pending=%v NumDWA=%d; want %s %v %d", a.watchdog, a.pendingWatchdog, a.numDWA, tc.want, tc.wantPending, tc.wantNum)
+				t.Fatalf("watchdog=%s pending=%t NumDWA=%d; want %s %t %d", a.watchdog, a.pendingWatchdog, a.numDWA, tc.want, tc.wantPending, tc.wantNum)
 			}
 			if len(s.writes) != tc.writes {
 				t.Fatalf("writes=%d want %d", len(s.writes), tc.writes)
 			}
-			if got := a.snapshot().Eligible; got != (a.state == ROpen && tc.want == WatchdogOkay) {
-				t.Fatalf("Eligible=%v", got)
+			if got, want := a.snapshot().Eligible, a.state == ROpen && tc.want == WatchdogOkay; got != want {
+				t.Fatalf("Eligible=%t want %t", got, want)
+			}
+		})
+	}
+}
+
+func TestWatchdogRecoveryCreditAndSecondExpiry(t *testing.T) {
+	for _, prior := range []int{1, 2} {
+		t.Run(fmt.Sprintf("credited=%d", prior), func(t *testing.T) {
+			a, _, _ := newWatchdogTestActor(t, WatchdogReopen)
+			for range prior {
+				a.watchdogReceive(testDWA(t, a))
+			}
+			a.watchdogReceive(testDWA(t, a))
+			if a.numDWA != prior+1 || a.pendingWatchdog || a.snapshot().Eligible != (prior == 2) {
+				t.Fatalf("recovery credit state=%s NumDWA=%d Pending=%t Eligible=%t", a.watchdog, a.numDWA, a.pendingWatchdog, a.snapshot().Eligible)
+			}
+		})
+	}
+	t.Run("second unanswered expiry", func(t *testing.T) {
+		a, _, _ := newWatchdogTestActor(t, WatchdogReopen)
+		a.watchdogTick()
+		if a.numDWA != -1 || !a.pendingWatchdog {
+			t.Fatalf("first unanswered expiry state=%s NumDWA=%d Pending=%t", a.watchdog, a.numDWA, a.pendingWatchdog)
+		}
+		a.watchdogTick()
+		if a.watchdog != WatchdogDown || a.pendingWatchdog || a.snapshot().Eligible {
+			t.Fatalf("second unanswered expiry state=%s Pending=%t Eligible=%t", a.watchdog, a.pendingWatchdog, a.snapshot().Eligible)
+		}
+	})
+	for _, history := range []WatchdogState{WatchdogInitial, WatchdogDown} {
+		t.Run(string(history)+"/connection up", func(t *testing.T) {
+			a, s, _ := newWatchdogTestActor(t, history)
+			a.onOpen()
+			if history == WatchdogInitial {
+				if a.watchdog != WatchdogOkay || a.pendingWatchdog || !a.snapshot().Eligible || len(s.writes) != 0 {
+					t.Fatalf("initial admission state=%s Pending=%t writes=%d", a.watchdog, a.pendingWatchdog, len(s.writes))
+				}
+			} else if a.watchdog != WatchdogReopen || !a.pendingWatchdog || a.numDWA != 0 || a.snapshot().Eligible || len(s.writes) != 1 {
+				t.Fatalf("recovery admission state=%s Pending=%t NumDWA=%d writes=%d", a.watchdog, a.pendingWatchdog, a.numDWA, len(s.writes))
 			}
 		})
 	}
@@ -195,7 +235,7 @@ func TestWatchdogMatchingAndRecovery(t *testing.T) {
 	if !a.pendingWatchdog || a.numDWA != 0 || a.snapshot().Eligible {
 		t.Fatal("recovery opened before validation")
 	}
-	first := (<-s.writes).msg
+	first := fixtureConsumeProbe(s)
 	answer := func(request *diam.Message) *diam.Message {
 		t.Helper()
 		m, err := base.BuildDWA(request, testBase("known.example.net"))
@@ -220,7 +260,7 @@ func TestWatchdogMatchingAndRecovery(t *testing.T) {
 	}
 	for want := 2; want <= 3; want++ {
 		a.watchdogTick()
-		probe := (<-s.writes).msg
+		probe := fixtureConsumeProbe(s)
 		a.onWire(event{s: s, msg: answer(probe)})
 		if a.numDWA != want || a.snapshot().Eligible != (want == 3) {
 			t.Fatalf("NumDWA=%d Eligible=%v", a.numDWA, a.snapshot().Eligible)
@@ -233,22 +273,22 @@ func TestWatchdogMatchingAndRecovery(t *testing.T) {
 
 func TestWatchdogReopenSuppressesApplicationButAnswersDWR(t *testing.T) {
 	a, s, clock := newWatchdogTestActor(t, WatchdogReopen)
-	a.armWatchdog()
 	tw := clock.timers[len(clock.timers)-1]
 	a.onWire(event{s: s, msg: diam.NewRequest(999, 0, a.m.dictionary())})
 	if len(s.writes) != 0 {
 		t.Fatal("application message dispatched in REOPEN")
 	}
-	if !tw.active {
-		t.Fatal("REOPEN traffic postponed the next recovery probe")
+	if tw.active {
+		t.Fatal("decoded REOPEN traffic did not reset its recovery timer")
 	}
+	tw = clock.timers[len(clock.timers)-1]
 	dwr, err := base.BuildDWR(a.m.dictionary(), testBase("known.example.net"), 0)
 	if err != nil {
 		t.Fatal(err)
 	}
 	a.onWire(event{s: s, msg: dwr})
-	if !tw.active {
-		t.Fatal("peer DWR postponed the next recovery probe")
+	if tw.active {
+		t.Fatal("peer DWR did not reset the recovery timer")
 	}
 	if len(s.writes) != 1 || (<-s.writes).msg.Header.CommandFlags&diam.RequestFlag != 0 {
 		t.Fatal("peer DWR not answered")
@@ -257,7 +297,6 @@ func TestWatchdogReopenSuppressesApplicationButAnswersDWR(t *testing.T) {
 
 func TestWatchdogTrafficResetsTwAndJitter(t *testing.T) {
 	a, _, clock := newWatchdogTestActor(t, WatchdogOkay)
-	a.armWatchdog()
 	first := clock.timers[len(clock.timers)-1]
 	a.watchdogReceive(diam.NewRequest(999, 0, a.m.dictionary()))
 	if first.active {
@@ -269,8 +308,7 @@ func TestWatchdogTrafficResetsTwAndJitter(t *testing.T) {
 	a.m.cfg.Timers.TwInit = 6 * time.Second
 	a.m.cfg.watchdogTiming = nil
 	for i := 0; i < 200; i++ {
-		a.armWatchdog()
-		d := clock.timers[len(clock.timers)-1].duration
+		d := a.watchdogInterval()
 		if d < 4*time.Second || d > 8*time.Second {
 			t.Fatalf("Tw jitter %s outside ±2s", d)
 		}
@@ -301,10 +339,10 @@ func TestReconnectBackoffAndPolicy(t *testing.T) {
 	}
 	a.state = ROpen
 	a.r, a.active = s, s
-	a.watchdog = WatchdogReopen
-	a.numDWA = 2
 	a.publish(nil)
-	a.watchdogReceive(testDWA(t, a))
+	for range 3 {
+		a.watchdogReceive(testDWA(t, a))
+	}
 	if a.failures != 0 || !a.snapshot().Eligible {
 		t.Fatal("stable OKAY did not reset Tc")
 	}
@@ -457,8 +495,9 @@ func TestWatchdogDWAIdentityAndResult(t *testing.T) {
 func TestWatchdogStaleGenerationDWA(t *testing.T) {
 	a, s, _ := newWatchdogTestActor(t, WatchdogReopen)
 	m := testDWA(t, a)
-	a.watchdogGen = s.gen - 1
-	a.onWire(event{s: s, msg: m})
+	old := &session{m: a.m, c: newFakeConn(), actor: a, gen: s.gen - 1, writes: make(chan writeRequest, 8), closed: make(chan struct{})}
+	t.Cleanup(old.close)
+	a.onWire(event{s: old, msg: m})
 	if a.numDWA != 0 || !a.pendingWatchdog {
 		t.Fatal("old-generation DWA counted")
 	}

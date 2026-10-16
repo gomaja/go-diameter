@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/gomaja/go-diameter/diam"
-	"github.com/gomaja/go-diameter/diam/internal/base"
 )
 
 type orderedReplyConn struct {
@@ -40,24 +39,21 @@ func orderedReplyRejection(t *testing.T, m *Manager, s *session, command string,
 	msg := diam.NewMessage(0xeeee, diam.RequestFlag, 0, 11, 12, m.dictionary())
 	switch command {
 	case "unsupported":
-		m.unsupported(s, msg, d)
+		reportingReceive(s.actor, s, msg, d)
 	case "rejection":
-		msg = reviewDWR(t)
-		m.rejectRequest(s, msg, &base.RequestError{Kind: diam.ProtocolInvalidRequest, Code: diam.MissingAVP}, false, false, d)
+		msg = watchdogRequest(t)
+		msg.AVP = nil
+		reportingReceive(s.actor, s, msg, d)
 	case "malformed":
-		msg = reviewDWR(t)
-		if err := m.answerMessageError(s, msg, &diam.MessageError{ResultCode: diam.InvalidAVPLength}, d); err != nil {
-			t.Fatal(err)
-		}
+		msg = watchdogRequest(t)
+		s.actor.commit(event{kind: wireEvent, s: s, msg: msg, messageErr: &diam.MessageError{ResultCode: diam.InvalidAVPLength}}, d)
 	case "malformed_pre_CER":
 		s.inbound = true
-		msg = reviewCER(t)
-		if err := m.answerMessageError(s, msg, &diam.MessageError{ResultCode: diam.InvalidAVPLength}, d); err != nil {
-			t.Fatal(err)
-		}
+		msg = capabilitiesExchangeRequest(t)
+		s.actor.commit(event{kind: wireEvent, s: s, msg: msg, messageErr: &diam.MessageError{ResultCode: diam.InvalidAVPLength}}, d)
 	case "rejected_CEA":
-		msg = reviewCER(t)
-		m.rejectCER(s, msg, diam.NoCommonApplication, errors.New("no common application"), d)
+		msg = s.cerRequest
+		s.actor.commit(event{testHook: func() { reportingRejectCandidate(s, msg, diam.NoCommonApplication, d) }}, d)
 	default:
 		t.Fatal("unknown rejection")
 	}
@@ -89,6 +85,16 @@ func TestRequiredReplyConcurrentCompletionWaitsForAdmission(t *testing.T) {
 	for _, command := range []string{"unsupported", "rejection", "malformed", "malformed_pre_CER", "rejected_CEA"} {
 		t.Run(command, func(t *testing.T) {
 			a, s, _ := newWatchdogTestActor(t, WatchdogOkay)
+			if command == "malformed_pre_CER" || command == "rejected_CEA" {
+				a, s, _ = newReportingRawActor(t)
+				if command == "rejected_CEA" {
+					reportingCandidate(t, a, s)
+				} else {
+					reportingResponder(t, a, s)
+					a.r = s
+				}
+			}
+			reportingStartActor(t, a)
 			c := &orderedReplyConn{fakeConn: s.c.(*fakeConn), wrote: make(chan struct{})}
 			s.c = c
 			events := make(chan diam.ProtocolErrorEvent, 4)
@@ -98,6 +104,7 @@ func TestRequiredReplyConcurrentCompletionWaitsForAdmission(t *testing.T) {
 			msg := orderedReplyRejection(t, a.m, s, command, d)
 			original := *msg.Header
 			orderedReplyWait(t, done, "failed writer without admission observer")
+			reportingAwaitReplyFailure(t, d)
 			select {
 			case e := <-events:
 				t.Fatalf("completion overtook queued admission: reply=%v closing=%t", e.Reply, e.Closing)
@@ -128,6 +135,7 @@ func TestRequiredReplyConcurrentCompletionWaitsForAdmission(t *testing.T) {
 
 func TestRequiredReplyConcurrentCompletionWaitsForBlockedObserver(t *testing.T) {
 	a, s, _ := newWatchdogTestActor(t, WatchdogOkay)
+	reportingStartActor(t, a)
 	releaseWrite := make(chan struct{})
 	c := &orderedReplyConn{fakeConn: s.c.(*fakeConn), release: releaseWrite, wrote: make(chan struct{})}
 	s.c = c
@@ -151,6 +159,7 @@ func TestRequiredReplyConcurrentCompletionWaitsForBlockedObserver(t *testing.T) 
 	orderedReplyWait(t, queued, "queued observer")
 	close(releaseWrite)
 	orderedReplyWait(t, done, "failed writer while observer blocked")
+	reportingAwaitReplyFailure(t, d)
 	select {
 	case e := <-events:
 		close(releaseObserver)
@@ -180,6 +189,7 @@ func orderedReplyEvent(t *testing.T, events <-chan diam.ProtocolErrorEvent) diam
 
 func TestRequiredReplyConcurrentCompletionAfterAdmission(t *testing.T) {
 	a, s, _ := newWatchdogTestActor(t, WatchdogOkay)
+	reportingStartActor(t, a)
 	release := make(chan struct{})
 	c := &orderedReplyConn{fakeConn: s.c.(*fakeConn), release: release, wrote: make(chan struct{})}
 	s.c = c
@@ -204,6 +214,7 @@ func TestRequiredReplyConcurrentCompletionAfterAdmission(t *testing.T) {
 
 func TestRequiredReplyConcurrentSuccessDoesNotReportFailure(t *testing.T) {
 	a, s, _ := newWatchdogTestActor(t, WatchdogOkay)
+	reportingStartActor(t, a)
 	c := &orderedReplyConn{fakeConn: s.c.(*fakeConn), wrote: make(chan struct{}), success: true}
 	s.c = c
 	events := make(chan diam.ProtocolErrorEvent, 4)
@@ -226,6 +237,7 @@ func TestRequiredReplyConcurrentSuccessDoesNotReportFailure(t *testing.T) {
 func TestRequiredReplyConcurrentCompletionWithoutDeferredDelivery(t *testing.T) {
 	for range 32 {
 		a, s, _ := newWatchdogTestActor(t, WatchdogOkay)
+		reportingStartActor(t, a)
 		c := &orderedReplyConn{fakeConn: s.c.(*fakeConn), wrote: make(chan struct{})}
 		s.c = c
 		events := make(chan diam.ProtocolErrorEvent, 4)
@@ -243,6 +255,7 @@ func TestRequiredReplyConcurrentCompletionWithoutDeferredDelivery(t *testing.T) 
 
 func TestRequiredReplyConcurrentCompletionWithoutObserver(t *testing.T) {
 	a, s, _ := newWatchdogTestActor(t, WatchdogOkay)
+	reportingStartActor(t, a)
 	c := &orderedReplyConn{fakeConn: s.c.(*fakeConn), wrote: make(chan struct{})}
 	s.c = c
 	done := orderedReplyWriter(t, s)
@@ -255,6 +268,7 @@ func TestRequiredReplyConcurrentCompletionWithoutObserver(t *testing.T) {
 
 func TestRequiredReplyConcurrentLeaseCompletionWaitsForAdmission(t *testing.T) {
 	a, s, _ := newWatchdogTestActor(t, WatchdogOkay)
+	reportingStartActor(t, a)
 	ready, release := make(chan struct{}), make(chan struct{})
 	s.beforePublication = func(*diam.Message) { close(ready); <-release }
 	events := make(chan diam.ProtocolErrorEvent, 4)
@@ -266,6 +280,7 @@ func TestRequiredReplyConcurrentLeaseCompletionWaitsForAdmission(t *testing.T) {
 	a.discovery.Store(&discoveryState{revoked: true})
 	close(release)
 	orderedReplyWait(t, done, "lease rejected writer")
+	reportingAwaitReplyFailure(t, d)
 	select {
 	case e := <-events:
 		t.Fatalf("lease completion overtook admission: reply=%v", e.Reply)
@@ -281,10 +296,15 @@ func TestRequiredReplyConcurrentLeaseCompletionWaitsForAdmission(t *testing.T) {
 
 func TestRequiredReplyBlockedObserverDoesNotDelayAnotherReply(t *testing.T) {
 	a, s, _ := newWatchdogTestActor(t, WatchdogOkay)
+	reportingStartActor(t, a)
 	first := &orderedReplyConn{fakeConn: s.c.(*fakeConn), wrote: make(chan struct{})}
 	s.c = first
-	second := &orderedReplyConn{fakeConn: newFakeConn(), wrote: make(chan struct{})}
-	s2 := &session{m: a.m, c: second, writes: make(chan writeRequest, 8), closed: make(chan struct{})}
+	a2, s2, _ := newWatchdogTestActor(t, WatchdogOkay)
+	second := &orderedReplyConn{fakeConn: s2.c.(*fakeConn), wrote: make(chan struct{})}
+	s2.c = second
+	// Independent actors share the protocol observer without sharing a mutation lock.
+	a2.m.cfg.Settings.OnProtocolError = func(e diam.ProtocolErrorEvent) { a.m.HandleProtocolError(e) }
+	reportingStartActor(t, a2)
 	queued, release := make(chan struct{}), make(chan struct{})
 	events := make(chan diam.ProtocolErrorEvent, 8)
 	a.m.cfg.Settings.OnProtocolError = func(e diam.ProtocolErrorEvent) {

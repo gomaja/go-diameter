@@ -97,7 +97,7 @@ func TestManagerMalformedCEACorrelationOnWire(t *testing.T) {
 				if p := m.Peers()[0]; !p.Eligible || p.Realm != "example.net" {
 					t.Fatalf("valid followup not admitted: %+v", p)
 				}
-				write(t, c, reviewDWR(t))
+				write(t, c, watchdogRequest(t))
 				if answer := read(t, c); answer.Header.CommandCode != diam.DeviceWatchdog || code(t, answer) != diam.Success {
 					t.Fatalf("valid followup connection unusable: %v", answer)
 				}

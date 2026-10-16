@@ -21,8 +21,8 @@ import (
 func failureReportingActor(t *testing.T) (*actor, *session, *logtest.Recorder) {
 	t.Helper()
 	records := logtest.New()
-	m := &Manager{cfg: Config{Settings: testSettings("local.example.net"), Logger: records.Logger(), Clock: &fakeClock{}}, callbackQ: make(chan PeerEvent, 32), controls: make(map[*session]map[uint32]struct{})}
-	a := &actor{m: m, cfg: PeerConfig{Host: "known.example.net", NoAutoReconnect: true}, state: Closed, watchdog: WatchdogInitial}
+	m := &Manager{cfg: Config{Settings: testSettings("local.example.net"), Logger: records.Logger(), Clock: &fakeClock{}, Timers: Timers{CER: time.Second, Closing: time.Second, TwInit: 6 * time.Second}}, callbackQ: make(chan PeerEvent, 32), controls: make(map[*session]map[uint32]struct{})}
+	a := &actor{m: m, cfg: PeerConfig{Host: "known.example.net", NoAutoReconnect: true}, state: Closed, watchdog: WatchdogInitial, events: make(chan event, 64), done: make(chan struct{})}
 	s := &session{m: m, c: newFakeConn(), actor: a, gen: 1, writes: make(chan writeRequest, 8), closed: make(chan struct{})}
 	a.publish(nil)
 	t.Cleanup(s.close)
@@ -52,14 +52,11 @@ func assertFailureEvents(t *testing.T, a *actor, states []PeerState, watchdogs [
 func TestActorFailureEventSequences(t *testing.T) {
 	t.Run("rejected CEA", func(t *testing.T) {
 		a, s, _ := failureReportingActor(t)
-		a.state, a.i = WaitICEA, s
-		a.publish(nil)
-		cer := reviewCER(t)
+		cer := reportingInitiator(t, a, s, true)
 		cea, err := base.BuildCEA(cer, testBase("known.example.net"), diam.UnknownPeer)
 		if err != nil {
 			t.Fatal(err)
 		}
-		s.cerHop, s.cerEnd = cea.Header.HopByHopID, cea.Header.EndToEndID
 		a.onWire(event{s: s, msg: cea})
 		assertFailureEvents(t, a, []PeerState{Closed, Closed}, []WatchdogState{WatchdogInitial, WatchdogInitial}, []string{"", "invalid CEA"})
 	})
@@ -67,6 +64,7 @@ func TestActorFailureEventSequences(t *testing.T) {
 		a, s, _ := failureReportingActor(t)
 		<-a.m.callbackQ
 		a.state, a.i, a.active, a.watchdog, a.everOpen = IOpen, s, s, WatchdogSuspect, true
+		reportingOpen(t, s)
 		a.publish(nil)
 		<-a.m.callbackQ
 		a.watchdogTick()
@@ -94,8 +92,6 @@ func assertFailureRecord(t *testing.T, records *logtest.Recorder, level slog.Lev
 }
 
 func TestActorFailureAttributionAndLevels(t *testing.T) {
-	testDict := newTestDictionary(creditcontrol.Dictionary())
-
 	t.Run("without session", func(t *testing.T) {
 		a, _, records := failureReportingActor(t)
 		a.fail(errors.New("peer: state timeout"))
@@ -126,6 +122,22 @@ func TestActorFailureAttributionAndLevels(t *testing.T) {
 				a, s, records := failureReportingActor(t)
 				a.state, a.i, a.active = IOpen, s, s
 				var cause error
+				if failure == "build" {
+					a.m.cfg.Settings.HostIPAddresses = []datatype.Address{{}}
+				}
+				var candidate *diam.Message
+				switch operation {
+				case "CER":
+					s.inbound = false
+					a.state = WaitConnAck
+					if err := s.initProtocol(); err != nil {
+						t.Fatal(err)
+					}
+				case "CEA":
+					candidate = reportingCandidate(t, a, s)
+				default:
+					reportingOpen(t, s)
+				}
 				if failure == "send" {
 					for len(s.writes) < cap(s.writes) {
 						s.writes <- writeRequest{}
@@ -134,19 +146,18 @@ func TestActorFailureAttributionAndLevels(t *testing.T) {
 				} else {
 					a.m.cfg.Settings.HostIPAddresses = []datatype.Address{{}}
 				}
-				requestDict := testDict
-				req := diam.NewRequest(diam.DeviceWatchdog, 0, requestDict)
+				req := watchdogRequest(t)
 				switch operation {
 				case "CER":
 					a.state = WaitConnAck
 					a.step(iAck, s, nil)
 				case "CEA":
-					s.cerRequest = diam.NewRequest(diam.CapabilitiesExchange, 0, requestDict)
+					s.cerRequest = candidate
 					a.sendCEA(s)
 				case "DWR":
 					a.sendWatchdog()
 				case "DWA":
-					a.step(iDWR, s, req)
+					a.onWire(event{s: s, msg: req})
 				case "DPR":
 					a.step(stop, s, nil)
 				}
@@ -163,12 +174,20 @@ func TestManagerLocalFailureLevels(t *testing.T) {
 		t.Run(operation, func(t *testing.T) {
 			a, s, records := failureReportingActor(t)
 			a.state, a.i, a.active = IOpen, s, s
+			if operation == "rejected CER answer" || operation == "build rejected CER answer" {
+				if operation == "build rejected CER answer" {
+					a.m.cfg.Settings.HostIPAddresses = []datatype.Address{{}}
+				}
+				reportingCandidate(t, a, s)
+			} else {
+				reportingOpen(t, s)
+			}
 			a.publish(nil)
 			a.m.sessions = map[diam.Conn]*session{s.c: s}
 			for len(s.writes) < cap(s.writes) {
 				s.writes <- writeRequest{}
 			}
-			req := reviewDWR(t)
+			req := watchdogRequest(t)
 			switch operation {
 			case "DPA answer":
 				dpr, err := base.BuildDPR(testDict, testBase("known.example.net"), 0)
@@ -177,12 +196,12 @@ func TestManagerLocalFailureLevels(t *testing.T) {
 				}
 				a.answerDPR(s, dpr)
 			case "rejected CER answer":
-				a.m.rejectCER(s, reviewCER(t), diam.UnknownPeer, errors.New("unknown peer"))
+				reportingRejectCandidate(s, s.cerRequest, diam.UnknownPeer, nil)
 			case "build rejected CER answer":
 				a.m.cfg.Settings.HostIPAddresses = []datatype.Address{{}}
-				a.m.rejectCER(s, reviewCER(t), diam.UnknownPeer, errors.New("unknown peer"))
+				reportingRejectCandidate(s, s.cerRequest, diam.UnknownPeer, nil)
 			case "unsupported answer":
-				a.m.unsupported(s, diam.NewRequest(999, 0, testDict))
+				a.onWire(event{s: s, msg: diam.NewRequest(999, 0, testDict)})
 			case "error answer":
 				a.onWire(event{s: s, msg: req, messageErr: &diam.MessageError{ResultCode: diam.InvalidAVPValue}})
 			case "ingress":
@@ -265,9 +284,10 @@ func TestManagerSendAdmissionFailureRecord(t *testing.T) {
 
 func TestSessionDispatchLocalFailureRecord(t *testing.T) {
 	_, s, records := failureReportingActor(t)
+	reportingOpen(t, s)
 	s.actor = nil
 	s.ingress = make(chan incoming, 1)
-	s.ingress <- incoming{msg: reviewDWR(t), err: &diam.MessageError{ResultCode: diam.InvalidAVPValue}}
+	s.ingress <- incoming{msg: watchdogRequest(t), err: &diam.MessageError{ResultCode: diam.InvalidAVPValue}}
 	for len(s.writes) < cap(s.writes) {
 		s.writes <- writeRequest{}
 	}
@@ -299,8 +319,9 @@ func TestActorFailureStopsTransitionPublication(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			a, s, _ := failureReportingActor(t)
+			request := reportingCandidate(t, a, s)
 			a.state, a.r = tc.state, s
-			s.cerRequest = reviewCER(t)
+			s.cerRequest = request
 			for len(s.writes) < cap(s.writes) {
 				s.writes <- writeRequest{}
 			}
@@ -315,11 +336,17 @@ func TestActorFailureStopsTransitionPublication(t *testing.T) {
 	t.Run("reopen watchdog", func(t *testing.T) {
 		a, s, _ := failureReportingActor(t)
 		<-a.m.callbackQ
-		a.state, a.i, a.watchdog, a.everOpen = WaitICEA, s, WatchdogDown, true
+		a.watchdog, a.everOpen = WatchdogDown, true
+		a.publish(nil)
+		cer := reportingInitiator(t, a, s, true)
+		for len(a.m.callbackQ) > 0 {
+			<-a.m.callbackQ
+		}
 		for len(s.writes) < cap(s.writes) {
 			s.writes <- writeRequest{}
 		}
-		a.step(iCEA, s, nil)
+		cea := correlationCEA(t, cer, "known.example.net")
+		a.onWire(event{s: s, msg: cea})
 		assertFailureEvents(t, a, []PeerState{IOpen, Closed, Closed}, []WatchdogState{WatchdogReopen, WatchdogReopen, WatchdogDown}, []string{"recovered connection", "send DWR", "send DWR"})
 	})
 }
@@ -354,8 +381,8 @@ func TestActorRefusedDialRecord(t *testing.T) {
 
 func TestActorFailedDialUsesFailedEndpointDuringElection(t *testing.T) {
 	a, s, records := failureReportingActor(t)
+	s.cerRequest = reportingCandidate(t, a, s)
 	a.state, a.r = WaitConnAckElect, s
-	s.cerRequest = reviewCER(t)
 	destination := &net.TCPAddr{IP: net.IPv4(192, 0, 2, 40), Port: 3868}
 	cause := &net.OpError{Op: "dial", Net: "tcp", Addr: destination, Err: errors.New("refused marker")}
 	a.onDial(event{err: cause})

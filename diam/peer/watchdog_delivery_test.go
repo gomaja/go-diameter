@@ -29,7 +29,6 @@ func TestManagerWatchdogExpiryWaitsForAdmittedReceives(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			a.armWatchdog()
 			if err := s.enqueue(msg); err != nil {
 				t.Fatal(err)
 			}
@@ -54,7 +53,7 @@ func TestManagerWatchdogExpiryWaitsForAdmittedReceives(t *testing.T) {
 	}
 }
 
-func TestManagerWatchdogDeferredExpiryReplaysWithoutReceiveReset(t *testing.T) {
+func TestManagerWatchdogDecodedReceiveInvalidatesDeferredExpiry(t *testing.T) {
 	for _, recovery := range []bool{false, true} {
 		t.Run(map[bool]string{false: "invalid header", true: "REOPEN DWA"}[recovery], func(t *testing.T) {
 			state := WatchdogOkay
@@ -65,33 +64,25 @@ func TestManagerWatchdogDeferredExpiryReplaysWithoutReceiveReset(t *testing.T) {
 			s.ingress = make(chan incoming, 8)
 			answer := testDWA(t, a)
 			if !recovery {
-				answer.Header.ApplicationID = 4 // rejected before watchdogReceive
+				answer.Header.ApplicationID = 4 // decoded rejection resets Tw without credit
 			}
-			a.armWatchdog()
 			if err := s.enqueue(answer); err != nil {
 				t.Fatal(err)
 			}
 			clock.fire()
 			a.handle(<-a.events)
-			if a.deferredWatchdog == nil || !a.pendingWatchdog || len(s.writes) != 0 {
+			if !a.pendingWatchdog || len(s.writes) != 0 {
 				t.Fatal("expiry did not wait for admitted answer")
 			}
 			in := <-s.ingress
 			a.m.processDIAMAt(s, in.msg, in.receivedAt, in.sequence)
 			a.handle(<-a.events)
-			if a.deferredWatchdog != nil {
-				t.Fatal("receive without Reset left expiry deferred forever")
-			}
 			if recovery {
-				if a.watchdog != WatchdogReopen || a.numDWA != 1 || !a.pendingWatchdog || len(s.writes) != 1 {
-					t.Fatalf("credited recovery then expiry: state=%s NumDWA=%d Pending=%v writes=%d", a.watchdog, a.numDWA, a.pendingWatchdog, len(s.writes))
+				if a.watchdog != WatchdogReopen || a.numDWA != 1 || a.pendingWatchdog || len(s.writes) != 0 {
+					t.Fatalf("credited recovery retained expired work: state=%s NumDWA=%d Pending=%v writes=%d", a.watchdog, a.numDWA, a.pendingWatchdog, len(s.writes))
 				}
-				probe := (<-s.writes).msg
-				if probe.Header.CommandCode != diam.DeviceWatchdog || probe.Header.CommandFlags&diam.RequestFlag == 0 {
-					t.Fatal("deferred expiry did not publish the next recovery probe")
-				}
-			} else if a.watchdog != WatchdogSuspect || !a.pendingWatchdog || len(s.writes) != 0 {
-				t.Fatalf("invalid answer postponed expiry: state=%s Pending=%v writes=%d", a.watchdog, a.pendingWatchdog, len(s.writes))
+			} else if a.watchdog != WatchdogOkay || !a.pendingWatchdog || len(s.writes) != 0 {
+				t.Fatalf("invalid decoded answer failed reset-only receipt: state=%s Pending=%v writes=%d", a.watchdog, a.pendingWatchdog, len(s.writes))
 			}
 		})
 	}
@@ -103,15 +94,14 @@ func TestManagerWatchdogDeferredExpiryStopsWithGeneration(t *testing.T) {
 			a, s, clock := newWatchdogTestActor(t, WatchdogReopen)
 			s.ingress = make(chan incoming, 8)
 			answer := testDWA(t, a)
-			a.armWatchdog()
 			if err := s.enqueue(answer); err != nil {
 				t.Fatal(err)
 			}
 			clock.fire()
 			expiry := <-a.events
 			a.handle(expiry)
-			if a.deferredWatchdog == nil {
-				t.Fatal("expiry not deferred")
+			if !a.pendingWatchdog || a.numDWA != 0 {
+				t.Fatal("expiry overtook admitted recovery answer")
 			}
 			if retire {
 				s.retired.Store(true)
@@ -119,9 +109,7 @@ func TestManagerWatchdogDeferredExpiryStopsWithGeneration(t *testing.T) {
 			} else {
 				a.stop(sm.DisconnectRebooting)
 			}
-			if a.deferredWatchdog != nil {
-				t.Fatal("ended generation retained deferred expiry")
-			}
+
 			queued := len(s.writes)
 			in := <-s.ingress
 			a.handle(event{kind: wireEvent, s: s, msg: in.msg, receivedAt: in.receivedAt, receiveSequence: in.sequence})
@@ -139,6 +127,7 @@ func TestManagerWatchdogReceiptBacklogDoesNotExtendTw(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		a, s, clock := newWatchdogTestActor(t, WatchdogOkay)
 		a.m.cfg.Clock = receiptClock{clock}
+		a.m.cfg.Now = time.Now
 		s.ingress = make(chan incoming, 8)
 		a.m.mu.Lock()
 		a.m.sessions[s.c] = s
