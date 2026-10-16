@@ -21,6 +21,11 @@ var (
 // 5.6). A positive timeout is required. Do not call synchronously from a
 // handler on a sequentially dispatched connection: the read loop must remain
 // free to receive the DPA.
+// On a Client TCP or TLS connection, peer closure is observed when the reader
+// next reads the socket; a callback that holds the reader can leave the
+// timeout to expire first. Calling CloseNotify on the connection, also from a
+// callback, lets peer closure be seen while a callback runs, unless earlier
+// data still awaits dispatch (see diam.CloseNotifier).
 func (sm *StateMachine) Disconnect(c diam.Conn, cause DisconnectCause, timeout time.Duration) error {
 	if c == nil || timeout <= 0 {
 		return fmt.Errorf("invalid disconnect connection or timeout")
@@ -34,14 +39,15 @@ func (sm *StateMachine) Disconnect(c diam.Conn, cause DisconnectCause, timeout t
 	if _, ok := smpeer.FromContext(c.Context()); !ok {
 		return fmt.Errorf("disconnect before CER/CEA handshake")
 	}
-	notifier, ok := diam.ConnAs[diam.CloseNotifier](c)
+	_, ok := diam.ConnAs[diam.CloseNotifier](c)
 	if !ok {
 		return fmt.Errorf("disconnect requires CloseNotifier")
 	}
 	if c.Closed() {
 		return ErrDisconnectClosed
 	}
-	closed := notifier.CloseNotify()
+	state := sm.acceptedCore(c, nil, false)
+	closed := closeNotification(c, state != nil && state.client != nil)
 	select {
 	case <-closed:
 		return ErrDisconnectClosed
@@ -101,7 +107,7 @@ func (sm *StateMachine) acceptedDisconnect(s *acceptedHandshake, cause Disconnec
 	select {
 	case err := <-waiter:
 		return err
-	case <-mustCloseNotify(s.conn):
+	case <-closeNotification(s.conn, s.client != nil):
 		select {
 		case err := <-waiter:
 			return err
@@ -116,7 +122,13 @@ func (sm *StateMachine) acceptedDisconnect(s *acceptedHandshake, cause Disconnec
 		}
 	}
 }
-func mustCloseNotify(c diam.Conn) <-chan struct{} {
+func closeNotification(c diam.Conn, client bool) <-chan struct{} {
+	if client {
+		return clientConnectionDone(c)
+	}
 	n, _ := diam.ConnAs[diam.CloseNotifier](c)
+	if n == nil {
+		return nil
+	}
 	return n.CloseNotify()
 }

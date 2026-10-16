@@ -238,10 +238,7 @@ func (s *acceptedHandshake) joinWatchdog() bool {
 	}
 	joined := make(chan struct{})
 	go func() { w.stop(); close(joined) }()
-	var closed <-chan struct{}
-	if n, ok := diam.ConnAs[diam.CloseNotifier](s.conn); ok {
-		closed = n.CloseNotify()
-	}
+	closed := closeNotification(s.conn, s.client != nil)
 	select {
 	case <-joined:
 		return !s.conn.Closed()
