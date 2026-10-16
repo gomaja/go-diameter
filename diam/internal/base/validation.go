@@ -102,7 +102,13 @@ func validateTypes(items []*diam.AVP, dictionary *dict.Snapshot) *diam.MessageEr
 					}
 				}
 			case datatype.DiameterIdentityType:
-				invalid = invalid || !validIdentity(a.Data.Serialize())
+				if !invalid {
+					id, ok := a.Data.(datatype.DiameterIdentity)
+					if !ok {
+						id = datatype.DiameterIdentity(a.Data.Serialize())
+					}
+					invalid = !id.Valid()
+				}
 			case datatype.UTF8StringType:
 				invalid = invalid || !utf8.Valid(a.Data.Serialize())
 			}
@@ -136,37 +142,6 @@ func validateTypes(items []*diam.AVP, dictionary *dict.Snapshot) *diam.MessageEr
 		}
 	}
 	return nil
-}
-
-// RFC 6733 §4.3.1 and Appendix D require ASCII FQDN/realm form. Accept
-// case, numeric labels, A-labels and the optional final DNS root dot.
-func validIdentity(name []byte) bool {
-	if len(name) > 0 && name[len(name)-1] == '.' {
-		name = name[:len(name)-1]
-	}
-	if len(name) == 0 || len(name) > 253 {
-		return false
-	}
-	label := 0
-	for i, c := range name {
-		if c == '.' {
-			if label == 0 || name[i-1] == '-' {
-				return false
-			}
-			label = 0
-			continue
-		}
-		letter := c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z'
-		digit := c >= '0' && c <= '9'
-		if !letter && !digit && (c != '-' || label == 0) {
-			return false
-		}
-		label++
-		if label > 63 {
-			return false
-		}
-	}
-	return label > 0 && name[len(name)-1] != '-'
 }
 
 // RequestError is a shared rejection decision; the adapters retain ownership of
