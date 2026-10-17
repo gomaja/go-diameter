@@ -12,17 +12,40 @@ import (
 // actor commits without calling an observer; the reporting worker delivers
 // synchronously after releasing Server admission (RFC 6733 §§5.6, 5.6.1).
 type protocolDelivery struct {
-	priorReply    *protocolDelivery
-	done          chan struct{}
-	once          sync.Once
+	priorReply *protocolDelivery
+	done       chan struct{}
+	once       sync.Once
+	// delivered is guarded by replyMu; declaring it here keeps
+	// protocolDelivery in its allocation size class.
+	delivered     bool
 	notifications []diam.ProtocolErrorEvent
 	replyMu       sync.Mutex
-	delivered     bool
 	failedReply   *diam.ProtocolErrorEvent
+	fatalReply    *fatalReplyCompletion
 }
 
 func newProtocolDelivery() *protocolDelivery { return &protocolDelivery{done: make(chan struct{})} }
 func (d *protocolDelivery) finish()          { d.once.Do(func() { close(d.done) }) }
+
+// A fatal decode decision may queue one answer before the reader closes the
+// transport. Its completion is independent of actor feedback and reporting.
+// Only that error path allocates channels or schedules a write-completion bound.
+type fatalReplyCompletion struct {
+	done    chan struct{}
+	expired chan struct{}
+	timer   Timer
+}
+
+func (d *protocolDelivery) waitFatalReply(s *session) {
+	if r := d.fatalReply; r != nil {
+		defer r.timer.Stop()
+		select {
+		case <-r.done:
+		case <-s.closed:
+		case <-r.expired:
+		}
+	}
+}
 func (d *protocolDelivery) deliver(m *Manager) {
 	for _, notification := range d.notifications {
 		if d.priorReply != nil {

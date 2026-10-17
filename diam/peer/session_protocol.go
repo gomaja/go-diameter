@@ -368,8 +368,17 @@ func (s *session) sendProtocol(e protocol.Effect, in protocol.Input, d *protocol
 	if m.Header.CommandFlags&diam.RequestFlag != 0 && s.requests != nil {
 		ticket = s.requests.PrepareWrite(m.Header)
 	}
+	var replyDone chan struct{}
+	if e.Required && m.Header.CommandFlags&diam.RequestFlag == 0 && in.Error != nil && in.Error.Fatal {
+		r := &fatalReplyCompletion{done: make(chan struct{}), expired: make(chan struct{})}
+		// Start at the decision, including time spent waiting in the writer
+		// queue; the transport's write deadline starts only at publication.
+		r.timer = s.m.cfg.Clock.AfterFunc(s.m.cfg.Timers.Closing, func() { close(r.expired) })
+		d.fatalReply = r
+		replyDone = r.done
+	}
 	s.coreMu.Lock()
-	s.coreWrites[e.Token] = protocolWrite{ticket: ticket, command: m.Header.CommandCode}
+	s.coreWrites[e.Token] = protocolWrite{ticket: ticket, command: m.Header.CommandCode, replyDone: replyDone}
 	s.coreMu.Unlock()
 	w := writeRequest{msg: m, required: e.Required, closeAfter: e.CloseAfter, protocolToken: e.Token, protocolSource: in, replyDelivery: d}
 	if e.Required && s.m.ProtocolErrorEnabled() {
@@ -445,11 +454,14 @@ func controlName(m *diam.Message) string {
 func (s *session) finishProtocolWriter(w writeRequest, stage protocol.WriteStage, n int64, err error) {
 	in := protocol.Input{Kind: protocol.WriteResult, Connection: s.coreID, Token: w.protocolToken, Stage: stage, Bytes: n, ExpectedBytes: int64(w.msg.Len()), ReplyCode: answerCode(w.msg), Err: err, Message: w.protocolSource.Message, Error: w.protocolSource.Error}
 	s.coreMu.Lock()
-	ticket := s.coreWrites[w.protocolToken].ticket
+	write := s.coreWrites[w.protocolToken]
 	delete(s.coreWrites, w.protocolToken)
+	if write.replyDone != nil {
+		close(write.replyDone)
+	}
 	completed := s.core.CompleteQueuedReply(in)
 	s.coreMu.Unlock()
-	ticket.Release()
+	write.ticket.Release()
 	if completed {
 		return
 	}

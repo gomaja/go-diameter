@@ -804,8 +804,11 @@ func (f HandlerFunc) ServeDIAM(c Conn, m *Message) {
 // MessageErrorHandler takes responsibility for malformed messages (RFC 6733 §7).
 // Server discovers it with HandlerAs and calls it synchronously on the reader,
 // never through ServeDIAM. Nil means the handler takes responsibility to answer,
-// discard an answer, or close, possibly asynchronously. The component performing
-// that work logs any later failure. An error matching errors.ErrUnsupported
+// discard an answer, or close. For a non-fatal error, that work may complete
+// asynchronously; the component performing it logs any later failure. After a
+// fatal error Server reads no further and closes the connection when this call
+// returns, so the handler must finish any answer it wants delivered before
+// returning. An error matching errors.ErrUnsupported
 // declines responsibility; any other error means taking responsibility failed.
 // The callback must not wait for subsequent input on this connection. Ordered
 // handlers may call Message.BeginDispatch. An Unwrap-only wrapper is bypassed;

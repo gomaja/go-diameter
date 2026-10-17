@@ -362,9 +362,6 @@ func TestAcceptedRestartFreshHandshake(t *testing.T) {
 			if _, ok := sm.accepted.Load(old); ok {
 				t.Fatal("old admission retained")
 			}
-			if !sm.CanRenewAcceptedCER(next) {
-				t.Fatal("replacement not admitted")
-			}
 			if lifecycle, ok := diam.ConnAs[diam.ConnLifecycle](next); !ok || lifecycle.Generation() != 2 {
 				t.Fatal("replacement generation !=2")
 			}
@@ -378,6 +375,9 @@ func TestAcceptedRestartFreshHandshake(t *testing.T) {
 			m, err := diam.ReadMessage(peer, testDict)
 			if err != nil || m.Header.CommandCode != diam.DeviceWatchdog || !testResultCode(m, diam.Success) {
 				t.Fatalf("replacement DWA=%v,%v", m, err)
+			}
+			if !sm.CanRenewAcceptedCER(next) {
+				t.Fatal("replacement not admitted")
 			}
 		})
 	}
