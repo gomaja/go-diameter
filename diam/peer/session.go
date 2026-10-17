@@ -34,8 +34,9 @@ type incoming struct {
 	delivery   *protocolDelivery
 }
 type protocolWrite struct {
-	ticket  *diam.RequestWrite
-	command uint32
+	ticket    *diam.RequestWrite
+	command   uint32
+	replyDone chan struct{}
 }
 
 type session struct {

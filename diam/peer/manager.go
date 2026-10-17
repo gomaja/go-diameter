@@ -690,8 +690,10 @@ func (m *Manager) supportsApplication(appID uint32) bool {
 
 // HandleMessageError takes responsibility for a malformed message by admitting
 // it to the session's ordered queue or closing a managed connection whose queue
-// cannot admit it. Completion can occur after this returns;
-// the Manager logs any later answer failure before closing the connection.
+// cannot admit it. For a fatal error, it also waits for the decision's required
+// answer to finish, the session to end, or Timers.Closing to elapse since the
+// decision. Server closes the transport when this call returns after a fatal
+// error. Non-fatal answers may complete later; Manager logs any answer failure.
 func (m *Manager) HandleMessageError(c diam.Conn, msg *diam.Message, me *diam.MessageError) error {
 	release := msg.BeginDispatch()
 	defer release()
@@ -719,6 +721,7 @@ func (m *Manager) HandleMessageError(c diam.Conn, msg *diam.Message, me *diam.Me
 	<-d.done
 	release()
 	d.deliver(m)
+	d.waitFatalReply(s)
 	return nil
 }
 
