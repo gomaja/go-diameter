@@ -1108,9 +1108,10 @@ type Server struct {
 
 	// RenewAcceptedCER interprets a subsequent admitted base CER as a fresh
 	// accepted generation when the handler implements AcceptedCERHandler and
-	// RetireHandler. Default false preserves the handler's Open-state CER policy.
-	// Prefer SCTP restart notifications; this policy cannot distinguish a retry
-	// from a peer restart (RFC 6733 §§1.1.3, 5.6).
+	// RetireHandler. Reserved command-flag bits are ignored (RFC 6733 §3);
+	// P and E must be clear. Default false preserves the handler's Open-state
+	// CER policy. Prefer SCTP restart notifications; this policy cannot
+	// distinguish a retry from a peer restart (RFC 6733 §§1.1.3, 5.6).
 	RenewAcceptedCER bool
 
 	// OnConnectionRestart runs after HandleAccept on the fresh generation, before

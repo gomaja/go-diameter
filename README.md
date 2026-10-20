@@ -145,21 +145,28 @@ it cannot send a DPR to the old peer (RFC 9260 §5.2.4; RFC 6733 §5.4). Shutdow
 still waits for Server callbacks to return, subject to its context deadline.
 
 By default, both `sm.StateMachine` and `peer.Manager` ignore a base CER received
-on a connection whose capabilities exchange has completed: they log it at Warn, send
-no answer and keep the connection open. Manager preserves its session, watchdog
-and pending requests. This is library policy: [RFC 6733 §5.6](https://www.rfc-editor.org/rfc/rfc6733.html#section-5.6)
+with valid header bits on a connection whose capabilities exchange has completed:
+they log it at Warn, send no answer and keep the connection open. Manager preserves
+its session, watchdog and pending requests. This is library policy: [RFC 6733 §5.6](https://www.rfc-editor.org/rfc/rfc6733.html#section-5.6)
 has no row for a CER on the open connection itself; `R-Conn-CER -> R-Reject`
 concerns a CER on a new connection (§5.6.1). Both handlers report the ignored CER
 through `sm.Settings.OnProtocolError` as `ProtocolUnexpectedMessage`, with
-`Closing=false` and `ProtocolReplyNone`.
+`Closing=false` and `ProtocolReplyNone`. A CER with invalid header bits instead
+receives 3008 and the connection closes after the answer, both before and after
+CER/CEA. It never reaches `OnCER`. T and reserved bits do not invalidate a
+repeated CER's header. An externally admitted StateMachine whose
+`smpeer.Metadata` has no CEA silently consumes a valid repeated CER without
+`OnCER` or a protocol-error report; invalid headers still receive 3008 and close.
 
 For transports that cannot signal restart, `Server.RenewAcceptedCER` optionally
 interprets a subsequent admitted base CER as fresh admission. It defaults to
 false and applies to both handlers through `AcceptedCERHandler`: the accepted
 generation must be admitted, live and non-Closing. Manager additionally requires
 its current active responder. Its ordered admission commits a preceding DPR
-before eligibility is checked. With renewal disabled or ineligible, the ignored
-CER policy above applies. Renewal cannot distinguish a retry from a restart. RFC 6733 §1.1.3 deprecates Open-state capability exchange; RFC 6737 §§3–4
+before eligibility is checked. Reserved command-flag bits are ignored for renewal;
+P and E remain invalid and receive 3008 from the current generation. With renewal
+disabled or ineligible, a CER with valid header bits follows the ignored-CER
+policy above. Renewal cannot distinguish a retry from a restart. RFC 6733 §1.1.3 deprecates Open-state capability exchange; RFC 6737 §§3–4
 defines capability updates separately.
 
 Use the handler-visible Conn for transport operations. `Connection()` preserves

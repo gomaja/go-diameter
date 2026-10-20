@@ -5,15 +5,18 @@
 // Pending requests fail over under RFC 6733 §5.5.4. Server.RenewAcceptedCER
 // optionally applies the same renewal to an admitted active responder's CER.
 //
-// Manager and sm.StateMachine ignore a base CER on a connection whose
-// capabilities exchange has completed: one Warn log, no answer, and the
-// connection stays open. Manager preserves the session, watchdog and pending
+// Manager and sm.StateMachine ignore a base CER with valid header bits on a
+// connection whose capabilities exchange has completed: one Warn log, no answer,
+// and the connection stays open. Manager preserves the session, watchdog and pending
 // requests. RFC 6733 §5.6 has no row for this event; R-Conn-CER concerns a CER on
 // a new connection (§5.6.1). Settings.OnProtocolError reports
 // ProtocolUnexpectedMessage with Closing=false and ProtocolReplyNone.
 // With diam.Server.RenewAcceptedCER enabled, Manager instead renews the
 // accepted session on that CER when it is admitted, live, not Closing and the
 // peer's current active responder, as StateMachine does for its connections.
+// A CER with invalid header bits receives 3008 and the connection closes after
+// the answer, both before and after CER/CEA; the T bit and reserved bits do
+// not make a header invalid.
 package peer
 
 import (

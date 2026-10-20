@@ -77,21 +77,6 @@ func (c *Core) receive(es []Effect, in Input) (out []Effect) {
 			out[start].ReleaseDispatch = true
 		}
 	}()
-	// RFC 6733 §7, §7.1.5: a detected fatal request error retains its
-	// required answer. Decodable repeated CERs keep their ordinary disposition.
-	fatalCER := in.Error != nil && in.Error.Fatal
-	if c.phase == Open && isCER && !base.FatalHeaderError(in.Error) && !fatalCER {
-		if c.passiveResponder && c.passiveCER && in.Error == nil && !in.ErrorInput {
-			return c.discard(es, in, "", 0)
-		}
-		if in.Error == nil && base.ValidateMessage(m) == nil && base.ValidateRequest(m, c.caps.LocalApplications, c.cfg.ValidateRequests, c.cfg.RejectUnknownMandatoryAVPs) == nil && c.bound(m, true) {
-			es = c.validActivity(es)
-		}
-		if c.cfg.Hooks && in.Error == nil && !in.ErrorInput {
-			return c.pauseHook(es, in)
-		}
-		return c.discard(es, in, diam.ProtocolUnexpectedMessage, 0)
-	}
 	// RFC 6733 §3: discard duplicate or unowned completed answers before body
 	// semantics. Receipt activity receives no health credit; decoder failures
 	// retain the separate message-error path below.
@@ -104,10 +89,28 @@ func (c *Core) receive(es []Effect, in Input) (out []Effect) {
 		return es
 	}
 	originalFatal := in.Error != nil && in.Error.Fatal
-	if err := base.ValidateHeader(m); err != nil && !base.FatalHeaderError(in.Error) {
+	// RFC 6733 §§3, 5.3.1, 7.1.3: reject inconsistent CER flags before
+	// applying the Open-state repeated-CER policy.
+	headerErr := base.ValidateHeader(m)
+	if headerErr != nil && !base.FatalHeaderError(in.Error) {
 		// Fatality is independent of which diagnosis wins header precedence.
-		err.Fatal = originalFatal
-		in.Error = err
+		headerErr.Fatal = originalFatal
+		in.Error = headerErr
+	}
+	// RFC 6733 §7, §7.1.5: a detected fatal request error retains its
+	// required answer. Decodable repeated CERs keep their ordinary disposition.
+	fatalCER := in.Error != nil && in.Error.Fatal
+	if c.phase == Open && isCER && headerErr == nil && !base.FatalHeaderError(in.Error) && !fatalCER {
+		if c.passiveResponder && c.passiveCER && in.Error == nil && !in.ErrorInput {
+			return c.discard(es, in, "", 0)
+		}
+		if in.Error == nil && base.ValidateMessage(m) == nil && base.ValidateRequest(m, c.caps.LocalApplications, c.cfg.ValidateRequests, c.cfg.RejectUnknownMandatoryAVPs) == nil && c.bound(m, true) {
+			es = c.validActivity(es)
+		}
+		if c.cfg.Hooks && in.Error == nil && !in.ErrorInput {
+			return c.pauseHook(es, in)
+		}
+		return c.discard(es, in, diam.ProtocolUnexpectedMessage, 0)
 	}
 	if in.Error != nil {
 		return c.messageError(es, in, originalFatal)

@@ -219,7 +219,7 @@ func TestClosingInvalidatesQueuedProbe(t *testing.T) {
 // #108 watchdog validation order and repeated CER; RFC 3539 §3.4.1 [2].
 // Receipt resets Tw independently from validity and from health/probe credit.
 func TestDecodedActivityRequiresValidityForRecovery(t *testing.T) {
-	for _, variant := range []string{"malformed-repeat", "invalid-repeat", "valid-repeat", "wrong-host-dwr", "wrong-host-dpr", "bad-header", "decode-error", "bad-body", "unsupported-app", "unsolicited-cea", "fatal-framing"} {
+	for _, variant := range []string{"malformed-repeat", "invalid-repeat", "valid-repeat", "proxiable-repeat", "error-repeat", "proxiable-error-repeat", "application-id-repeat", "retransmitted-repeat", "reserved-repeat", "wrong-host-dwr", "wrong-host-dpr", "bad-header", "decode-error", "bad-body", "unsupported-app", "unsolicited-cea", "fatal-framing"} {
 		t.Run(variant, func(t *testing.T) {
 			c := supervised(t, false)
 			probe(t, c)
@@ -227,13 +227,27 @@ func TestDecodedActivityRequiresValidityForRecovery(t *testing.T) {
 			in := receive(request(t, diam.DeviceWatchdog))
 			in.At = epoch.Add(13 * time.Second)
 			switch variant {
-			case "malformed-repeat", "invalid-repeat", "valid-repeat":
+			case "malformed-repeat", "invalid-repeat", "valid-repeat", "proxiable-repeat", "error-repeat", "proxiable-error-repeat", "application-id-repeat", "retransmitted-repeat", "reserved-repeat":
 				in.Message = cer(t)
 				if variant == "malformed-repeat" {
 					in.Error = &diam.MessageError{ResultCode: diam.InvalidAVPValue}
 				}
 				if variant == "invalid-repeat" {
 					in.Message.AVP = nil
+				}
+				switch variant {
+				case "proxiable-repeat":
+					in.Message.Header.CommandFlags |= diam.ProxiableFlag
+				case "error-repeat":
+					in.Message.Header.CommandFlags |= diam.ErrorFlag
+				case "proxiable-error-repeat":
+					in.Message.Header.CommandFlags |= diam.ProxiableFlag | diam.ErrorFlag
+				case "application-id-repeat":
+					in.Message.Header.ApplicationID = 4
+				case "retransmitted-repeat":
+					in.Message.Header.CommandFlags |= diam.RetransmittedFlag
+				case "reserved-repeat":
+					in.Message.Header.CommandFlags |= 0x0f
 				}
 			case "wrong-host-dwr", "wrong-host-dpr":
 				if variant == "wrong-host-dpr" {
@@ -271,16 +285,27 @@ func TestDecodedActivityRequiresValidityForRecovery(t *testing.T) {
 			}
 			state := c.Snapshot().Watchdog()
 			wantState := watchdog.Suspect
-			if variant == "valid-repeat" {
+			if variant == "valid-repeat" || variant == "retransmitted-repeat" || variant == "reserved-repeat" {
 				wantState = watchdog.Okay
 			}
 			if state.State != wantState || !state.Pending {
 				t.Fatalf("state=%+v want=%s Pending=true", state, wantState)
 			}
+			if variant == "proxiable-repeat" || variant == "error-repeat" || variant == "proxiable-error-repeat" || variant == "application-id-repeat" {
+				sent := find(t, es, Send)
+				if !sent.Required || !sent.CloseAfter || resultCode(t, sent.Message) != diam.InvalidHDRBits {
+					t.Fatalf("invalid repeated CER did not select a required header rejection: %+v", sent)
+				}
+				for _, effect := range es {
+					if effect.Kind == RunHook || effect.Kind == Notify && effect.Notification.Kind == WatchdogNotice {
+						t.Fatalf("invalid repeated CER earned hook or health credit: %+v", effect)
+					}
+				}
+			}
 			if variant == "malformed-repeat" || variant == "invalid-repeat" {
 				wantKinds(t, es, StopTimer, ArmTimer, Discard, Notify)
 			}
-			if variant == "valid-repeat" {
+			if variant == "valid-repeat" || variant == "retransmitted-repeat" || variant == "reserved-repeat" {
 				wantKinds(t, es, StopTimer, ArmTimer, Notify, Discard, Notify)
 			}
 		})
