@@ -126,9 +126,15 @@ type Settings struct {
 	// Nil performs no notification work. peer.Manager honours this setting too.
 	OnProtocolError func(diam.ProtocolErrorEvent)
 
-	// OnCER, if non-nil, is invoked when a CER is received, before the
-	// state machine processes it. Useful for logging, metrics, or access
-	// control. The default handshake logic runs after OnCER returns.
+	// OnCER, if non-nil, observes an initial CER after header, body and
+	// request validation, before the default handshake logic runs. On an
+	// Open connection it observes a decodable repeated CER with valid header
+	// bits, even if its body is invalid; the CER is discarded after the hook.
+	// External admission through smpeer.Metadata without a CEA consumes such
+	// repeated CERs silently, without invoking OnCER.
+	// CERs with invalid header bits never reach OnCER. T and reserved bits
+	// do not prevent a repeated CER from reaching it. Useful for logging,
+	// metrics, or access control.
 	// Calling c.Close() from the hook aborts the handshake without publishing
 	// peer metadata, admitting the peer, building a CEA, or calling OnCEA or
 	// OnHandshake. A connection wrapper's Close must call the wrapped Close.

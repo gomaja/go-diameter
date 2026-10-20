@@ -182,10 +182,11 @@ func (c *conn) waitAdmission(until time.Time) bool {
 	}
 }
 
+// RFC 6733 §3: receivers ignore reserved command-flag bits.
 func isAcceptedCER(m *Message) bool {
 	return m != nil && m.Header != nil && m.DecodeErr == nil && m.Header.ApplicationID == 0 &&
 		m.Header.CommandCode == CapabilitiesExchange && m.Header.CommandFlags&RequestFlag != 0 &&
-		m.Header.CommandFlags&(ProxiableFlag|ErrorFlag|0x0f) == 0
+		m.Header.CommandFlags&(ProxiableFlag|ErrorFlag) == 0
 }
 
 func (c *conn) renew(reason RetirementReason, restart *TransportRestartError) *conn {

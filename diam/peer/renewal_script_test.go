@@ -1251,3 +1251,114 @@ func TestManagerRenewalScriptExceptionalObserverReleasesAdmission(t *testing.T) 
 		})
 	}
 }
+
+func TestManagerAcceptedCERHeaderRenewalTCP(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		flags uint8
+		renew bool
+	}{
+		{"Plain", diam.RequestFlag, true},
+		{"Reserved", diam.RequestFlag | 0x0f, true},
+		{"Proxiable", diam.RequestFlag | diam.ProxiableFlag, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			settings := testSettings("local.example.net")
+			settings.AuthApplicationID = []*diam.AVP{diam.NewAVP(avp.AuthApplicationID, avp.Mbit, 0, datatype.Unsigned32(4))}
+			events := make(chan PeerEvent, 32)
+			m, err := New(Config{Settings: settings, Logger: logtest.New().Logger(), OnPeerEvent: func(e PeerEvent) { events <- e }})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err = m.AddPeer(PeerConfig{Host: "known.example.net"}); err != nil {
+				t.Fatal(err)
+			}
+			listener, err := net.Listen("tcp", "127.0.0.1:0")
+			if err != nil {
+				t.Fatal(err)
+			}
+			physical := make(chan diam.Conn, 2)
+			pairs := make(chan renewalScriptPair, 2)
+			srv := &diam.Server{Dict: settings.Dict, RenewAcceptedCER: true, Logger: logtest.New().Logger(),
+				OnNewConnection:     func(c diam.Conn) { physical <- c },
+				OnConnectionRestart: func(old, next diam.Conn, r diam.RetirementReason) { pairs <- renewalScriptPair{old, next, r} },
+			}
+			if err = m.BindServer(srv); err != nil {
+				t.Fatal(err)
+			}
+			done := make(chan error, 1)
+			go func() { done <- srv.Serve(listener) }()
+			t.Cleanup(func() {
+				_ = srv.Close()
+				ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+				defer cancel()
+				if err := m.Close(ctx, sm.DisconnectRebooting); err != nil {
+					t.Error(err)
+				}
+				if err := <-done; !errors.Is(err, diam.ErrServerClosed) {
+					t.Error(err)
+				}
+			})
+			wire, err := net.DialTimeout("tcp", listener.Addr().String(), 5*time.Second)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { _ = wire.Close() })
+			if err := wire.SetDeadline(time.Now().Add(5 * time.Second)); err != nil {
+				t.Fatal(err)
+			}
+			initial := renewalScriptReceive(t, physical, "TCP physical acceptance")
+			readAnswer := func(request *diam.Message, result uint32, flags uint8) {
+				t.Helper()
+				answer, err := diam.ReadMessage(wire, settings.Dict)
+				if err != nil {
+					t.Fatalf("CEA result %d: %v", result, err)
+				}
+				if answer.Header.CommandCode != diam.CapabilitiesExchange || answer.Header.CommandFlags != flags || answer.Header.ApplicationID != 0 || answer.Header.HopByHopID != request.Header.HopByHopID || answer.Header.EndToEndID != request.Header.EndToEndID || code(t, answer) != result {
+					t.Fatalf("CEA header=%+v result=%d, want flags=%#x result=%d correlated to %+v", answer.Header, code(t, answer), flags, result, request.Header)
+				}
+				for _, field := range []struct {
+					code uint32
+					want string
+				}{{avp.OriginHost, "local.example.net"}, {avp.OriginRealm, "example.net"}} {
+					a, err := answer.FindAVP(field.code, 0)
+					if err != nil || a.Data != datatype.DiameterIdentity(field.want) {
+						t.Fatalf("CEA AVP %d=%v, error=%v; want %s", field.code, a, err, field.want)
+					}
+				}
+			}
+			admit := renewalScriptCER(t, "known.example.net", "example.net", 4, 111)
+			if _, err = admit.WriteTo(wire); err != nil {
+				t.Fatal(err)
+			}
+			readAnswer(admit, diam.Success, 0)
+			for !renewalScriptReceive(t, events, "initial peer admission").Peer.Eligible {
+			}
+			request := renewalScriptCER(t, "known.example.net", "fresh.example.net", 4, 222)
+			request.Header.CommandFlags = tc.flags
+			request.Header.HopByHopID, request.Header.EndToEndID = 0x55667788, 0x12345678
+			if _, err = request.WriteTo(wire); err != nil {
+				t.Fatal(err)
+			}
+			if tc.renew {
+				pair := renewalScriptReceive(t, pairs, "accepted CER replacement")
+				readAnswer(request, diam.Success, 0)
+				if pair.old != initial || pair.old == pair.next || pair.reason != diam.AcceptedCERRenewal || !pair.old.Closed() || pair.next.Closed() || renewalScriptLifecycle(t, pair.old).Generation() != 1 || renewalScriptLifecycle(t, pair.next).Generation() != 2 || renewalScriptLifecycle(t, pair.old).RetirementReason() != diam.AcceptedCERRenewal {
+					t.Fatalf("accepted CER renewal=%+v", pair)
+				}
+			} else {
+				readAnswer(request, diam.InvalidHDRBits, diam.ErrorFlag|diam.ProxiableFlag)
+				var b [1]byte
+				if n, err := wire.Read(b[:]); n != 0 || !errors.Is(err, io.EOF) {
+					t.Fatalf("after rejected CER: read=%d,%v; want EOF", n, err)
+				}
+				if renewalScriptLifecycle(t, initial).Generation() != 1 {
+					t.Fatal("invalid CER renewed current generation")
+				}
+			}
+			if len(pairs) != 0 || len(physical) != 0 {
+				t.Fatal("CER repeated physical acceptance or extra renewal")
+			}
+		})
+	}
+}

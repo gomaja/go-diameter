@@ -6,9 +6,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
+	"reflect"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -84,6 +87,7 @@ type paritySettings struct {
 	interval    time.Duration
 	writeGate   *parityReplyGate
 	onCEA       diam.HandlerFunc
+	onCER       diam.HandlerFunc
 }
 
 func parityStartConfigured(t *testing.T, frontend parityFrontend, handshake bool, options paritySettings) *parityTCP {
@@ -102,6 +106,7 @@ func parityStartConfigured(t *testing.T, frontend parityFrontend, handshake bool
 	settings.HandshakeTimeout = time.Hour
 	settings.OnProtocolError = func(event diam.ProtocolErrorEvent) { h.events <- event }
 	settings.OnCEA = options.onCEA
+	settings.OnCER = options.onCER
 	logger := h.logs.Logger()
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -883,5 +888,126 @@ func TestProtocolTCPParityUnownedDWA(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+// Invalid CER headers share the same rejection policy before and after admission.
+func TestProtocolTCPParityCERHeader(t *testing.T) {
+	for _, frontend := range parityFrontends {
+		t.Run(frontend.name, func(t *testing.T) {
+			for _, hooks := range []bool{false, true} {
+				// Manager owns capability callbacks and rejects Settings.OnCER/OnCEA.
+				if frontend.manager && hooks {
+					continue
+				}
+				t.Run(fmt.Sprintf("Hooks=%t", hooks), func(t *testing.T) {
+					for _, open := range []bool{false, true} {
+						if !open && frontend.initiator {
+							continue
+						}
+						t.Run(fmt.Sprintf("Open=%t", open), func(t *testing.T) {
+							var baseline parityDisposition
+							var baselineLogs []string
+							var baselineRan bool
+							for _, shape := range []string{"ApplicationID", "Proxiable", "Error", "Repeated"} {
+								if !open && shape != "ApplicationID" && shape != "Proxiable" {
+									continue
+								}
+								t.Run(shape, func(t *testing.T) {
+									var cerCalls, ceaCalls atomic.Int32
+									options := paritySettings{}
+									if hooks {
+										options.onCER = func(diam.Conn, *diam.Message) { cerCalls.Add(1) }
+										options.onCEA = func(diam.Conn, *diam.Message) { ceaCalls.Add(1) }
+									}
+									h := parityStartConfigured(t, frontend, open, options)
+									beforeCER, beforeCEA := cerCalls.Load(), ceaCalls.Load()
+									if hooks && open {
+										wantCER := int32(1)
+										if frontend.initiator {
+											wantCER = 0
+										}
+										wantCEA := int32(1)
+										if frontend.initiator {
+											wantCEA = 0
+										}
+										if beforeCER != wantCER || beforeCEA != wantCEA {
+											t.Fatalf("handshake callbacks CER/CEA=%d/%d; want %d/%d", beforeCER, beforeCEA, wantCER, wantCEA)
+										}
+									}
+									beforeLogs := len(h.logs.Records())
+									cer := contractBase(h.dict, diam.CapabilitiesExchange, true)
+									cer.Header.HopByHopID, cer.Header.EndToEndID = 0x45112233, 0x45445566
+									switch shape {
+									case "ApplicationID":
+										cer.Header.ApplicationID = contractApp
+									case "Proxiable":
+										cer.Header.CommandFlags |= diam.ProxiableFlag
+									case "Error":
+										cer.Header.CommandFlags |= diam.ErrorFlag
+									}
+									header := h.write(t, cer)
+									if shape == "Repeated" {
+										h.event(t, header, frontend.replyDisposition(diam.ProtocolUnexpectedMessage, 0, false, false))
+										h.barrier(t)
+										h.noEvents(t)
+										wantCER := beforeCER
+										if hooks {
+											wantCER++
+										}
+										if cerCalls.Load() != wantCER || ceaCalls.Load() != beforeCEA {
+											t.Fatalf("repeated callbacks CER/CEA=%d/%d; want %d/%d", cerCalls.Load(), ceaCalls.Load(), wantCER, beforeCEA)
+										}
+										found := false
+										for _, record := range h.logs.Records()[beforeLogs:] {
+											if record.Level == slog.LevelWarn {
+												found = true
+											}
+										}
+										if !found {
+											t.Fatal("valid repeated CER did not retain its warning")
+										}
+										return
+									}
+									answer := h.read(t)
+									wantFlags := uint8(diam.ErrorFlag) | header.CommandFlags&diam.ProxiableFlag
+									if answer.Header.CommandCode != diam.CapabilitiesExchange || answer.Header.CommandFlags != wantFlags || answer.Header.ApplicationID != 0 ||
+										answer.Header.HopByHopID != header.HopByHopID || answer.Header.EndToEndID != header.EndToEndID || contractCode(t, answer) != diam.InvalidHDRBits {
+										t.Fatalf("invalid CER answer=%v; want 3008 flags=%02x app=0 IDs=%08x/%08x", answer, wantFlags, header.HopByHopID, header.EndToEndID)
+									}
+									if host := contractField(t, answer, avp.OriginHost).Data; host != datatype.DiameterIdentity("local.example.net") {
+										t.Fatalf("Origin-Host=%v", host)
+									}
+									if realm := contractField(t, answer, avp.OriginRealm).Data; realm != datatype.DiameterIdentity("example.net") {
+										t.Fatalf("Origin-Realm=%v", realm)
+									}
+									disposition := h.event(t, header, frontend.replyDisposition(diam.ProtocolInvalidHeader, diam.InvalidHDRBits, true, true))
+									h.eof(t)
+									h.noEvents(t)
+									wantCEA := beforeCEA
+									if hooks {
+										wantCEA++
+									}
+									if cerCalls.Load() != beforeCER || ceaCalls.Load() != wantCEA {
+										t.Fatalf("invalid CER callbacks CER/CEA=%d/%d; want %d/%d", cerCalls.Load(), ceaCalls.Load(), beforeCER, wantCEA)
+									}
+									var logs []string
+									for _, record := range h.logs.Records()[beforeLogs:] {
+										if record.Level >= slog.LevelWarn {
+											logs = append(logs, fmt.Sprintf("%s/%s", record.Level, record.Message))
+										}
+									}
+									if shape == "ApplicationID" {
+										baseline, baselineLogs, baselineRan = disposition, logs, true
+									} else if baselineRan && (disposition != baseline || !reflect.DeepEqual(logs, baselineLogs)) {
+										t.Fatalf("header rejection observers/logs differ from ApplicationID control: got %+v %v; want %+v %v", disposition, logs, baseline, baselineLogs)
+									}
+								})
+							}
+						})
+					}
+				})
+			}
+		})
 	}
 }
