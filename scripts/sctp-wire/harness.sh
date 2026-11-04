@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # Shared lifecycle for the package-local SCTP wire scenarios.
 # The caller supplies build arguments, source hashes, ports and wire_scenario.
+# Captures must be live before scenarios; each dialer waits for its listener.
+# SCTP_WIRE_READY_TIMEOUT bounds each readiness wait in whole seconds (default 20).
+# SCTP_WIRE_READY_KILL_AFTER is the grace before a stalled call is killed (default 5s).
 # Variables are shared with the sourcing scenario.
 # shellcheck disable=SC2034,SC2154
 
@@ -11,6 +14,53 @@ wire_wait() {
   sleep .1
  done
  docker exec "$peer" test -s "/tmp/$child.exit"
+}
+
+wire_wait_ready() (
+ # Scope the Docker probe deadline to this wait, as cleanup scopes its wrapper.
+ docker() {
+  local remaining=$((deadline-SECONDS))
+  if ((remaining < 1)); then remaining=1; fi
+  command timeout --kill-after="${SCTP_WIRE_READY_KILL_AFTER:-5s}" \
+   "${remaining}s" docker "$@"
+ }
+ local peer=$1 child=$2 description=$3 timeout=${SCTP_WIRE_READY_TIMEOUT:-20} deadline
+ shift 3
+ if [[ ! $timeout =~ ^[1-9][0-9]*$ ]]; then
+  echo "SCTP_WIRE_READY_TIMEOUT must be a positive whole number of seconds" >&2
+  return 1
+ fi
+ deadline=$((SECONDS+timeout))
+ while true; do
+  if docker exec "$peer" test -e "/tmp/$child.exit" >/dev/null 2>&1; then
+   echo "$peer: $child exited before $description was ready" >&2
+   break
+  fi
+  if ((SECONDS < deadline)) && docker exec "$peer" "$@" >/dev/null 2>&1; then return 0; fi
+  if ((SECONDS >= deadline)); then
+   echo "$peer: timed out after ${timeout}s waiting for $child $description" >&2
+   break
+  fi
+  sleep .1
+ done
+ command timeout --kill-after="${SCTP_WIRE_READY_KILL_AFTER:-5s}" \
+  5s docker exec "$peer" cat "/tmp/$child.log" >&2 || true
+ return 1
+)
+
+wire_wait_listener() {
+ # Linux net/sctp/socket.c sctp_listen_start hashes the listening endpoint;
+ # net/sctp/proc.c sctp_eps_seq_show lists that table with decimal LPORT in $6.
+ # shellcheck disable=SC2016
+ wire_wait_ready "$1" "$2" "SCTP listener on port $3" \
+  awk -v "port=$3" 'NR > 1 && $6 == port { found=1 } END { exit !found }' /proc/net/sctp/eps
+}
+
+wire_wait_capture() {
+ # Wireshark 4.0.17 tshark.c capture_input_new_file: dumpcap has opened input
+ # and output before reporting SP_FILE (dumpcap.c capture_loop_start).
+ wire_wait_ready "$1" capture "capture" \
+  grep -Fq -- ' -- Capture started.' /tmp/capture.log
 }
 
 wire_stop() {
@@ -131,7 +181,9 @@ wire_start() {
  for peer in "$server" "$client"; do
   docker exec -d "$peer" sh -c 'tshark -i eth0 -f sctp -w /tmp/wire.pcapng >/tmp/capture.log 2>&1 & pid=$!; printf "%s\n" "$pid" >/tmp/capture.pid; wait "$pid"; printf "%s\n" "$?" >/tmp/capture.exit'
  done
- sleep 1
+ for peer in "$server" "$client"; do
+  wire_wait_capture "$peer"
+ done
 }
 
 wire_collect() {

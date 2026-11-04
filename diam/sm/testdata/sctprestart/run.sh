@@ -26,7 +26,7 @@ wire_scenario() {
 watchdog=false
 if [[ $variant == watchdog ]]; then watchdog=true; fi
 docker exec -d "$server" sh -c '/wire -mode server -addr "$1" -watchdog="$2" >/tmp/server.log 2>&1 & server_pid=$!; printf "%s\n" "$server_pid" >/tmp/server.pid; wait "$server_pid"; printf "%s\n" "$?" >/tmp/server.exit' sh "$sip:3868" "$watchdog"
-sleep 1
+wire_wait_listener "$server" server 3868
 fragment=false
 if [[ $variant == fragment ]]; then fragment=true; fi
 docker exec -d "$client" sh -c '/wire -mode client -addr "$1" -local "$2" -phase 1 -fragment="$3" >/tmp/initial.log 2>&1 & initial_pid=$!; printf "%s\n" "$initial_pid" >/tmp/initial.pid; wait "$initial_pid"; printf "%s\n" "$?" >/tmp/initial.exit' sh "$sip:3868" "$cip:43868" "$fragment"
