@@ -2,9 +2,13 @@ package peer
 
 import (
 	"bytes"
+	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
+	"strings"
 	"sync"
 	"testing"
 	"testing/synctest"
@@ -340,48 +344,220 @@ func TestManagerHandlerRequestReopenDiscardTCP(t *testing.T) {
 	}
 }
 
+// RFC 6733 §7.1.3: an unrouted request keeps its protocol error answer.
 func TestManagerHandlerDiscoveryScopeTCP(t *testing.T) {
 	for _, dialed := range []bool{false, true} {
-		for _, allowed := range []bool{false, true} {
-			t.Run(fmt.Sprintf("dialed=%t/allowed=%t", dialed, allowed), func(t *testing.T) {
-				p := newCoreActivityWire(t, dialed)
-				called := make(chan struct{}, 1)
-				p.m.HandleIdx(diam.ALL_CMD_INDEX, diam.HandlerFunc(func(c diam.Conn, r *diam.Message) { called <- struct{}{}; _, _ = r.Answer(diam.Success).WriteTo(c) }))
-				app := uint32(5)
-				if allowed {
-					app = 4
+		for _, registered := range []bool{false, true} {
+			for _, proxiable := range []bool{false, true} {
+				for _, tc := range []struct {
+					name    string
+					app     uint32
+					expired bool
+					want    uint32
+				}{
+					{"inside", 4, false, diam.CommandUnsupported},
+					{"outside-advertised", 5, false, diam.CommandUnsupported},
+					{"outside-unadvertised", 0x00fffffe, false, diam.ApplicationUnsupported},
+					{"expired", 4, true, 0},
+				} {
+					if !proxiable && (tc.name == "inside" || tc.expired) {
+						continue
+					}
+					t.Run(fmt.Sprintf("dialed=%t/handler=%t/P=%t/%s", dialed, registered, proxiable, tc.name), func(t *testing.T) {
+						records := logtest.New()
+						p := newCoreActivityWireConfigured(t, dialed, func(cfg *Config) {
+							cfg.Logger = records.Logger()
+							// A synthetic command without a P constraint covers non-proxiable requests
+							// without violating RAR's required P bit.
+							if err := cfg.Settings.Dict.Load(strings.NewReader(`<diameter><application id="5" name="LeaseProbe"><command code="65244" name="LeaseProbe" short="LP"><request><rule avp="AVP"/></request><answer><rule avp="AVP"/></answer></command></application></diameter>`)); err != nil {
+								t.Fatal(err)
+							}
+							cfg.Settings.AuthApplicationID = []*diam.AVP{
+								diam.NewAVP(avp.AuthApplicationID, avp.Mbit, 0, datatype.Unsigned32(4)),
+								diam.NewAVP(avp.AuthApplicationID, avp.Mbit, 0, datatype.Unsigned32(5)),
+							}
+						})
+						called := make(chan uint32, 2)
+						writes := make(chan error, 2)
+						if registered {
+							p.m.HandleIdx(diam.ALL_CMD_INDEX, diam.HandlerFunc(func(c diam.Conn, r *diam.Message) {
+								called <- r.Header.HopByHopID
+								_, err := r.Answer(diam.Success).WriteTo(c)
+								writes <- err
+							}))
+						}
+						expires := p.m.cfg.Now().Add(time.Hour)
+						if tc.expired {
+							expires = p.m.cfg.Now().Add(-time.Second)
+						}
+						p.a.discovery.Store(&discoveryState{spec: Discovery{Realm: "example.net", ApplicationIDs: []uint32{4}}, expires: expires})
+						req := handlerApplicationRequest(t)
+						req.Header.ApplicationID = tc.app
+						req.Header.CommandFlags = diam.RequestFlag | diam.RetransmittedFlag
+						if proxiable {
+							req.Header.CommandFlags |= diam.ProxiableFlag
+						} else {
+							// Use the synthetic command for the non-P case.
+							req.Header.CommandCode = 0xfedc
+						}
+						before := p.state(t)
+						write(t, p.c, req)
+						if tc.expired {
+							if err := p.c.SetReadDeadline(time.Now().Add(5 * time.Second)); err != nil {
+								t.Fatal(err)
+							}
+							var b [1]byte
+							if n, err := p.c.Read(b[:]); n != 0 || err != io.EOF {
+								t.Fatalf("expired lease read=%d,%v; want EOF without answer", n, err)
+							}
+							select {
+							case <-p.s.closed:
+							case <-time.After(5 * time.Second):
+								t.Fatal("expired session remained open")
+							}
+						} else {
+							want := tc.want
+							if tc.app == 4 && registered {
+								want = diam.Success
+							}
+							checkDiscoveryScopeAnswer(t, p, req, want)
+							after := p.state(t)
+							if after.token == before.token || after.health != before.health || after.pending != before.pending {
+								t.Fatalf("request activity credit changed: before=%+v after=%+v", before, after)
+							}
+							if want == diam.Success {
+								checkDiscoveryScopeHandler(t, called, writes, req.Header.HopByHopID)
+							}
+							// An ordered DWR/DWA fence proves that dispatch and the connection
+							// remain usable after the required application answer.
+							dwr := watchdogRequest(t)
+							write(t, p.c, dwr)
+							if dwa := read(t, p.c); dwa.Header.CommandCode != diam.DeviceWatchdog || dwa.Header.CommandFlags != 0 || dwa.Header.HopByHopID != dwr.Header.HopByHopID || dwa.Header.EndToEndID != dwr.Header.EndToEndID || code(t, dwa) != diam.Success {
+								t.Fatalf("DWR round trip failed: %+v", dwa)
+							}
+							inScope := handlerApplicationRequest(t)
+							inScope.Header.HopByHopID++
+							write(t, p.c, inScope)
+							want = diam.CommandUnsupported
+							if registered {
+								want = diam.Success
+							}
+							checkDiscoveryScopeAnswer(t, p, inScope, want)
+							if registered {
+								checkDiscoveryScopeHandler(t, called, writes, inScope.Header.HopByHopID)
+							}
+						}
+						p.fence(t)
+						select {
+						case id := <-called:
+							t.Fatalf("request outside lease reached handler: %x", id)
+						default:
+						}
+						select {
+						case e := <-p.events:
+							if !tc.expired {
+								t.Fatalf("unexpected protocol event: %+v", e)
+							}
+						default:
+						}
+						for _, r := range records.Records() {
+							if !tc.expired && r.Level >= slog.LevelError {
+								t.Errorf("unexpected Error record: %s", r.Message)
+							}
+						}
+					})
 				}
-				p.a.discovery.Store(&discoveryState{spec: Discovery{Realm: "example.net", ApplicationIDs: []uint32{app}}, expires: p.m.cfg.Now().Add(time.Hour)})
-				write(t, p.c, handlerApplicationRequest(t))
-				if allowed {
-					if answer := read(t, p.c); code(t, answer) != diam.Success {
-						t.Fatalf("allowed lease result=%d", code(t, answer))
-					}
-					<-called
-					p.a.discovery.Store(&discoveryState{spec: Discovery{ApplicationIDs: []uint32{4}}, expires: p.m.cfg.Now().Add(-time.Second)})
-					if p.s.hasRequestHandler(handlerApplicationRequest(t)) {
-						t.Fatal("expired lease retained route")
-					}
-				} else {
-					// Existing unsupported-request reply handling also applies lease scope:
-					// the error answer cannot be written outside it, so the session closes.
-					e := protocolErrorReceive(t, p.events)
-					if e.ReplyCode != diam.CommandUnsupported {
-						t.Fatalf("outside lease event=%+v", e)
-					}
-					select {
-					case <-p.s.closed:
-					case <-time.After(5 * time.Second):
-						t.Fatal("outside-lease reply failure did not close")
-					}
-					select {
-					case <-called:
-						t.Fatal("application outside lease reached handler")
-					default:
-					}
-				}
-			})
+			}
 		}
+	}
+}
+
+func checkDiscoveryScopeHandler(t *testing.T, called <-chan uint32, writes <-chan error, want uint32) {
+	t.Helper()
+	select {
+	case id := <-called:
+		if id != want {
+			t.Fatalf("handler request=%x; want %x", id, want)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("in-scope handler not called")
+	}
+	select {
+	case err := <-writes:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("handler write did not finish")
+	}
+}
+
+func checkDiscoveryScopeAnswer(t *testing.T, p *coreActivityWire, req *diam.Message, want uint32) {
+	t.Helper()
+	if err := p.c.SetReadDeadline(time.Now().Add(5 * time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	var header [20]byte
+	if _, err := io.ReadFull(p.c, header[:]); err != nil {
+		t.Fatal(err)
+	}
+	flags := req.Header.CommandFlags & diam.ProxiableFlag
+	if want != diam.Success {
+		flags |= diam.ErrorFlag
+	}
+	if header[0] != 1 || header[4] != flags || uint32(header[5])<<16|uint32(header[6])<<8|uint32(header[7]) != req.Header.CommandCode || binary.BigEndian.Uint32(header[8:12]) != req.Header.ApplicationID || binary.BigEndian.Uint32(header[12:16]) != req.Header.HopByHopID || binary.BigEndian.Uint32(header[16:20]) != req.Header.EndToEndID {
+		t.Fatalf("answer wire header=%x; request=%+v", header, req.Header)
+	}
+	length := int(header[1])<<16 | int(header[2])<<8 | int(header[3])
+	if length < len(header) || length > 4096 {
+		t.Fatalf("answer length=%d", length)
+	}
+	wire := make([]byte, length)
+	copy(wire, header[:])
+	if _, err := io.ReadFull(p.c, wire[len(header):]); err != nil {
+		t.Fatal(err)
+	}
+	answer, err := diam.ReadMessage(bytes.NewReader(wire), p.m.dictionary())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := code(t, answer); got != want {
+		t.Fatalf("answer result=%d; want %d; wire=%x", got, want, wire)
+	}
+	if want == diam.Success {
+		return
+	}
+	// RFC 6733 §6.2 and Verified Erratum 4887 require local origins.
+	for avpCode, wantOrigin := range map[uint32]string{avp.OriginHost: "local.example.net", avp.OriginRealm: "example.net"} {
+		origin, err := answer.FindAVP(avpCode, 0)
+		if err != nil || origin.Data != datatype.DiameterIdentity(wantOrigin) {
+			t.Fatalf("origin %d=%v,%v; wire=%x", avpCode, origin, err, wire)
+		}
+	}
+	kind := diam.ProtocolUnsupportedCommand
+	if want == diam.ApplicationUnsupported {
+		kind = diam.ProtocolUnsupportedApplication
+	}
+	protocolErrorCheck(t, protocolErrorReceive(t, p.events), p.s.c, *req.Header, kind, want, false, diam.ProtocolReplyQueued, want, 0)
+}
+
+func TestManagerSendOutsideDiscoveryScopeTCP(t *testing.T) {
+	for _, dialed := range []bool{false, true} {
+		t.Run(fmt.Sprintf("dialed=%t", dialed), func(t *testing.T) {
+			p := newCoreActivityWire(t, dialed)
+			p.a.discovery.Store(&discoveryState{spec: Discovery{Realm: "example.net", ApplicationIDs: []uint32{5}}, expires: p.m.cfg.Now().Add(time.Hour)})
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			if answer, err := p.m.Send(ctx, outboundRequest("known.example.net", "example.net")); answer != nil || !errors.Is(err, ErrUnableToDeliver) {
+				t.Fatalf("outside lease Send=%v,%v", answer, err)
+			}
+			// A DWA must be the next frame: no refused application request may leak.
+			dwr := watchdogRequest(t)
+			write(t, p.c, dwr)
+			if answer := read(t, p.c); answer.Header.CommandCode != diam.DeviceWatchdog || answer.Header.CommandFlags != 0 || code(t, answer) != diam.Success {
+				t.Fatalf("refused Send reached wire or closed connection: %+v", answer)
+			}
+		})
 	}
 }
 

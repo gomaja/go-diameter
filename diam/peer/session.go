@@ -442,6 +442,8 @@ func connectionDone(c diam.Conn) <-chan struct{} {
 	return nil
 }
 
+// A live lease scopes originated application requests, but permits answers to
+// the peer's requests, including protocol errors (RFC 6733 §7.1.3).
 // Expiry permits only disconnect and terminal rejection, never application traffic.
 func (s *session) leaseAllowsWrite(w writeRequest) bool {
 	msg := w.msg
@@ -450,7 +452,7 @@ func (s *session) leaseAllowsWrite(w writeRequest) bool {
 		return true
 	}
 	if a.leaseLive() {
-		if msg == nil || msg.Header == nil || msg.Header.ApplicationID == 0 || a.discovery.Load() == nil {
+		if msg == nil || msg.Header == nil || msg.Header.ApplicationID == 0 || msg.Header.CommandFlags&diam.RequestFlag == 0 || a.discovery.Load() == nil {
 			return true
 		}
 		realm, err := destination(msg, avp.DestinationRealm)
