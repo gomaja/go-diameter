@@ -29,12 +29,21 @@ type coreActivityWire struct {
 // controlled by the test; protocol inputs always arrive through the socket.
 func newCoreActivityWire(t *testing.T, dialed bool, serverOptions ...func(*diam.Server)) *coreActivityWire {
 	t.Helper()
+	return newCoreActivityWireConfigured(t, dialed, nil, serverOptions...)
+}
+
+func newCoreActivityWireConfigured(t *testing.T, dialed bool, configure func(*Config), serverOptions ...func(*diam.Server)) *coreActivityWire {
+	t.Helper()
 	p := &coreActivityWire{clock: &fakeClock{}, events: make(chan diam.ProtocolErrorEvent, 32), dialed: dialed}
 	cfg := testSettings("local.example.net")
 	cfg.ValidateRequests = true
 	cfg.OnProtocolError = func(e diam.ProtocolErrorEvent) { p.events <- e }
+	config := Config{Settings: cfg, Clock: p.clock, Timers: Timers{TwInit: time.Hour}, watchdogTiming: &watchdogTiming{floor: time.Millisecond}}
+	if configure != nil {
+		configure(&config)
+	}
 	var err error
-	p.m, err = New(Config{Settings: cfg, Clock: p.clock, Timers: Timers{TwInit: time.Hour}, watchdogTiming: &watchdogTiming{floor: time.Millisecond}})
+	p.m, err = New(config)
 	if err != nil {
 		t.Fatal(err)
 	}
