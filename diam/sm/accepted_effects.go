@@ -22,6 +22,7 @@ var fromValidatedCEA = parserbridge.FromValidatedCEA.(func(*base.CEA, []uint32, 
 func (s *acceptedHandshake) run(batch acceptedBatch) {
 	var timedHandshake *protocol.Notification
 	defer func() {
+		s.releaseBatchHandlers(batch)
 		for _, o := range batch.observers {
 			o.finish()
 		}
@@ -180,11 +181,11 @@ func (s *acceptedHandshake) run(batch acceptedBatch) {
 					continue
 				}
 			}
-			if h, ok := s.sm.mux.Handler(m); ok {
-				h.ServeDIAM(s.conn, m)
-			} else {
-				s.apply(protocol.Input{Kind: protocol.Unhandled, Message: m})
+			h, _ := s.sm.mux.Handler(m)
+			if m.Header.CommandFlags&diam.RequestFlag != 0 {
+				batch.handlers--
 			}
+			s.serveApplication(h, m)
 		case protocol.Hold:
 			// Native BeginDispatch retains the handshake barrier. Direct callers can
 			// retry after the current callback; no asynchronous application dispatch.
@@ -223,7 +224,9 @@ func (s *acceptedHandshake) run(batch acceptedBatch) {
 			s.conn.Close()
 		}
 	}
-	for _, next := range batch.following {
+	for len(batch.following) != 0 {
+		next := batch.following[0]
+		batch.following = batch.following[1:]
 		s.run(next)
 	}
 	if timedHandshake != nil {
@@ -293,5 +296,27 @@ func (s *acceptedHandshake) notify(e protocol.Effect, in protocol.Input) {
 			}
 		}
 	case protocol.DisconnectNotice:
+	}
+}
+
+func (s *acceptedHandshake) serveApplication(h diam.Handler, m *diam.Message) {
+	if m.Header.CommandFlags&diam.RequestFlag != 0 {
+		defer s.runningHandlers.Add(-1)
+	}
+	if h != nil {
+		h.ServeDIAM(s.conn, m)
+	} else {
+		s.apply(protocol.Input{Kind: protocol.Unhandled, Message: m})
+	}
+}
+
+// Release committed requests whose handler handoff was abandoned, including
+// following batches that never started. A started run owns its own cleanup.
+func (s *acceptedHandshake) releaseBatchHandlers(batch acceptedBatch) {
+	if batch.handlers != 0 {
+		s.runningHandlers.Add(-batch.handlers)
+	}
+	for _, next := range batch.following {
+		s.releaseBatchHandlers(next)
 	}
 }

@@ -816,3 +816,204 @@ func TestProtocolTCPParityRequestHandler(t *testing.T) {
 		})
 	}
 }
+
+func TestStateMachineRequestHandlersTCPIdleDPR(t *testing.T) {
+	for _, scenario := range []string{"none", "returned", "panicked", "pending-request"} {
+		t.Run(scenario, func(t *testing.T) {
+			calls := make(chan struct{}, 1)
+			h := parityStartConfigured(t, parityFrontends[0], true, paritySettings{application: scenario == "pending-request", serverConcurrency: 1, requestHandler: diam.HandlerFunc(func(c diam.Conn, request *diam.Message) {
+				calls <- struct{}{}
+				if scenario == "panicked" {
+					panic("state-machine-handler-test-panic")
+				}
+				_ = requestHandlerReply(c, request)
+			})})
+			if scenario == "returned" || scenario == "panicked" {
+				request := requestHandlerRequest(h, 1900)
+				h.write(t, request)
+				parityAwait(t, calls)
+				if scenario == "returned" {
+					requestHandlerExactAnswer(t, h, request)
+				}
+				// With one dispatch slot, this answer proves that the application
+				// invocation, including its panic unwinding, has completed.
+				h.barrier(t)
+			}
+			want := uint32(diam.Success)
+			var outbound *diam.Message
+			var result <-chan parityApplicationResult
+			if scenario == "pending-request" {
+				result = h.send()
+				outbound = h.read(t)
+				want = diam.UnableToComply
+			}
+			dpr := contractBase(h.dict, diam.DisconnectPeer, true)
+			h.write(t, dpr)
+			h.answer(t, dpr, want)
+			if outbound != nil {
+				h.write(t, outbound.Answer(diam.Success))
+				if got := parityAwait(t, result); got.err != nil {
+					t.Fatal(got.err)
+				}
+			}
+			h.noEvents(t)
+		})
+	}
+}
+
+func TestStateMachineRequestHandlersTCPAnswerDPR(t *testing.T) {
+	for _, route := range []string{"ALL", "answer-index"} {
+		t.Run(route, func(t *testing.T) {
+			started, release := make(chan struct{}), make(chan struct{})
+			var once sync.Once
+			unblock := func() { once.Do(func() { close(release) }) }
+			h := parityStartConfigured(t, parityFrontends[0], true, paritySettings{serverConcurrency: 8})
+			t.Cleanup(unblock)
+			index := diam.CommandIndex{AppID: contractApp, Code: contractCommand}
+			if route == "ALL" {
+				index = diam.ALL_CMD_INDEX
+			}
+			h.handler.(*sm.StateMachine).HandleIdx(index, diam.HandlerFunc(func(_ diam.Conn, _ *diam.Message) {
+				close(started)
+				<-release
+			}))
+			answer := requestHandlerAnswer(requestHandlerRequest(h, 1910))
+			h.write(t, answer)
+			parityAwait(t, started)
+			dpr := contractBase(h.dict, diam.DisconnectPeer, true)
+			h.write(t, dpr)
+			h.answer(t, dpr, diam.Success)
+			h.noEvents(t)
+			unblock()
+		})
+	}
+}
+
+func TestStateMachineRequestHandlersTCPClosing(t *testing.T) {
+	for _, local := range []bool{false, true} {
+		t.Run(fmt.Sprintf("local=%t", local), func(t *testing.T) {
+			started := make(chan uint32, 4)
+			releases := []chan struct{}{make(chan struct{}), make(chan struct{})}
+			var unblocks [2]sync.Once
+			unblock := func(i int) { unblocks[i].Do(func() { close(releases[i]) }) }
+			writes := make(chan error, 2)
+			h := parityStartConfigured(t, parityFrontends[0], true, paritySettings{serverConcurrency: 8, requestHandler: diam.HandlerFunc(func(c diam.Conn, request *diam.Message) {
+				started <- request.Header.HopByHopID
+				index := int(request.Header.HopByHopID - 1920)
+				if index < len(releases) {
+					<-releases[index]
+					writes <- requestHandlerReply(c, request)
+				}
+			})})
+			t.Cleanup(func() { unblock(0); unblock(1) })
+			requests := []*diam.Message{requestHandlerRequest(h, 1920), requestHandlerRequest(h, 1921)}
+			for _, request := range requests {
+				h.write(t, request)
+				if id := parityAwait(t, started); id != request.Header.HopByHopID {
+					t.Fatalf("handler=%d; want=%d", id, request.Header.HopByHopID)
+				}
+			}
+			var closing <-chan error
+			var ownDPR *diam.Message
+			if local {
+				closing = h.close()
+				ownDPR = h.read(t)
+				if ownDPR.Header.CommandCode != diam.DisconnectPeer || ownDPR.Header.CommandFlags&diam.RequestFlag == 0 {
+					t.Fatalf("local disconnect message=%+v", ownDPR)
+				}
+			}
+			crossed := contractBase(h.dict, diam.DisconnectPeer, true)
+			probe := func(want uint32) {
+				crossed.Header.HopByHopID++
+				crossed.Header.EndToEndID++
+				h.write(t, crossed)
+				h.answer(t, crossed, want)
+			}
+			probe(diam.UnableToComply)
+			h.write(t, requestHandlerRequest(h, 1922))
+			probe(diam.UnableToComply)
+			unblock(0)
+			requestHandlerExactAnswer(t, h, requests[0])
+			if err := parityAwait(t, writes); err != nil {
+				t.Fatal(err)
+			}
+			probe(diam.UnableToComply)
+			unblock(1)
+			requestHandlerExactAnswer(t, h, requests[1])
+			if err := parityAwait(t, writes); err != nil {
+				t.Fatal(err)
+			}
+			deadline := time.Now().Add(10 * time.Second)
+			for {
+				crossed.Header.HopByHopID++
+				crossed.Header.EndToEndID++
+				h.write(t, crossed)
+				answer := h.read(t)
+				if answer.Header.CommandCode != diam.DisconnectPeer || answer.Header.HopByHopID != crossed.Header.HopByHopID || answer.Header.EndToEndID != crossed.Header.EndToEndID || answer.Header.CommandFlags&diam.RequestFlag != 0 {
+					t.Fatalf("drain probe answer=%+v", answer)
+				}
+				if contractCode(t, answer) == diam.Success {
+					break
+				}
+				if contractCode(t, answer) != diam.UnableToComply || time.Now().After(deadline) {
+					t.Fatalf("handler count did not drain: %+v", answer)
+				}
+			}
+			select {
+			case id := <-started:
+				t.Fatalf("Closing request %d reached handler", id)
+			default:
+			}
+			if local {
+				h.write(t, requestHandlerDPA(h, ownDPR))
+				if err := parityAwait(t, closing); err != nil {
+					t.Fatal(err)
+				}
+				h.eof(t)
+			}
+			h.noEvents(t)
+		})
+	}
+}
+
+func TestStateMachineRequestHandlersTCPAdmissionOrder(t *testing.T) {
+	for iteration := 0; iteration < 32; iteration++ {
+		t.Run(fmt.Sprintf("iteration=%d", iteration), func(t *testing.T) {
+			started, release := make(chan struct{}), make(chan struct{})
+			var once sync.Once
+			unblock := func() { once.Do(func() { close(release) }) }
+			writes := make(chan error, 1)
+			h := parityStartConfigured(t, parityFrontends[0], true, paritySettings{serverConcurrency: 8, requestHandler: diam.HandlerFunc(func(c diam.Conn, request *diam.Message) {
+				close(started)
+				<-release
+				writes <- requestHandlerReply(c, request)
+			})})
+			t.Cleanup(unblock)
+			request := requestHandlerRequest(h, uint32(2000+iteration))
+			dpr := contractBase(h.dict, diam.DisconnectPeer, true)
+			requestBytes, err := request.Serialize()
+			if err != nil {
+				t.Fatal(err)
+			}
+			dprBytes, err := dpr.Serialize()
+			if err != nil {
+				t.Fatal(err)
+			}
+			segment := append(requestBytes, dprBytes...)
+			if err := h.wire.SetWriteDeadline(time.Now().Add(10 * time.Second)); err != nil {
+				t.Fatal(err)
+			}
+			if n, err := h.wire.Write(segment); err != nil || n != len(segment) {
+				t.Fatalf("combined request/DPR write=%d,%v; want=%d", n, err, len(segment))
+			}
+			h.answer(t, dpr, diam.UnableToComply)
+			parityAwait(t, started)
+			unblock()
+			requestHandlerExactAnswer(t, h, request)
+			if err := parityAwait(t, writes); err != nil {
+				t.Fatal(err)
+			}
+			h.noEvents(t)
+		})
+	}
+}
