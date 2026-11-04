@@ -122,6 +122,9 @@ func (s *session) applyProtocol(in protocol.Input, d *protocolDelivery) {
 	}
 	if in.Kind == protocol.Receive {
 		in.Unhandled = true
+		if s.m.hasHandlers.Load() && s.hasRequestHandler(in.Message) {
+			in.Unhandled = false
+		}
 		if s.m.matchesPendingAnswer(s, in.Message) {
 			in.Ownership = 1
 		}
@@ -219,7 +222,8 @@ func (s *session) protocolInFlight() bool {
 	if s.beforeInFlightScan != nil {
 		s.beforeInFlightScan()
 	}
-	if s.m.hasInFlightRequests(s) {
+	// RFC 6733 §5.4: an admitted application handler may still send an answer.
+	if s.handlersInFlight.Load() != 0 || s.m.hasInFlightRequests(s) {
 		return true
 	}
 	for _, control := range s.core.Progress().Controls {
@@ -245,7 +249,13 @@ func (s *session) runProtocol(in protocol.Input, es []protocol.Effect, d *protoc
 	defer s.releaseProtocolEffects(es)
 	if d == nil {
 		d = newProtocolDelivery()
-		defer func() { d.finish(); d.deliver(s.m) }()
+		defer func() {
+			d.finish()
+			d.deliver(s.m)
+			if d.request {
+				go s.dispatchRequest(in.Message)
+			}
+		}()
 	}
 	a, _ := s.binding()
 	// Diagnostics precede transport closure and observer publication.
@@ -298,6 +308,7 @@ func (s *session) runProtocol(in protocol.Input, es []protocol.Effect, d *protoc
 				continue
 			}
 			s.meta = protocolMetadata(*e.Snapshot)
+			s.c.SetContext(smpeer.NewContext(s.c.Context(), s.meta.Clone()))
 			if a != nil {
 				a.meta = s.meta.Clone()
 			}
@@ -323,7 +334,13 @@ func (s *session) runProtocol(in protocol.Input, es []protocol.Effect, d *protoc
 			if s.isRetired() {
 				continue
 			}
-			if e.Ownership != 0 {
+			if e.Message.Header.CommandFlags&diam.RequestFlag != 0 {
+				// The actor/session worker is already counted, so Add cannot
+				// race a zero-counter Wait during Manager.Close.
+				s.m.wg.Add(1)
+				s.handlersInFlight.Add(1)
+				d.request = true
+			} else if e.Ownership != 0 {
 				s.m.receiveClosingAnswer(s, e.Message)
 			} else {
 				s.m.receiveAnswer(s, e.Message, d)

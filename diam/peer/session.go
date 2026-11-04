@@ -40,6 +40,9 @@ type protocolWrite struct {
 }
 
 type session struct {
+	handlerSlots       chan struct{}
+	handlersInFlight   atomic.Int64
+	handlerConn        *requestHandlerConn
 	coreMu             sync.Mutex
 	core               *protocol.Core
 	coreID             protocol.Connection
@@ -80,6 +83,8 @@ type session struct {
 
 func (m *Manager) newSession(c diam.Conn, a *actor, gen uint64, inbound bool) *session {
 	s := &session{m: m, c: c, actor: a, gen: gen, inbound: inbound, writes: make(chan writeRequest, m.cfg.Limits.Events), ingress: make(chan incoming, m.cfg.Limits.Events), closed: make(chan struct{})}
+	s.handlerSlots = make(chan struct{}, m.cfg.Limits.HandlersPerConnection)
+	s.handlerConn = &requestHandlerConn{Conn: c, s: s}
 	if err := s.initProtocol(); err != nil {
 		m.reportLocal(s, nil, "peer: protocol initialization failed; closing connection", err)
 		c.Close()

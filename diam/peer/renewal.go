@@ -18,6 +18,7 @@ type protocolDelivery struct {
 	// delivered is guarded by replyMu; declaring it here keeps
 	// protocolDelivery in its allocation size class.
 	delivered     bool
+	request       bool // consumer owns dispatch and the admitted handler accounting
 	notifications []diam.ProtocolErrorEvent
 	replyMu       sync.Mutex
 	failedReply   *diam.ProtocolErrorEvent

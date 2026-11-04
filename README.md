@@ -89,6 +89,7 @@ the answer.
   runtime XML loading and AVP registration while messages are decoded.
 - `diam/dict/all`: explicit selection of every shipped dictionary for
   diagnostic programs such as `examples/snoop`.
+- `diam/peer`: managed peers, request correlation, reconnect and failover.
 - `diam/sm`: peer state machines for CER/CEA and DWR/DWA handling.
 - `diam/sm/smparser`: helpers for parsing state-machine messages.
 - `diam/sm/smpeer`: peer metadata attached to accepted connections.
@@ -683,6 +684,129 @@ deprecate ([exceptions in logs](https://opentelemetry.io/docs/specs/semconv/exce
 [recording errors](https://opentelemetry.io/docs/specs/semconv/general/recording-errors/)).
 The panic then continues to `diam.Server`. `WithTracerProvider` and
 `WithLoggerProvider` choose the providers; the defaults are the global ones.
+
+## Peer-initiated requests
+
+Support for server-initiated messages is mandatory in Diameter
+([RFC 6733 §1](https://www.rfc-editor.org/rfc/rfc6733.html#section-1)), so a client
+can receive requests on the connection it opened. `peer.Manager.HandleIdx` routes
+a request a remote peer initiates to a handler, by application and command. This
+S6a client accepts Cancel-Location requests:
+
+```go
+package main
+
+import (
+    "log/slog"
+
+    "github.com/gomaja/go-diameter/diam"
+    "github.com/gomaja/go-diameter/diam/avp"
+    "github.com/gomaja/go-diameter/diam/datatype"
+    "github.com/gomaja/go-diameter/diam/dict"
+    "github.com/gomaja/go-diameter/diam/dict/s6a"
+    "github.com/gomaja/go-diameter/diam/peer"
+    "github.com/gomaja/go-diameter/diam/sm"
+    "github.com/gomaja/go-diameter/diam/sm/smpeer"
+)
+
+func main() {
+    dictionary, err := dict.New(s6a.Dictionary())
+    if err != nil {
+        panic(err)
+    }
+    const host, realm = "mme.example.org", "example.org"
+    manager, err := peer.New(peer.Config{Settings: sm.Settings{
+        OriginHost: host, OriginRealm: realm, Dict: dictionary,
+        VendorID: 10415, ProductName: "mme",
+    }})
+    if err != nil {
+        panic(err)
+    }
+    manager.HandleIdx(diam.CommandIndex{AppID: 16777251,
+        Code: diam.CancelLocation, Request: true},
+        diam.HandlerFunc(func(c diam.Conn, req *diam.Message) {
+            remote, _ := smpeer.FromContext(c.Context())
+            slog.Info("Cancel-Location", "peer_host", remote.OriginHost)
+            // Complete the application's cancellation before answering.
+            answer := req.Answer(diam.Success)
+            if sid, err := req.FindAVP(avp.SessionID, 0); err == nil {
+                answer.AddAVP(diam.NewAVP(avp.SessionID, avp.Mbit, 0, sid.Data))
+            }
+            // RFC 6733 §6.2 and Verified Erratum 4887: use the local origin.
+            answer.AddAVP(diam.NewAVP(avp.OriginHost, avp.Mbit, 0,
+                datatype.DiameterIdentity(host)))
+            answer.AddAVP(diam.NewAVP(avp.OriginRealm, avp.Mbit, 0,
+                datatype.DiameterIdentity(realm)))
+            answer.AddAVP(diam.NewAVP(avp.AuthSessionState, avp.Mbit, 0,
+                datatype.Enumerated(1)))
+            if _, err := answer.WriteTo(c); err != nil {
+                slog.Error("Cancel-Location answer failed", "error", err)
+            }
+        }))
+    // Add peers, then Start; or BindServer before Serve, as usual.
+}
+```
+
+Register before `Start` or the bound server's `Serve`. `diam.ALL_CMD_INDEX` catches
+requests no other index matches, in any advertised application. A request with no
+route keeps its 3001 or 3007 answer. `HandleIdx` panics for a nil handler, a
+duplicate index, an answer index, CER, DWR or DPR, and an application the Manager
+does not advertise.
+
+A request reaches a handler only after protocol validation; one with an error gets
+its error answer, and one received while Closing or in the watchdog's REOPEN state
+is dropped. On a discovered peer, a request outside its live lease has no route.
+Like `sm.StateMachine`, Manager does not check Destination-Host or Destination-Realm,
+forward requests or detect duplicates; the handler sees the T bit.
+
+`smpeer.FromContext(c.Context())` identifies the peer. `req.Answer` supplies the
+identifiers, stream, Proxy-Info and Result-Code; the handler adds Session-Id and the
+local Origin-Host and Origin-Realm
+([RFC 6733 §6.2](https://www.rfc-editor.org/rfc/rfc6733.html#section-6.2),
+[Verified Erratum 4887](https://errata.rfc-editor.org/eid4887/)) and writes to `c`.
+That Conn behaves like the native one, whose optional interfaces `diam.ConnAs`
+finds, except that:
+
+- writing a request fails with `peer.ErrInvalidRequest` and writes nothing; use
+  `Manager.Send`;
+- writing after a discovered peer's lease expires fails with `peer.ErrLeaseExpired`;
+- a failed write closes the connection, unless it is already closed or retired;
+- `Close` ends the session at once and fails its pending requests over.
+
+An answer from a replaced connection generation fails with
+`diam.ErrConnectionRetired`, so it cannot reach a renewed connection.
+
+### Handler concurrency
+
+Handlers run on Manager's goroutines, whatever `Server.MaxConcurrentHandlers` is.
+`Limits.HandlersPerConnection` (default 64) bounds how many run at once on one
+connection. A request beyond the bound waits for a handler to return:
+
+- With sequential dispatch (every dialed connection, and accepted ones with
+  `Server.MaxConcurrentHandlers == 0`), reading stops at once.
+- With `Server.MaxConcurrentHandlers` = N > 0, each waiting request holds one Server
+  callback and reading stops when all N are held. Until then later messages are
+  still processed, including DWR, DWA and answers to `Manager.Send`.
+- With N < 0, any number of requests can wait, as the Server documents.
+
+While reading is stopped, Manager sees no DWA, answer or peer FIN. Choose
+`Timers.TwInit` to tolerate handler latency: the watchdog closes a connection that
+stays saturated. A handler waiting on `Manager.Send` for an answer on that connection
+can stall until `Timers.Request` or the watchdog ends it. A waiting request is dropped
+with one Warn record if its connection closes first.
+
+### Handlers and disconnection
+
+A DPR received while a handler is running gets DPA 5012, as one received with
+requests in flight does
+([RFC 6733 §5.4](https://www.rfc-editor.org/rfc/rfc6733.html#section-5.4)). A running
+handler can still answer during Closing while the transport is open.
+`Manager.Close` sends DPR at once and waits for running handlers, bounded by its
+context; a handler must not call it synchronously. An answer written after the session
+closes fails.
+
+A handler panic produces one Error record with its stack and leaves the connection
+open. The request gets no answer.
 
 ## DNS peer discovery
 
