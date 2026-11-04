@@ -22,7 +22,7 @@ hashes=(diam/server.go diam/network_sctp.go diam/accepted_generation.go diam/ser
 
 wire_scenario() {
 docker exec -d -e SCTP_TLS_RESTART_SERVER_ADDR="$sip:5868" "$server" sh -c '/sctp-tls-restart.test -test.run "^TestBuiltInSCTPTLSRestartWireServer$" -test.v -test.timeout 20s >/tmp/server.log 2>&1 & pid=$!; echo "$pid" >/tmp/server.pid; wait "$pid"; echo "$?" >/tmp/server.exit'
-sleep .5
+wire_wait_listener "$server" server 5868
 docker exec -d -e SCTP_TLS_RESTART_SERVER_ADDR="$sip:5868" -e SCTP_TLS_RESTART_CLIENT_ADDR="$cip:43869" -e SCTP_TLS_RESTART_PHASE=initial "$client" sh -c '/sctp-tls-restart.test -test.run "^TestBuiltInSCTPTLSRestartWireClient$" -test.v -test.timeout 20s >/tmp/initial.log 2>&1 & pid=$!; echo "$pid" >/tmp/initial.pid; wait "$pid"; echo "$?" >/tmp/initial.exit'
 for ((i=0;i<100;i++)); do if docker exec "$client" test -s /tmp/sctp-tls-restart-client-ready; then break; fi; sleep .1; done
 docker exec "$client" test -s /tmp/sctp-tls-restart-client-ready

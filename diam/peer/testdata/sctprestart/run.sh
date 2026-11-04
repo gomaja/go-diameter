@@ -30,9 +30,9 @@ answer_delay=0s
 if [[ $variant == watchdog ]]; then request_timeout=40s; fi
 if [[ $variant == deadline ]]; then request_timeout=8s; answer_delay=10s; fi
 docker exec -d "$client" sh -c '/wire -mode alternate -addr "$1" -answer-delay="$2" >/tmp/alternate.log 2>&1 & alternate_pid=$!; printf "%s\n" "$alternate_pid" >/tmp/alternate.pid; wait "$alternate_pid"; printf "%s\n" "$?" >/tmp/alternate.exit' sh "$cip:4868" "$answer_delay"
-sleep .5
+wire_wait_listener "$client" alternate 4868
 docker exec -d "$server" sh -c '/wire -mode server -addr "$1" -watchdog="$2" -alternate "$3" -request-timeout="$4" >/tmp/server.log 2>&1 & server_pid=$!; printf "%s\n" "$server_pid" >/tmp/server.pid; wait "$server_pid"; printf "%s\n" "$?" >/tmp/server.exit' sh "$sip:3868" "$watchdog" "$cip:4868" "$request_timeout"
-sleep 1
+wire_wait_listener "$server" server 3868
 fragment=false
 if [[ $variant == fragment ]]; then fragment=true; fi
 docker exec -d "$client" sh -c '/wire -mode client -addr "$1" -local "$2" -phase 1 -fragment="$3" -watchdog="$4" >/tmp/initial.log 2>&1 & initial_pid=$!; printf "%s\n" "$initial_pid" >/tmp/initial.pid; wait "$initial_pid"; printf "%s\n" "$?" >/tmp/initial.exit' sh "$sip:3868" "$cip:43868" "$fragment" "$watchdog"

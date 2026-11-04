@@ -185,6 +185,13 @@ for comparison with an unchanged checkout. The [Manager wire harness](diam/peer/
 also checks alternate-peer failover, three-probe watchdog recovery and the
 original request deadline in two privileged containers.
 
+Each rig starts its scenario only once both captures have started, and starts
+each dialer only once its SCTP listener appears in that container's
+`/proc/net/sctp/eps`. `SCTP_WIRE_READY_TIMEOUT` bounds each of these waits in
+whole seconds (default 20), and `SCTP_WIRE_READY_KILL_AFTER` (default 5s) is the
+grace before a stalled Docker call in a wait is killed. A process that exits
+first fails the wait at once, and its log is printed.
+
 ## Protocol error notifications
 
 `sm.Settings.OnProtocolError` observes protocol conditions the state machine
