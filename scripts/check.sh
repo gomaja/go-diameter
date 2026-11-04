@@ -175,7 +175,10 @@ check_vet() {
 }
 
 check_lint() {
-	in_modules go run "$staticcheck" ./... && in_modules go run "$golangci_lint" run ./...
+	# Every golangci-lint on the host locks one file in the temp directory.
+	# Wait for it while another checkout or project is linting, rather than
+	# failing after five seconds without linting anything.
+	in_modules go run "$staticcheck" ./... && in_modules go run "$golangci_lint" run --allow-serial-runners ./...
 }
 
 check_vuln() {
