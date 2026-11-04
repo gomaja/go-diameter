@@ -17,6 +17,9 @@
 // A CER with invalid header bits receives 3008 and the connection closes after
 // the answer, both before and after CER/CEA; the T bit and reserved bits do
 // not make a header invalid.
+//
+// HandleIdx routes requests a remote peer initiates to application handlers
+// (RFC 6733 §1). A request with no route receives 3001 or 3007 (RFC 6733 §7.1.3).
 package peer
 
 import (
@@ -61,7 +64,25 @@ func (m *Manager) now() time.Time {
 }
 
 type Timers struct{ Tc, TwInit, Connect, CER, Closing, Request time.Duration }
-type Limits struct{ Events, PendingPerPeer int }
+type Limits struct {
+	Events, PendingPerPeer int
+	// HandlersPerConnection bounds the request handlers running at once on one
+	// connection, whatever Server.MaxConcurrentHandlers is. Values <= 0 use 64. A
+	// request beyond the bound waits in ServeDIAM for a handler to return:
+	//   - With sequential dispatch (every dialed connection, and accepted ones
+	//     with Server.MaxConcurrentHandlers == 0), reading stops at once.
+	//   - With Server.MaxConcurrentHandlers = N > 0, each waiting request holds
+	//     one Server callback and reading stops when all N are held. Until then
+	//     later messages are still processed, including DWR, DWA and Send's answers.
+	//   - With N < 0, any number of requests can wait.
+	//
+	// While reading is stopped Manager sees no DWA, answer or peer FIN, so choose
+	// Timers.TwInit to tolerate handler latency: the watchdog closes a connection
+	// that stays saturated (RFC 3539 §3.4). A handler waiting on Send for an answer
+	// on that connection can stall until Timers.Request or the watchdog ends it. A
+	// waiting request is dropped with one Warn record if its connection closes.
+	HandlersPerConnection int
+}
 type DialFunc func(context.Context, Endpoint) (net.Conn, error)
 type Endpoint struct {
 	Network, Address string
@@ -102,11 +123,11 @@ type Config struct {
 	// current state independently. Each dropped event is logged at Warn.
 	OnPeerEvent func(PeerEvent)
 	// Logger receives the records of the connections the Manager dials, as
-	// diam.Server.Logger does, and a panic recovered from OnPeerEvent (Error,
-	// with the panic value and stack), and a message or connection a peer got
-	// wrong (Warn). Local dial, build and write failures are Error records with
-	// their operation and underlying error. Records are synchronous; a slow
-	// Handler slows the peer.
+	// diam.Server.Logger does, and a panic recovered from OnPeerEvent or a
+	// request handler (Error, with the panic value and stack), and a message or
+	// connection a peer got wrong (Warn). Local dial, build and write failures
+	// are Error records with their operation and underlying error. Records are
+	// synchronous; a slow Handler slows the peer.
 	// Nil uses slog.Default. A server given
 	// to BindServer keeps its own Logger.
 	Logger         *slog.Logger
@@ -128,6 +149,8 @@ type PeerEvent struct {
 }
 
 type Manager struct {
+	handlerMux       *diam.ServeMux
+	hasHandlers      atomic.Bool
 	cfg              Config
 	mu               sync.RWMutex
 	peers            map[string]*actor
@@ -210,6 +233,9 @@ func New(cfg Config) (*Manager, error) {
 	if cfg.Timers.Closing <= 0 {
 		cfg.Timers.Closing = 5 * time.Second
 	}
+	if cfg.Limits.HandlersPerConnection <= 0 {
+		cfg.Limits.HandlersPerConnection = 64
+	}
 	if cfg.Limits.Events <= 0 {
 		cfg.Limits.Events = 64
 	}
@@ -219,7 +245,7 @@ func New(cfg Config) (*Manager, error) {
 	if cfg.Limits.PendingPerPeer <= 0 {
 		cfg.Limits.PendingPerPeer = 1024
 	}
-	m := &Manager{cfg: cfg, dynamicRoutes: make(map[routeKey][]dynamicRoute), peers: make(map[string]*actor), sessions: make(map[diam.Conn]*session), retiredSessions: make(map[diam.Conn]*session), done: make(chan struct{}), closed: make(chan struct{}), callbackQ: make(chan PeerEvent, cfg.Limits.Events), pending: make(map[*session]map[uint32]*pendingRequest), controls: make(map[*session]map[uint32]struct{}), localApps: make(map[uint32]struct{})}
+	m := &Manager{handlerMux: diam.NewServeMux(), cfg: cfg, dynamicRoutes: make(map[routeKey][]dynamicRoute), peers: make(map[string]*actor), sessions: make(map[diam.Conn]*session), retiredSessions: make(map[diam.Conn]*session), done: make(chan struct{}), closed: make(chan struct{}), callbackQ: make(chan PeerEvent, cfg.Limits.Events), pending: make(map[*session]map[uint32]*pendingRequest), controls: make(map[*session]map[uint32]struct{}), localApps: make(map[uint32]struct{})}
 	localCapabilities := m.baseSettings(nil)
 	for _, id := range base.AdvertisedApplicationIDs(localCapabilities) {
 		m.localApps[id] = struct{}{}
@@ -288,6 +314,8 @@ func (m *Manager) AddPeer(cfg PeerConfig) error {
 }
 
 // BindServer installs the manager before Serve and preserves existing hooks.
+// Register request handlers with HandleIdx before Serve; Limits.HandlersPerConnection
+// describes how they interact with Server.MaxConcurrentHandlers.
 // Manager orders message/error admission internally, including when Server uses
 // concurrent dispatch. A wrapper should expose Unwrap() diam.Handler so Server
 // finds Manager's MessageErrorHandler directly. Such a wrapper must forward
@@ -367,7 +395,10 @@ func sortSnapshots(p []PeerSnapshot) {
 	}
 }
 
-// Close disconnects every peer and waits for shutdown or ctx cancellation.
+// Close disconnects every peer and waits for shutdown, including running request
+// handlers, or ctx cancellation. It sends DPR without waiting for handlers, and an
+// answer written after a session closes fails. A handler must not call Close
+// synchronously: Close would wait for that handler until ctx ends.
 // A cause outside the values defined by RFC 6733 §5.4.3 returns an
 // "invalid Disconnect-Cause" error before changing shutdown or peer state.
 func (m *Manager) Close(ctx context.Context, cause sm.DisconnectCause) error {
@@ -612,6 +643,9 @@ func (m *Manager) ServeDIAM(c diam.Conn, msg *diam.Message) {
 	<-d.done
 	release()
 	d.deliver(m)
+	if d.request {
+		s.dispatchRequest(msg)
+	}
 }
 func (m *Manager) processDIAM(s *session, msg *diam.Message, delivery ...*protocolDelivery) {
 	m.processDIAMAt(s, msg, m.now(), 0, delivery...)

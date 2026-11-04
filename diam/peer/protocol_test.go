@@ -189,10 +189,10 @@ func testBase(host string) base.Settings {
 	}
 	return cfg
 }
-func startReceiver(t *testing.T, m *Manager) (net.Listener, *diam.Server) {
-	return startReceiverWithHandlers(t, m, 0)
+func startReceiver(t *testing.T, m *Manager, options ...func(*diam.Server)) (net.Listener, *diam.Server) {
+	return startReceiverWithHandlers(t, m, 0, options...)
 }
-func startReceiverWithHandlers(t *testing.T, m *Manager, concurrent int) (net.Listener, *diam.Server) {
+func startReceiverWithHandlers(t *testing.T, m *Manager, concurrent int, options ...func(*diam.Server)) (net.Listener, *diam.Server) {
 	t.Helper()
 	l, e := net.Listen("tcp", "127.0.0.1:0")
 	if e != nil {
@@ -200,6 +200,9 @@ func startReceiverWithHandlers(t *testing.T, m *Manager, concurrent int) (net.Li
 	}
 	srv := &diam.Server{Dict: m.cfg.Settings.Dict, MaxConcurrentHandlers: concurrent}
 	srv.Dict = m.cfg.Settings.Dict
+	for _, option := range options {
+		option(srv)
+	}
 	if e = m.BindServer(srv); e != nil {
 		t.Fatal(e)
 	}

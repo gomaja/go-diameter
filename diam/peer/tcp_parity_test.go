@@ -81,13 +81,18 @@ func parityStart(t *testing.T, frontend parityFrontend, handshake bool, applicat
 }
 
 type paritySettings struct {
-	application bool
-	probe       bool
-	clock       *parityClock
-	interval    time.Duration
-	writeGate   *parityReplyGate
-	onCEA       diam.HandlerFunc
-	onCER       diam.HandlerFunc
+	application       bool
+	probe             bool
+	clock             *parityClock
+	interval          time.Duration
+	writeGate         *parityReplyGate
+	onCEA             diam.HandlerFunc
+	onCER             diam.HandlerFunc
+	requestHandler    diam.Handler
+	catchAll          bool
+	handlerLimit      int
+	serverConcurrency int
+	validateRequests  *bool
 }
 
 func parityStartConfigured(t *testing.T, frontend parityFrontend, handshake bool, options paritySettings) *parityTCP {
@@ -102,6 +107,9 @@ func parityStartConfigured(t *testing.T, frontend parityFrontend, handshake bool
 		interval = options.interval
 	}
 	settings := contractSettings(h.dict, true, true)
+	if options.validateRequests != nil {
+		settings.ValidateRequests = *options.validateRequests
+	}
 	settings.DPRCloseTimeout = time.Hour
 	settings.HandshakeTimeout = time.Hour
 	settings.OnProtocolError = func(event diam.ProtocolErrorEvent) { h.events <- event }
@@ -127,6 +135,7 @@ func parityStartConfigured(t *testing.T, frontend parityFrontend, handshake bool
 				}
 			},
 		}
+		config.Limits.HandlersPerConnection = options.handlerLimit
 		if options.clock != nil {
 			config.Clock = options.clock
 		}
@@ -135,6 +144,13 @@ func parityStartConfigured(t *testing.T, frontend parityFrontend, handshake bool
 			t.Fatal(err)
 		}
 		h.manager, h.handler = manager, manager
+		if options.requestHandler != nil {
+			index := diam.CommandIndex{AppID: contractApp, Code: contractCommand, Request: true}
+			if options.catchAll {
+				index = diam.ALL_CMD_INDEX
+			}
+			manager.HandleIdx(index, options.requestHandler)
+		}
 		peerConfig := peer.PeerConfig{Host: "remote.example.net", NoAutoReconnect: true}
 		if frontend.initiator {
 			peerConfig.Endpoints = []peer.Endpoint{{Network: "tcp", Address: listener.Addr().String()}}
@@ -191,6 +207,13 @@ func parityStartConfigured(t *testing.T, frontend parityFrontend, handshake bool
 			t.Fatal(err)
 		}
 		h.handler = state
+		if options.requestHandler != nil {
+			index := diam.CommandIndex{AppID: contractApp, Code: contractCommand, Request: true}
+			if options.catchAll {
+				index = diam.ALL_CMD_INDEX
+			}
+			state.HandleIdx(index, options.requestHandler)
+		}
 		if options.application {
 			answers := make(chan *diam.Message, 8)
 			state.HandleIdx(diam.CommandIndex{AppID: contractApp, Code: contractCommand}, diam.HandlerFunc(func(_ diam.Conn, message *diam.Message) {
@@ -269,6 +292,7 @@ func parityStartConfigured(t *testing.T, frontend parityFrontend, handshake bool
 		}
 	}
 	if server != nil {
+		server.MaxConcurrentHandlers = options.serverConcurrency
 		served := make(chan error, 1)
 		servedListener := listener
 		if options.writeGate != nil {

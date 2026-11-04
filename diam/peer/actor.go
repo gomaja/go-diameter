@@ -195,7 +195,14 @@ func (a *actor) handleEvent(e event) {
 	d.finish()
 	if e.delivery == nil {
 		a.m.wg.Add(1)
-		go func() { defer a.m.wg.Done(); d.deliver(a.m) }()
+		s, msg := e.s, e.msg
+		go func() {
+			defer a.m.wg.Done()
+			d.deliver(a.m)
+			if d.request {
+				s.dispatchRequest(msg)
+			}
+		}()
 	}
 }
 

@@ -20,7 +20,7 @@ import (
 )
 
 // BenchmarkInboundMessages uses only public Manager APIs and real TCP sockets.
-// Manager has no inbound application handler: requests receive 3001, while
+// Unhandled requests receive 3001, handled requests receive 2001, and
 // unsolicited answers complete at the synchronous protocol-error observer.
 // CorrelatedApplicationAnswer measures the complete Send request/answer exchange,
 // including the outbound request, correlation and the peer's response encoding.
@@ -29,7 +29,7 @@ import (
 func BenchmarkInboundMessages(b *testing.B) {
 	for _, side := range []string{"Accepted", "Dialed"} {
 		b.Run(side, func(b *testing.B) {
-			for _, exchange := range []string{"ApplicationRequestRejection", "UnsolicitedApplicationAnswer", "CorrelatedApplicationAnswer", "WatchdogExchange"} {
+			for _, exchange := range []string{"HandledApplicationRequest", "ApplicationRequestRejection", "UnsolicitedApplicationAnswer", "CorrelatedApplicationAnswer", "WatchdogExchange"} {
 				b.Run(exchange, func(b *testing.B) { benchmarkInboundMessages(b, side, exchange) })
 			}
 		})
@@ -53,6 +53,28 @@ func benchmarkInboundMessages(b *testing.B, side, exchange string) {
 	})
 	if err != nil {
 		b.Fatal(err)
+	}
+	if exchange == "HandledApplicationRequest" {
+		registrar, ok := any(manager).(interface {
+			HandleIdx(diam.CommandIndex, diam.Handler)
+		})
+		if !ok {
+			// Baseline archives lack this method; close the already-created
+			// Manager before skipping the new case.
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			err := manager.Close(ctx, sm.DisconnectDoNotWantToTalkToYou)
+			cancel()
+			if err != nil {
+				b.Fatal(err)
+			}
+			b.Skip("Manager does not support request handlers")
+		}
+		registrar.HandleIdx(diam.CommandIndex{AppID: 4, Code: diam.ReAuth, Request: true}, diam.HandlerFunc(func(c diam.Conn, request *diam.Message) {
+			answer := request.Answer(diam.Success)
+			answer.AddAVP(diam.NewAVP(avp.SessionID, avp.Mbit, 0, datatype.UTF8String("benchmark;1")))
+			addMessageCostIdentity(answer, "local.example")
+			_, _ = answer.WriteTo(c)
+		}))
 	}
 	remote := messageCostPeer(b, manager, dictionary, logger, side)
 	request := diam.NewMessage(diam.ReAuth, diam.RequestFlag|diam.ProxiableFlag, 4, 3, 4, dictionary)

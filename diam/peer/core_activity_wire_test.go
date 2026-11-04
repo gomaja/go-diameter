@@ -27,7 +27,7 @@ type coreActivityWire struct {
 // The fixture enters through Manager's TCP accept/dial paths and exchanges
 // actual CER/CEA frames. Only timer delivery and the actor completion fence are
 // controlled by the test; protocol inputs always arrive through the socket.
-func newCoreActivityWire(t *testing.T, dialed bool) *coreActivityWire {
+func newCoreActivityWire(t *testing.T, dialed bool, serverOptions ...func(*diam.Server)) *coreActivityWire {
 	t.Helper()
 	p := &coreActivityWire{clock: &fakeClock{}, events: make(chan diam.ProtocolErrorEvent, 32), dialed: dialed}
 	cfg := testSettings("local.example.net")
@@ -56,7 +56,7 @@ func newCoreActivityWire(t *testing.T, dialed bool) *coreActivityWire {
 			t.Fatal(err)
 		}
 	} else {
-		p.listener, server = startReceiver(t, p.m)
+		p.listener, server = startReceiver(t, p.m, serverOptions...)
 	}
 	t.Cleanup(func() { closeManager(t, p.m, server) })
 	t.Cleanup(func() {
