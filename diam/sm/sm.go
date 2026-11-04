@@ -295,6 +295,9 @@ var (
 // implements MessageErrorHandler intercepts it and must delegate synchronously
 // via HandlerAs on its inner handler (or take responsibility itself). Returning
 // before forwarding forfeits that message's position in admission order.
+//
+// With concurrent dispatch, a running application request handler makes DPR
+// receive DPA 5012 (RFC 6733 §5.4); it can still answer while the transport is open.
 type StateMachine struct {
 	cfg           *Settings
 	mux           *diam.ServeMux

@@ -1035,3 +1035,54 @@ func TestProtocolTCPParityCERHeader(t *testing.T) {
 		})
 	}
 }
+
+func TestProtocolTCPParityDPRRunningHandler(t *testing.T) {
+	var busy, drained []byte
+	for _, frontend := range parityFrontends {
+		for _, concurrency := range []int{0, 8} {
+			if frontend.initiator && concurrency != 0 {
+				continue
+			}
+			t.Run(fmt.Sprintf("%s/concurrency=%d", frontend.name, concurrency), func(t *testing.T) {
+				started, release := make(chan struct{}), make(chan struct{})
+				var once sync.Once
+				unblock := func() { once.Do(func() { close(release) }) }
+				writes := make(chan error, 1)
+				h := parityStartConfigured(t, frontend, true, paritySettings{serverConcurrency: concurrency, requestHandler: diam.HandlerFunc(func(c diam.Conn, request *diam.Message) {
+					close(started)
+					<-release
+					writes <- requestHandlerReply(c, request)
+				})})
+				t.Cleanup(unblock)
+				request := requestHandlerRequest(h, 1800)
+				h.write(t, request)
+				parityAwait(t, started)
+				dpr := contractBase(h.dict, diam.DisconnectPeer, true)
+				h.write(t, dpr)
+				concurrent := frontend.manager || concurrency > 0
+				if concurrent {
+					got := h.answer(t, dpr, diam.UnableToComply)
+					if busy == nil {
+						busy = got
+					} else if !bytes.Equal(got, busy) {
+						t.Fatalf("busy DPA bytes=%x; want=%x", got, busy)
+					}
+				}
+				unblock()
+				requestHandlerExactAnswer(t, h, request)
+				if err := parityAwait(t, writes); err != nil {
+					t.Fatal(err)
+				}
+				if !concurrent {
+					got := h.answer(t, dpr, diam.Success)
+					if drained == nil {
+						drained = got
+					} else if !bytes.Equal(got, drained) {
+						t.Fatalf("sequential DPA bytes=%x; want=%x", got, drained)
+					}
+				}
+				h.noEvents(t)
+			})
+		}
+	}
+}

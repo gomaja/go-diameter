@@ -26,6 +26,7 @@ type contextCoreKey struct{ sm *StateMachine }
 // RFC 6733 §§5.3–5.6; RFC 3539 §3.4.1 and Appendix A.
 type acceptedHandshake struct {
 	mu                sync.Mutex
+	runningHandlers   atomic.Int64
 	core              *protocol.Core
 	sm                *StateMachine
 	conn              diam.Conn
@@ -80,6 +81,7 @@ type acceptedBatch struct {
 	releaseDispatch bool
 	observers       []*acceptedObservation
 	following       []acceptedBatch
+	handlers        int64 // counted request Admits not yet handed to their handlers
 }
 
 func (sm *StateMachine) acceptedCore(c diam.Conn, m *diam.Message, create bool) *acceptedHandshake {
@@ -251,12 +253,13 @@ func (s *acceptedHandshake) prepare(in protocol.Input) acceptedBatch {
 			in.Unhandled = !found
 			in.HasHandler = found
 		}
-		if requests := pendingRequests(s.conn); requests != nil {
+		requests := pendingRequests(s.conn)
+		if requests != nil {
 			if requests.MatchAnswer(in.Message, false) {
 				in.Ownership = s.sequence
 			}
-			in.InFlight = requests.HasPending()
 		}
+		in.InFlight = s.inFlight(requests)
 	}
 	batch := s.batchLocked(in, s.core.Handle(in))
 	if in.Kind == protocol.ReleaseAdmission && s.core.Ready() {
@@ -273,6 +276,11 @@ func (s *acceptedHandshake) batchLocked(in protocol.Input, effects []protocol.Ef
 	batch := acceptedBatch{input: in}
 	batch.effects = s.prepareLocked(effects, &batch.releaseDispatch)
 	for i, e := range batch.effects {
+		// Count at commit, before run releases dispatch to the next message.
+		if e.Kind == protocol.Admit && e.Message.Header.CommandFlags&diam.RequestFlag != 0 {
+			s.runningHandlers.Add(1)
+			batch.handlers++
+		}
 		if s.client != nil && e.Kind == protocol.Notify && e.Notification.Kind == protocol.HandshakeNotice && e.Notification.Outcome == protocol.TimedOut {
 			// Delivery belongs to the committed timeout, including when caller
 			// cancellation arrives while its synchronous observer is running.
@@ -307,16 +315,15 @@ func (s *acceptedHandshake) prepareLocked(effects []protocol.Effect, releaseDisp
 		case protocol.ValidatedCER:
 			out = append(out[:len(out):len(out)], s.prepareLocked(s.core.Handle(protocol.Input{Kind: protocol.Activate, Connection: s.id, Token: e.Token}), releaseDispatch)...)
 		case protocol.FreezeAdmission:
-			inFlight := false
-			if requests := pendingRequests(s.conn); requests != nil {
+			requests := pendingRequests(s.conn)
+			if requests != nil {
 				requests.CloseAdmission()
-				inFlight = requests.HasPending()
 			}
 			if s.watchdog != nil {
 				s.watchdog.latchStop()
 			}
 			out = append(out, e)
-			out = append(out[:len(out):len(out)], s.prepareLocked(s.core.Handle(protocol.Input{Kind: protocol.Frozen, Connection: s.id, Token: e.Token, InFlight: inFlight}), releaseDispatch)...)
+			out = append(out[:len(out):len(out)], s.prepareLocked(s.core.Handle(protocol.Input{Kind: protocol.Frozen, Connection: s.id, Token: e.Token, InFlight: s.inFlight(requests)}), releaseDispatch)...)
 		case protocol.ArmTimer:
 			if e.Timer == protocol.WatchdogTimer && s.watchdog == nil {
 				continue
@@ -361,3 +368,8 @@ func inMessageForCompletion(e protocol.Effect) *diam.Header {
 }
 
 func (s *acceptedHandshake) apply(in protocol.Input) { s.run(s.prepare(in)) }
+
+// RFC 6733 §5.4: admitted handlers may still owe application answers.
+func (s *acceptedHandshake) inFlight(requests *diam.PendingRequests) bool {
+	return s.runningHandlers.Load() != 0 || requests != nil && requests.HasPending()
+}

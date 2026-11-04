@@ -568,8 +568,9 @@ An admitted write remains likely in flight even while blocked or after an
 uncertain write error, since bytes may already have left. This conservative
 boundary follows
 [RFC 6733 §5.4](https://www.rfc-editor.org/rfc/rfc6733.html#section-5.4)'s
-"likely in flight" guidance: DPR receives 5012 when such requests await answers,
-and their matching application/session answers remain eligible during Closing.
+"likely in flight" guidance: DPR receives 5012 when such requests await answers or
+an application request handler is still running. Their matching application/session
+answers remain eligible during Closing.
 Frames use the normal transport writer under the gate. A failed byte-stream
 write retains its cached error, preventing later frames from following an
 unfinished prefix.
@@ -797,10 +798,9 @@ with one Warn record if its connection closes first.
 
 ### Handlers and disconnection
 
-A DPR received while a handler is running gets DPA 5012, as one received with
-requests in flight does
-([RFC 6733 §5.4](https://www.rfc-editor.org/rfc/rfc6733.html#section-5.4)). A running
-handler can still answer during Closing while the transport is open.
+A DPR received while a handler is running gets DPA 5012, as described under
+[Closing](#closing). A running handler can still answer during Closing while the
+transport is open.
 `Manager.Close` sends DPR at once and waits for running handlers, bounded by its
 context; a handler must not call it synchronously. An answer written after the session
 closes fails.
