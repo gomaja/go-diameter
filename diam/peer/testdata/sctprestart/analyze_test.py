@@ -100,7 +100,8 @@ def fixture():
 
 
 class AnalyzerRecoveryTest(unittest.TestCase):
-    def analyze(self, rows, log, synchronous=False):
+    def analyze(self, rows, log, synchronous=False, prsctp_enable='1',
+                restart_accepts=True, include_restart=True):
         # Only the external tshark invocation is replaced. The actual CLI,
         # packet parsing, state checks, and resulting exit code run unchanged.
         with tempfile.TemporaryDirectory() as directory:
@@ -108,6 +109,8 @@ class AnalyzerRecoveryTest(unittest.TestCase):
             out = root / 'watchdog'
             out.mkdir()
             (out / 'run-id').write_text('synthetic-recovery')
+            if prsctp_enable is not None:
+                (out / 'prsctp_enable').write_text(prsctp_enable + '\n')
             if not synchronous:
                 log = checkpoints(log)
             (out / 'server.log').write_text('\n'.join(log) + '\n')
@@ -121,15 +124,78 @@ class AnalyzerRecoveryTest(unittest.TestCase):
             (root / 'raw.json').write_text(json.dumps([
                 {'_source': {'layers': {'diameter_raw': [data.hex()]}}}
                 for data in (request, retry)]))
+            prsctp = [
+                {'_source': {'layers': {
+                    'frame': {'frame.number': str(frame)},
+                    'ip': {'ip.src': source, 'ip.dst': destination},
+                    'sctp': {'sctp.srcport': src, 'sctp.dstport': dst,
+                             'sctp.verification_tag': tag,
+                             'chunk': {'sctp.chunk_type': chunk,
+                                       'sctp.init_initiate_tag': tag,
+                                       **parameters}}}}}
+                for frame, source, destination, src, dst, chunk, tag, parameters in [
+                    (1, '192.0.2.2', '192.0.2.1', '43868', '3868', '1', '0x00000001', {
+                        'Forward TSN supported parameter': {'sctp.parameter_type': '0xc000'}}),
+                    (2, '192.0.2.1', '192.0.2.2', '3868', '43868', '2', '0x00000001', {
+                        'Unrecognized parameter parameter': {
+                            'sctp.parameter_type': '0x0008',
+                            'Forward TSN supported parameter': {'sctp.parameter_type': '0xc000'}}})]]
+            if include_restart:
+                offer = {'Forward TSN supported parameter': {'sctp.parameter_type': '0xc000'}}
+                report = {'Unrecognized parameter parameter': {
+                    'sctp.parameter_type': '0x0008', **offer}}
+                for frame, source, destination, src, dst, chunk, parameters in [
+                        (3, '192.0.2.2', '192.0.2.1', '43868', '3868', '1', offer),
+                        (4, '192.0.2.1', '192.0.2.2', '3868', '43868', '2',
+                         offer if restart_accepts else report)]:
+                    prsctp.append({'_source': {'layers': {
+                        'frame': {'frame.number': str(frame)},
+                        'ip': {'ip.src': source, 'ip.dst': destination},
+                        'sctp': {'sctp.srcport': src, 'sctp.dstport': dst,
+                                 'sctp.verification_tag': '0x00000002',
+                                 'chunk': {'sctp.chunk_type': chunk,
+                                           'sctp.init_initiate_tag': '0x00000002',
+                                           **parameters}}}}})
+            (root / 'prsctp.json').write_text(json.dumps(prsctp))
             docker = root / 'docker'
             docker.write_text('#!/usr/bin/env python3\nimport pathlib, sys\n'
                               'root = pathlib.Path(__file__).parent\n'
-                              'name = "raw.json" if "jsonraw" in sys.argv else "packets.tsv"\n'
+                              'name = ("raw.json" if "jsonraw" in sys.argv else\n'
+                              '        "prsctp.json" if "json" in sys.argv else "packets.tsv")\n'
                               'sys.stdout.write((root / name).read_text())\n')
             docker.chmod(0o755)
             env = dict(os.environ, PATH=f'{root}:{os.environ["PATH"]}')
             return subprocess.run([sys.executable, str(pathlib.Path(__file__).with_name('analyze.py')), str(out)],
                                   text=True, capture_output=True, env=env)
+
+    def test_restart_prsctp_answer_follows_server_sysctl(self):
+        for value, accepts, message in [
+                ('1', True, None),
+                ('1', False, "Linux now answers restarts from the listener's setting"),
+                ('0', False, None),
+                ('0', True, 'restart frame 4 offers Forward-TSN-Supported')]:
+            with self.subTest(value=value, accepts=accepts):
+                rows, log = fixture()
+                result = self.analyze(rows, log, prsctp_enable=value, restart_accepts=accepts)
+                if message:
+                    self.assertNotEqual(result.returncode, 0, result.stdout)
+                    self.assertIn(message, result.stderr)
+                else:
+                    self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_requires_restart_prsctp_answer(self):
+        rows, log = fixture()
+        result = self.analyze(rows, log, include_restart=False)
+        self.assertNotEqual(result.returncode, 0, result.stdout)
+        self.assertIn('no raw-client restart answer', result.stderr)
+
+    def test_requires_server_sysctl_file_with_boolean_value(self):
+        for value in (None, '', '2', 'true', '1 0'):
+            with self.subTest(value=value):
+                rows, log = fixture()
+                result = self.analyze(rows, log, prsctp_enable=value)
+                self.assertNotEqual(result.returncode, 0, result.stdout)
+                self.assertIn('prsctp_enable', result.stderr)
 
     def test_accepts_third_matching_new_generation_dwa(self):
         rows, log = fixture()

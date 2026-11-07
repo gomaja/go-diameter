@@ -59,7 +59,7 @@ func TestBoundTCPDialSetsReuseAddr(t *testing.T) {
 	}
 	defer func() { _ = l.Close() }()
 	laddr := &net.TCPAddr{IP: net.IPv4(127, 0, 0, 1)}
-	conn, err := getMultistreamDialer("tcp", 0, laddr).Dial("tcp", l.Addr().String())
+	conn, err := getMultistreamDialer("tcp", 0, laddr, false).Dial("tcp", l.Addr().String())
 	if err != nil {
 		t.Fatal(err)
 	}

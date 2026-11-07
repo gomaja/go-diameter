@@ -465,7 +465,7 @@ func (a *actor) refreshDiscovery(ctx context.Context, spec Discovery) error {
 	if !a.leaseLive() || a.ownStop || a.m.isClosing() {
 		return ErrLeaseExpired
 	}
-	if !sameDiscoveryPeer(spec, d.spec) {
+	if !sameDiscoveryPeer(spec, d.spec, a.m.cfg.Dial != nil) {
 		return ErrDiscoveryChanged
 	}
 	s := a.active
@@ -517,12 +517,16 @@ func (m *Manager) HasRoute(realm datatype.DiameterIdentity, app uint32) bool {
 // TLS configurations are immutable once used, as required by crypto/tls.
 // Retain source identity while dialing a clone, including configurations with
 // function hooks that reflect.DeepEqual cannot compare.
-func sameDiscoveryPeer(a, b Discovery) bool {
+func sameDiscoveryPeer(a, b Discovery, customDial bool) bool {
 	if compareIdentity(a.Peer.Host, b.Peer.Host) != 0 || a.Peer.NoAutoReconnect != b.Peer.NoAutoReconnect || len(a.Peer.Endpoints) != len(b.Peer.Endpoints) {
 		return false
 	}
 	for i, e := range a.Peer.Endpoints {
 		old := b.Peer.Endpoints[i]
+		comparePR := customDial || e.Network == "sctp" || e.Network == "sctp4" || e.Network == "sctp6"
+		if comparePR && e.SCTPPartialReliability != old.SCTPPartialReliability {
+			return false
+		}
 		if e.Network != old.Network || e.Address != old.Address || a.tlsSources[i] != b.tlsSources[i] {
 			return false
 		}

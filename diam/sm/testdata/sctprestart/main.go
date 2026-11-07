@@ -196,7 +196,7 @@ func main() {
 	must(err)
 	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
 	defer cancel()
-	cfg := &sctp.Config{InitMsg: sctp.InitMsg{OutStreams: 16, MaxInStreams: 16}, NoDelay: new(true), DefaultSndInfo: &sctp.SndInfo{PPID: 46}}
+	cfg := &sctp.Config{PartialReliability: new(true), InitMsg: sctp.InitMsg{OutStreams: 16, MaxInStreams: 16}, NoDelay: new(true), DefaultSndInfo: &sctp.SndInfo{PPID: 46}}
 	start := time.Now()
 	c, err := cfg.Dial(ctx, "sctp4", la, ra)
 	must(err)

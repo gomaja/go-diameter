@@ -418,6 +418,16 @@ socket-backed SCTP behavior must be validated on Linux with SCTP enabled.
 SCTP needs Linux 5.0 or later, the same floor as go-sctp. The main deployment
 target is Rocky Linux 9, which runs a 5.14 kernel.
 
+PR-SCTP is off unless the application opts in: Diameter uses reliable transports
+(RFC 6733 §1), and RFC 3758 §4.2 recommends disabling partial reliability by
+default. Set `SCTPPartialReliability: true` on `diam.Server`, `sm.Client`, or
+`peer.Endpoint` to offer it; the peer may decline without an error. The socket
+setting overrides Linux's `net.sctp.prsctp_enable`, except when a peer restarts an
+accepted association: Linux answers the restart from the sysctl, so set it to the
+listener's value to keep restarts consistent (see go-sctp's `Listener`
+documentation). Package-level dial and listen helpers keep it off. See
+`diam.Server.SCTPPartialReliability` for delivery effects.
+
 Capabilities exchange advertises `Settings.HostIPAddresses` when configured,
 otherwise the connection's resolved local addresses. Every usable SCTP source
 address is retained, including loopback (RFC 6733 §5.3.5). Unspecified bind

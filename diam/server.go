@@ -1052,6 +1052,32 @@ type Server struct {
 	TLSConfig           *tls.Config // optional TLS config, used by ListenAndServeTLS
 	LocalAddr           net.Addr    // optional Local Address to bind dailer's (Dail...) socket to
 
+	// SCTPPartialReliability offers PR-SCTP on every SCTP association this Server
+	// dials and on listeners opened by ListenAndServe and ListenAndServeTLS.
+	// Accepted associations are set up with the listener's value. It is ignored
+	// for TCP; Serve uses the supplied listener's settings without changing them.
+	// The peer may decline the offer: the association then uses reliable SCTP
+	// without an error (RFC 3758 §§3.3.2-3.3.3).
+	//
+	// Diameter uses reliable transports (RFC 6733 §1). PR-SCTP is therefore off
+	// by default, as recommended by RFC 3758 §4.2; RFC 7496 §4.5 leaves the
+	// default to the implementation. The value explicitly overrides Linux's
+	// net.sctp.prsctp_enable in either direction through SCTP_PR_SUPPORTED.
+	// The exception is a peer's restart of an accepted association (RFC 9260
+	// §5.2.2): Linux answers it from net.sctp.prsctp_enable, and the two ends
+	// can then disagree on PR-SCTP (see sctp.Listener). Setting the sysctl to
+	// the listener's value avoids that.
+	// Once negotiated, a peer can abandon messages (RFC 3758 §§3.4-3.6): a
+	// whole abandoned message never arrives and nothing reports it; a partly
+	// delivered one ends the connection with sctp.ErrMessageInterrupted.
+	// go-diameter's own sends always remain reliable and set no PR policy.
+	//
+	// For built-in SCTP transports, Conn.Connection() returns *SCTPConn; call
+	// its embedded Conn.PRSupported(). For a connection accepted from a Listen
+	// listener, Connection() returns the original *sctp.Conn directly.
+	// For TLS, first unwrap *tls.Conn with NetConn().
+	SCTPPartialReliability bool
+
 	// MaxConcurrentHandlers controls per-connection handler dispatch.
 	//   0 (default) - sequential dispatch: each message is handled to
 	//                 completion before the next is read. Preserves the
@@ -1411,7 +1437,7 @@ func (srv *Server) ListenAndServe() (err error) {
 	if len(addr) == 0 {
 		addr = ":3868"
 	}
-	l, e := MultistreamListen(network, addr)
+	l, e := multistreamListen(network, addr, srv.SCTPPartialReliability)
 	if e != nil {
 		return e
 	}
@@ -1488,6 +1514,8 @@ func (srv *Server) Serve(l net.Listener) error {
 //
 // If dict is nil, the shared, initially base-only dict.Default is used.
 // Pass an explicitly selected parser for application dictionaries.
+// ListenAndServeNetwork never offers PR-SCTP when an association is set up; see
+// Server.SCTPPartialReliability to opt in and for restarts.
 func ListenAndServeNetwork(network, addr string, handler Handler, dp *dict.Parser) error {
 	server := &Server{Network: network, Addr: addr, Handler: handler, Dict: dp}
 	return server.ListenAndServe()
@@ -1539,7 +1567,7 @@ func (srv *Server) ListenAndServeTLS(certFile, keyFile string) (err error) {
 			return err
 		}
 	}
-	conn, err := MultistreamListen(network, addr)
+	conn, err := multistreamListen(network, addr, srv.SCTPPartialReliability)
 	if err != nil {
 		return err
 	}
@@ -1556,6 +1584,8 @@ func (srv *Server) ListenAndServeTLS(certFile, keyFile string) (err error) {
 // of the server's certificate followed by the CA's certificate.
 //
 // One can use generate_cert.go in crypto/tls to generate cert.pem and key.pem.
+// ListenAndServeNetworkTLS never offers PR-SCTP when an association is set up; see
+// Server.SCTPPartialReliability to opt in and for restarts.
 func ListenAndServeNetworkTLS(network, addr string, certFile string, keyFile string, handler Handler, dp *dict.Parser) error {
 	server := &Server{Network: network, Addr: addr, Handler: handler, Dict: dp}
 	return server.ListenAndServeTLS(certFile, keyFile)

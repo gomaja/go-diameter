@@ -7,6 +7,10 @@ import sys
 
 out = pathlib.Path(sys.argv[1]).resolve()
 tshark = runpy.run_path(str(pathlib.Path(__file__).resolve().parents[4] / 'scripts/sctp-wire/tshark.py'))['tshark']
+prsctp = runpy.run_path(str(pathlib.Path(__file__).resolve().parents[4] / 'scripts/sctp-wire/prsctp.py'))
+prsctp['analyze_default_off'](
+    out, 'client.pcapng', tshark, ('3868',), '43868',
+    prsctp['read_prsctp_enable'](out))
 fields = ['frame.number', 'frame.time_epoch', 'ip.src', 'sctp.chunk_type', 'sctp.data_sid', 'diameter.cmd.code', 'diameter.flags.request', 'diameter.hopbyhopid', 'diameter.endtoendid', 'diameter.Result-Code', 'diameter.Origin-Host', 'diameter.Auth-Application-Id', 'diameter.Origin-State-Id']
 arguments = ['-Y', 'sctp', '-T', 'fields']
 for field in fields:

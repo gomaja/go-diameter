@@ -22,10 +22,12 @@ import (
 // by the handler, which is typically nil and DefaultServeMux is used.
 // If dict is nil, the shared, initially base-only dict.Default is used.
 // Pass an explicitly selected parser for application dictionaries.
+// DialNetwork never offers PR-SCTP; use Server.SCTPPartialReliability to opt in.
 func DialNetwork(network, addr string, handler Handler, dp *dict.Parser) (Conn, error) {
 	return DialExt(network, addr, handler, dp, 0, nil)
 }
 
+// DialNetworkBind never offers PR-SCTP; use Server.SCTPPartialReliability to opt in.
 func DialNetworkBind(network, laddr, raddr string, handler Handler, dp *dict.Parser) (Conn, error) {
 	var (
 		err     error
@@ -41,6 +43,7 @@ func DialNetworkBind(network, laddr, raddr string, handler Handler, dp *dict.Par
 	return DialExt(network, raddr, handler, dp, 0, netAddr)
 }
 
+// DialNetworkTimeout never offers PR-SCTP; use Server.SCTPPartialReliability to opt in.
 func DialNetworkTimeout(network, addr string, handler Handler, dp *dict.Parser, timeout time.Duration) (Conn, error) {
 	return DialExt(network, addr, handler, dp, timeout, nil)
 }
@@ -64,6 +67,7 @@ func DialTimeout(addr string, handler Handler, dp *dict.Parser, timeout time.Dur
 // DefaultServeMux is used. Allows binding dailer socket to given laddr.
 // If dict is nil, the shared, initially base-only dict.Default is used.
 // Pass an explicitly selected parser for application dictionaries.
+// DialExt never offers PR-SCTP; use Server.SCTPPartialReliability to opt in.
 func DialExt(
 	network, addr string, handler Handler, dp *dict.Parser, timeout time.Duration, laddr net.Addr) (Conn, error) {
 
@@ -100,7 +104,7 @@ func (srv *Server) dialContext(ctx context.Context, laddr net.Addr, timeout time
 	addr := defaultTransportAddress(srv.Addr, false)
 	var rw net.Conn
 	var err error
-	dialer := getMultistreamDialer(network, timeout, laddr)
+	dialer := getMultistreamDialer(network, timeout, laddr, srv.SCTPPartialReliability)
 	rw, err = dialer.DialContext(ctx, network, addr)
 	if err != nil {
 		return nil, dialContextError(ctx, err)
@@ -128,11 +132,13 @@ func DialTLSTimeout(addr, certFile, keyFile string, handler Handler, dp *dict.Pa
 }
 
 // DialNetworkTLS is the same as DialNetwork, but for TLS.
+// DialNetworkTLS never offers PR-SCTP; use Server.SCTPPartialReliability to opt in.
 func DialNetworkTLS(network, addr, certFile, keyFile string, handler Handler, dp *dict.Parser) (Conn, error) {
 	return DialTLSExt(network, addr, certFile, keyFile, handler, dp, 0, nil)
 }
 
 // DialTLSExt is the same as DialExt, but for TLS.
+// DialTLSExt never offers PR-SCTP; use Server.SCTPPartialReliability to opt in.
 func DialTLSExt(
 	network,
 	addr,
@@ -185,7 +191,7 @@ func (srv *Server) dialTLSContext(ctx context.Context, certFile, keyFile string,
 	}
 
 	var rw net.Conn
-	dialer := getDialer(network, timeout, srv.LocalAddr)
+	dialer := getDialer(network, timeout, srv.LocalAddr, srv.SCTPPartialReliability)
 	rw, err = dialer.DialContext(ctx, network, addr)
 	if err != nil {
 		return nil, dialContextError(ctx, err)

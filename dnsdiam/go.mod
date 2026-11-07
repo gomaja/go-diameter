@@ -9,7 +9,7 @@ require (
 
 require (
 	github.com/gomaja/go-ctxsync v0.0.0-20261015170731-23c9cb67b19b // indirect
-	github.com/gomaja/go-sctp v0.0.0-20261104191826-88a7cc2a62fb // indirect
+	github.com/gomaja/go-sctp v0.0.0-20261107104944-3f408f50907e // indirect
 	golang.org/x/crypto v0.58.0 // indirect
 	golang.org/x/net v0.62.0 // indirect
 	golang.org/x/sys v0.49.0 // indirect

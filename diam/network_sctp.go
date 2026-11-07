@@ -38,8 +38,9 @@ const (
 )
 
 type sctpDialer struct {
-	LocalAddr *sctp.Addr
-	Timeout   time.Duration
+	LocalAddr          *sctp.Addr
+	Timeout            time.Duration
+	PartialReliability bool
 }
 
 // sctpSingleStreamDialer - SCTP Dialer for stream unaware applications.
@@ -124,6 +125,8 @@ func diameterSCTPConfig() *sctp.Config {
 		NoDelay:        new(true),
 		DelayedSACK:    &sctp.DelayedSACK{Frequency: 1},
 		DefaultSndInfo: &sctp.SndInfo{PPID: DiameterPPID},
+		// RFC 3758 §4.2 recommends disabling PR-SCTP by default.
+		PartialReliability: new(false),
 	}
 }
 
@@ -214,6 +217,7 @@ type SCTPConn struct {
 // sctpConn is left open for the caller to close. Settings fixed when the
 // association is set up, such as its stream counts (RFC 6458 §8.1.3), are
 // chosen by whoever opens sctpConn.
+// PR-SCTP negotiation is also left to whoever opened the association.
 func NewSCTPConn(sctpConn *sctp.Conn) (MultistreamConn, error) {
 	if sctpConn == nil {
 		return nil, errors.New("diam: nil SCTP connection")
@@ -233,7 +237,7 @@ func NewSCTPConn(sctpConn *sctp.Conn) (MultistreamConn, error) {
 // newSCTPConn wraps a connection opened from diameterSCTPConfig without
 // setting any option again. go-sctp applied the Config before the socket
 // connected or listened and failed the call if it could not, and an
-// accepted socket inherits the listening socket's settings (go-sctp
+// accepted socket inherits the listening socket's options (go-sctp
 // Listener documentation).
 func newSCTPConn(sctpConn *sctp.Conn) *SCTPConn {
 	msc := &SCTPConn{Conn: sctpConn, receiver: sctpConn, s: &streams{}, currStream: InvalidStreamID, writerStream: InvalidStreamID}

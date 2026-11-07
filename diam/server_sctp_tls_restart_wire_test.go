@@ -114,7 +114,7 @@ func TestBuiltInSCTPTLSRestartWireClient(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
 	defer cancel()
-	cfg := &sctp.Config{NoDelay: new(true), InitMsg: sctp.InitMsg{OutStreams: 16, MaxInStreams: 16}}
+	cfg := &sctp.Config{PartialReliability: new(true), NoDelay: new(true), InitMsg: sctp.InitMsg{OutStreams: 16, MaxInStreams: 16}}
 	raw, err := cfg.Dial(ctx, "sctp4", la, ra)
 	if err != nil {
 		t.Fatal(err)
