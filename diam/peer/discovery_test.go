@@ -560,7 +560,7 @@ func TestDiscoveryTLSConfigWithHookRefreshComparison(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !sameDiscoveryPeer(first, second) {
+	if !sameDiscoveryPeer(first, second, m.cfg.Dial != nil) {
 		t.Fatal("unchanged TLS config with hook requires replacement")
 	}
 	spec.Peer.Endpoints[0].TLSConfig = spec.Peer.Endpoints[0].TLSConfig.Clone()
@@ -568,7 +568,7 @@ func TestDiscoveryTLSConfigWithHookRefreshComparison(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if sameDiscoveryPeer(first, changed) {
+	if sameDiscoveryPeer(first, changed, m.cfg.Dial != nil) {
 		t.Fatal("new TLS policy reused old transport")
 	}
 }

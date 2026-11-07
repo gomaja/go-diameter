@@ -40,7 +40,7 @@ func TestMessageStreamSCTP(t *testing.T) {
 			}
 			acceptedc := make(chan accepted, 1)
 			go func() { c, err := l.Accept(); acceptedc <- accepted{c, err} }()
-			client, err := getMultistreamDialer("sctp", testutil.SCTPTimeout, nil).Dial("sctp", l.Addr().String())
+			client, err := getMultistreamDialer("sctp", testutil.SCTPTimeout, nil, false).Dial("sctp", l.Addr().String())
 			if err != nil {
 				t.Fatal(err)
 			}

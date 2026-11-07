@@ -23,6 +23,7 @@ analyze_on_failure=false
 hashes=(diam/server.go diam/accepted_generation.go diam/network_sctp.go diam/sm/sm.go diam/sm/accepted_watchdog.go)
 
 wire_scenario() {
+docker exec "$server" cat /proc/sys/net/sctp/prsctp_enable > "$out/prsctp_enable"
 watchdog=false
 if [[ $variant == watchdog ]]; then watchdog=true; fi
 docker exec -d "$server" sh -c '/wire -mode server -addr "$1" -watchdog="$2" >/tmp/server.log 2>&1 & server_pid=$!; printf "%s\n" "$server_pid" >/tmp/server.pid; wait "$server_pid"; printf "%s\n" "$?" >/tmp/server.exit' sh "$sip:3868" "$watchdog"

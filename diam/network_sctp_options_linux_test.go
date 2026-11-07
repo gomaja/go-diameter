@@ -55,7 +55,7 @@ func TestSCTPConnsCarryLatencyOptionsWithoutReapplying(t *testing.T) {
 		}
 		accepted <- c
 	}()
-	dialed, err := getMultistreamDialer("sctp", testutil.SCTPTimeout, nil).Dial("sctp", l.Addr().String())
+	dialed, err := getMultistreamDialer("sctp", testutil.SCTPTimeout, nil, false).Dial("sctp", l.Addr().String())
 	if err != nil {
 		t.Fatal(err)
 	}

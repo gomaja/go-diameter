@@ -43,7 +43,7 @@ func benchmarkDiamTransport(b *testing.B, network string) {
 	}()
 
 	// Use the same dialer the library uses internally
-	dialer := getMultistreamDialer(network, 0, nil)
+	dialer := getMultistreamDialer(network, 0, nil, false)
 	rwc, err := dialer.Dial(network, ln.Addr().String())
 	if err != nil {
 		b.Skipf("cannot dial %s: %v", network, err)

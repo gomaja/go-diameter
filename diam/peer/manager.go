@@ -87,6 +87,11 @@ type DialFunc func(context.Context, Endpoint) (net.Conn, error)
 type Endpoint struct {
 	Network, Address string
 	TLSConfig        *tls.Config
+	// SCTPPartialReliability offers PR-SCTP when dialing SCTP; ignored for TCP.
+	// The peer may decline without an error. See diam.Server.SCTPPartialReliability
+	// for the default, delivery implications, and access to PRSupported.
+	// When Config.Dial is set, the connection returned by that hook decides.
+	SCTPPartialReliability bool
 }
 type PeerConfig struct {
 	Host            datatype.DiameterIdentity

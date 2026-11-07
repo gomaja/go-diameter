@@ -105,22 +105,22 @@ type Dialer interface {
 	DialContext(ctx context.Context, network, address string) (net.Conn, error)
 }
 
-func getDialer(network string, timeout time.Duration, laddr net.Addr) Dialer {
+func getDialer(network string, timeout time.Duration, laddr net.Addr, partialReliability bool) Dialer {
 	switch network {
 	case "sctp", "sctp4", "sctp6":
 		la, _ := laddr.(*sctp.Addr)
-		return sctpSingleStreamDialer{LocalAddr: la, Timeout: timeout}
+		return sctpSingleStreamDialer{LocalAddr: la, Timeout: timeout, PartialReliability: partialReliability}
 	default:
 		return &net.Dialer{Timeout: timeout, LocalAddr: laddr}
 	}
 }
 
 // getMultistreamDialer returns Dailer with multistreaming support when appropriate for the network/protocol
-func getMultistreamDialer(network string, timeout time.Duration, laddr net.Addr) Dialer {
+func getMultistreamDialer(network string, timeout time.Duration, laddr net.Addr, partialReliability bool) Dialer {
 	switch network {
 	case "sctp", "sctp4", "sctp6":
 		la, _ := laddr.(*sctp.Addr)
-		return sctpDialer{LocalAddr: la, Timeout: timeout}
+		return sctpDialer{LocalAddr: la, Timeout: timeout, PartialReliability: partialReliability}
 	default:
 		dialer := &net.Dialer{Timeout: timeout, LocalAddr: laddr}
 		if laddr != nil && len(laddr.String()) > 0 &&
@@ -147,7 +147,9 @@ func (d sctpDialer) DialContext(ctx context.Context, network, address string) (n
 		ctx, cancel = context.WithTimeout(ctx, d.Timeout)
 		defer cancel()
 	}
-	conn, err := diameterSCTPConfig().Dial(ctx, network, d.LocalAddr, addr)
+	config := diameterSCTPConfig()
+	config.PartialReliability = &d.PartialReliability
+	conn, err := config.Dial(ctx, network, d.LocalAddr, addr)
 	if err != nil {
 		return nil, err
 	}
@@ -180,19 +182,23 @@ func resolveAddress(network, addr string) (net.Addr, error) {
 	}
 }
 
-func listenSCTP(network, address string) (*sctp.Listener, error) {
+func listenSCTP(network, address string, partialReliability bool) (*sctp.Listener, error) {
 	sctpAddr, err := sctp.ResolveAddr(network, address)
 	if err != nil {
 		return nil, err
 	}
-	return diameterSCTPListenConfig().Listen(network, sctpAddr)
+	config := diameterSCTPListenConfig()
+	config.PartialReliability = &partialReliability
+	return config.Listen(network, sctpAddr)
 }
 
-// Listen announces on the local network address
+// Listen announces on the local network address.
+// SCTP listeners never offer PR-SCTP when an association is set up; see
+// Server.SCTPPartialReliability to opt in and for restarts.
 func Listen(network, address string) (net.Listener, error) {
 	switch network {
 	case "sctp", "sctp4", "sctp6":
-		lis, err := listenSCTP(network, address)
+		lis, err := listenSCTP(network, address, false)
 		if err != nil {
 			return nil, err
 		}
@@ -202,11 +208,17 @@ func Listen(network, address string) (net.Listener, error) {
 	}
 }
 
-// MultistreamListen returns Listener with multistreaming support when appropriate for the network/protocol
+// MultistreamListen returns Listener with multistreaming support when appropriate for the network/protocol.
+// SCTP listeners never offer PR-SCTP when an association is set up; see
+// Server.SCTPPartialReliability to opt in and for restarts.
 func MultistreamListen(network, address string) (net.Listener, error) {
+	return multistreamListen(network, address, false)
+}
+
+func multistreamListen(network, address string, partialReliability bool) (net.Listener, error) {
 	switch network {
 	case "sctp", "sctp4", "sctp6":
-		lis, err := listenSCTP(network, address)
+		lis, err := listenSCTP(network, address, partialReliability)
 		if err != nil {
 			return nil, err
 		}

@@ -98,6 +98,11 @@ type Client struct {
 	InbandSecurityID            uint32      // Inband-Security-Id for CER: 0=omitted default, 1=TLS on an already secured connection (RFC 6733 §§5.3.1, 6.10)
 	TLSConfig                   *tls.Config // Optional TLS config used by DialTLS methods.
 
+	// SCTPPartialReliability offers PR-SCTP when dialing SCTP; ignored for TCP.
+	// The peer may decline without an error. See diam.Server.SCTPPartialReliability
+	// for the default, delivery implications, and access to PRSupported.
+	SCTPPartialReliability bool
+
 	// ReadTimeout is the maximum duration for reading a message from the
 	// peer. Zero means no read deadline.
 	ReadTimeout time.Duration
@@ -247,15 +252,16 @@ func (cli *Client) server(network, addr string, laddr net.Addr, activity *watchd
 		handler = activityHandler{StateMachine: cli.Handler, activity: activity}
 	}
 	return &diam.Server{
-		Network:      network,
-		Addr:         addr,
-		Handler:      handler,
-		Dict:         cli.Dict,
-		LocalAddr:    laddr,
-		TLSConfig:    cli.TLSConfig,
-		ReadTimeout:  cli.ReadTimeout,
-		WriteTimeout: cli.WriteTimeout,
-		Logger:       cli.Logger,
+		SCTPPartialReliability: cli.SCTPPartialReliability,
+		Network:                network,
+		Addr:                   addr,
+		Handler:                handler,
+		Dict:                   cli.Dict,
+		LocalAddr:              laddr,
+		TLSConfig:              cli.TLSConfig,
+		ReadTimeout:            cli.ReadTimeout,
+		WriteTimeout:           cli.WriteTimeout,
+		Logger:                 cli.Logger,
 	}
 }
 

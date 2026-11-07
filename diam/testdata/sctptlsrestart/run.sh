@@ -21,6 +21,7 @@ analyze_on_failure=true
 hashes=(diam/server.go diam/network_sctp.go diam/accepted_generation.go diam/server_sctp_tls_restart_wire_test.go)
 
 wire_scenario() {
+docker exec "$server" cat /proc/sys/net/sctp/prsctp_enable > "$out/prsctp_enable"
 docker exec -d -e SCTP_TLS_RESTART_SERVER_ADDR="$sip:5868" "$server" sh -c '/sctp-tls-restart.test -test.run "^TestBuiltInSCTPTLSRestartWireServer$" -test.v -test.timeout 20s >/tmp/server.log 2>&1 & pid=$!; echo "$pid" >/tmp/server.pid; wait "$pid"; echo "$?" >/tmp/server.exit'
 wire_wait_listener "$server" server 5868
 docker exec -d -e SCTP_TLS_RESTART_SERVER_ADDR="$sip:5868" -e SCTP_TLS_RESTART_CLIENT_ADDR="$cip:43869" -e SCTP_TLS_RESTART_PHASE=initial "$client" sh -c '/sctp-tls-restart.test -test.run "^TestBuiltInSCTPTLSRestartWireClient$" -test.v -test.timeout 20s >/tmp/initial.log 2>&1 & pid=$!; echo "$pid" >/tmp/initial.pid; wait "$pid"; echo "$?" >/tmp/initial.exit'

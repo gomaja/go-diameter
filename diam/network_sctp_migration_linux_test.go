@@ -19,8 +19,8 @@ func TestSCTPDialTimeout(t *testing.T) {
 		name   string
 		dialer Dialer
 	}{
-		{"multistream", getMultistreamDialer("sctp", 120*time.Millisecond, nil)},
-		{"single stream", getDialer("sctp", 120*time.Millisecond, nil)},
+		{"multistream", getMultistreamDialer("sctp", 120*time.Millisecond, nil, false)},
+		{"single stream", getDialer("sctp", 120*time.Millisecond, nil, false)},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			start := time.Now()
@@ -72,7 +72,7 @@ func TestResponseWriteStreamDeadline(t *testing.T) {
 			accepted <- peer
 		}
 	}()
-	client, err := getMultistreamDialer("sctp", testutil.SCTPTimeout, nil).Dial("sctp", listener.Addr().String())
+	client, err := getMultistreamDialer("sctp", testutil.SCTPTimeout, nil, false).Dial("sctp", listener.Addr().String())
 	if err != nil {
 		t.Fatal(err)
 	}

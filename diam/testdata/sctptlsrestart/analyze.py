@@ -1,6 +1,10 @@
 import csv,pathlib,re,runpy,sys
 out=pathlib.Path(sys.argv[1]).resolve()
 tshark=runpy.run_path(str(pathlib.Path(__file__).resolve().parents[3]/'scripts/sctp-wire/tshark.py'))['tshark']
+prsctp = runpy.run_path(str(pathlib.Path(__file__).resolve().parents[3] / 'scripts/sctp-wire/prsctp.py'))
+prsctp['analyze_default_off'](
+    out, 'client-wire.pcapng', tshark, ('5868',), '43869',
+    prsctp['read_prsctp_enable'](out))
 fields=['frame.number','frame.time_epoch','ip.src','sctp.chunk_type','sctp.srcport','sctp.dstport']
 rows=[]
 for role in ['client','server']:

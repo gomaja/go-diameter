@@ -23,6 +23,7 @@ analyze_on_failure=true
 hashes=(diam/server.go diam/accepted_generation.go diam/network_sctp.go diam/peer/manager.go diam/peer/actor.go diam/peer/session.go diam/peer/renewal.go diam/peer/watchdog.go diam/peer/send.go diam/peer/testdata/sctprestart/main.go go.mod go.sum)
 
 wire_scenario() {
+docker exec "$server" cat /proc/sys/net/sctp/prsctp_enable > "$out/prsctp_enable"
 watchdog=false
 if [[ $variant == watchdog ]]; then watchdog=true; fi
 request_timeout=12s
