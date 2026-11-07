@@ -1065,8 +1065,11 @@ type Server struct {
 	// net.sctp.prsctp_enable in either direction through SCTP_PR_SUPPORTED.
 	// The exception is a peer's restart of an accepted association (RFC 9260
 	// §5.2.2): Linux answers it from net.sctp.prsctp_enable, and the two ends
-	// can then disagree on PR-SCTP (see sctp.Listener). Setting the sysctl to
-	// the listener's value avoids that.
+	// can then disagree on PR-SCTP (see sctp.Listener). If the listener's value
+	// is off and the peer then abandons a message, Linux rejects its FORWARD TSN
+	// as an unrecognized chunk (RFC 9260 §3.2), no later message on that stream
+	// is delivered, and the SCTP transport reports no error. Setting the sysctl
+	// to the listener's value avoids that.
 	// Once negotiated, a peer can abandon messages (RFC 3758 §§3.4-3.6): a
 	// whole abandoned message never arrives and nothing reports it; a partly
 	// delivered one ends the connection with sctp.ErrMessageInterrupted.
