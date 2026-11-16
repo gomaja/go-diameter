@@ -4,7 +4,7 @@ go 1.26.0
 
 require (
 	github.com/gomaja/go-sctp v0.0.0-20261112061005-2d7d4d9cb936
-	golang.org/x/sys v0.49.0
+	golang.org/x/sys v0.50.0
 )
 
 require github.com/gomaja/go-ctxsync v0.0.0-20261015170731-23c9cb67b19b // indirect
